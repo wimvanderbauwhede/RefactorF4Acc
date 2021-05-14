@@ -440,10 +440,10 @@ subsitute_exprs orig_bindings lhs ast = let
 subsitute_expr :: Expr -> Expr -> State (Int,Map.Map Expr Expr,Map.Map Expr Expr,[(Expr,Expr)]) Expr
 subsitute_expr lhs exp = do
             let 
-                (vec_name, decomposeMap) = case lhs of
-                    Vec VO  (Scalar _ _ vname) -> (vname, False)
-                    Vec VT  (Scalar _ _ vname) -> (vname, False) -- only for noStencilRewrites
-                    Scalar _ _ sname -> (sname, True)                    
+                (vec_name, decomposeMap,dt) = case lhs of
+                    Vec VO  (Scalar _ dt vname) -> (vname, False,dt)
+                    Vec VT  (Scalar _ dt vname) -> (vname, False,dt) -- only for noStencilRewrites
+                    Scalar _ dt sname -> (sname, True,dt)                    
             (ct,orig_bindings,added_bindings,var_expr_pairs) <- get
             let ((ct',orig_bindings', added_bindings',var_expr_pairs'),exp') = case exp of
                       Scalar _ _ _ -> ((ct,orig_bindings,added_bindings,var_expr_pairs),exp)
@@ -460,7 +460,7 @@ subsitute_expr lhs exp = do
                       Map _ _ -> if decomposeMap 
                         then
                             let 
-                                var = Vec VT (Scalar VT DDC ("var_"++vec_name++"_"++(show ct))) 
+                                var = Vec VT (Scalar VT dt ("var_"++vec_name++"_"++(show ct))) 
                             in
                                 maybeAddBinding var exp (ct,orig_bindings, added_bindings, var_expr_pairs)
                         else
@@ -498,7 +498,7 @@ subsitute_expr lhs exp = do
                         in
                             maybeAddBinding var exp (ct,orig_bindings, added_bindings, var_expr_pairs)
                       _ -> let
-                              var = Vec VT (Scalar VT DDC ("vec_"++vec_name++"_"++(show ct)))
+                              var = Vec VT (Scalar VT dt ("vec_"++vec_name++"_"++(show ct)))
                            in
                              maybeAddBinding var exp (ct,orig_bindings, added_bindings, var_expr_pairs)
             put (ct',orig_bindings',added_bindings',var_expr_pairs')

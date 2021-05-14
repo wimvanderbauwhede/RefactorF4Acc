@@ -2,6 +2,15 @@
 
 ## 2021-05-14
 
+Trying to get TEST 10 to work with `noStencilRewrites = True` has led to additional arguments and declarations to get rid of.
+
+What we need to do is look at the stage AST: all Vec vars that occur both on LHS and RHS can become local scalars. From the remaining ones, those in LHS are Out, those in RHS are In, regardless of their VO/VI because these are for global main. I think a simple way to do this is:
+- split the tuples, [(,)] -> ([],[]) so unzip
+- get all vecs from LHS and RHS, we do this somewhere already
+- do the Data.List.intersect , these are local scalars
+- the difference Data.List.(\\) with LHS are Out
+
+
 Fortran code generation should only be correct for the final stage `DecomposeExpressions` but for both `noStencilRewrites = True` and `noStencilRewrites = False`
 
 * TEST 8 HANGS for noStencilRewrites = True on "Substitute vectors (recursive)" but passes with noStencilRewrites = False

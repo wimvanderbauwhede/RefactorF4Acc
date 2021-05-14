@@ -1,4 +1,4 @@
--- TEST 10
+-- TEST 2
 module ASTInstance ( ast
         , functionSignaturesList
         , stencilDefinitionsList
@@ -10,47 +10,43 @@ import TyTraCLAST
 
 ast :: TyTraCLAST
 ast = [
-       (Vec VS (SVec 3 (Scalar VDC DFloat "etan_s_0" )) , Stencil (SVec 3 (Scalar VDC DInt "s1")) (Vec VI (Scalar VDC DFloat "etan_0")))
-       ,( Vec VT (Scalar VDC DFloat "eta_0"), Map (Function "shapiro_map_16" []) (Vec VS (SVec 3(Scalar VDC DFloat "etan_s_0"))) )
-       ,( (Tuple [Vec VO (Scalar VDC DFloat "h_0"),Vec VO (Scalar VDC DFloat "u_0"),Vec VO (Scalar VDC DInt "wet_1")]), UnzipT ( Map (Function "update_map_24" []) (ZipT [Vec VI (Scalar VDC DInt "wet_0"),Vec VT (Scalar VDC DFloat "eta_0"),Vec VI (Scalar VDC DFloat "un_0")]) ) )
+       ( Vec VT (Scalar VDC DInt "v3_0"), Map (Function "f1"  [Scalar VI DInt "nm_0"]) (ZipT [Vec VI (Scalar VDC DInt "v1_0"),Vec VI (Scalar VDC DInt "v2_0")]) )
+       ,(Vec VS (SVec 3 (Scalar VDC DInt "v3_s_0" )) , Stencil (SVec 3 (Scalar VDC DInt "s1")) (Vec VT (Scalar VDC DInt "v3_0")))
+       ,( Vec VO (Scalar VDC DInt "v4_0"), Map (Function "f2" []) (Vec VS (SVec 3(Scalar VDC DInt "v3_s_0"))) )
         ]
 
 functionSignaturesList = [
-        ("shapiro_map_16",  [Tuple [],SVec 3 (Scalar VDC DFloat "etan_s_0"),Scalar VDC DFloat "eta_0"]),
-        ("update_map_24",  [Tuple [],Tuple [Scalar VDC DInt "wet_0",Scalar VDC DFloat "eta_0",Scalar VDC DFloat "un_0"],Tuple [Scalar VDC DFloat "h_0",Scalar VDC DFloat "u_0",Scalar VDC DInt "wet_1"]])
+        ("f1",  [Scalar VDC DInt "nm_0",Tuple [Scalar VDC DInt "v1_0",Scalar VDC DInt "v2_0"],Scalar VDC DInt "v3_0"]),
+        ("f2",  [Tuple [],SVec 3 (Scalar VDC DInt "v3_s_0"),Scalar VDC DInt "v4_0"])
     ]
 stencilDefinitionsList = [("s1" , [-1,0,1] )]
 
 mainArgDeclsList = [
-      ("etan_0" , MkFDecl "real"  (Just [500]) (Just In) ["etan_0"] )
-    , ("wet_0" , MkFDecl "integer"  (Just [500]) (Just In) ["wet_0"] )
-    , ("un_0" , MkFDecl "real"  (Just [500]) (Just In) ["un_0"] )
-    , ("u_0" , MkFDecl "real"  (Just [500]) (Just Out) ["u_0"] )
-    , ("h_0" , MkFDecl "real"  (Just [500]) (Just Out) ["h_0"] )
-    , ("wet_1" , MkFDecl "integer"  (Just [500]) (Just Out) ["wet_1"] )
+      ("nm_0" , MkFDecl "integer" Nothing (Just In) ["nm_0"] )
+    , ("v1_0" , MkFDecl "integer"  (Just [500]) (Just In) ["v1_0"] )
+    , ("v2_0" , MkFDecl "integer"  (Just [500]) (Just In) ["v2_0"] )
+    , ("v4_0" , MkFDecl "integer"  (Just [500]) (Just Out) ["v4_0"] )
   ]
 scalarisedArgsList = []
 origNamesList = []
 
 {-
-etan_0 :: Vec 500 Float
-wet_0 :: Vec 500 Int
-un_0 :: Vec 500 Float
+v1_0 :: Vec 500 Int
+v2_0 :: Vec 500 Int
+nm_0 :: Int
 
-h_0 :: Vec 500 Float
-u_0 :: Vec 500 Float
-wet_1 :: Vec 500 Int
+v4_0 :: Vec 500 Int
 
-update_map_24 :: (Int,Float,Float) -> (Float,Float,Int)
-shapiro_map_16 :: SVec 3 Float -> Float
+f2 :: SVec 3 Int -> Int
+f1 :: Int -> (Int,Int) -> Int
 
-main :: (Vec 500 Float,Vec 500 Int,Vec 500 Float) -> (Vec 500 Float,Vec 500 Float,Vec 500 Int)
-main (etan_0,wet_0,un_0) =
+main :: (Vec 500 Int,Vec 500 Int,Int) -> (Vec 500 Int)
+main (v1_0,v2_0,nm_0) =
   let
+    v3_0 =  map (f1 nm_0) (zipt (v1_0,v2_0))
     s1 = [-1,0,1]
-    etan_s_0 = stencil s1 etan_0
-    eta_0 =  map shapiro_map_16 etan_s_0
-    (h_0,u_0,wet_1) = unzipt $ map update_map_24 (zipt (wet_0,eta_0,un_0))
+    v3_s_0 = stencil s1 v3_0
+    v4_0 =  map f2 v3_s_0
   in
-    (h_0,u_0,wet_1)
+    v4_0
 -}

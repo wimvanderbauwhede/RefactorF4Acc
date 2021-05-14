@@ -220,7 +220,7 @@ generateNonSubDef functionSignatures t  =
             Map f_exp v_exp -> generateMap functionSignatures f_exp v_exp t
             UnzipT (Map f_exp v_exp) -> generateMap functionSignatures f_exp v_exp t
             Vec _ (Scalar {}) -> generateVecAssign lhs rhs
-            -- Elt idx vec@(Vec _ (Scalar {})) -> generateVecAssign lhs vec -- FIXME
+            Elt _ vec@(Vec _ (Scalar {})) -> generateVecAssign lhs vec -- FIXME
             Fold f_exp acc_exp v_exp -> generateFold functionSignatures f_exp acc_exp v_exp t
             _ -> error $ show t -- (show rhs, ["generateNonSubDef: TODO: "++(show t)])
             --TODO: unhandled case: 
@@ -770,13 +770,27 @@ generateStencilDef' s_exp stencilDefinitions =
 generateVecAssign lhs rhs = let
         Single rhs_vec_name = getName rhs
         Single lhs_vec_name = getName lhs
-        assign_str = "    "++lhs_vec_name++" = "++rhs_vec_name
-        lhs_vec_decl = mainArgDecls ! lhs_vec_name  -- risky, might be indirect!
-        rhs_vec_decl = lhs_vec_decl{intent=Nothing,names=[rhs_vec_name]}
+        -- WV 2021-05-14 added (idx) as all our functions should be on scalars (?)
+        -- This is wrong because what we need is stageArgDecls, not mainArgDecls!
+        -- We need to determine these from the stage AST!
+        assign_str = "    "
+            ++lhs_vec_name++( if isLocalScalar then "" else "(idx)")
+            ++" = "
+            ++rhs_vec_name++( if isLocalScalar' then "" else "(idx)")
+        -- WV 2021-05-14 if the LHS is not an arg, both LHS and RHS should be scalars I think
+        (rhs_vec_decl,isLocalScalar') 
+            | rhs_vec_name `Map.member` mainArgDecls = (mainArgDecls ! rhs_vec_name , False) -- risky, might be indirect! FIXME
+            | otherwise = (exprToFDecl $ (\(Vec _ s) -> s) rhs, True) -- A brave attempt
+        (lhs_vec_decl,isLocalScalar) 
+            | lhs_vec_name `Map.member` mainArgDecls = (mainArgDecls ! lhs_vec_name , False) -- risky, might be indirect! FIXME
+            | otherwise = (exprToFDecl $ (\(Vec _ s) -> s) lhs, True) -- A brave attempt
+            -- Vec VT (Scalar VT DFloat "vec_u_0_1")
+        -- rhs_vec_decl = lhs_vec_decl{intent=Nothing,names=[rhs_vec_name]}
+        rhs_vec_decl' = rhs_vec_decl{intent=Nothing}
         rhs_vec_decl_str =  show rhs_vec_decl
             -- (take (length lhs_vec_decl - length ", intent(out) :: " - length lhs_vec_name) lhs_vec_decl) ++ " :: "++rhs_vec_name
     in
-        (assign_str,[rhs_vec_decl_str],[rhs_vec_decl])
+        (assign_str,[rhs_vec_decl_str],[rhs_vec_decl'])
 
 generateMap functionSignatures f_exp v_exp t = -- (Single ov_name)
     let
@@ -797,7 +811,7 @@ generateMap functionSignatures f_exp v_exp t = -- (Single ov_name)
                                             then
                                                 -- ([ov_name''++"(idx)"],[getDeclFromExprByName ov_name'' lhs])
                                                 case lhs of
-                                                    Vec VT _ ->  ([ov_name''++"(idx)"],  [exprToFDecl lhs])
+                                                    Vec VT _ ->  ([ov_name''],  [exprToFDecl lhs])
                                                     _ -> ([ov_name''],[])
                                             else
                                                  ([ov_name''],[])
@@ -814,7 +828,7 @@ generateMap functionSignatures f_exp v_exp t = -- (Single ov_name)
                                                 then
                                                     -- ([ov_name''++"(idx)"],[getDeclFromExprByName ov_name'' lhs])
                                                     case lhs of
-                                                        Vec VT _ ->  ([ov_name''++"(idx)"],  [exprToFDecl lhs])
+                                                        Vec VT _ ->  ([ov_name''],  [exprToFDecl lhs])
                                                         _ -> ([ov_name''],[])
                                                 else
                                                     ([ov_name''],[])  
@@ -1143,7 +1157,10 @@ generateMainProgram functionSignatures ast_stages  =
                                     "subroutine stage_kernel_"++show ct++"("++mkArgList [ in_args, out_args]++")" -- used_acc_names, ,maybe_acc_arg
                                 ]
                                 -- ,(map ("    "++) $ nub $ (used_acc_decl_lines++arg_decl_lines++maybe_acc_arg_decl_str++uniqueGeneratedDeclLines))
-                                ,map ( ("    "++) . show ) $ arg_decls ++ uniqueGeneratedDecls'
+                                ,["--arg_decls"]
+                                ,map ( ("    "++) . show ) arg_decls 
+                                ,["--uniqueGeneratedDecls'"]
+                                ,map ( ("    "++) . show )  uniqueGeneratedDecls'
                                 ,[""]
                                 -- ,map ( ("!    "++) . show ) uniqueGeneratedDecls
                                 ,[

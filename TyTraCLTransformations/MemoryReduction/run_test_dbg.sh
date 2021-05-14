@@ -1,3 +1,3 @@
  memory_reduction.pl -t $1
- stack build 
- stack exec MemoryReduction-exe 
+ stack build --trace
+ stack exec --trace -- MemoryReduction-exe +RTS -xc
