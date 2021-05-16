@@ -35,7 +35,7 @@ Clearly, _Vec VI_ should never occur on the LHS.
 There are two subtasks here: 
 2.1 Find occurences of _Vec_ in the RHS expression of any tuple with a _Vec VO_ on the LHS
 2.2 Look up and substitute these _Vec_s with their RHS expression
-I think the easiest way is to use Generics: with `everywhere` we can update all nodes in place
+We use Generics: with `everywhere` we update all nodes in place
 -}
 
 -- Go trough all lines of the ast and do a recursive substitution on the lines with an output vector in the LHS
@@ -66,6 +66,7 @@ lhs_is_VO_or_VT_vec (lhs_vec,expr) = case lhs_vec of
 -- Substitute all of them in the given expression
 
 -- To do this recursively, we must test if there are still non_input_vecs, and if so, repeat substitute_vec until there are non left
+-- WV 2021-05-14
 -- TEST 8 hangs for noStencilRewrites, because the Vec VS vector is not substituted.
 -- Either that is OK and then vecs should not contain any Vec VS    
 -- Or it must be substituted and we must find out why it is not.
@@ -75,7 +76,7 @@ substitute_vec_rec ast expr_tup@(lhs_vec,expr) = let
             | noStencilRewrites = non_input_or_temp_vecs expr
             | otherwise = non_input_vecs expr
     in
-        if length vecs > 0 then 
+        if null vecs then 
             let
                 expr_tup' = substitute_vec ast expr_tup
             in
@@ -211,10 +212,10 @@ reduce_subtree expr = case expr of
 
 {-
 The AST is now reduced to a list of tuples where the first elt (LHS) is an output vector and the second element is an expression which only contains input vectors.     
-Now we should start applying the rewrite rules to reduce each of these expressions to a single Map.
+Now we apply the rewrite rules to reduce each of these expressions to a single Map.
 -}
 
--- 3. With this preparation I guess we are ready for the actual rewrites:
+-- 3. With this preparation we are ready for the actual rewrites:
 
 {-
 Rewrite rules
@@ -299,7 +300,9 @@ rewrite_ast_sub_expr expr =
             Elt i_expr (UnzipT (Map f_expr exprs)) -> return $ Map (Comp (PElt i_expr) f_expr) exprs
             _ -> return $ expr
 
-
+{-
+3b. fuse stencils and rewrite so stencils are applied to input vectors, not zips
+-}
 fuseStencils ast 
     | nmatches==0 = ast'
     | otherwise = fuseStencils ast'
@@ -408,7 +411,7 @@ Fortran from it.
 -}    
 
 {-
-4. First decompose the expressions. This is some kind of ANF/SSA style: every vector, stencil and function gets a name.
+4. First decompose the expressions. We rewrite in a variant of ANF: every vector, stencil and function gets a name.
 
 
 ( Vec VT (Scalar VDC DFloat "eta_2"), 
