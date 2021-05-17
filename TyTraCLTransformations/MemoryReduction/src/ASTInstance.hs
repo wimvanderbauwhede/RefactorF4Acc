@@ -1,4 +1,4 @@
--- TEST 13
+-- TEST 14
 module ASTInstance ( ast
         , functionSignaturesList
         , stencilDefinitionsList
@@ -10,32 +10,34 @@ import TyTraCLAST
 
 ast :: TyTraCLAST
 ast = [
-       ( Vec VO (Scalar VDC DFloat "out_0"), Map (Function "f" []) (Vec VI (Scalar VDC DFloat "in_0")) )
+        (Scalar VO DInt "acc_out_0", Fold (Function "f1" []) (Scalar VI DInt "acc_in_0") (Vec VI (Scalar VDC DInt "v_0")))
         ]
 
 functionSignaturesList = [
-        ("f",  [Tuple [],Scalar VDC DFloat "in_0",Scalar VDC DFloat "out_0"])
+        ("f1",  [Tuple [],Scalar VDC DInt "acc_in_0",Scalar VDC DInt "v_0",Scalar VDC DInt "acc_out_0"])
     ]
 stencilDefinitionsList = []
 
 mainArgDeclsList = [
-      ("in_0" , MkFDecl "real"  (Just [500]) (Just In) ["in_0"] )
-    , ("out_0" , MkFDecl "real"  (Just [500]) (Just Out) ["out_0"] )
+      ("acc_in_0" , MkFDecl "integer" Nothing (Just In) ["acc_in_0"] )
+    , ("v_0" , MkFDecl "integer"  (Just [500]) (Just In) ["v_0"] )
+    , ("acc_out_0" , MkFDecl "integer" Nothing (Just Out) ["acc_out_0"] )
   ]
 scalarisedArgsList = []
 origNamesList = []
 
 {-
-in_0 :: Vec 500 Float
+v_0 :: Vec 500 Int
+acc_in_0 :: Int
 
-out_0 :: Vec 500 Float
+acc_out_0 :: Int
 
-f :: Float -> Float
+f1 :: Int -> Int -> Int
 
-main :: (Vec 500 Float) -> (Vec 500 Float)
-main in_0 =
+main :: (Vec 500 Int,Int) -> (Int)
+main (v_0,acc_in_0) =
   let
-    out_0 =  map f in_0
+    acc_out_0 =  fold f1 acc_in_0 v_0
   in
-    out_0
+    acc_out_0
 -}

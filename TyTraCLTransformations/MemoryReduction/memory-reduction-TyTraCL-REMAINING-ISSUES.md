@@ -1,5 +1,10 @@
 # REMAINING ISSUES : Memory Reduction for Scientific Computing on GPUs
 
+## 2021-05-17
+
+Trivial tests for map and fold (13, 14, 15) also HANG on Substitute vectors (recursive), which is really silly.
+
+
 ## 2021-05-14
 
 Trying to get TEST 10 to work with `noStencilRewrites = True` has led to additional arguments and declarations to get rid of.

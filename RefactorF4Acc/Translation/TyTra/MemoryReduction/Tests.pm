@@ -337,8 +337,8 @@ elsif ($TEST==14) { # HANGS on Substitute vectors (recursive)
 }  
 
 elsif ($TEST==15) { # HANGS on Substitute vectors (recursive)
-# fold-stencil-map    
-# To test if the fold result is used correctly.
+# fold-map    
+# 
     $stref = mkAST(
         [
             mkFold('f1'=>[]=>[['acc',0,'']]=>[['v',0,'']],[['acc',1,'']]),
