@@ -2,28 +2,13 @@ package RefactorF4Acc::Translation::TyTra::MemoryReduction::Tests;
 use v5.10;
 use RefactorF4Acc::Config;
 use RefactorF4Acc::Utils;
-use RefactorF4Acc::Utils::Functional qw( zip );
-use RefactorF4Acc::Refactoring::Helpers qw( pass_wrapper_subs_in_module emit_f95_var_decl);
-use RefactorF4Acc::Refactoring::Fixes qw( remove_redundant_arguments_and_fix_intents );
 use RefactorF4Acc::Translation::TyTra::Common qw( 
-    _mkVarName    
     mkMap
     mkFold
     mkStencilDef
     mkStencilAppl
-    mkComment
-    addTypeDecl    
     mkAST
 );
-
-use RefactorF4Acc::Analysis::ArrayAccessPatterns qw( identify_array_accesses_in_exprs );
-use RefactorF4Acc::Translation::TyTraCL qw( 
-    emit_TyTraCL construct_TyTraCL_AST_Main_node 
-    generate_TyTraCL_stencils 
-    _add_TyTraCL_AST_entry
-    _emit_TyTraCL_FunctionSigs
-    __toTyTraCLType
-     );
 
 #
 #   (c) 2016 Wim Vanderbauwhede <wim@dcs.gla.ac.uk>
@@ -320,6 +305,53 @@ $stref = mkAST(
         ,$comment
 );
 }
+elsif ($TEST==13) { # HANGS on Substitute vectors (recursive)
+
+# A single map 
+# This test is used to generate the example code in the paper.
+$stref = mkAST(
+        [
+            mkMap( "f" => [] => [ ["in",0,''] ] => [ ['out',0,''] ]),
+      ],
+        {
+            'in' => ['real',[1,500], 'in'] ,
+            'out'=> ['real',[1,500], 'out'] ,
+        }
+        ,$comment
+);
+}
+elsif ($TEST==14) { # HANGS on Substitute vectors (recursive)
+# A single fold   
+# This test is used to generate the example code in the paper.
+    $stref = mkAST(
+        [
+            mkFold('f1'=>[]=>[['acc_in',0,'']]=>[['v',0,'']],[['acc_out',0,'']]),
+        ],
+        {
+        'v' =>[ 'integer', [1,500], 'in'],
+        'acc_in' =>[ 'integer',  'in'],
+        'acc_out' =>[ 'integer',  'out'],
+        }
+        ,$comment
+    );  
+}  
+
+elsif ($TEST==15) { # HANGS on Substitute vectors (recursive)
+# fold-stencil-map    
+# To test if the fold result is used correctly.
+    $stref = mkAST(
+        [
+            mkFold('f1'=>[]=>[['acc',0,'']]=>[['v',0,'']],[['acc',1,'']]),
+            mkMap('f2'=>[['acc',1,'']]=>[['v',0,'']],[['v',1,'']]),
+        ],
+        {
+        'v' =>[ 'integer', [1,500], 'inout'],
+        'acc' =>[ 'integer',  'in'],
+        }
+        ,$comment
+    );  
+}   
+
     return $stref;
 }    # END of memory_reduction_tests()
 

@@ -350,7 +350,7 @@ sub mkAST {
             }            
         }
         if ($node->{'NodeType'} eq 'Fold') {
-            my $as = $node->{'Rhs'}{'AccArgs'}{'Vars'};          
+            my $as = [@{$node->{'Rhs'}{'AccArgs'}{'Vars'}},@{$node->{'Lhs'}{'Vars'}}];
             
             for my $a_rec (@{$as}) {
                 (my $a, my $ct, my $s, my $ve) = @{$a_rec};
@@ -363,10 +363,10 @@ sub mkAST {
                     croak 'TROUBLE!';
                 }
             }            
-            # carp Dumper %accs;
+            # my $out_accs = $node->{'Lhs'}{'Vars'};
         }
     }
-
+            
     for my $f (@funcs) {
         for my $v (sort keys %vecs) {
             $stref = addTypeDecl($stref, $f, $v, $decls->{$v}[0], [$decls->{$v}[1]]);
@@ -384,18 +384,19 @@ sub mkAST {
     }
     
     for my $a (sort keys %accs) {    
-        $args->{$a} = $decls->{$a}[2];
+        $args->{$a} = $decls->{$a}[1];
     }
 
     for my $n (sort keys %nons) {        
         $args->{$n} = $decls->{$n}[-1];
     }
     
-    # WV 2021-05-13 I don;t understand why I wipe the record here.
+    # WV 2021-05-13 I don't understand why I wipe the record here.
     $stref->{'TyTraCL_AST'}             = {};
     $stref->{'TyTraCL_AST'}{'Comment'}    = $comment;
     $stref->{'TyTraCL_AST'}{'Lines'}    = $lines;
     $stref->{'TyTraCL_AST'}{'OrigArgs'} = $args;
+    # carp Dumper $stref->{'TyTraCL_AST'};
     $stref->{'TyTraCL_AST'}{'UniqueVarCounters'} = {%vecs, %accs};
 
     # $stref->{'TyTraCL_AST'}{'Main'} ={};

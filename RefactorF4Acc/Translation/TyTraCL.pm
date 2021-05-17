@@ -124,7 +124,7 @@ sub construct_TyTraCL_AST_Main_node {
     # Input args have Ctr==0 on the Rhs
     # Output args $arg have Ctr == $tytracl_ast->{'UniqueVarCounters'}{$arg}
     my $tytracl_ast = $stref->{'TyTraCL_AST'};
-
+# croak Dumper $tytracl_ast ;
     my $main_rec = {
         'NodeType'     => 'MainFunction',
         'InArgs'       => [],
