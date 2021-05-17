@@ -25,6 +25,9 @@ use RefactorF4Acc::Translation::TyTraCL qw(
     __toTyTraCLType
      );
 
+
+use RefactorF4Acc::Translation::TyTra::MemoryReduction::Tests qw( memory_reduction_tests );
+
 #
 #   (c) 2016 Wim Vanderbauwhede <wim@dcs.gla.ac.uk>
 #
@@ -55,8 +58,7 @@ use Exporter;
 sub pass_memory_reduction {
     (my $stref, my $module_name) = @_;
     
-    my $TEST =  exists $Config{'TEST'} ? $Config{'TEST'} : 0;
-    my $comment = $TEST ? "TEST $TEST" : $module_name;
+    my $comment =  $module_name;
     
     # WV: I think Selects and Inserts should be in Lines but I'm not sure
     $stref->{'EmitAST'}     = 'TyTraCL_AST';
@@ -72,7 +74,7 @@ sub pass_memory_reduction {
         'ASTEmitter'   => \&_add_TyTraCL_AST_entry
     };
 
-if ($TEST==0) { 
+if (not exists $Config{'TEST'}) { 
     $stref = pass_wrapper_subs_in_module(
         $stref, $module_name,
 
@@ -86,226 +88,9 @@ if ($TEST==0) {
             [\&identify_array_accesses_in_exprs],
         ]
     );
+} else {
+    $stref = memory_reduction_tests($stref);
 }
-elsif ($TEST==1) { 
- # 3 maps with 2 stencils in between.
-    $stref = mkAST(
-        [
-            mkMap('f1'=>[]=>[['v',0,'']]=>[['v',1,'']]),
-            mkStencilDef(1,[-1,0,1]),
-            mkStencilAppl(1,3,['v',1,'']=>['v',1,'s']),            
-            mkMap('f2'=>[]=>[['v',1,'s']]=>[['v',2,'']]),
-            mkStencilDef(2,[-1,0,1]),
-            mkStencilAppl(2,3,['v',2,'']=>['v',2,'s']),
-            mkMap('f3'=>[]=>[['v',2,'s']]=>[['v',3,'']]),            
-        ],
-        {'v' =>[ 'integer', [1,500], 'inout'] }
-        ,$comment
-    );            
-}
-elsif ($TEST==2) {      
-# two maps, one stencil, but two input vectors      
-    $stref = mkAST(
-        [
-            mkMap('f1'=>[['nm',0,'']]=>[['v1',0,''],['v2',0,'']]=>[['v3',0,'']]),
-            mkStencilDef(1,[-1,0,1]),
-            mkStencilAppl(1,3,['v3',0,'']=>['v3',0,'s']),
-            mkMap('f2'=>[]=>[['v3',0,'s']],[['v4',0,'']]),
-        ],
-        {
-            'nm' =>[ 'integer', 'in'],
-    'v1' =>[ 'integer', [1,500], 'in'],
-    'v2' =>[ 'integer', [1,500], 'in'],
-    'v3' =>[ 'integer', [1,500], 'local'],
-    'v4' =>[ 'integer', [1,500], 'out']   
-}
-        ,$comment
-    );  
-}
-elsif ($TEST==3) {
-# fold-stencil-map    
-    $stref = mkAST(
-        [
-            mkFold('f1'=>[]=>[['acc',0,'']]=>[['v',0,'']],[['acc',1,'']]),
-            mkStencilDef(1,[-1,0,1]),
-            mkStencilAppl(1,3,['v',0,'']=>['v',0,'s']),
-            mkMap('f2'=>[['acc',1,'']]=>[['v',0,'s']],[['v',1,'']]),
-        ],
-        {
-        'v' =>[ 'integer', [1,500], 'inout'],
-        'acc' =>[ 'integer',  'in'],
-        }
-        ,$comment
-    );  
-}    
-elsif ($TEST==4) {
-# stencil-fold-map    
-    $stref = mkAST(
-        [
-            
-            mkStencilDef(1,[-1,0,1]),
-            mkStencilAppl(1,3,['v',0,'']=>['v',0,'s']),
-            mkFold('f1'=>[]=>[['acc',0,'']]=>[['v',0,'s']],[['acc',1,'']]),
-            mkMap('f2'=>[['acc',1,'']]=>[['v',0,'s']],[['v',1,'']]),
-        ],
-        {
-        'v' =>[ 'integer', [1,500], 'inout'],
-        'acc' =>[ 'integer',  'in'],
-        }
-        ,$comment
-    );  
-}  
-elsif ($TEST==5) {
-# stencil-map-fold-map    
-    $stref = mkAST(
-        [            
-            mkStencilDef(1,[-1,0,1]),
-            mkStencilAppl(1,3,['v',0,'']=>['v',0,'s']),
-            mkMap('f1'=>[]=>[['v',0,'s']],[['v',1,'']]),
-            mkFold('f2'=>[]=>[['acc',0,'']]=>[['v',1,'']],[['acc',1,'']]),
-            mkMap('f3'=>[['acc',1,'']]=>[['v',1,'']],[['v',2,'']]),
-        ],
-        {
-        'v' =>[ 'integer', [1,500], 'inout'],
-        'acc' =>[ 'integer',  'in'],
-        }
-        ,$comment
-    );  
-}  
-elsif ($TEST==6) {
-# stencil-fold-map-stencil-map-fold-map    
-    $stref = mkAST(
-        [            
-            mkStencilDef(1,[-1,0,1]),
-            mkStencilAppl(1,3,['v',0,'']=>['v',0,'s']),
-            mkFold('f0'=>[['t1',0,''],['t2',0,'']]=>[['acc1',0,'']]=>[['v',0,'']]=>[['acc1',1,'']]),
-            mkMap('f1'=>[['acc1',1,'']]=>[['v',0,'s']],[['v',1,'']]),
-            # stencil
-            mkStencilDef(2,[-1,0,1]),
-            mkStencilAppl(2,3,['v',1,'']=>['v',1,'s']),
-            # map
-            mkMap('f4'=>[]=>[['v',1,'s']],[['v',2,'']]),
-            mkFold('f2'=>[]=>[['acc3',0,'']]=>[['v',2,'']],[['acc3',1,'']]),
-            mkMap('f3'=>[['acc3',1,'']]=>[['v',2,'']],[['v',3,'']]),
-        ],
-        {
-        'v' =>[ 'integer', [1,500], 'inout'],
-        't1' =>[ 'integer',  'in'],
-        't2' =>[ 'integer',  'in'],
-        'acc1' =>[ 'integer',  'in'],
-        'acc3' =>[ 'integer',  'in'],
-        }
-        ,$comment
-    );  
-} 
-elsif ($TEST==7) {
- # map map map stencil map stencil map
-    $stref = mkAST(
-        [
-            mkMap('f1a'=>[]=>[['va',0,''],['vc',0,'']]=>[['va',1,'']]),
-            mkMap('f1b'=>[]=>[['vb',0,'']]=>[['vb',1,'']]),
-            mkMap('f1c' =>[]=>[['va',1,''],['vb',1,'']]=>[['v',0,'']]),
-            mkStencilDef(1,[-1,0,1]),
-            mkStencilAppl(1,3,['v',0,'']=>['v',1,'s']),
-            mkMap('f2'=>[]=>[['v',1,'s']]=>[['v',2,'']]),
-            mkStencilDef(2,[-1,0,1]),
-            mkStencilAppl(2,3,['v',2,'']=>['v',2,'s']),
-            mkMap('f3'=>[]=>[['v',2,'s']]=>[['v',3,'']]),            
-        ],
-        {
-            'va' =>[ 'real', [1,500], 'in'] ,
-            'vc' =>[ 'real', [1,500], 'in'] ,
-            'vb' =>[ 'real', [1,500], 'in'] ,
-            'vab' =>[ 'real', [1,500], 'local'] ,
-            'v' =>[ 'real', [1,500], 'out'] ,
-            }
-        ,$comment
-    );            
-}
-elsif ($TEST==8) {
-    # stencil map map 
-$stref = mkAST(
-        [
-            mkStencilDef(1,[-1,0,1]),
-            mkStencilAppl(1,3,['etan',0,'']=>['etan',0,'s']),
-            mkMap( "shapiro_map_16" => [] => [ ["wet",0,''],["etan",0,'s']] => [ ['eta',0,''] ]),
-            mkMap ( "update_map_24" => [] => [ ["eta",0,''],["un",0,'']  ] => [ ["h",0,''],["u",0,''],["wet",1,'']] )
-      ],
-        {
-            'wet' => ['int',[1,500], 'inout'] ,
-            'etan' => ['real',[1,500], 'in'] ,
-            'eta'=> ['real',[1,500], 'local'] ,
-            'un'=> ['real',[1,500], 'in'] ,
-            'u'=> ['real',[1,500], 'out'] ,
-            'h'=> ['real',[1,500], 'out'] ,
-        }
-        ,$comment
-);
-}
-elsif ($TEST==9) {
-    # iterative stencil-map 
-$stref = mkAST(
-        [
-mkStencilDef(1,[-1,0,1]),
-mkStencilAppl(1,3,['p','0',''],['p','1','s']),
-mkMap('sor',[],[['p','1','s']],[['p','1','']]),
-mkStencilAppl(1,3,['p','1',''],['p','2','s']),
-mkMap('sor',[],[['p','2','s']],[['p','2','']]),
-mkStencilAppl(1,3,['p','2',''],['p','3','s']),
-mkMap('sor',[],[['p','3','s']],[['p','3','']]),
-mkStencilAppl(1,3,['p','3',''],['p','4','s']),
-mkMap('sor',[],[['p','4','s']],[['p','4','']]),
-      ],
-        {
-            'p' => ['real',[1,500], 'inout'] ,
-        }
-        ,$comment
-);
-}
-elsif ($TEST==10) {
-    # like TEST 8 but no zip on the stencil
-    # stencil map map 
-$stref = mkAST(
-        [
-            mkStencilDef(1,[-1,0,1]),
-            mkStencilAppl(1,3,['etan',0,'']=>['etan',0,'s']),
-            mkMap( "shapiro_map_16" => [] => [ ["etan",0,'s']] => [ ['eta',0,''] ]),
-            mkMap ( "update_map_24" => [] => [ ["wet",0,''],["eta",0,''],["un",0,'']  ] => [ ["h",0,''],["u",0,''],["wet",1,'']] )
-      ],
-        {
-            'wet' => ['int',[1,500], 'inout'] ,
-            'etan' => ['real',[1,500], 'in'] ,
-            'eta'=> ['real',[1,500], 'local'] ,
-            'un'=> ['real',[1,500], 'in'] ,
-            'u'=> ['real',[1,500], 'out'] ,
-            'h'=> ['real',[1,500], 'out'] ,
-        }
-        ,$comment
-);
-}
-elsif ($TEST==11) {
-    # like TEST 10 but no tuple outputs
-    # stencil map map 
-$stref = mkAST(
-        [
-            mkStencilDef(1,[-1,0,1]),
-            mkStencilAppl(1,3,['etan',0,'']=>['etan',0,'s']),
-            mkMap( "shapiro_map_16" => [] => [ ["etan",0,'s']] => [ ['eta',0,''] ]),
-            mkMap ( "update_map_24" => [] => [ ["wet",0,''],["eta",0,''],["un",0,'']  ] => [ ["u",0,''],["wet",1,'']] )
-      ],
-      #["h",0,''],
-        {
-            'wet' => ['int',[1,500], 'inout'] ,
-            'etan' => ['real',[1,500], 'in'] ,
-            'eta'=> ['real',[1,500], 'local'] ,
-            'un'=> ['real',[1,500], 'in'] ,
-            'u'=> ['real',[1,500], 'out'] ,
-            # 'h'=> ['real',[1,500], 'out'] ,
-        }
-        ,$comment
-);
-}
-
 
     $stref = construct_TyTraCL_AST_Main_node($stref);
 
