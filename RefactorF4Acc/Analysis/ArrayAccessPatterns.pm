@@ -1707,9 +1707,18 @@ sub _get_loop_iters_from_global_id { my ($stref,$f) = @_;
 			if ($info->{'Lhs'}{'ArrayOrScalar'} eq 'Scalar') { # Only then we check the RHS
 					$state = _add_deps_from_RHS($state,$info);			
 			} else {
-				# Check if the LHS uses any of the vars in Deps
+				# Check if the LHS uses any of the vars in Deps, if so it is a Loop Iter
+				# Factor out!
+				my $idx_vars = $info->{'Lhs'}{'IndexVars'}{'List'};
+				for my $var ( @{$idx_vars} ) {
+					if (exists $state->{'Deps'}{ $var }) {
+						$state->{'LoopIters'}{$var}={'Range' => [0,0,0]};
+					}
+				}
+
 			}
 			# Check if the RHS uses any of the vars in Deps in array accesses
+			$state = _find_array_access_in_ast($state, $info->{'Rhs'}{'ExpressionAST'});
 		}
 		return ([[$line,$info]],$state)
 	};
@@ -1722,7 +1731,7 @@ sub _get_loop_iters_from_global_id { my ($stref,$f) = @_;
 
 
 # When we find an iterator access in an array we must check in which loop this array is being accessed
-sub _find_loop_iters_in_array_idx_expr { (my $stref, my $f, my $block_id, my $ast, my $state, my $rw)=@_;
+sub _find_loop_iters_in_array_idx_expr { (my $ast, my $state,)=@_;
 
 	my @args = ();
 	if ($ast->[2][0] == 27) {
@@ -1747,17 +1756,17 @@ sub _find_loop_iters_in_array_idx_expr { (my $stref, my $f, my $block_id, my $as
 } # END of _find_loop_iters_in_array_idx_expr
 
 
-sub _find_array_access_in_ast { (my $stref, my $f,  my $block_id, my $state, my $ast)=@_;
+sub _find_array_access_in_ast { ( my $state, my $ast)=@_;
     if (ref($ast) eq 'ARRAY') {
 		for my  $idx (0 .. scalar @{$ast}-1) {
 			my $entry = $ast->[$idx];
 
 			if (ref($entry) eq 'ARRAY') {
-				(my $entry, $state) = _find_array_access_in_ast($stref,$f, $block_id, $state,$entry);
+				(my $entry, $state) = _find_array_access_in_ast($state,$entry);
 				$ast->[$idx] = $entry;
 			} else {
 				if ($idx==0 and (($entry & 0xFF)==10)) { #$entry eq '@'					
-					$state = _find_loop_iters_in_array_idx_expr($stref,$f,$block_id,$ast, $state);					
+					$state = _find_loop_iters_in_array_idx_expr($ast, $state);					
 				} 
 			}
 		}

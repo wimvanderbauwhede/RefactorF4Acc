@@ -1801,7 +1801,7 @@ sub _parse_subroutine_and_function_calls {
 #@ SubroutineCall => 
 #@     Name => $name
 #@     ExpressionAST => $ast
-#@     Args => $call_arg_expr_str
+#@     Args => $expr_args
 #@ 	   IsExternal => $bool
 #@ 	   ArgMap => {$sig_arg => $expr_args } # A map from the sig arg to the call arg expr string (added in Analysis)
 #@ ExprVars => $expr_other_vars     
