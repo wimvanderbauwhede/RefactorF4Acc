@@ -305,7 +305,7 @@ $stref = mkAST(
         ,$comment
 );
 }
-elsif ($TEST==13) { # HANGS on Substitute vectors (recursive)
+elsif ($TEST==13) { 
 
 # A single map 
 # This test is used to generate the example code in the paper.
@@ -320,7 +320,7 @@ $stref = mkAST(
         ,$comment
 );
 }
-elsif ($TEST==14) { # HANGS on Substitute vectors (recursive)
+elsif ($TEST==14) { 
 # A single fold   
 # This test is used to generate the example code in the paper.
     $stref = mkAST(
@@ -351,6 +351,24 @@ elsif ($TEST==15) { # HANGS on Substitute vectors (recursive)
         ,$comment
     );  
 }   
+
+elsif ($TEST==16) { 
+
+# A single map 
+# This test is used to generate the example code in the paper.
+$stref = mkAST(
+        [
+            mkMap( "f" => [["s_nm",0,''],["v_nm",0,'']] => [ ["v_in",0,''] ] => [ ['v_out',0,''] ]),
+      ],
+        {
+            'v_in' => ['real',[1,500], 'in'] ,
+            'v_nm' => ['real',[1,10], 'in'] ,
+            's_nm' => ['integer', 'in'] ,
+            'v_out'=> ['real',[1,500], 'out'] ,
+        }
+        ,$comment
+);
+}
 
     return $stref;
 }    # END of memory_reduction_tests()

@@ -934,6 +934,8 @@ sub _create_TyTraCL_Haskell_signatures { (my $stref) = @_;
         croak unless $fname eq $f;
         # For every argument tuple, i.e. Non-{Map,Fold} [,Acc], {Map,Fold}, Out
         my $typed_arg_tups=[];
+        my $args_types = {%{$stref->{'TyTraCL_AST'}{'Main'}{'InArgsTypes'}},%{$stref->{'TyTraCL_AST'}{'Main'}{'OutArgsTypes'}}};
+        
         for my $idx (1 .. scalar @{$ftypedecl} - 1) {
             my $typetup = $ftypedecl->[$idx] ;#[ [], [ [ 'Int' ] ], [ [ 'Int' ] ], [ [ 'Int' ] ] ],
             my $argtup = $fsig->[$idx-1]; # [ [], ['v_s'],[ 'v'] ]
@@ -941,10 +943,12 @@ sub _create_TyTraCL_Haskell_signatures { (my $stref) = @_;
             if (scalar @{$typetup}) {
                 for my $type (@{$typetup}) {
                     my $arg = shift @{$argtup};
-                    if ($type->[0] ne 'SVec') { # It's a scalar 
-                        push @{$typed_arg_tup}, 'Scalar VDC D'.$type->[0].' "'.$arg.'"';
+                    # carp Dumper $args_types->{$arg};
+                    my $arg_type = $args_types->{$arg};
+                    if ($arg_type->[0] ne 'SVec') { # It's a scalar FIXME: This information is not there!
+                        push @{$typed_arg_tup}, 'Scalar VDC D'.$arg_type->[0].' "'.$arg.'"';
                     } else {
-                        push @{$typed_arg_tup}, 'SVec '.$type->[1].' (Scalar VDC D'.$type->[2].' "'.$arg.'")';
+                        push @{$typed_arg_tup}, 'SVec '.$arg_type->[1].' (Scalar VDC D'.$arg_type->[2].' "'.$arg.'")';
                     }                    
                 }
             } 

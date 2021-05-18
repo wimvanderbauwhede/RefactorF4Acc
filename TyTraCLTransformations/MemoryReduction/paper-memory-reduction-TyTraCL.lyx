@@ -1092,7 +1092,7 @@ status open
 
 \begin_layout Plain Layout
 
-type Name = String
+    type Name = String
 \end_layout
 
 \begin_layout Plain Layout
@@ -1136,7 +1136,7 @@ type Name = String
 
 \begin_layout Plain Layout
 
-                        | Vec VE Name
+                        | Vec VE Expr
 \end_layout
 
 \begin_layout Plain Layout
@@ -1150,7 +1150,7 @@ type Name = String
 
 \begin_layout Plain Layout
 
-                        | SVec Int Name -- Stencil vector
+                        | SVec Int Expr -- Stencil vector
 \end_layout
 
 \begin_layout Plain Layout
@@ -1191,7 +1191,8 @@ type Name = String
 
 \begin_layout Plain Layout
 
-                        | Id
+                        | Id Name [Expr] -- Id is treated as a named function
+ for code generation
 \end_layout
 
 \begin_layout Plain Layout
@@ -1222,6 +1223,48 @@ type Name = String
 \begin_layout Plain Layout
 
                             deriving (Show, Typeable, Data, Eq)
+\end_layout
+
+\begin_layout Plain Layout
+
+\end_layout
+
+\begin_layout Plain Layout
+
+\end_layout
+
+\begin_layout Plain Layout
+
+	data FDecl = MkFDecl {
+\end_layout
+
+\begin_layout Plain Layout
+
+	  ftype :: String,  
+\end_layout
+
+\begin_layout Plain Layout
+
+	  dim :: Maybe [Int],
+\end_layout
+
+\begin_layout Plain Layout
+
+	  intent :: Maybe FIntent,
+\end_layout
+
+\begin_layout Plain Layout
+
+	  names :: [String] 
+\end_layout
+
+\begin_layout Plain Layout
+
+    } 
+\end_layout
+
+\begin_layout Plain Layout
+
 \begin_inset Caption Standard
 
 \begin_layout Plain Layout
@@ -1298,14 +1341,14 @@ Function
 
 \begin_layout Standard
 \begin_inset listings
-lstparams "mathescape=true,escapeinside={~~},language=Haskell"
+lstparams "language=Haskell,escapeinside={||},mathescape=true"
 inline false
 status open
 
 \begin_layout Plain Layout
 
-v_out = map (f x_1 ..
- x_m) v_in
+	v|$_{out}$| = map (f x|$_1$| ..
+ x|$_m$|) v|$_{in}$|
 \end_layout
 
 \end_inset
@@ -1325,7 +1368,7 @@ status open
 
 \begin_layout Plain Layout
 
-(Vec VO 
+	(Vec VO 
 \begin_inset Quotes eld
 \end_inset
 
@@ -1341,7 +1384,7 @@ f
 \begin_inset Quotes erd
 \end_inset
 
- [xe_1,...,xe_m]) (Vec VI 
+ [xe~$_1$~,...,xe~$_m$~]) (Vec VI 
 \begin_inset Quotes eld
 \end_inset
 
@@ -1407,12 +1450,42 @@ status open
 
 \begin_layout Plain Layout
 
-fold g acc (map f v) = fold (g `fcomp` f) acc v
+	fold g acc (map f v) = fold (g `fcomp` f) acc v
 \end_layout
 
 \end_inset
 
 
+\end_layout
+
+\begin_layout Standard
+The data type FDecl is used to store the full type declaration information
+ for the variables in the AST.
+ This is used for code generation.
+\end_layout
+
+\begin_layout Subsection
+Argument type declarations
+\end_layout
+
+\begin_layout Standard
+The Vector and Scalar types in the TyTraCL AST of Listing 
+\begin_inset CommandInset ref
+LatexCommand ref
+reference "lis:TyTraCL-AST-data"
+plural "false"
+caps "false"
+noprefix "false"
+
+\end_inset
+
+ do not contain information about their type or size.
+ This information is stored in a separate type called FDecl
+\end_layout
+
+\begin_layout Standard
+data FDecl = MkFDecl { ftype :: String, dim :: Maybe [Int], intent :: Maybe
+ FIntent, names :: [String] } 
 \end_layout
 
 \begin_layout Subsection
@@ -3860,6 +3933,188 @@ We now discuss the code generation for each of the TyTraCL primitives.
 \end_layout
 
 \begin_layout Subsection
+Map
+\end_layout
+
+\begin_layout Standard
+We start with Map and Fold as they are the fundamental higher order functions
+ in TyTraCL.
+ 
+\end_layout
+
+\begin_layout Standard
+\begin_inset listings
+lstparams "mathescape=true,escapeinside={~~},language=Haskell"
+inline false
+status open
+
+\begin_layout Plain Layout
+
+(Vec VO DFloat "out_1",
+\end_layout
+
+\begin_layout Plain Layout
+
+	Map (Function "f" ...) Vec VI DFloat "in_1"
+\end_layout
+
+\begin_layout Plain Layout
+
+) 
+\end_layout
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+\begin_inset listings
+lstparams "language=Fortran"
+inline false
+status open
+
+\begin_layout Plain Layout
+
+program main
+\end_layout
+
+\begin_layout Plain Layout
+
+\end_layout
+
+\begin_layout Plain Layout
+
+do global_id=1,500
+\end_layout
+
+\begin_layout Plain Layout
+
+  call stage_kernel_1(in_0, out_0)
+\end_layout
+
+\begin_layout Plain Layout
+
+end do
+\end_layout
+
+\begin_layout Plain Layout
+
+\end_layout
+
+\begin_layout Plain Layout
+
+end program main  
+\end_layout
+
+\begin_layout Plain Layout
+
+\end_layout
+
+\begin_layout Plain Layout
+
+subroutine stage_kernel_1(in_0, out_0)
+\end_layout
+
+\begin_layout Plain Layout
+
+    real, dimension(1:500), intent(In) :: in_0
+\end_layout
+
+\begin_layout Plain Layout
+
+    real, dimension(1:500), intent(Out) :: out_0
+\end_layout
+
+\begin_layout Plain Layout
+
+\end_layout
+
+\begin_layout Plain Layout
+
+    integer :: idx
+\end_layout
+
+\begin_layout Plain Layout
+
+    call get_global_id(idx)
+\end_layout
+
+\begin_layout Plain Layout
+
+    call f(in_0(idx), out_0(idx))
+\end_layout
+
+\begin_layout Plain Layout
+
+\end_layout
+
+\begin_layout Plain Layout
+
+\end_layout
+
+\begin_layout Plain Layout
+
+end subroutine stage_kernel_1
+\end_layout
+
+\begin_layout Plain Layout
+
+ 
+\end_layout
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Subsection
+Fold
+\end_layout
+
+\begin_layout Standard
+\begin_inset listings
+lstparams "mathescape=true,escapeinside={~~},language=Haskell"
+inline false
+status open
+
+\begin_layout Plain Layout
+
+(Scalar ??? DFloat "out_1",
+\end_layout
+
+\begin_layout Plain Layout
+
+	Fold (Function "f" ...) ???ACC??? Vec VI DFloat "in_1"
+\end_layout
+
+\begin_layout Plain Layout
+
+) 
+\end_layout
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+\begin_inset listings
+lstparams "language=Fortran"
+inline false
+status open
+
+\begin_layout Plain Layout
+
+TODO
+\end_layout
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Subsection
 SVec encoding
 \begin_inset CommandInset label
 LatexCommand label
@@ -4294,98 +4549,6 @@ subroutine f_comp(...)
 \begin_layout Plain Layout
 
 end subroutine f_comp
-\end_layout
-
-\end_inset
-
-
-\end_layout
-
-\begin_layout Subsection
-Map
-\end_layout
-
-\begin_layout Standard
-\begin_inset listings
-lstparams "mathescape=true,escapeinside={~~},language=Haskell"
-inline false
-status open
-
-\begin_layout Plain Layout
-
-(Vec VO DFloat "out_1",
-\end_layout
-
-\begin_layout Plain Layout
-
-	Map (Function "f" ...) Vec VI DFloat "in_1"
-\end_layout
-
-\begin_layout Plain Layout
-
-) 
-\end_layout
-
-\end_inset
-
-
-\end_layout
-
-\begin_layout Standard
-\begin_inset listings
-lstparams "language=Fortran"
-inline false
-status open
-
-\begin_layout Plain Layout
-
-TODO 
-\end_layout
-
-\end_inset
-
-
-\end_layout
-
-\begin_layout Subsection
-Fold
-\end_layout
-
-\begin_layout Standard
-\begin_inset listings
-lstparams "mathescape=true,escapeinside={~~},language=Haskell"
-inline false
-status open
-
-\begin_layout Plain Layout
-
-(Scalar ??? DFloat "out_1",
-\end_layout
-
-\begin_layout Plain Layout
-
-	Fold (Function "f" ...) ???ACC??? Vec VI DFloat "in_1"
-\end_layout
-
-\begin_layout Plain Layout
-
-) 
-\end_layout
-
-\end_inset
-
-
-\end_layout
-
-\begin_layout Standard
-\begin_inset listings
-lstparams "language=Fortran"
-inline false
-status open
-
-\begin_layout Plain Layout
-
-TODO
 \end_layout
 
 \end_inset

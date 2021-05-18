@@ -76,7 +76,7 @@ substitute_vec_rec ast expr_tup@(lhs_vec,expr) = let
             | noStencilRewrites = non_input_or_temp_vecs expr
             | otherwise = non_input_vecs expr
     in
-        if null vecs then 
+        if not $ null vecs then 
             let
                 expr_tup' = substitute_vec ast expr_tup
             in

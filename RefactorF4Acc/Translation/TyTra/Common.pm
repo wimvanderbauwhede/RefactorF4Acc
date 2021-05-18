@@ -321,13 +321,14 @@ sub mkAST {
     for my $node (@{$lines}) {
         
         push @funcs, $node->{'FunctionName'};
+
         if (   $node->{'NodeType'} eq 'Map'
             or $node->{'NodeType'} eq 'Fold')
         {
             
             my $vs = $node->{'Rhs'}{$node->{'NodeType'}.'Args'}{'Vars'};
             if ($node->{'NodeType'} eq 'Map') {
-                $vs = [@{$vs}, @{$node->{'Lhs'}{'Vars'}}]
+                $vs = [@{$vs}, @{$node->{'Lhs'}{'Vars'}}];
             }
             for my $v_rec (@{$vs}) {
                 (my $v, my $ct, my $s, my $ve) = @{$v_rec};
@@ -372,16 +373,17 @@ sub mkAST {
             $stref = addTypeDecl($stref, $f, $v, $decls->{$v}[0], [$decls->{$v}[1]]);
         }
         for my $a (sort keys %accs) {
-            $stref = addTypeDecl($stref, $f, $a, $decls->{$a}[0], []);
+            $stref = addTypeDecl($stref, $f, $a, $decls->{$a}[0], scalar @{$decls->{$a}} == 3 ? [$decls->{$a}[1]] : []);
         }
         for my $a (sort keys %nons) {
-            $stref = addTypeDecl($stref, $f, $a, $decls->{$a}[0], []);
+            $stref = addTypeDecl($stref, $f, $a, $decls->{$a}[0], scalar @{$decls->{$a}} == 3 ? [$decls->{$a}[1]] : []);
         }
     }
     my $args = {};
     for my $v (sort keys %vecs) {
         $args->{$v} = $decls->{$v}[2];
     }
+        # croak Dumper %vecs, $args, $decls;
     
     for my $a (sort keys %accs) {    
         $args->{$a} = $decls->{$a}[1];
@@ -389,7 +391,9 @@ sub mkAST {
 
     for my $n (sort keys %nons) {        
         $args->{$n} = $decls->{$n}[-1];
+          
     }
+  
     
     # WV 2021-05-13 I don't understand why I wipe the record here.
     $stref->{'TyTraCL_AST'}             = {};

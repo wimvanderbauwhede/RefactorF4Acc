@@ -390,6 +390,7 @@ sub __toTyTraCLType {
     }
     else {                                                          # Vector
         my @ranges = ();
+        # carp Dumper $array_dims;
         for my $array_dim (@{$array_dims}) {
             push @ranges, '(' . $array_dim->[1] . '- ' . $array_dim->[0] . '+1)';
         }
@@ -1233,10 +1234,10 @@ sub _add_TyTraCL_AST_entry {
 
 sub __add_to_MainArgTypes {
     my ($inoutargs, $stref, $fname, $var_name_rec, $main_rec, $non) = @_;
-
     my $orig_var_name = $var_name_rec->[0];
     my $var_name      = _mkVarName($var_name_rec);
     my $var_rec       = $stref->{'Subroutines'}{$fname}{'DeclaredOrigArgs'}{'Set'}{$orig_var_name};
+# carp Dumper $var_name_rec, $var_name, $var_rec;
 
     # WV 2019-08-12 the '0' below feels hacky
     my $dim = $stref->{'Subroutines'}{$fname}{'ArrayAccesses'}{0}{'Arrays'}{$orig_var_name}{'Dims'};
@@ -1245,7 +1246,7 @@ sub __add_to_MainArgTypes {
     my $type = $var_rec->{'Type'};
     # add to InArgsTypes or OutArgsTypes
     if (not exists $main_rec->{$inoutargs . 'Types'}{$var_name}) {
-    $main_rec->{$inoutargs . 'Types'}{$var_name} = __toTyTraCLType($type, $dim, $non);    
+        $main_rec->{$inoutargs . 'Types'}{$var_name} = __toTyTraCLType($type, $dim, $non);    
     } else {
         pop @{$main_rec->{$inoutargs} };
     }
