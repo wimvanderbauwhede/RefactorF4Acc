@@ -341,12 +341,13 @@ elsif ($TEST==15) { # HANGS on Substitute vectors (recursive)
 # 
     $stref = mkAST(
         [
-            mkFold('f1'=>[]=>[['acc',0,'']]=>[['v',0,'']],[['acc',1,'']]),
-            mkMap('f2'=>[['acc',1,'']]=>[['v',0,'']],[['v',1,'']]),
+            mkFold('f1'=>[]=>[['acc',0,'']]=>[['v',0,'']],[['acc1',0,'']]),
+            mkMap('f2'=>[['acc1',0,'']]=>[['v',0,'']],[['v',1,'']]),
         ],
         {
         'v' =>[ 'integer', [1,500], 'inout'],
         'acc' =>[ 'integer',  'in'],
+        'acc1' =>[ 'integer',  'local'],
         }
         ,$comment
     );  

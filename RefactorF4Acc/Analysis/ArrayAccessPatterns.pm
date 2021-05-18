@@ -240,12 +240,14 @@ sub identify_array_accesses_in_exprs { (my $stref, my $f) = @_;
 				}
 				# Assignment to scalar *_range
 				# This is ad hoc for the output of the AutoParallelFortran compiler!
+				# WV 2021-05-18 FIXME: we must do this by looking at any vars that dependend on get_global_id()
 				elsif ($Config{'KERNEL'} ne '' and $info->{'Lhs'}{'ArrayOrScalar'} eq 'Scalar' and $info->{'Lhs'}{'VarName'} =~/^(\w+)_range/) {
 					my $loop_iter=$1;
 
 					my $expr_str = emit_expr_from_ast($info->{'Rhs'}{'ExpressionAST'});
 					my $loop_range = eval($expr_str);
 					$state->{'Subroutines'}{ $f }{'Blocks'}{$block_id}{'LoopIters'}{$loop_iter}={'Range' => [1,$loop_range,1]};
+					# croak $block_id. Dumper $state->{'Subroutines'}{ $f }{'Blocks'}{$block_id}{'LoopIters'}
 				} 
 				else {
 					# First check if this is maybe an accumulator
@@ -475,7 +477,7 @@ sub _find_var_access_in_ast { (my $stref, my $f,  my $block_id, my $state, my $a
 					$state = _find_iters_in_array_idx_expr($stref,$f,$block_id,$ast, $state,$rw);
 					my $array_var = $ast->[1];
 					# Special case for our OpenCL kernels
-					if ($array_var =~/(?:glob|loc)al_/) { return ($ast,$state); }
+					if ($Config{'KERNEL'} ne '' and $array_var =~/(?:glob|loc)al_/) { return ($ast,$state); }
 					
 					# First we compute the offset
 #						say "OFFSET";
@@ -648,7 +650,7 @@ sub _link_writes_to_reads {(my $stref, my $f, my $state)=@_;
 		my $assignments = $state->{'Subroutines'}{$f}{'Blocks'}{$block_id}{'Assignments'};
 		# So we have to establish the link for every variable that is a multi-dim (effectively 3-D) array argument
 		for my $some_var ( sort keys %{ $assignments }  ) {
-			next if $some_var=~/_rel|_range/;
+			next if $Config{'KERNEL'} ne '' and $some_var=~/_rel|_range/;
 			$links = _link_writes_to_reads_rec($stref, $f, $block_id, $some_var,$assignments,$links,$state);
 		}
 
@@ -692,7 +694,7 @@ sub _link_writes_to_reads_rec {(my $stref, my $f, my $block_id, my $some_var, my
 				$links->{$some_var}{'!'.$some_var.'!'}=1;
 			}
 			for my $var ( keys %{$vars} ) {
-				next if $var=~/_rel|_range/;
+				next if $Config{'KERNEL'} ne '' and $var=~/_rel|_range/;
 				next if exists $links->{$some_var}{$var};
 #				next if $var eq $some_var;
 				if (isArg($stref, $f, $var)) {
@@ -787,8 +789,8 @@ sub _classify_accesses_and_emit_AST { (my $stref, my $f, my $state ) =@_;
 
 		# This is specific for reductions done by the AutoParallelFortran compiler
 		# But I don't know in which case we analyse the generated files
-		# I should have a flag 'OpenCL'
- 		next if $array_var =~/^global_|^local_/; 
+		# $Config{'KERNEL'} ne '' means OpenCL so in practice it is our OpenCL from the AutoParallelFortran compiler
+ 		next if $Config{'KERNEL'} ne '' and $array_var =~/^global_|^local_/; 
  		next if not defined  $state->{'Subroutines'}{ $f }{'Blocks'}{ $block_id }{'Arrays'}{$array_var}{'Dims'} ;
 		next unless _is_stream_var($state, $f, $block_id, $array_var);
 		# So there the $array_var is certainly (or at least per def) a stream variable
@@ -1466,12 +1468,18 @@ sub __generate_buffer_varnames { my ( $boundary_accesss, $block_id ) = @_;
 
 
 sub _is_stream_var { my ($state, $f, $block_id, $var_name) =@_;
-	if ($block_id == 0) { # This is the subroutine block, so in this block there are no loop iterators
+# carp "$f, $block_id, $var_name";
+	if (not exists $Config{'KERNEL'} 
+			or $Config{'KERNEL'} eq ''
+		and
+		$block_id == 0) { 
+			# This is the subroutine block, so in this block there are no loop iterators
+			# unless this subroutine is an OpenCL kernel		
 		return 0;
 	}
 	  # Get the record for $var_name
 	#   carp "$f $block_id $var_name", Dumper $state->{'Subroutines'}{ $f }{'Blocks'}{ $block_id };
-	croak if not exists $state->{'Subroutines'}{$f}{'Blocks'}{$block_id}{'LoopIters'}; 
+	  croak if not exists $state->{'Subroutines'}{$f}{'Blocks'}{$block_id}{'LoopIters'}; 
 	  my $iters =  $state->{'Subroutines'}{$f}{'Blocks'}{$block_id}{'LoopIters'};
 	  my $dims = $state->{'Subroutines'}{ $f }{'Blocks'}{ $block_id }{'Arrays'}{$var_name}{'Dims'} ;	  
 	  if (scalar @{$dims} < scalar keys %{$iters}) { 
@@ -1668,3 +1676,105 @@ In any case, what we want to know is:
 - which variables need select.
 
 =cut
+
+
+
+=pod WV 2021-05-18
+- Find a call to get_global_id
+call get_global_id(global_id,0)'
+- Identify global id from the call arg, i.e. the first argument
+$state->{'Deps'}{$gid}={};
+- Find any Assignment where the LHS is a scalar and the RHS contains any Deps (OK, this is simplifying but I don't care)
+- Add the LHS name to the deps
+When we have done that, we have all potential candidates for loop iters. 
+- Find any Assignment where the LHS is an array and check if it uses any of the variables in Deps. If so, these are added to the LoopIters
+- Find any Assignment where the RHS has array accesses and check if any use any of the variables in Deps. If so, these are added to the LoopIters
+
+=cut
+
+sub _get_loop_iters_from_global_id { my ($stref,$f) = @_;
+	my $Sf = $stref->{'Subroutines'}{$f};
+	my $annlines = $Sf->{'RefactoredCode'};
+	my $pass_get_loop_iters_from_global_id = sub { my ($annline,$state) = @_;
+		my ($line, $info) = @{$annline};
+		if (exists $info->{'SubroutineCall'} ) {
+			if ($info->{'SubroutineCall'}{'Name'} eq 'get_global_id') {
+				my $gid_name = $info->{'SubroutineCall'}{'Args'}{'List'}[0];
+				$state->{'Deps'}{$gid_name}=[];
+			}
+		}
+		elsif (exists $info->{'Assignment'} ) {
+			if ($info->{'Lhs'}{'ArrayOrScalar'} eq 'Scalar') { # Only then we check the RHS
+					$state = _add_deps_from_RHS($state,$info);			
+			} else {
+				# Check if the LHS uses any of the vars in Deps
+			}
+			# Check if the RHS uses any of the vars in Deps in array accesses
+		}
+		return ([[$line,$info]],$state)
+	};
+
+	my $state = {'Deps' => {} , 'LoopIters'=> {} };
+	(my $new_annlines,$state) = stateful_pass($annlines,$state,$pass_get_loop_iters_from_global_id,"pass_get_loop_iters_from_global_id($f)");
+	# Now assign this to LoopIters
+	return $stref;
+} # END of _get_loop_iters_from_global_id
+
+
+# When we find an iterator access in an array we must check in which loop this array is being accessed
+sub _find_loop_iters_in_array_idx_expr { (my $stref, my $f, my $block_id, my $ast, my $state, my $rw)=@_;
+
+	my @args = ();
+	if ($ast->[2][0] == 27) {
+	for my $arg_idx (1 .. scalar @{$ast->[2]} -1 ) {
+		my $arg = $ast->[2][$arg_idx];
+		push @args, $arg;
+	}
+	} else {
+		push @args, $ast->[2];
+	}
+	my $array_var = $ast->[1]; # OK
+	for my $idx (0 .. @args-1) {
+  		my $item = $args[$idx]; # This is an AST!
+  		my $vars = get_vars_from_expression($item, {});
+  		for my $var (keys %{$vars}) {
+  			if (exists $state->{'Deps'}{ $var }) {
+				  $state->{'LoopIters'}{$var}={'Range' => [0,0,0]};
+  			}
+  		}
+	}
+	return $state;
+} # END of _find_loop_iters_in_array_idx_expr
+
+
+sub _find_array_access_in_ast { (my $stref, my $f,  my $block_id, my $state, my $ast)=@_;
+    if (ref($ast) eq 'ARRAY') {
+		for my  $idx (0 .. scalar @{$ast}-1) {
+			my $entry = $ast->[$idx];
+
+			if (ref($entry) eq 'ARRAY') {
+				(my $entry, $state) = _find_array_access_in_ast($stref,$f, $block_id, $state,$entry);
+				$ast->[$idx] = $entry;
+			} else {
+				if ($idx==0 and (($entry & 0xFF)==10)) { #$entry eq '@'					
+					$state = _find_loop_iters_in_array_idx_expr($stref,$f,$block_id,$ast, $state);					
+				} 
+			}
+		}
+	}
+	return  ($ast, $state);
+
+} # END of _find_array_access_in_ast
+
+sub _add_deps_from_RHS { my ($state,$info) = @_;
+
+	my $ast = $info->{'Rhs'}{'ExpressionAST'};
+	my $vars = get_vars_from_expression($ast,{});
+	my $lhs_var_name = $info->{'Lhs'}{'VarName'};
+	for my $tvar (sort keys %{$state->{'Deps'}}) {
+		if (exists $vars->{$tvar}) {
+			push @{$state->{'Deps'}{$lhs_var_name}}, $tvar;
+		}
+	}
+	return $state;
+}

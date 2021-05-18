@@ -124,7 +124,7 @@ sub construct_TyTraCL_AST_Main_node {
     # Input args have Ctr==0 on the Rhs
     # Output args $arg have Ctr == $tytracl_ast->{'UniqueVarCounters'}{$arg}
     my $tytracl_ast = $stref->{'TyTraCL_AST'};
-# croak Dumper $tytracl_ast ;
+croak Dumper $tytracl_ast ;
     my $main_rec = {
         'NodeType'     => 'MainFunction',
         'InArgs'       => [],
@@ -520,7 +520,6 @@ sub _addToVarTypesAndStencils {
         $var_types->{$s_var} = $s_type;
     }
     elsif ($node->{'NodeType'} eq 'Map') {
-
         # Output arguments can't be stencil, so only DeclaredOrigArgs
         my $out_args = $lhs->{'Vars'};
         my $f        = $fname;

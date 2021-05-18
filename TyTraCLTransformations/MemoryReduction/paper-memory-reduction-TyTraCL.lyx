@@ -1071,7 +1071,7 @@ noprefix "false"
 
 \end_inset
 
- .
+.
  
 \begin_inset Quotes eld
 \end_inset
@@ -1223,44 +1223,6 @@ status open
 \begin_layout Plain Layout
 
                             deriving (Show, Typeable, Data, Eq)
-\end_layout
-
-\begin_layout Plain Layout
-
-\end_layout
-
-\begin_layout Plain Layout
-
-\end_layout
-
-\begin_layout Plain Layout
-
-	data FDecl = MkFDecl {
-\end_layout
-
-\begin_layout Plain Layout
-
-	  ftype :: String,  
-\end_layout
-
-\begin_layout Plain Layout
-
-	  dim :: Maybe [Int],
-\end_layout
-
-\begin_layout Plain Layout
-
-	  intent :: Maybe FIntent,
-\end_layout
-
-\begin_layout Plain Layout
-
-	  names :: [String] 
-\end_layout
-
-\begin_layout Plain Layout
-
-    } 
 \end_layout
 
 \begin_layout Plain Layout
@@ -3828,7 +3790,7 @@ It is thus again straightforward to derive the types for the intermediate
 \end_layout
 
 \begin_layout Section
-Appendix: Fortran-OpenCL code generation
+Fortran-OpenCL code generation
 \begin_inset CommandInset label
 LatexCommand label
 name "fortran-opencl-implementation"
@@ -3856,27 +3818,27 @@ status open
 
 \begin_layout Plain Layout
 
-data DType = 
+	data DType = 
 \end_layout
 
 \begin_layout Plain Layout
 
-    DInteger 
+    	DInteger 
 \end_layout
 
 \begin_layout Plain Layout
 
-  | DReal 
+	  | DReal 
 \end_layout
 
 \begin_layout Plain Layout
 
-  | DSVec Int DType 
+	  | DSVec Int DType 
 \end_layout
 
 \begin_layout Plain Layout
 
-  | DTuple [DType]
+	  | DTuple [DType]
 \end_layout
 
 \begin_layout Plain Layout
@@ -3885,12 +3847,12 @@ data DType =
 
 \begin_layout Plain Layout
 
-data Expr =
+	data Expr =
 \end_layout
 
 \begin_layout Plain Layout
 
--- Left-hand side:
+	-- Left-hand side:
 \end_layout
 
 \begin_layout Plain Layout
@@ -3900,7 +3862,54 @@ data Expr =
 
 \begin_layout Plain Layout
 
-			...
+				...
+\end_layout
+
+\begin_layout Plain Layout
+
+\end_layout
+
+\begin_layout Plain Layout
+
+\end_layout
+
+\begin_layout Plain Layout
+
+	data FDecl = MkFDecl {
+\end_layout
+
+\begin_layout Plain Layout
+
+	  ftype :: String,  
+\end_layout
+
+\begin_layout Plain Layout
+
+	  dim :: Maybe [Int],
+\end_layout
+
+\begin_layout Plain Layout
+
+	  intent :: Maybe FIntent,
+\end_layout
+
+\begin_layout Plain Layout
+
+	  names :: [String] 
+\end_layout
+
+\begin_layout Plain Layout
+
+    } 
+\end_layout
+
+\begin_layout Plain Layout
+
+\end_layout
+
+\begin_layout Plain Layout
+
+	type FSig = [Expr]
 \end_layout
 
 \begin_layout Plain Layout
@@ -3926,6 +3935,40 @@ name "lis:Extending-the-TyTraCL"
 \end_inset
 
 
+\end_layout
+
+\begin_layout Standard
+Furthermore, the type FDecl provides the complete type and size information
+ of the variables in the AST.
+ The functions described by the Function alternative of the Expr type in
+ TyTraCL are specified by their name and signature.
+ Because all functions are scalar, the type FSig is actually more restricted
+ than its definition suggests: it represents a tuple of three elements where
+ the first element are the arguments that are not mappable or foldable,
+ i.e.
+ the function to be mapped or folded is the partial application of the named
+ function to these arguments; the second and third element represent the
+ input and output value of this function.
+ All arguments are either Scalar, SVec or a Tuple of these.
+\end_layout
+
+\begin_layout Subsection
+Code generation strategy
+\end_layout
+
+\begin_layout Standard
+The strategy for generating imperative code from the transformed TyTraCL
+ AST is quite straightforward: as the program has been decomposed in a sequence
+ of dependent loops over scalar functions, we generate code for the functions
+ to be called in each of these loops as well as for the loops themselves.
+ In OpenCL, this means generating kernels for the device and 
+\emph on
+enqeueNDRange
+\emph default
+ statements for the host code.
+ In Fortran, we follow a similar approach but generate a loop around the
+ call to the kernel.
+ 
 \end_layout
 
 \begin_layout Standard

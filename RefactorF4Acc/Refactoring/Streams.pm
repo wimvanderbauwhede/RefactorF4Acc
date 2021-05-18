@@ -178,6 +178,7 @@ sub _rename_array_accesses_to_scalars { (my $stref, my $f) = @_;
 	# 	* DO index range expressions (I'm lazy, FIXME!) 
 	my $pass_rename_array_accesses_in_exprs = sub { (my $annline, my $state)=@_;
 		(my $line,my $info)=@{$annline};
+		
 		if (exists $info->{'Signature'} ) { 			
 			$state->{'Args'} = $info->{'Signature'}{'Args'}{'Set'};
 		} elsif (exists $info->{'Assignment'} ) {
@@ -187,6 +188,7 @@ sub _rename_array_accesses_to_scalars { (my $stref, my $f) = @_;
 				# v = v_ptr(1)
 				# and we will remove these later on
 			} else {				
+
 				# Rename all array accesses in the RHS AST. This updates $state->{'StreamVars'}
 				# Here we should check if the variable is an argument or not!
 				# I have $state->{'Args'} for that. But the RHS is an expression which could have many vars				
@@ -200,6 +202,7 @@ sub _rename_array_accesses_to_scalars { (my $stref, my $f) = @_;
 				 } else {
 				 	$info->{'Rhs'}{'Vars'}={'List'=>[],'Set'=>{}};
 				 }
+				#  croak Dumper $info->{'Rhs'}{'ExpressionAST'} if $line=~/acc\s+\+\s+v/;
 			}
 			if ($info->{'Lhs'}{'ArrayOrScalar'} eq 'Array') {
 				# Rename all array accesses in the LHS AST. This updates $state->{'StreamVars'}
@@ -524,7 +527,7 @@ sub _rename_array_accesses_to_scalars { (my $stref, my $f) = @_;
 				my $type = $tvar_rec->{'TypeTup'}{'Type'};
 				my $kind = exists $tvar_rec->{'TypeTup'}{'Kind'} ? '(kind='.$tvar_rec->{'TypeTup'}{'Kind'} .')' : '';
 				# my $intent = $tvar_rec->{'StreamVars'}{$tvar}{'IODir'};
-				# croak Dumper $tvar_rec->{'StreamVars'}{$tvar} if $tvar=~/etan/;
+				# croak Dumper $tvar_rec->{'StreamVars'}{$tvar} if $tvar=~/v/;
 				# So we should only have IODir if $intent is defined, i.e. if the IODir key exists
 				my $rdecl = {
 				'Indent' => $info->{'Indent'},
@@ -580,15 +583,17 @@ sub _rename_array_accesses_to_scalars { (my $stref, my $f) = @_;
  	($stref,$global_state_access) = stateful_pass_inplace($stref,$f,$pass_emit_updated_code , $global_state_access,'_rename_array_accesses_to_scalars_PASS3() ' . __LINE__  ) ;
 	$stref->{'Subroutines'}{$f}{'RefactoredArgs'}= $stref->{'Subroutines'}{$f}{'DeclaredOrigArgs'};
 	} # IF NOT A KERNEL
-
- 
+	if ($f =~/f1/) {
+	say Dumper pp_annlines($stref->{'Subroutines'}{$f}{'RefactoredCode'}) ;
+	croak;
+	}
 	return $stref;
 } # END of _rename_array_accesses_to_scalars()
 # ================================================================================================================================================
 # After we've renamed all args in the subroutine definitions, we update the calls as well, but ONLY in the kernel 
 sub _rename_array_accesses_to_scalars_in_subcalls { (my $stref, my $f) = @_;
 # croak 'shapiro_map_16: '.Dumper( $stref->{'Subroutines'}{'shapiro_map_16'}{'DeclaredOrigArgs'});
-
+# croak Dumper $stref->{'Subroutines'}{'f1'}{'DeclaredOrigArgs'};
 	if ($f eq $Config{'KERNEL'} ) {
 			
 	my $pass_action = sub { (my $annline, my $state)=@_;		
@@ -820,6 +825,7 @@ sub _add_assignments_for_called_subs { (my $stref, my $f) = @_;
 # $intent can be undefined, because $ast can (of course) be a non-arg variable.
 # In that case we should not have the IODir entry. 
 sub _scalarise_array_accesses_in_ast { (my $stref, my $f,  my $state, my $ast, my $intent)=@_;
+# croak 'HERE';
 	if (ref($ast) eq 'ARRAY') {
 		for my  $idx (0 .. scalar @{$ast}-1) {		
 			my $entry = $ast->[$idx];
@@ -829,37 +835,37 @@ sub _scalarise_array_accesses_in_ast { (my $stref, my $f,  my $state, my $ast, m
 				$ast->[$idx] = $entry;
 			} else {
 				if ($idx==0 and (($entry & 0xFF) == 10)) {#'@'				
-					my $mvar = $ast->[$idx+1];					
+					my $mvar = $ast->[$idx+1];			
+							
 					say 'Found array access '.$mvar  if $DBG;		
 					if (exists $stref->{'Subroutines'}{$f}{'StreamVars'}{$mvar}) {
-					my $expr_str = emit_expr_from_ast($ast);
-					my $var_str=$expr_str;
-					# TODO: I should use tr// here
-					$var_str=~s/[\(,]/_/g; 
-					$var_str=~s/\)//g; 
-					$var_str=~s/\+/p/g;
-					$var_str=~s/\-/m/g;
-					$var_str=~s/\*/t/g;
-					# Taking the IODir from the orig var is not optimal: it leads to many InOut that actually are Out
-					# Ideally I should re-run the analysis for the stream vars
-					
-					if (exists $stref->{'Subroutines'}{$f}{'DeclaredOrigArgs'}{'Set'}{$mvar}) { # DAMN PERL! It creates the entry unless I guard!
-					# warn "$f $mvar $var_str $intent" if $mvar=~/eta/;
-						# $intent = $stref->{'Subroutines'}{$f}{'DeclaredOrigArgs'}{'Set'}{$mvar}{'IODir'};
-						if (exists $state->{'StreamVars'}{$mvar}{'Set'}{$var_str}) {
+						# carp 'Found array access '.$mvar  ; 
+						my $expr_str = emit_expr_from_ast($ast);
+						my $var_str=$expr_str;
+						# TODO: I should use tr// here
+						$var_str=~s/[\(,]/_/g; 
+						$var_str=~s/\)//g; 
+						$var_str=~s/\+/p/g;
+						$var_str=~s/\-/m/g;
+						$var_str=~s/\*/t/g;
+						# Taking the IODir from the orig var is not optimal: it leads to many InOut that actually are Out
+						# Ideally I should re-run the analysis for the stream vars
+						
+						if (exists $stref->{'Subroutines'}{$f}{'DeclaredOrigArgs'}{'Set'}{$mvar}) { 
+							if (exists $state->{'StreamVars'}{$mvar}{'Set'}{$var_str}) {
 								if ( $state->{'StreamVars'}{$mvar}{'Set'}{$var_str}{'IODir'} ne 'InOut'
-								and $state->{'StreamVars'}{$mvar}{'Set'}{$var_str}{'IODir'} ne $intent) {
+									and $state->{'StreamVars'}{$mvar}{'Set'}{$var_str}{'IODir'} ne $intent) {
 									$state->{'StreamVars'}{$mvar}{'Set'}{$var_str}{'IODir'} = 'InOut';
 								} 
+							} else {
+								$state->{'StreamVars'}{$mvar}{'Set'}{$var_str}={'IODir'=>$intent,'ArrayIndexExpr'=>$expr_str} ;
+							}
 						} else {
-							$state->{'StreamVars'}{$mvar}{'Set'}{$var_str}={'IODir'=>$intent,'ArrayIndexExpr'=>$expr_str} ;
-						}
-					} else {
-						$state->{'StreamVars'}{$mvar}{'Set'}{$var_str}={'ArrayIndexExpr'=>$expr_str} ;
-					}					
-					
-					$ast=[0x2+(($entry>>8)<<8),$var_str];#'$'
-					last;			
+							$state->{'StreamVars'}{$mvar}{'Set'}{$var_str}={'ArrayIndexExpr'=>$expr_str} ;
+						}					
+						
+						$ast=[0x2+(($entry>>8)<<8),$var_str];#'$'
+						last;			
 					}  
 					# else {
 					# 	say "VAR $mvar IS NOT A STREAM VAR in $f" if $DBG;
