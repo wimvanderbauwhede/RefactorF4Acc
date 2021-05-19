@@ -8,6 +8,7 @@ use RefactorF4Acc::Config;
 use RefactorF4Acc::Utils;
 use RefactorF4Acc::Refactoring::Helpers qw(
 	pass_wrapper_subs_in_module
+	stateful_pass
 	stateful_pass_inplace
 	stateful_pass_reverse_inplace
 	stateless_pass_inplace
@@ -140,6 +141,11 @@ sub identify_array_accesses_in_exprs { (my $stref, my $f) = @_;
         	push @{ $stref->{$stref->{'EmitAST'}}{'Lines'} }, {'NodeType' => 'Comment', 'CommentStr' => $f };
 		}
 
+		if($Config{'KERNEL'} ne '' ) {
+			$stref = _get_loop_iters_from_global_id($stref,$f);
+		}
+		# Loop iters are in $stref->{'Subroutines'}{ $f }{'ArrayAccesses'}{'0'}{'LoopIters'}
+
 		my $pass_identify_array_accesses_in_exprs = sub { (my $annline, my $state)=@_;
 			(my $line,my $info)=@{$annline};
 			
@@ -225,52 +231,52 @@ sub identify_array_accesses_in_exprs { (my $stref, my $f) = @_;
 				# This is ad hoc for the output of the AutoParallelFortran compiler!
 				# carp $f. Dumper $info;
 				
-				if ($Config{'KERNEL'} ne '' and # This means we are dealing with an OpenCL kernel
-					$info->{'Lhs'}{'ArrayOrScalar'} eq 'Scalar' and $info->{'Lhs'}{'VarName'} =~/^(\w+)_rel/) {
-					# This case is UNUSED
-					my $loop_iter=$1;					
-					# carp "$f $line $loop_iter".Dumper $state->{'Subroutines'}{ $f }{'Blocks'}{$block_id}{'LoopIters'};
-					if (
-						$DBG and
-						not exists $state->{'Subroutines'}{ $f }{'Blocks'}{$block_id}{'LoopIters'}{$loop_iter}{'Range'}) {
-						croak "This should not happen! " .Dumper($annline);
-						$state->{'Subroutines'}{ $f }{'Blocks'}{$block_id}{'LoopIters'}{$loop_iter}={'Range' => [0,0,0]};
-					}						
+				# if ($Config{'KERNEL'} ne '' and # This means we are dealing with an OpenCL kernel
+				# 	$info->{'Lhs'}{'ArrayOrScalar'} eq 'Scalar' and $info->{'Lhs'}{'VarName'} =~/^(\w+)_rel/) {
+				# 	# This case is UNUSED
+				# 	my $loop_iter=$1;					
+				# 	# carp "$f $line $loop_iter".Dumper $state->{'Subroutines'}{ $f }{'Blocks'}{$block_id}{'LoopIters'};
+				# 	if (
+				# 		$DBG and
+				# 		not exists $state->{'Subroutines'}{ $f }{'Blocks'}{$block_id}{'LoopIters'}{$loop_iter}{'Range'}) {
+				# 		croak "This should not happen! " .Dumper($annline);
+				# 		$state->{'Subroutines'}{ $f }{'Blocks'}{$block_id}{'LoopIters'}{$loop_iter}={'Range' => [0,0,0]};
+				# 	}						
 					
-				}
-				# Assignment to scalar *_range
-				# This is ad hoc for the output of the AutoParallelFortran compiler!
-				# WV 2021-05-18 FIXME: we must do this by looking at any vars that dependend on get_global_id()
-				elsif ($Config{'KERNEL'} ne '' and $info->{'Lhs'}{'ArrayOrScalar'} eq 'Scalar' and $info->{'Lhs'}{'VarName'} =~/^(\w+)_range/) {
-					my $loop_iter=$1;
+				# }
+				# # Assignment to scalar *_range
+				# # This is ad hoc for the output of the AutoParallelFortran compiler!
+				# # WV 2021-05-18 FIXME: we must do this by looking at any vars that dependend on get_global_id()
+				# elsif ($Config{'KERNEL'} ne '' and $info->{'Lhs'}{'ArrayOrScalar'} eq 'Scalar' and $info->{'Lhs'}{'VarName'} =~/^(\w+)_range/) {
+				# 	my $loop_iter=$1;
 
-					my $expr_str = emit_expr_from_ast($info->{'Rhs'}{'ExpressionAST'});
-					my $loop_range = eval($expr_str);
-					$state->{'Subroutines'}{ $f }{'Blocks'}{$block_id}{'LoopIters'}{$loop_iter}={'Range' => [1,$loop_range,1]};
-					# croak $block_id. Dumper $state->{'Subroutines'}{ $f }{'Blocks'}{$block_id}{'LoopIters'}
-				} 
-				else {
+				# 	my $expr_str = emit_expr_from_ast($info->{'Rhs'}{'ExpressionAST'});
+				# 	my $loop_range = eval($expr_str);
+				# 	$state->{'Subroutines'}{ $f }{'Blocks'}{$block_id}{'LoopIters'}{$loop_iter}={'Range' => [1,$loop_range,1]};
+				# 	# croak $block_id. Dumper $state->{'Subroutines'}{ $f }{'Blocks'}{$block_id}{'LoopIters'}
+				# } 
+				# else {
 					# First check if this is maybe an accumulator
-					if ($info->{'Lhs'}{'ArrayOrScalar'} eq 'Scalar' ) { 
-					# Test if a scalar arg is an accumulator for a fold
-					# If the arg occurs on LHS and RHS of an assignment and the RHS has an array arg as well			
-						my %maybe_accs = map {$_ => 1} @{$state->{'Subroutines'}{$f}{'Args'}{'MaybeAcc'}};
-						my %in_arrays  = map {$_ => 1} @{$state->{'Subroutines'}{$f}{'Args'}{'In'}};
-						my $acc_var = $info->{'Lhs'}{'VarName'} ;
-						if (exists $maybe_accs{$acc_var}) { 						
-							my $vars = get_vars_from_expression($info->{'Rhs'}{'ExpressionAST'});
-							if (exists $vars->{$acc_var}) {
-								for my $tvar (sort keys %{$vars}) {
-									if ($vars->{$tvar}{'Type'} eq 'Array'
-									and exists $in_arrays{$tvar}
-									) {
-										push @{$state->{'Subroutines'}{$f}{'Args'}{'Acc'}}, $acc_var;
-										last;
-									}
+				if ($info->{'Lhs'}{'ArrayOrScalar'} eq 'Scalar' ) { 
+				# Test if a scalar arg is an accumulator for a fold
+				# If the arg occurs on LHS and RHS of an assignment and the RHS has an array arg as well			
+					my %maybe_accs = map {$_ => 1} @{$state->{'Subroutines'}{$f}{'Args'}{'MaybeAcc'}};
+					my %in_arrays  = map {$_ => 1} @{$state->{'Subroutines'}{$f}{'Args'}{'In'}};
+					my $acc_var = $info->{'Lhs'}{'VarName'} ;
+					if (exists $maybe_accs{$acc_var}) { 						
+						my $vars = get_vars_from_expression($info->{'Rhs'}{'ExpressionAST'});
+						if (exists $vars->{$acc_var}) {
+							for my $tvar (sort keys %{$vars}) {
+								if ($vars->{$tvar}{'Type'} eq 'Array'
+								and exists $in_arrays{$tvar}
+								) {
+									push @{$state->{'Subroutines'}{$f}{'Args'}{'Acc'}}, $acc_var;
+									last;
 								}
 							}
 						}
 					}
+				
 					# This tests for the case of the same array on LHS and RHS, but maybe with a different access location, so a(...) = a(...)
                     # This is probably superseded by the new analysis of array assignment expressions
 					if (
@@ -396,9 +402,10 @@ sub identify_array_accesses_in_exprs { (my $stref, my $f) = @_;
             }
 			return ([[$line,$info]],$state);
 		};
-
+		
 		my $state = {'CurrentSub'=>'', 'CurrentBlock'=>0,'Subroutines'=>{}};
-			
+		$state->{'Subroutines'}{$f}{'Blocks'} = $stref->{'Subroutines'}{ $f }{'ArrayAccesses'};
+		# croak Dumper $state;
 	 	($stref,$state) = stateful_pass_inplace($stref,$f,$pass_identify_array_accesses_in_exprs, $state,'pass_identify_array_accesses_in_exprs ' . __LINE__  ) ;
 	 	
 	 	$stref = _collect_dependencies_for_halo_access($stref,$f);
@@ -1705,33 +1712,53 @@ sub _get_loop_iters_from_global_id { my ($stref,$f) = @_;
 		}
 		elsif (exists $info->{'Assignment'} ) {
 			if ($info->{'Lhs'}{'ArrayOrScalar'} eq 'Scalar') { # Only then we check the RHS
-					$state = _add_deps_from_RHS($state,$info);			
+					$state = __add_deps_from_RHS($state,$info);			
 			} else {
 				# Check if the LHS uses any of the vars in Deps, if so it is a Loop Iter
-				# Factor out!
 				my $idx_vars = $info->{'Lhs'}{'IndexVars'}{'List'};
 				for my $var ( @{$idx_vars} ) {
 					if (exists $state->{'Deps'}{ $var }) {
 						$state->{'LoopIters'}{$var}={'Range' => [0,0,0]};
 					}
 				}
-
 			}
 			# Check if the RHS uses any of the vars in Deps in array accesses
-			$state = _find_array_access_in_ast($state, $info->{'Rhs'}{'ExpressionAST'});
+			$state = __find_loop_iter_access_in_ast($state, $info->{'Rhs'}{'ExpressionAST'});
 		}
 		return ([[$line,$info]],$state)
 	};
 
 	my $state = {'Deps' => {} , 'LoopIters'=> {} };
-	(my $new_annlines,$state) = stateful_pass($annlines,$state,$pass_get_loop_iters_from_global_id,"pass_get_loop_iters_from_global_id($f)");
+	(my $new_annlines,$state) = stateful_pass($annlines,$pass_get_loop_iters_from_global_id,$state,"pass_get_loop_iters_from_global_id($f)");
+	# croak $f.  Dumper $state;
 	# Now assign this to LoopIters
+	$stref->{'Subroutines'}{ $f }{'ArrayAccesses'}{'0'}{'LoopIters'} = $state->{'LoopIters'};
 	return $stref;
 } # END of _get_loop_iters_from_global_id
 
 
+sub __find_loop_iter_access_in_ast { ( my $state, my $ast)=@_;
+    if (ref($ast) eq 'ARRAY') {
+		for my  $idx (0 .. scalar @{$ast}-1) {
+			my $entry = $ast->[$idx];
+
+			if (ref($entry) eq 'ARRAY') {
+				(my $entry, $state) = __find_loop_iter_access_in_ast($state,$entry);
+				$ast->[$idx] = $entry;
+			} else {
+				if ($idx==0 and (($entry & 0xFF)==10)) { #$entry eq '@'					
+					$state = __find_loop_iters_in_array_idx_expr($ast, $state);					
+				} 
+			}
+		}
+	}
+	return  ($ast, $state);
+
+} # END of __find_loop_iter_access_in_ast
+
+
 # When we find an iterator access in an array we must check in which loop this array is being accessed
-sub _find_loop_iters_in_array_idx_expr { (my $ast, my $state,)=@_;
+sub __find_loop_iters_in_array_idx_expr { (my $ast, my $state,)=@_;
 
 	my @args = ();
 	if ($ast->[2][0] == 27) {
@@ -1743,39 +1770,34 @@ sub _find_loop_iters_in_array_idx_expr { (my $ast, my $state,)=@_;
 		push @args, $ast->[2];
 	}
 	my $array_var = $ast->[1]; # OK
+	
 	for my $idx (0 .. @args-1) {
   		my $item = $args[$idx]; # This is an AST!
   		my $vars = get_vars_from_expression($item, {});
   		for my $var (keys %{$vars}) {
   			if (exists $state->{'Deps'}{ $var }) {
-				  $state->{'LoopIters'}{$var}={'Range' => [0,0,0]};
+				  my $ndims = __get_ndims_from_array_access_ast($ast);
+				  my $range = [map {0} 1 .. $ndims];
+				  $state->{'LoopIters'}{$var}={
+					  'Range' => $range #[0,0,0]
+				};
   			}
   		}
 	}
 	return $state;
-} # END of _find_loop_iters_in_array_idx_expr
+} # END of __find_loop_iters_in_array_idx_expr
 
-
-sub _find_array_access_in_ast { ( my $state, my $ast)=@_;
-    if (ref($ast) eq 'ARRAY') {
-		for my  $idx (0 .. scalar @{$ast}-1) {
-			my $entry = $ast->[$idx];
-
-			if (ref($entry) eq 'ARRAY') {
-				(my $entry, $state) = _find_array_access_in_ast($state,$entry);
-				$ast->[$idx] = $entry;
-			} else {
-				if ($idx==0 and (($entry & 0xFF)==10)) { #$entry eq '@'					
-					$state = _find_loop_iters_in_array_idx_expr($ast, $state);					
-				} 
-			}
-		}
+# [10,'v',[27,[2,'i'],[2,'j'],[2,'k']]] or
+# [10,'v',[2,'i']]
+sub __get_ndims_from_array_access_ast { my ($ast) = @_;
+	if ($ast->[2][0] == 27) {
+		return scalar( @{$ast->[2]} ) - 1;
+	} else {
+		# it must be a single access, so 1-D
+		return 1;
 	}
-	return  ($ast, $state);
-
-} # END of _find_array_access_in_ast
-
-sub _add_deps_from_RHS { my ($state,$info) = @_;
+} # END of __get_ndims_from_array_access_ast
+sub __add_deps_from_RHS { my ($state,$info) = @_;
 
 	my $ast = $info->{'Rhs'}{'ExpressionAST'};
 	my $vars = get_vars_from_expression($ast,{});
@@ -1786,4 +1808,4 @@ sub _add_deps_from_RHS { my ($state,$info) = @_;
 		}
 	}
 	return $state;
-}
+} # END of __add_deps_from_RHS

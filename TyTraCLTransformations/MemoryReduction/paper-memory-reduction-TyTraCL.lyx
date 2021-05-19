@@ -3959,8 +3959,12 @@ Code generation strategy
 \begin_layout Standard
 The strategy for generating imperative code from the transformed TyTraCL
  AST is quite straightforward: as the program has been decomposed in a sequence
- of dependent loops over scalar functions, we generate code for the functions
- to be called in each of these loops as well as for the loops themselves.
+ of dependent loops over scalar functions, we generate code for the function
+ to be called in each of these loops (which I call a 
+\emph on
+stage kernel
+\emph default
+) as well as for the loops themselves.
  In OpenCL, this means generating kernels for the device and 
 \emph on
 enqeueNDRange
@@ -4099,11 +4103,6 @@ subroutine stage_kernel_1(in_0, out_0)
 \begin_layout Plain Layout
 
 end subroutine stage_kernel_1
-\end_layout
-
-\begin_layout Plain Layout
-
- 
 \end_layout
 
 \end_inset
