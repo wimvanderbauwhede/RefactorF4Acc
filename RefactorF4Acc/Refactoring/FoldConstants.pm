@@ -30,6 +30,7 @@ use Exporter;
 @RefactorF4Acc::Refactoring::FoldConstants::EXPORT_OK = qw(
     fold_constants_all
     fold_constants
+    fold_constants_in_decls
 );
 
 # foldConstants :: ProgUnit Anno -> ProgUnit Anno
@@ -181,3 +182,37 @@ sub fold_constants_all {
 	return $stref;
 }    # END of fold_constants_all()
 
+sub fold_constants_in_decls {
+    my ($stref, $f) = @_;
+    my $Sf = $stref->{'Subroutines'}{$f};
+    my $pass_fold_constants_in_decls = sub { (my $annline)=@_;
+        (my $line,my $info)=@{$annline};
+            if (exists $info->{'VarDecl'} and not exists $info->{'ParamDecl'}
+             and is_array_decl($info)
+             ) {                
+                my $var_name = $info->{'VarDecl'}{'Name'};
+                my $subset = in_nested_set( $Sf, 'Vars', $var_name );
+                my $decl = get_var_record_from_set($Sf->{$subset},$var_name);
+                my $dims = $decl->{'Dim'};
+                $decl->{'ConstDim'}=[];
+                for my $dim (@{$dims}) {
+                    my $const_dim=[];
+                    for my $expr_str (@{$dim}) {
+                        if ($expr_str!~/^\d+$/) {
+                            my $evaled_str = eval_expression_with_parameters( $expr_str, $info,  $stref,  $f);
+                            # say "EVAL: $expr_str => $evaled_str";
+                            push @{$const_dim},  $evaled_str;
+                        } else {
+                            push @{$const_dim},  $expr_str;
+                        }
+                    }
+                    push @{$decl->{'ConstDim'}}, $const_dim;                    
+                }
+                $Sf->{$subset}{'Set'}{$var_name} = $decl;
+			}
+        return [$annline];
+    };
+    my $annlines = $Sf->{'RefactoredCode'};
+    $annlines = stateless_pass($annlines,$pass_fold_constants_in_decls,"pass_fold_constants_in_decls($f) " . __LINE__  ) ;
+    return $stref;
+} # END of fold_constants_in_decls

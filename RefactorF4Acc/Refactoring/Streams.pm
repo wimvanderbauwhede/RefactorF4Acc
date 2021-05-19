@@ -27,7 +27,7 @@ use RefactorF4Acc::Refactoring::Fixes qw(
 	remove_redundant_arguments_and_fix_intents	
 );
 use RefactorF4Acc::Analysis::ArrayAccessPatterns qw( identify_array_accesses_in_exprs );
-use RefactorF4Acc::Refactoring::FoldConstants qw( fold_constants );
+use RefactorF4Acc::Refactoring::FoldConstants qw( fold_constants_in_decls );
 # I'm not sure that this is the best place for this routine as it is only used in this pass    
 use RefactorF4Acc::Refactoring::Subroutines::Emitters qw( 
 	emit_subroutine_sig 
@@ -81,12 +81,12 @@ sub pass_rename_array_accesses_to_scalars {(my $stref, my $code_unit_name)=@_;
 #				[ \&_fix_scalar_ptr_args ],
 #		  		[\&_fix_scalar_ptr_args_subcall],
 	            [\&remove_redundant_arguments_and_fix_intents],
-				[ sub { (my $stref, my $f)=@_; 
+				# [ sub { (my $stref, my $f)=@_; 
 				
-				 	($stref, my $annlines) = fold_constants($stref,$f,0);
-                       return $stref;
-                    } ],				
-				# [\&fold_constants],
+				#  	($stref, my $annlines) = fold_constants($stref,$f,0);
+                #        return $stref;
+				# } ],				
+				[\&fold_constants_in_decls],
     	        [\&identify_array_accesses_in_exprs ],
 		  		[
 			  		\&_declare_undeclared_variables,

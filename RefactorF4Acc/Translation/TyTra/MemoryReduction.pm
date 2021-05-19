@@ -17,6 +17,8 @@ use RefactorF4Acc::Translation::TyTra::Common qw(
 );
 
 use RefactorF4Acc::Analysis::ArrayAccessPatterns qw( identify_array_accesses_in_exprs );
+use RefactorF4Acc::Refactoring::FoldConstants qw( fold_constants_in_decls );
+
 use RefactorF4Acc::Translation::TyTraCL qw( 
     emit_TyTraCL construct_TyTraCL_AST_Main_node 
     generate_TyTraCL_stencils 
@@ -86,6 +88,7 @@ if ($Config{'TEST'} == 0 ) {
 #				[ sub { (my $stref, my $f)=@_;  alias_ordered_set($stref,$f,'DeclaredOrigArgs','DeclaredOrigArgs'); } ],
             [\&remove_redundant_arguments_and_fix_intents],
             [\&identify_array_accesses_in_exprs],
+            [\&fold_constants_in_decls],
         ]
     );
 } else { 
@@ -930,13 +933,20 @@ sub _create_TyTraCL_Haskell_signatures { (my $stref) = @_;
         
         my $ftypedecl = $stref->{'TyTraCL_AST'}{'Main'}{'VarTypes'}{$f}{'FunctionTypeDecl'} ;
         my $fsig =$stref->{'TyTraCL_FunctionSigs'}{$f};
+        # carp 'FunctionTypeDecl: '. Dumper $stref->{'TyTraCL_AST'}{'Main'}{'VarTypes'}{$f}{'FunctionTypeDecl'};
+        # carp 'TyTraCL_FunctionSigs: '.Dumper $stref->{'TyTraCL_FunctionSigs'}{$f};#$stref->{'TyTraCL_AST'};
         
         my $fname = $ftypedecl->[0] ;
         croak "PROBLEM: $fname <> $f" unless $fname eq $f;
         # For every argument tuple, i.e. Non-{Map,Fold} [,Acc], {Map,Fold}, Out
         my $typed_arg_tups=[];
-        carp Dumper $stref->{'TyTraCL_AST'}{'Main'};
         my $args_types = {%{$stref->{'TyTraCL_AST'}{'Main'}{'InArgsTypes'}},%{$stref->{'TyTraCL_AST'}{'Main'}{'OutArgsTypes'}}};
+
+			# my $subset = in_nested_set( $stref->{'Subroutines'}{$f}, 'Vars', $array_var );
+			# # say "SUBSET <$subset>";
+			# if ($subset) { 
+			# 	my $decl = get_var_record_from_set( $stref->{'Subroutines'}{$f}{'Vars'},$array_var);
+            # }        
         
         for my $idx (1 .. scalar @{$ftypedecl} - 1) {
             my $typetup = $ftypedecl->[$idx] ;#[ [], [ [ 'Int' ] ], [ [ 'Int' ] ], [ [ 'Int' ] ] ],
@@ -944,14 +954,34 @@ sub _create_TyTraCL_Haskell_signatures { (my $stref) = @_;
             my $typed_arg_tup=[];
             if (scalar @{$typetup}) {
                 for my $type (@{$typetup}) {
-                    my $arg = shift @{$argtup};
-                    carp "$f $arg;",Dumper $args_types;
-                    my $arg_type = $args_types->{$arg};
-                    if ($arg_type->[0] ne 'SVec') { # It's a scalar FIXME: This information is not there!
-                        push @{$typed_arg_tup}, 'Scalar VDC D'.$arg_type->[0].' "'.$arg.'"';
+                    my $arg_rec = shift @{$argtup};
+                    # carp "$f ".Dumper($arg_rec)." : ",Dumper( $typetup,$args_types);
+                    my $arg = $arg_rec->[0];
+                    my $arg_name = _mkVarName($arg_rec);
+                    
+                    my $subset = in_nested_set( $stref->{'Subroutines'}{$f}, 'Vars', $arg );
+                    # say "SUBSET <$subset>";
+                    if ($subset) { 
+                        my $decl = get_var_record_from_set( $stref->{'Subroutines'}{$f}{'Vars'},$arg);
+                        # say Dumper($decl);
+                        # If the argument is the first, it is Non-Map or Non-Fold
+                        # But in principle the Accumulator can also be a vector
+                        my $svec = ($idx == 1) or ($FSig_ctor eq 'FoldFSig' and $idx == 2) ? 1 : 0;
+                        my $arg_type = ($decl->{'ArrayOrScalar'} eq 'Array') 
+                            ? __toTyTraCLType($decl->{'Type'},$decl->{'ConstDim'},$svec)
+                            : __toTyTraCLType($decl->{'Type'},[],$svec);
+                            # carp $arg_name. Dumper( $decl->{'ConstDim'}). Dumper( $arg_type);
+                        if ($arg_type->[0] ne 'SVec') { # It's a scalar FIXME: This information is not there!
+                            push @{$typed_arg_tup}, 'Scalar VDC D'.$arg_type->[0].' "'.$arg_name.'"';
+                        } else {
+                            push @{$typed_arg_tup}, 'SVec '.$arg_type->[1].' (Scalar VDC D'.$arg_type->[2].' "'.$arg_name.'")';
+                        }  
                     } else {
-                        push @{$typed_arg_tup}, 'SVec '.$arg_type->[1].' (Scalar VDC D'.$arg_type->[2].' "'.$arg.'")';
-                    }                    
+                        croak "TROUBLE: NO DECL for $arg in $f"
+                    }       
+        
+
+                  
                 }
             } 
             push @{$typed_arg_tups}, $typed_arg_tup;
@@ -1228,6 +1258,5 @@ sub __origNamesListEntry { my ($node) = @_;
     return [$fname,$arg_name_pairs];
         
 } # END of __origNamesListEntry
-
 
 1;

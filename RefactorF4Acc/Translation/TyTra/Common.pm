@@ -393,38 +393,14 @@ sub mkAST {
         $args->{$n} = $decls->{$n}[-1];
           
     }
-  
-    
+      
     # WV 2021-05-13 I don't understand why I wipe the record here.
     $stref->{'TyTraCL_AST'}             = {};
     $stref->{'TyTraCL_AST'}{'Comment'}    = $comment;
     $stref->{'TyTraCL_AST'}{'Lines'}    = $lines;
     $stref->{'TyTraCL_AST'}{'OrigArgs'} = $args;
-    # carp Dumper $stref->{'TyTraCL_AST'};
     $stref->{'TyTraCL_AST'}{'UniqueVarCounters'} = {%vecs, %accs};
 
-    # $stref->{'TyTraCL_AST'}{'Main'} ={};
-    # my $main_rec = $stref->{'TyTraCL_AST'}{'Main'};
-
-
-    # $main_rec->{'InArgsTypes'}={};
-    # $main_rec->{'OutArgsTypes'}={};
-    # $main_rec->{'InArgs'}=[];
-    # $main_rec->{'OutArgs'}=[];
-
-    # for my $var (sort keys %{$stref->{'TyTraCL_AST'}{'UniqueVarCounters'}}) {
-    #     my $ct = $stref->{'TyTraCL_AST'}{'UniqueVarCounters'}{$var};
-    #     my $decl = $decls->{$var};
-    #     my $vec_sz = $decl->[1][1];
-    #     my $scalar_type = $decl->[0];
-    #     push @{$main_rec->{'InArgs'}}, $var.'_0';
-    #     push @{$main_rec->{'OutArgs'}}, $var.'_'.$ct;
-    #     $main_rec->{'InArgsTypes'}{$var.'_0'}=['Vec', $vec_sz, $scalar_type];
-    #     $main_rec->{'OutArgsTypes'}{$var.'_',$ct}=['Vec', $vec_sz, $scalar_type];
-    # }
-
-    # $stref->{'TyTraCL_AST'}{'Main'} = $main_rec;
-    # croak Dumper($stref->{'TyTraCL_AST'}{'Main'});
     return $stref;
 } # END of mkAST
 
