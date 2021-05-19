@@ -54,6 +54,7 @@ use Exporter;
     &get_module_name_from_source
     &get_kernel_and_module_names
     &get_block_id
+    &is_array_decl
     &warning
 );
 
@@ -1004,6 +1005,16 @@ sub get_block_id { my ($block, $block_id) = @_;
     } else {
         get_block_id($in_block,$block_id);
     }
+}
+
+sub is_array_decl { (my $info)=@_;
+# warn Dumper $info->{'ParsedVarDecl'};
+	return (exists $info->{'ParsedVarDecl'}
+	&& exists $info->{'ParsedVarDecl'}{'Attributes'}
+	&& exists $info->{'ParsedVarDecl'}{'Attributes'}{'Dim'}
+	&& scalar @{$info->{'ParsedVarDecl'}{'Attributes'}{'Dim'}} >0)
+	# because parse_F95_var_decl() returns Scalars as Dim => [0] 
+	&& $info->{'ParsedVarDecl'}{'Attributes'}{'Dim'}[0].'' ne '0';
 }
 
 

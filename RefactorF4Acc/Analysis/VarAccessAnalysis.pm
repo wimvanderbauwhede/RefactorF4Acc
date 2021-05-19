@@ -198,7 +198,7 @@ sub analyseAllVarAccesses { my ($stref, $f, $io_write_subroutines, $annlines) = 
 
 				    my $var=$info->{'VarDecl'}{'Name'};
                     push @{$state->{'VarAccessAnalysis'}{'LocalVars'}{'List'}}, $var;
-                    $state->{'VarAccessAnalysis'}{'LocalVars'}{'Set'}{$var} = __is_array_decl($info) ? 'Array' : 'Scalar';
+                    $state->{'VarAccessAnalysis'}{'LocalVars'}{'Set'}{$var} = is_array_decl($info) ? 'Array' : 'Scalar';
                 }
 				 
 			}
@@ -388,13 +388,5 @@ sub _find_var_access_in_ast { (my $stref, my $f,  my $block_line_id, my $state, 
 } # END of _find_var_access_in_ast
 
 
-
-sub __is_array_decl { (my $info)=@_;
-# warn Dumper $info->{'ParsedVarDecl'};
-	return (exists $info->{'ParsedVarDecl'}
-	&& exists $info->{'ParsedVarDecl'}{'Attributes'}
-	&& exists $info->{'ParsedVarDecl'}{'Attributes'}{'Dim'}
-	&& scalar @{$info->{'ParsedVarDecl'}{'Attributes'}{'Dim'}} >0);
-}
 
 1;

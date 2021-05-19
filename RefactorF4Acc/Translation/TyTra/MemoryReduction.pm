@@ -91,7 +91,8 @@ if ($Config{'TEST'} == 0 ) {
 } else { 
     $stref = memory_reduction_tests($stref);
 }
-# carp Dumper get_vars_from_set($stref->{'Subroutines'}{'f1'}{'Vars'});
+# croak Dumper get_vars_from_set($stref->{'Subroutines'}{'f1'}{'Vars'});
+# croak  Dumper $stref;
     $stref = construct_TyTraCL_AST_Main_node($stref);
 
     $stref = _emit_TyTraCL_FunctionSigs($stref);    
@@ -931,7 +932,7 @@ sub _create_TyTraCL_Haskell_signatures { (my $stref) = @_;
         my $fsig =$stref->{'TyTraCL_FunctionSigs'}{$f};
         
         my $fname = $ftypedecl->[0] ;
-        croak unless $fname eq $f;
+        croak "PROBLEM: $fname <> $f" unless $fname eq $f;
         # For every argument tuple, i.e. Non-{Map,Fold} [,Acc], {Map,Fold}, Out
         my $typed_arg_tups=[];
         carp Dumper $stref->{'TyTraCL_AST'}{'Main'};
@@ -944,7 +945,7 @@ sub _create_TyTraCL_Haskell_signatures { (my $stref) = @_;
             if (scalar @{$typetup}) {
                 for my $type (@{$typetup}) {
                     my $arg = shift @{$argtup};
-                    carp $arg.';',Dumper $args_types;
+                    carp "$f $arg;",Dumper $args_types;
                     my $arg_type = $args_types->{$arg};
                     if ($arg_type->[0] ne 'SVec') { # It's a scalar FIXME: This information is not there!
                         push @{$typed_arg_tup}, 'Scalar VDC D'.$arg_type->[0].' "'.$arg.'"';

@@ -200,12 +200,9 @@ sub identify_array_accesses_in_exprs { (my $stref, my $f) = @_;
                 }
 			}
 			# For every VarDecl, identify dimension if it is an array
-			if (exists $info->{'VarDecl'} and not exists $info->{'ParamDecl'} and __is_array_decl($info)) {
-
+			if (exists $info->{'VarDecl'} and not exists $info->{'ParamDecl'} and is_array_decl($info)) {
 				my $array_var=$info->{'VarDecl'}{'Name'};
-				 
 				my @dims = @{ $info->{'ParsedVarDecl'}{'Attributes'}{'Dim'} };
-
 				$state->{'Subroutines'}{ $f }{'Blocks'}{ $block_id }{'Arrays'}{$array_var}{'Dims'}=[];
 				for my $dim (@dims) {
 					(my $lo, my $hi)=$dim=~/:/ ? split(/:/,$dim) : (1,$dim);
@@ -232,7 +229,7 @@ sub identify_array_accesses_in_exprs { (my $stref, my $f) = @_;
 #				say "{ $f }{ $block_id }{'Arrays'}{$array_var}{'Dims'}";
 #				say Dumper($state->{'Subroutines'}{ $f }{'Blocks'}{ $block_id }{'Arrays'}{$array_var}{'Dims'});
 			}			
-			if (exists $info->{'Assignment'} ) {
+			elsif (exists $info->{'Assignment'} ) {
 				# Assignment to scalar *_rel
 				# This is ad hoc for the output of the AutoParallelFortran compiler!
 				# carp $f. Dumper $info;
@@ -282,32 +279,34 @@ sub identify_array_accesses_in_exprs { (my $stref, my $f) = @_;
 							}
 						}
 					}
+				}
 				
-					# This tests for the case of the same array on LHS and RHS, but maybe with a different access location, so a(...) = a(...)
-                    # This is probably superseded by the new analysis of array assignment expressions
-					if (
-						ref($info->{'Rhs'}{'ExpressionAST'}) eq 'ARRAY'
-					and (($info->{'Rhs'}{'ExpressionAST'}[0] & 0xFF) == 10) #eq '@'
-					and ref($info->{'Lhs'}{'ExpressionAST'}) eq 'ARRAY'
-					and (($info->{'Lhs'}{'ExpressionAST'}[0] & 0xFF) == 10) #eq '@'
-					and $info->{'Lhs'}{'ExpressionAST'}[1] eq $info->{'Rhs'}{'ExpressionAST'}[1]
-					) {
-						my $var_name = $info->{'Rhs'}{'ExpressionAST'}[1];
-						say "IDENTITY OP for $var_name : ",$line . __PACKAGE__ .' '. __LINE__ if $DBG;
-						$state->{'Subroutines'}{ $f }{'Blocks'}{$block_id}{'Identity'}{$var_name} = 1;
-					}
+				# This tests for the case of the same array on LHS and RHS, but maybe with a different access location, so a(...) = a(...)
+				# This is probably superseded by the new analysis of array assignment expressions
+				if (
+					ref($info->{'Rhs'}{'ExpressionAST'}) eq 'ARRAY'
+				and (($info->{'Rhs'}{'ExpressionAST'}[0] & 0xFF) == 10) #eq '@'
+				and ref($info->{'Lhs'}{'ExpressionAST'}) eq 'ARRAY'
+				and (($info->{'Lhs'}{'ExpressionAST'}[0] & 0xFF) == 10) #eq '@'
+				and $info->{'Lhs'}{'ExpressionAST'}[1] eq $info->{'Rhs'}{'ExpressionAST'}[1]
+				) {
+					my $var_name = $info->{'Rhs'}{'ExpressionAST'}[1];
+					say "IDENTITY OP for $var_name : ",$line . __PACKAGE__ .' '. __LINE__ if $DBG;
+					$state->{'Subroutines'}{ $f }{'Blocks'}{$block_id}{'Identity'}{$var_name} = 1;
+				}
 					
-					# Find all array accesses in the LHS and RHS AST.					
-					# carp 'BLOCK: '.$block_id.';'.Dumper($state->{'Subroutines'}{ $f }{'Blocks'});#{$block_id});
-					(my $lhs_ast, $state, my $lhs_accesses) = _find_var_access_in_ast($stref, $f, $block_id, $state, $info->{'Lhs'}{'ExpressionAST'},'Write',{});
-					(my $rhs_ast, $state, my $rhs_accesses) = _find_var_access_in_ast($stref, $f, $block_id, $state, $info->{'Rhs'}{'ExpressionAST'},'Read',{});
-					$info->{'Rhs'}{'VarAccesses'}=$rhs_accesses;
-					$info->{'Lhs'}{'VarAccesses'}=$lhs_accesses;
+				# Find all array accesses in the LHS and RHS AST.					
+				# carp 'BLOCK: '.$block_id.';'.Dumper($state->{'Subroutines'}{ $f }{'Blocks'});#{$block_id});
+				(my $lhs_ast, $state, my $lhs_accesses) = _find_var_access_in_ast($stref, $f, $block_id, $state, $info->{'Lhs'}{'ExpressionAST'},'Write',{});
+				(my $rhs_ast, $state, my $rhs_accesses) = _find_var_access_in_ast($stref, $f, $block_id, $state, $info->{'Rhs'}{'ExpressionAST'},'Read',{});
+				$info->{'Rhs'}{'VarAccesses'}=$rhs_accesses;
+				$info->{'Lhs'}{'VarAccesses'}=$lhs_accesses;
+				croak Dumper $state if $line=~/c.i.\s+\+\s+acc/;
 
-					if (exists $lhs_accesses->{'Arrays'} and exists $rhs_accesses->{'Arrays'} ) {
-						# This is an assignment line with array accesses.
-						# Tie the LHS accesses to the RHS ones  
-						# We simply create a list of these, rather than trying to reuse $state->{'Subroutines'}{ $f }{$block_id}{'Assignments'}
+				if (exists $lhs_accesses->{'Arrays'} and exists $rhs_accesses->{'Arrays'} ) {
+					# This is an assignment line with array accesses on both sides
+					# Tie the LHS accesses to the RHS ones  
+					# We simply create a list of these, rather than trying to reuse $state->{'Subroutines'}{ $f }{$block_id}{'Assignments'}
 # 'Arrays' => {
 #    'v' => {
 #      'Write' => {
@@ -335,24 +334,23 @@ sub identify_array_accesses_in_exprs { (my $stref, my $f) = @_;
 #  }
 						
 #						say $line. "\nTie the LHS accesses to the RHS ones".Dumper($lhs_accesses,$rhs_accesses). "\n".' __PACKAGE__ '.__LINE__;
-						if (not exists $state->{'Subroutines'}{ $f }{'Blocks'}{$block_id}{'ArrayAssignments'}) {
-							$state->{'Subroutines'}{ $f }{'Blocks'}{$block_id}{'ArrayAssignments'}=[];
-						}
-						push @{ $state->{'Subroutines'}{ $f }{'Blocks'}{$block_id}{'ArrayAssignments'} }, [$lhs_accesses,$rhs_accesses,$annline];
+					if (not exists $state->{'Subroutines'}{ $f }{'Blocks'}{$block_id}{'ArrayAssignments'}) {
+						$state->{'Subroutines'}{ $f }{'Blocks'}{$block_id}{'ArrayAssignments'}=[];
 					}
-					if (exists $lhs_accesses->{'Arrays'} or exists $rhs_accesses->{'Arrays'} ) {
-						# This is an assignment line with array accesses.					  
-						# Check the halos!					
-	                    ($lhs_accesses,$rhs_accesses) = @{ _detect_halo_accesses($line, $lhs_accesses,$rhs_accesses,$state,$block_id,$stref,$f) };
-	                    if (exists $rhs_accesses->{'HasHaloAccesses'}) {
-	                    	$info->{'Rhs'}{'VarAccesses'}=$rhs_accesses;
-	                    }
-	                    if (exists $lhs_accesses->{'HasHaloAccesses'}) {
-	                    	$info->{'Lhs'}{'VarAccesses'}=$lhs_accesses;
-	                    }                     
-                    
+					push @{ $state->{'Subroutines'}{ $f }{'Blocks'}{$block_id}{'ArrayAssignments'} }, [$lhs_accesses,$rhs_accesses,$annline];
+				}
+				if (exists $lhs_accesses->{'Arrays'} or exists $rhs_accesses->{'Arrays'} ) {
+					# This is an assignment line with array accesses.					  
+					# Check the halos!					
+					($lhs_accesses,$rhs_accesses) = @{ _detect_halo_accesses($line, $lhs_accesses,$rhs_accesses,$state,$block_id,$stref,$f) };
+					if (exists $rhs_accesses->{'HasHaloAccesses'}) {
+						$info->{'Rhs'}{'VarAccesses'}=$rhs_accesses;
 					}
-                }
+					if (exists $lhs_accesses->{'HasHaloAccesses'}) {
+						$info->{'Lhs'}{'VarAccesses'}=$lhs_accesses;
+					}                     
+				
+				}                
                 
 				my $var_name = $info->{'Lhs'}{'VarName'};
 				if (not exists $state->{'Subroutines'}{ $f }{'Blocks'}{$block_id}{'Assignments'}{$var_name}) {
@@ -830,8 +828,6 @@ sub _classify_accesses_and_emit_AST { (my $stref, my $f, my $state ) =@_;
 				#- all points in the array are processed in order
 					$all_points
 					) {
-#						say "STENCIL for $rw of $array_var";#.': '.Dumper($state->{'Subroutines'}{ $f }{'Blocks'}{ $block_id }{'Arrays'}{$array_var}{$rw}{'Accesses'});
-			 		
 				 		$ast_to_emit = $ast_emitter->( $f,  $state,  $ast_to_emit, 'STENCIL',  $block_id,  $array_var,  $rw) if $emit_ast;
 						$stencils{$array_var}=1;
 					}
@@ -955,14 +951,6 @@ sub _remove_index_vars { (my $stref, my $f, my $block_id, my $state, my $vars_re
 		}
 	}
 	return %non_idx_vars;
-}
-
-sub __is_array_decl { (my $info)=@_;
-# warn Dumper $info->{'ParsedVarDecl'};
-	return (exists $info->{'ParsedVarDecl'}
-	&& exists $info->{'ParsedVarDecl'}{'Attributes'}
-	&& exists $info->{'ParsedVarDecl'}{'Attributes'}{'Dim'}
-	&& scalar @{$info->{'ParsedVarDecl'}{'Attributes'}{'Dim'}} >0);
 }
 
 sub __mkLoopId { (my $loop_nest_stack ) =@_;
@@ -1494,12 +1482,19 @@ sub _is_stream_var { my ($state, $f, $block_id, $var_name) =@_;
 	}
 	  # Get the record for $var_name
 	#   carp "$f $block_id $var_name", Dumper $state->{'Subroutines'}{ $f }{'Blocks'}{ $block_id };
-	  croak if not exists $state->{'Subroutines'}{$f}{'Blocks'}{$block_id}{'LoopIters'}; 
+	  croak "PROBLEM: NO LoopIters for block $block_id in $f" if not exists $state->{'Subroutines'}{$f}{'Blocks'}{$block_id}{'LoopIters'}; 
 	  my $iters =  $state->{'Subroutines'}{$f}{'Blocks'}{$block_id}{'LoopIters'};
 	  my $dims = $state->{'Subroutines'}{ $f }{'Blocks'}{ $block_id }{'Arrays'}{$var_name}{'Dims'} ;	  
+	#   carp $var_name.Dumper($dims,$iters);
+	# carp Dumper $state->{'Subroutines'}{ $f }{'Blocks'}{ $block_id };
 	  if (scalar @{$dims} < scalar keys %{$iters}) { 
 		  say "$f $var_name dim mismatch" if $V;
 		  return 0;
+	  } 
+	  # If an array dim is smaller than the range for iteration, it can't be a stream
+	  # If an array only has const accesses, it can't be a stream
+	  elsif (__only_const_acccesses($var_name, $state, $f, $block_id) ) {
+			return 0;		  
 	  } else {
 		  # needs more checking of the sizes but a global size comp should do it I think
 		  my $iter_space=1;
@@ -1516,6 +1511,7 @@ sub _is_stream_var { my ($state, $f, $block_id, $var_name) =@_;
 			#   $array_sz*=$dim_sz;
 			#   $iter_space*=$range_sz;
 		  }
+# carp "OK? $ok"; croak if $var_name eq 'w';
 		  
 		  if ($DBG and not $ok) {
 			  	croak  "ARRAY $var_name in $f IS SMALLER than iter space";
@@ -1524,6 +1520,32 @@ sub _is_stream_var { my ($state, $f, $block_id, $var_name) =@_;
 	  }
 	  return 1;
 } # END of _is_stream_var
+
+
+sub __only_const_acccesses { my ($array_var, $state, $f, $block_id) = @_;
+#  carp Dumper($state->{'Subroutines'}{ $f }{'Blocks'}{ $block_id }{'Arrays'}{$array_var}) if $array_var eq 'w';
+	for my $rw('Read','Write') {
+		if (exists
+			$state->{'Subroutines'}{ $f }{'Blocks'}{ $block_id }{'Arrays'}{$array_var}{$rw}
+		) {
+			my $iter_pairs = $state->{'Subroutines'}{ $f }{'Blocks'}{ $block_id }{'Arrays'}{$array_var}{$rw}{'Iterators'};
+			# croak $array_var.' BOOM!' . Dumper($iter_pairs) if $array_var eq 'w';
+
+			for my $iter_pair (@{$iter_pairs})  {
+				my ($iter,$idx) = split(/:/,$iter_pair);
+				if ($iter ne '?') { croak $iter if $array_var eq 'w';
+					return 0;
+				}
+			}
+		}
+	}
+	
+	return 1;	
+}
+
+# sub __array_dim_too_small { my ($array_var, $state, $f, $block_id) = @_;
+
+# }
 
 1;
 
@@ -1737,8 +1759,26 @@ sub _get_loop_iters_from_global_id { my ($stref,$f) = @_;
 	};
 
 	my $state = {'Deps' => {} , 'LoopIters'=> {} };
+
 	(my $new_annlines,$state) = stateful_pass($annlines,$pass_get_loop_iters_from_global_id,$state,"pass_get_loop_iters_from_global_id($f)");
-	# croak $f.  Dumper $state;
+	
+	# Adapt the Range for the LoopIters, this is used to decide if an array is a StreamVar
+	for my $iter (sort keys %{$state->{'LoopIters'}}) {
+		for my $array_var (sort keys %{$state->{'LoopIters'}{$iter}{'Arrays'}}) {
+			my $idx = $state->{'LoopIters'}{$iter}{'Arrays'}{$array_var};
+			my $subset = in_nested_set( $stref->{'Subroutines'}{$f}, 'Vars', $array_var );
+			# say "SUBSET <$subset>";
+			if ($subset) { 
+				my $decl = get_var_record_from_set( $stref->{'Subroutines'}{$f}{'Vars'},$array_var);
+				if (exists $decl->{'ConstDim'}) {
+				# say Dumper($decl);
+				my $const_dim = $decl->{'ConstDim'};
+				# carp "$array_var $iter $idx ".Dumper($const_dim->[$idx]);
+				$state->{'LoopIters'}{$iter}{'Range'}=[1,$const_dim->[$idx][1]-$const_dim->[$idx][0]+1,1];
+				}
+			}
+		}
+	}
 	# Now assign this to LoopIters
 	$stref->{'Subroutines'}{ $f }{'ArrayAccesses'}{0}{'LoopIters'} = $state->{'LoopIters'};
 	return $stref;
@@ -1783,8 +1823,9 @@ sub __find_loop_iters_in_array_idx_expr { (my $ast, my $state,)=@_;
   		my $item = $args[$idx]; # This is an AST!
   		my $vars = get_vars_from_expression($item, {});
   		for my $var (keys %{$vars}) {
-  			if (exists $state->{'Deps'}{ $var }) {
-				  $state->{'LoopIters'}{$var}={'Range' => [0,0,0]};
+  			if (exists $state->{'Deps'}{ $var }) {				  
+				  $state->{'LoopIters'}{$var}{'Range'} = [0,0,0];
+				  $state->{'LoopIters'}{$var}{'Arrays'}{$array_var}=$idx;
   			}
   		}
 	}

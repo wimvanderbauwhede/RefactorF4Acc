@@ -43,7 +43,9 @@ sub fold_constants {
     if (not defined $substitute_loop_iters_by_consts) {
         $substitute_loop_iters_by_consts = 0;
     }
+    # carp $f. ref($stref);
     my $Sf = $stref->{'Subroutines'}{$f};
+    # Chicken and egg!
     $stref = identify_array_accesses_in_exprs($stref,$f);
     # die;
     # croak Dumper $Sf->{'ArrayAccesses'} if $f eq 'sub1';
@@ -64,7 +66,7 @@ sub fold_constants {
 			# # For every VarDecl, identify dimension if it is an array
 			# els
             if (exists $info->{'VarDecl'} and not exists $info->{'ParamDecl'}
-             and __is_array_decl($info)
+             and is_array_decl($info)
              ) {
                 
                 my $var_name = $info->{'VarDecl'}{'Name'};
@@ -78,6 +80,7 @@ sub fold_constants {
                 my $subset = in_nested_set( $Sf, 'Vars', $var_name );
                 my $decl = get_var_record_from_set($Sf->{$subset},$var_name);
                 $decl->{'ConstDim'} = $Sf->{'ArrayAccesses'}{$block_id}{'Arrays'}{$var_name}{'Dims'};
+                # croak $decl;
                 $Sf->{$subset}{'Set'}{$var_name} = $decl;
                 # push @attrs,'dimension('.join(', ',  map {} @{ $pvd->{'Attributes'}{'Dim'} }).')';
                 $info->{'ParsedVarDecl'}{'Attributes'}{'Dim'}=$dims;
@@ -145,7 +148,7 @@ sub fold_constants {
     my $new_annlines = stateless_pass($annlines,$pass_fold_constants,"pass_fold_constants($f) " . __LINE__  ) ;
     # $stref = identify_var_accesses_in_exprs($stref,$f,$new_annlines);
     #  emit_RefactoredCode($stref,$f,$new_annlines) ;
-    return $new_annlines;
+    return ($stref,$new_annlines);
 } # END of fold_constants
 
 sub fold_constants_all {
@@ -178,10 +181,3 @@ sub fold_constants_all {
 	return $stref;
 }    # END of fold_constants_all()
 
-sub __is_array_decl { (my $info)=@_;
-
-	return (exists $info->{'ParsedVarDecl'}
-	&& exists $info->{'ParsedVarDecl'}{'Attributes'}
-	&& exists $info->{'ParsedVarDecl'}{'Attributes'}{'Dim'}
-	&& scalar @{$info->{'ParsedVarDecl'}{'Attributes'}{'Dim'}} >0);
-}

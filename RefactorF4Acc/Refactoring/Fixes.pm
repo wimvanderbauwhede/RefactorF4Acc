@@ -1050,6 +1050,7 @@ sub __determine_called_sub_arg_iodir_no_context { my ($arg, $stref, $csub)=@_;
 sub __determine_called_sub_arg_iodir_w_context { my ($arg, $stref, $csub, $iodir_for_top_arg,$iodir_for_arg_in_called_sub,$call_sequence, $cs_idx)=@_;
 	my $iodir=$iodir_for_arg_in_called_sub->{$csub}{$arg};
 	my $top_iodir=$iodir_for_top_arg->{$arg};
+	# carp "$csub $arg $top_iodir ($iodir) ".Dumper($call_sequence);
 	# local $W=1;
 	# If an argument of a called subroutine is an In arg of the kernel, it could be used as an InOut in a called sub
 	#	If the current sub modifies it (not In; it could be Out)
@@ -1118,6 +1119,7 @@ sub __determine_called_sub_arg_iodir_w_context { my ($arg, $stref, $csub, $iodir
 		my $used_as_in = 0;
 		my $used_as_out = 0;
 		for my $ccsub (@{$call_sequence}) {
+			# warn "$ccsub $arg ".Dumper($iodir_for_arg_in_called_sub->{$ccsub}{$arg});
 			if (
 					exists $iodir_for_arg_in_called_sub->{$ccsub}{$arg} 
 			) {
@@ -1127,7 +1129,7 @@ sub __determine_called_sub_arg_iodir_w_context { my ($arg, $stref, $csub, $iodir
 				) {
 					$used_as_in=1;
 				}
-				elsif ($iodir_for_arg_in_called_sub->{$ccsub}{$arg} eq 'out'
+				if ($iodir_for_arg_in_called_sub->{$ccsub}{$arg} eq 'out'
 				or $iodir_for_arg_in_called_sub->{$ccsub}{$arg} eq 'inout'
 				) {
 					$used_as_out=1;

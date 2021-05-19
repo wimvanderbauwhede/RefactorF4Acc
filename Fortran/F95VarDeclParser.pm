@@ -64,6 +64,7 @@ sub parse_F95_var_decl {
 		      $pt->{Attributes}{Dim} = [$dim];
             }
         } else {
+			# WV 2021-05-19 would it not be better to delete this field? FIXME!
         	$pt->{Attributes}{Dim} = [0];
         }
     }

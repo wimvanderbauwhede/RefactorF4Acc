@@ -29,25 +29,26 @@ subroutine f2(acc,v)
     real, dimension(nx), intent(InOut) :: v
     real, intent(In) :: acc
 ! globalIdDeclaration
-    integer :: global_id, i, i_rel, i_range
+    real, dimension(2) :: w
+    integer :: global_id, i, i_rel
 ! globalIdInitialisation
     call get_global_id(global_id,0)
-    ! The compiler needs this at the moment
-    i_range = 500
     i_rel = global_id
     i = i_rel + 1
-
-    v(i) = v(i) + acc
+    w(1) = 0.25
+    w(2) = 0.75
+    v(i) = v(i)*w(1) + acc*w(2)
 
 end subroutine f2
 
-subroutine test_superkernel(acc,v,state_ptr)
+subroutine test_superkernel(v,state_ptr)
   integer(4), parameter :: nx=500
   real, dimension(nx), intent(InOut) :: v
-  real, intent(In) :: acc
+  real :: acc
   integer :: state
   integer, dimension(1):: state_ptr
   state = state_ptr(1) ! state 
+  acc = 0;
 ! SUPERKERNEL BODY
   select case(state)
     case (1)

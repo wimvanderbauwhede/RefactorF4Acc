@@ -146,7 +146,7 @@ sub analyseLoopNature { # paralleliseProgUnit_foldl
             my $Sf = $stref->{'Subroutines'}{$f}; # subrec; $stref->{'Subroutines'} is originalTable
             my $annlines =  $Sf->{'RefactoredCode'}; # progUnit = subAst subrec
             my $filename =  $Sf->{'Source'}; # subSrcFile subrec; we don't need this, we can use $f
-            my $annlines_foldedConstants = fold_constants( $stref, $f);
+            ($stref,my $annlines_foldedConstants) = fold_constants( $stref, $f);
             # my $accessAnalysis :: VarAccessAnalysis
             ($stref,my $accessAnalysis) = analyseAllVarAccesses($stref, $f, $ioWriteSubroutines, $annlines);
             # die;

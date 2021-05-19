@@ -2845,6 +2845,8 @@ sub __parse_f95_decl {
 			if (not exists $pt->{'Attributes'}{'Allocatable'}) {
 				# This is a HACK because we changed the structure of Dim in the case of allocatable arrays
 				$info->{'ParsedVarDecl'} = $pt;
+				# Note that scalars have a 'Dim' => [0] field! FIXME!
+				# croak $line. Dumper $pt if $line=~/vdummy/ and $f eq 'f2';
 			} 
 			$info->{'VarDecl'} = {
 				'Indent' => $indent,

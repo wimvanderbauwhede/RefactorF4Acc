@@ -124,7 +124,7 @@ sub construct_TyTraCL_AST_Main_node {
     # Input args have Ctr==0 on the Rhs
     # Output args $arg have Ctr == $tytracl_ast->{'UniqueVarCounters'}{$arg}
     my $tytracl_ast = $stref->{'TyTraCL_AST'};
-# croak Dumper $tytracl_ast ;
+
     my $main_rec = {
         'NodeType'     => 'MainFunction',
         'InArgs'       => [],
@@ -553,7 +553,6 @@ sub _addToVarTypesAndStencils {
             }
         }
 
-        # \%map_arg_types;
         $var_types->{$f}{'MapArgType'}    = [@map_arg_types_array];
         $var_types->{$f}{'MapArgTypeMap'} = \%map_arg_types;
 
@@ -1114,7 +1113,7 @@ sub _add_TyTraCL_AST_entry {
                   or (scalar @{$state->{'Subroutines'}{$f}{'Blocks'}{$block_id}{'Arrays'}{$_}{'Dims'}} < $n_dims)
             )
         } @in_tup;
-# carp "NON-MAP ARGS: ".Dumper(@in_tup_non_map_args);
+# carp "NON-MAP ARGS: $f:".Dumper(@in_tup_non_map_args)."\n".Dumper($state->{'Subroutines'}{$f}{'Blocks'}{$block_id}{'Scalars'});
         # non-fold args are non-map args that are not acc args
         my @in_tup_non_fold_args = grep { not exists $accs{$_} } @in_tup_non_map_args;
 
