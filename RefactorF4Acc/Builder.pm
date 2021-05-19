@@ -32,7 +32,7 @@ sub create_build_script {
     my $gfortran = $ENV{'FC'};
     my $gcc = $ENV{'CC'};
     my $EXT = $Config{EXT};
-    my $exe = (exists $Config{'EXE'} and $Config{'EXE'} ne '')
+    my $exe = (Config{'EXE'} ne '')
     ? $Config{'EXE'}
     : $stref->{'Top'}; 
     

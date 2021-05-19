@@ -124,7 +124,7 @@ sub construct_TyTraCL_AST_Main_node {
     # Input args have Ctr==0 on the Rhs
     # Output args $arg have Ctr == $tytracl_ast->{'UniqueVarCounters'}{$arg}
     my $tytracl_ast = $stref->{'TyTraCL_AST'};
-croak Dumper $tytracl_ast ;
+# croak Dumper $tytracl_ast ;
     my $main_rec = {
         'NodeType'     => 'MainFunction',
         'InArgs'       => [],
@@ -283,7 +283,7 @@ sub emit_TyTraCL {
     # Wrap into main
     #
     my $main_rec          = $tytracl_ast->{'Main'};
-    
+    croak Dumper $tytracl_ast;
     my $in_args_types     = $main_rec->{'InArgsTypes'};
     my @in_arg_type_decls = ();
     my @in_arg_ftypes     = ();

@@ -50,7 +50,7 @@ sub emit_subroutine_sig { #(my $stref, my $f,
         #my $Sf        = $stref->{'Subroutines'}{$f};
 	    
 	    my $name = $info->{'Signature'}{'Name'};
-		if (exists $Config{'SUB_SUFFIX'} ) {
+		if ($Config{'SUB_SUFFIX'} ne '' ) {
 			$name.=$Config{'SUB_SUFFIX'};
 		}
 		my $args_ref = $info->{'Signature'}{'Args'}{'List'};	

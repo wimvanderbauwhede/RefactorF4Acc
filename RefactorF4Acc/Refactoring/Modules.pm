@@ -37,7 +37,7 @@ sub add_module_decls {
 	#    my $no_module=0;
 	my %is_existing_module   = ();
 	my %existing_module_name = ();
-	my %no_modules           = exists $Config{'NO_MODULE'} ? map { $_ => 1 } @{ $Config{'NO_MODULE'} } : ();
+	my %no_modules           = scalar @{$Config{'NO_MODULE'}} > 0 ? map { $_ => 1 } @{ $Config{'NO_MODULE'} } : ();
 
 	# This assumes a source file contains only a single module
 	# - For all sources $src in the source tree

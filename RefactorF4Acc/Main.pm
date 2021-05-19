@@ -185,13 +185,13 @@ sub main {
     	$stref = parse_fortran_src( $data_block, $stref );
     }    
     # It is possible that the TOP routine was set to the default (PROGRAM) while doing the inventory
-    if ($code_unit_name eq '' and exists $Config{'TOP'} and $Config{'TOP'} ne '') {
+    if ($code_unit_name eq '' and $Config{'TOP'} ne '') {
     	$code_unit_name = $Config{'TOP'};
         $stref->{'Top'}=$code_unit_name;
         say "Using PROGRAM $code_unit_name as TOP" if $V;
     }
     
-    if ($code_unit_name eq '' and exists $Config{'SOURCEFILES'} and scalar @{ $Config{'SOURCEFILES'} }>0) {
+    if ($code_unit_name eq '' and scalar @{ $Config{'SOURCEFILES'} }>0) {
     	# $code_unit_name is empty, i.e. no TOP routine. So we go through all sources one by one by file name
     	for my $fp ( @{ $Config{'SOURCEFILES'} } ) {
     		parse_fortran_src( $fp, $stref, 1 );
@@ -219,7 +219,7 @@ sub main {
     # 
     $stref = precondition_includes($stref);        
 
-    if ($code_unit_name eq '' and exists $Config{'SOURCEFILES'} and scalar @{ $Config{'SOURCEFILES'} }>0) {
+    if ($code_unit_name eq '' and scalar @{ $Config{'SOURCEFILES'} }>0) {
         # $code_unit_name is empty, i.e. no TOP routine. So we go through all sources one by one by file name
         for my $fp ( @{ $Config{'SOURCEFILES'} } ) {
             precondition_decls( $fp, $stref );
@@ -228,7 +228,7 @@ sub main {
        $stref = precondition_decls( $code_unit_name, $stref );
     }
 
-   if ($code_unit_name eq '' and exists $Config{'SOURCEFILES'} and scalar @{ $Config{'SOURCEFILES'} }>0) {
+   if ($code_unit_name eq '' and scalar @{ $Config{'SOURCEFILES'} }>0) {
         # $code_unit_name is empty, i.e. no TOP routine. So we go through all sources one by one by file name
         for my $fp ( @{ $Config{'SOURCEFILES'} } ) {
             precondition_subroutines_with_includes( $fp, $stref );
@@ -259,7 +259,7 @@ sub main {
         say "ANALYSE ALL for $code_unit_name";
         say "----------------". ('-' x length($code_unit_name)) ;
         }
-    if ($code_unit_name eq '' and exists $Config{'SOURCEFILES'} and scalar @{ $Config{'SOURCEFILES'} }>0) {
+    if ($code_unit_name eq '' and scalar @{ $Config{'SOURCEFILES'} }>0) {
     	for my $fp ( @{ $Config{'SOURCEFILES'} } ) {
             $stref = analyse_all($stref,$fp, $stage, 1);
         }
@@ -277,7 +277,7 @@ sub main {
             say "RUNNING CUSTOM PASS $pass";
             say "--------------------". ('-' x length($pass)) ;
         }
-        if ($code_unit_name eq '' and exists $Config{'SOURCEFILES'} and scalar @{ $Config{'SOURCEFILES'} }>0) {
+        if ($code_unit_name eq '' and scalar @{ $Config{'SOURCEFILES'} }>0) {
         # $code_unit_name is empty, i.e. no TOP routine. So we go through all sources one by one by file name
             for my $fp ( @{ $Config{'SOURCEFILES'} } ) {
     	       $stref = run_custom_passes($stref,$fp, $pass,1);
@@ -290,7 +290,7 @@ sub main {
     # 4. Refactoring: Refactor the source    
     # - if a pass is given using -P on command line, it is performed instead of the default refactoring
     # - multiple passes can be comma-separated
-   if ($code_unit_name eq '' and exists $Config{'SOURCEFILES'} and scalar @{ $Config{'SOURCEFILES'} }>0) {
+   if ($code_unit_name eq '' and scalar @{ $Config{'SOURCEFILES'} }>0) {
         # $code_unit_name is empty, i.e. no TOP routine. So we go through all sources one by one by file name
         for my $fp ( @{ $Config{'SOURCEFILES'} } ) {
         	$stref = refactor_all($stref,$fp,1);
@@ -368,10 +368,10 @@ sub parse_args { (my $args)=@_;
 	if ($code_unit_name) {
 		$code_unit_name =~ s/\.f(?:9[05])?$//;
 		$has_code_unit_name=1;
-	} elsif (exists $Config{'MODULE'}) {
+	} elsif ($Config{'MODULE'} ne '') {
 		$code_unit_name = $Config{'MODULE'};
 		$has_code_unit_name=1;        
-	} elsif (exists $Config{'TOP'}) {
+	} elsif ($Config{'TOP'} ne '') {
 		$code_unit_name = $Config{'TOP'};
 		$has_code_unit_name=1;
 	} else {
@@ -379,7 +379,7 @@ sub parse_args { (my $args)=@_;
         $code_unit_name = '';
 	}
     
-    if ( exists $Config{'NEWSRCPATH'}) {
+    if ( $Config{'NEWSRCPATH'} ne '') {
         $targetdir =  $Config{'NEWSRCPATH'};
     }   
     
@@ -399,7 +399,7 @@ sub parse_args { (my $args)=@_;
     if ($sourcefiles_str ne '') {    
         # OK, source files from command line
         $Config{'SOURCEFILES'} = [ split(/\s*\,\s*/,$sourcefiles_str) ];
-    } elsif (exists $Config{'SOURCEFILES'} and @{$Config{'SOURCEFILES'}}==0) {
+    } elsif ( @{$Config{'SOURCEFILES'}}==0) {
     	# OK, source files from config file
         # $SOURCEFILES = $Config{'SOURCEFILES'}     
     # } elsif (not $has_code_unit_name) {
@@ -420,12 +420,7 @@ sub parse_args { (my $args)=@_;
 
     $Config{'INLINE_INCLUDES'} = $opts{'I'}  ? 1 : 0;
 
-	# $CFG_refactor_toplevel_globals = (exists $Config{'REFACTOR_TOPLEVEL_GLOBALS'}) ? 1 : 0 	;
 	$CFG_refactor_toplevel_globals= 1; # FIXME: refactoring while ignoring globals is broken ( $opts{'g'} ) ? 1 : $CFG_refactor_toplevel_globals; # Global from Config
-
-    # $Config{'ALLOW_SPACES_IN_NUMBERS'} = ref($Config{'ALLOW_SPACES_IN_NUMBERS'}) eq 'ARRAY' ? $Config{'ALLOW_SPACES_IN_NUMBERS'}[0] : $Config{'ALLOW_SPACES_IN_NUMBERS'};
-	# $Config{'HAS_F77_SOURCES'} = ref($Config{'HAS_F77_SOURCES'}) eq 'ARRAY' ? $Config{'HAS_F77_SOURCES'}[0] : $Config{'HAS_F77_SOURCES'};
-
 
 	if ( $opts{'C'} ) {
 		$call_tree_only = 1;

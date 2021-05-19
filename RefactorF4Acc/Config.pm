@@ -128,6 +128,7 @@ our %Config=(
 'EXCL_DIRS'  => [],
 'MACRO_SRC' => '',
 'NEWSRCPATH' => '',
+'CUSTOM_PASS_OUTPUT_PATH' => '',
 'SOURCEFILES'  => [],
 
 'KERNEL' => '',
@@ -140,6 +141,8 @@ our %Config=(
 'REFACTOR_TOPLEVEL_GLOBALS' => 1,
 'EVAL_PARAM_EXPRS'  => 0,
 
+'STRICT_COMMONS_CHECKS' => 0,
+
 'TEST'   => 0,
 'CUSTOM_PASS_OUTPUT_PATH' => '',
 'INCLPATH' => [],
@@ -149,7 +152,10 @@ our %Config=(
 'FFLAGS'  => ['-cpp','-O3', '-m64', '-ffree-form', '-ffree-line-length-0','-fconvert=little-endian', '-frecord-marker=4'],
 'F77FLAGS'  => ['-cpp','-O3', '-m64', '-fconvert=little-endian', '-frecord-marker=4'],
 
+'Macros' => {}
 );
+
+
 
 my @maybe_lib_paths = ('/usr/lib','/opt/local/lib','/usr/local/lib');
 

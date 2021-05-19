@@ -52,7 +52,7 @@ sub init_state {
         }
     };
     
-    if (exists $Config{'MACRO_SRC'} ){
+    if ($Config{'MACRO_SRC'} ne '' ){
     	my $macro_src =$Config{'MACRO_SRC'};
     	if ( -e $macro_src ) {
 	        open my $MACROS, '<', $macro_src;

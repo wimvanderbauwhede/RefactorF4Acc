@@ -83,7 +83,7 @@ sub translate_module_to_C {  (my $stref, my $module_name, my $ocl) = @_;
 sub add_OpenCL_address_space_qualifiers { (my $stref, my $f, my $ocl) = @_;
 	
 	if ($ocl>=1) { 
-		if (not exists $Config{'KERNEL'} and exists $Config{'TOP'}) {
+		if ($Config{'KERNEL'} eq '' and $Config{'TOP'} ne '') {
 			$Config{'KERNEL'}=$Config{'TOP'}
 		} else {
 			$Config{'KERNEL'}='';

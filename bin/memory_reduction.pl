@@ -104,6 +104,7 @@ if ($gen_main) {
 
     if (scalar @kernel_srcs == 1 or $test) {
         if (!$test) {
+            # This is currently unused
             if (-d './TyTraC' ) {
                 if (-e './TyTraC/kernelTop.ll')  {
                         unlink('./TyTraC/kernelTop.ll');

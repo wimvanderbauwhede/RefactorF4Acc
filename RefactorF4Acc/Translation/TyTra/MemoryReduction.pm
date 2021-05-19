@@ -74,7 +74,7 @@ sub pass_memory_reduction {
         'ASTEmitter'   => \&_add_TyTraCL_AST_entry
     };
 
-if (not exists $Config{'TEST'}) { 
+if ($Config{'TEST'} == 0 ) { 
     $stref = pass_wrapper_subs_in_module(
         $stref, $module_name,
 
@@ -88,10 +88,10 @@ if (not exists $Config{'TEST'}) {
             [\&identify_array_accesses_in_exprs],
         ]
     );
-} else {
+} else { 
     $stref = memory_reduction_tests($stref);
 }
-
+# carp Dumper get_vars_from_set($stref->{'Subroutines'}{'f1'}{'Vars'});
     $stref = construct_TyTraCL_AST_Main_node($stref);
 
     $stref = _emit_TyTraCL_FunctionSigs($stref);    

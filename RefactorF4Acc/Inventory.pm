@@ -42,10 +42,10 @@ sub find_subroutines_functions_and_includes {
         say "Looking for INC $incl" if $V;
     }
     	
-    my $prefix   = exists $Config{PREFIX} ? $Config{PREFIX} : '.';
+    my $prefix   = $Config{'PREFIX'} ne '' ? $Config{'PREFIX'} : '.';
     
     my %src_files = ();
-    my %excluded_dirs = $Config{EXCL_DIRS} ? map { $_ => 1 } @{ $Config{EXCL_DIRS} } : ();
+    my %excluded_dirs = $Config{'EXCL_DIRS'} ? map { $_ => 1 } @{ $Config{'EXCL_DIRS'} } : ();
     # The NEWSRCPATH should always be excluded
      if ($Config{'NEWSRCPATH'} ne '.') {
             $excluded_dirs{ $Config{'NEWSRCPATH'} } = 1;
@@ -58,14 +58,14 @@ sub find_subroutines_functions_and_includes {
     	%src_files = map { $_ => {'Local' => $prefix } } @{$Config{'SOURCEFILES'}};
     	%excluded_dirs=();     	
     }  else {
-        my @srcdirs=exists $Config{SRCDIRS} ?  @{ $Config{SRCDIRS} } : ('.');    
-        my @extsrcdirs=exists $Config{EXTSRCDIRS} ? @{ $Config{EXTSRCDIRS} } : (); # External sources, should not be refactored but can be parsed
+        my @srcdirs= scalar @{$Config{'SRCDIRS'}} > 0 ?  @{ $Config{'SRCDIRS'} } : ('.');    
+        my @extsrcdirs= scalar @{$Config{'EXTSRCDIRS'}} ? @{ $Config{'EXTSRCDIRS'} } : (); # External sources, should not be refactored but can be parsed
         my %ext_src_dirs = map { $prefix.'/'.$_ => 1 } @extsrcdirs; 
         
-        my %excluded_sources = exists $Config{EXCL_SRCS} ? map { $_ => 1 } @{ $Config{EXCL_SRCS} } : ();
-        if (not exists $Config{EXCL_SRCS}) {
-            $Config{EXCL_SRCS} = [];
-        }
+        my %excluded_sources =  scalar @{$Config{'EXCL_SRCS'}} > 0 ? map { $_ => 1 } @{ $Config{'EXCL_SRCS'} } : ();
+        # if (scalar @{$Config{EXCL_SRCS}}==0) {
+        #     $Config{EXCL_SRCS} = [];
+        # }
         
         # if there is an entry in $Config{EXCL_SRCS} then it is a regex
         my $has_pattern =  scalar @{ $Config{EXCL_SRCS} } > 0 ? 1 : 0;    
@@ -194,7 +194,7 @@ sub find_subroutines_functions_and_includes {
 sub _process_src {
 	(my $src, my $stref)=@_;
 	# say "_process_src($src)";
-	my @extsrcdirs=exists $Config{EXTSRCDIRS} ? @{ $Config{EXTSRCDIRS} } : (); # External sources, should not be refactored but can be parsed
+	my @extsrcdirs= @{ $Config{'EXTSRCDIRS'} }; # External sources, should not be refactored but can be parsed
 	my $prefix   = $Config{'PREFIX'};
     my $srctype=''; # sub, func or incl; for F90/95 also module, and then we must tag the module by what it contains
 #    my $f=''; # name of the entity
@@ -400,12 +400,12 @@ sub _process_src {
                 if ( $is_prog == 1 ) {
                     print "Found program $sub in $src\n" if $V;
                     # If there is no TOP, the PROGRAM is the top
-                    if (not exists $Config{'TOP'} or $Config{'TOP'} eq '') {
+                    if ( $Config{'TOP'} eq '') {
                         # print "Found program $sub in $src\n" ;
                     	$Config{'TOP'} = $sub;
-                    } elsif (exists $Config{'TOP'} and $Config{'TOP'} eq $sub) {
+                    } elsif ( $Config{'TOP'} eq $sub) {
                     	say "INFO: Found TOP program $sub" if $I; 
-                    } elsif  (exists $Config{'TOP'} and $Config{'TOP'} ne $sub) {
+                    } elsif  ( $Config{'TOP'} ne $sub) {
                     	# TOP has a different name from the program
                     	my $topsub = $Config{'TOP'};
                     	# If this TOP subroutine is also a program, then there are at least two programs with different names, or TOP is wrong

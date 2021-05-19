@@ -164,9 +164,15 @@ sub identify_array_accesses_in_exprs { (my $stref, my $f) = @_;
 				my $subname =$info->{'Signature'}{'Name'} ;
 				$state->{'CurrentSub'}= $subname  ;
 				croak if $DBG and $subname ne $f;
+				if (not exists $state->{'Subroutines'}{$subname }) {
 				$state->{'Subroutines'}{$subname }={};
+				}
+				if (not exists $state->{'Subroutines'}{$subname }{'Blocks'}) {				
 				$state->{'Subroutines'}{$subname }{'Blocks'}={};
+				}
+				if (not exists $state->{'Subroutines'}{$subname }{'Blocks'}{$block_id}) {
 				$state->{'Subroutines'}{$subname }{'Blocks'}{$block_id}={};
+				}
 					# 'LoopIters' => {'DUMMY' =>1 }
 				# };
                 $state->{'Subroutines'}{$f}{'LoopNests'}{'List'}=[ [0,'',{}] ];
@@ -292,7 +298,7 @@ sub identify_array_accesses_in_exprs { (my $stref, my $f) = @_;
 					}
 					
 					# Find all array accesses in the LHS and RHS AST.					
-					# carp 'BLOCK:',Dumper($state->{'Subroutines'}{ $f }{'Blocks'}{$block_id});
+					# carp 'BLOCK: '.$block_id.';'.Dumper($state->{'Subroutines'}{ $f }{'Blocks'});#{$block_id});
 					(my $lhs_ast, $state, my $lhs_accesses) = _find_var_access_in_ast($stref, $f, $block_id, $state, $info->{'Lhs'}{'ExpressionAST'},'Write',{});
 					(my $rhs_ast, $state, my $rhs_accesses) = _find_var_access_in_ast($stref, $f, $block_id, $state, $info->{'Rhs'}{'ExpressionAST'},'Read',{});
 					$info->{'Rhs'}{'VarAccesses'}=$rhs_accesses;
@@ -405,7 +411,7 @@ sub identify_array_accesses_in_exprs { (my $stref, my $f) = @_;
 		
 		my $state = {'CurrentSub'=>'', 'CurrentBlock'=>0,'Subroutines'=>{}};
 		$state->{'Subroutines'}{$f}{'Blocks'} = $stref->{'Subroutines'}{ $f }{'ArrayAccesses'};
-		# croak Dumper $state;
+		# carp Dumper $state->{'Subroutines'}{$f}{'Blocks'};
 	 	($stref,$state) = stateful_pass_inplace($stref,$f,$pass_identify_array_accesses_in_exprs, $state,'pass_identify_array_accesses_in_exprs ' . __LINE__  ) ;
 	 	
 	 	$stref = _collect_dependencies_for_halo_access($stref,$f);
@@ -484,6 +490,7 @@ sub _find_var_access_in_ast { (my $stref, my $f,  my $block_id, my $state, my $a
 					$state = _find_iters_in_array_idx_expr($stref,$f,$block_id,$ast, $state,$rw);
 					my $array_var = $ast->[1];
 					# Special case for our OpenCL kernels
+					# FIXME!
 					if ($Config{'KERNEL'} ne '' and $array_var =~/(?:glob|loc)al_/) { return ($ast,$state); }
 					
 					# First we compute the offset
@@ -657,6 +664,7 @@ sub _link_writes_to_reads {(my $stref, my $f, my $state)=@_;
 		my $assignments = $state->{'Subroutines'}{$f}{'Blocks'}{$block_id}{'Assignments'};
 		# So we have to establish the link for every variable that is a multi-dim (effectively 3-D) array argument
 		for my $some_var ( sort keys %{ $assignments }  ) {
+			# WV 2021-05-19 FIXME: should I use the Deps from the LoopIter analysis?
 			next if $Config{'KERNEL'} ne '' and $some_var=~/_rel|_range/;
 			$links = _link_writes_to_reads_rec($stref, $f, $block_id, $some_var,$assignments,$links,$state);
 		}
@@ -701,6 +709,7 @@ sub _link_writes_to_reads_rec {(my $stref, my $f, my $block_id, my $some_var, my
 				$links->{$some_var}{'!'.$some_var.'!'}=1;
 			}
 			for my $var ( keys %{$vars} ) {
+				# WV 2021-05-19 FIXME: should I use the Deps from the LoopIter analysis?
 				next if $Config{'KERNEL'} ne '' and $var=~/_rel|_range/;
 				next if exists $links->{$some_var}{$var};
 #				next if $var eq $some_var;
@@ -1476,8 +1485,7 @@ sub __generate_buffer_varnames { my ( $boundary_accesss, $block_id ) = @_;
 
 sub _is_stream_var { my ($state, $f, $block_id, $var_name) =@_;
 # carp "$f, $block_id, $var_name";
-	if (not exists $Config{'KERNEL'} 
-			or $Config{'KERNEL'} eq ''
+	if ($Config{'KERNEL'} eq ''
 		and
 		$block_id == 0) { 
 			# This is the subroutine block, so in this block there are no loop iterators
@@ -1732,7 +1740,7 @@ sub _get_loop_iters_from_global_id { my ($stref,$f) = @_;
 	(my $new_annlines,$state) = stateful_pass($annlines,$pass_get_loop_iters_from_global_id,$state,"pass_get_loop_iters_from_global_id($f)");
 	# croak $f.  Dumper $state;
 	# Now assign this to LoopIters
-	$stref->{'Subroutines'}{ $f }{'ArrayAccesses'}{'0'}{'LoopIters'} = $state->{'LoopIters'};
+	$stref->{'Subroutines'}{ $f }{'ArrayAccesses'}{0}{'LoopIters'} = $state->{'LoopIters'};
 	return $stref;
 } # END of _get_loop_iters_from_global_id
 
@@ -1776,11 +1784,7 @@ sub __find_loop_iters_in_array_idx_expr { (my $ast, my $state,)=@_;
   		my $vars = get_vars_from_expression($item, {});
   		for my $var (keys %{$vars}) {
   			if (exists $state->{'Deps'}{ $var }) {
-				  my $ndims = __get_ndims_from_array_access_ast($ast);
-				  my $range = [map {0} 1 .. $ndims];
-				  $state->{'LoopIters'}{$var}={
-					  'Range' => $range #[0,0,0]
-				};
+				  $state->{'LoopIters'}{$var}={'Range' => [0,0,0]};
   			}
   		}
 	}

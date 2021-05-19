@@ -583,10 +583,10 @@ sub _rename_array_accesses_to_scalars { (my $stref, my $f) = @_;
  	($stref,$global_state_access) = stateful_pass_inplace($stref,$f,$pass_emit_updated_code , $global_state_access,'_rename_array_accesses_to_scalars_PASS3() ' . __LINE__  ) ;
 	$stref->{'Subroutines'}{$f}{'RefactoredArgs'}= $stref->{'Subroutines'}{$f}{'DeclaredOrigArgs'};
 	} # IF NOT A KERNEL
-	if ($f =~/f1/) {
-	say Dumper pp_annlines($stref->{'Subroutines'}{$f}{'RefactoredCode'}) ;
-	croak;
-	}
+	# if ($f =~/f1/) {
+	# say Dumper pp_annlines($stref->{'Subroutines'}{$f}{'RefactoredCode'}) ;
+	# croak;
+	# }
 	return $stref;
 } # END of _rename_array_accesses_to_scalars()
 # ================================================================================================================================================

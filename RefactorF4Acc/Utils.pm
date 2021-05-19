@@ -164,7 +164,7 @@ sub sub_func_incl_mod {
 sub write_out { my ($src_str, $out_path)=@_;
     my $out_path_=$out_path;
     if (not defined $out_path ) {
-        if ( not exists $Config{'CUSTOM_PASS_OUTPUT_PATH'}) {
+        if ( $Config{'CUSTOM_PASS_OUTPUT_PATH'} eq '') {
             die "Either provide the output path as 2nd arg, or via CUSTOM_PASS_OUTPUT_PATH";
         } else {
             $out_path_= $Config{'CUSTOM_PASS_OUTPUT_PATH'};
