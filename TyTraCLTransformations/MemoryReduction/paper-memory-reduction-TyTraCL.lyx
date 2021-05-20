@@ -21,6 +21,21 @@
 \end_preamble
 \use_default_options false
 \maintain_unincluded_children false
+\begin_local_layout
+Format 66
+Float
+    Type                  algorithm
+    GuiName               Algorithm
+    Placement             tbp
+    Extension             loa
+    NumberWithin          none
+    Style                 ruled
+    ListName              "List of Algorithms"
+    IsPredefined          false
+    UsesFloatPkg          true
+    RefPrefix             alg
+End
+\end_local_layout
 \language english
 \language_package default
 \inputencoding iso8859-15
@@ -224,7 +239,7 @@ Received: date / Accepted: date
 \end_layout
 
 \begin_layout Standard
- 
+
 \end_layout
 
 \begin_layout Abstract
@@ -377,12 +392,20 @@ legacy code
  of features most of this code is actually FORTRAN 77.
  The considerable effort required for manual porting of such code to parallel
  platforms and –even more– accelerators such as GPUs means that it is often
- beyond the grasp of scientists.
- Out work aims to entirely automate this porting effort, so that more scientists
- can benefit from access to accelerators and parallel systems for their
- research.
+ beyond the grasp of the domain scientists.
+ Out work aims to develop the tools and techniques to entirely automate
+ this porting effort, so that more scientists can benefit from access to
+ accelerators and parallel systems for their research.
  We have already reported our work on auto-parallelisation of FORTRAN 77
- code for GPUs in REF.
+ code for GPUs in 
+\begin_inset CommandInset citation
+LatexCommand cite
+key "vanderbauwhede2018domain"
+literal "false"
+
+\end_inset
+
+.
 \end_layout
 
 \begin_layout Standard
@@ -400,6 +423,7 @@ The focus of this paper is on a novel program transformation to reduce the
  As an example, consider the Large Eddy Simulator for Urban Flows 
 \begin_inset CommandInset citation
 LatexCommand cite
+key "takemi2020large"
 literal "false"
 
 \end_inset
@@ -408,7 +432,7 @@ literal "false"
 \end_layout
 
 \begin_layout Standard
-This is a hurricane wind similator, so it simulates pressure and wind speed.
+This is a hurricane wind similator which simulates pressure and wind speed.
  Its actual inputs are the wind velocity in 3 dimensions (
 \emph on
 u,v,w
@@ -427,7 +451,17 @@ four arrays for every domain.
 status open
 
 \begin_layout Plain Layout
+\begin_inset Flex URL
+status open
+
+\begin_layout Plain Layout
+
 https://github.com/wimvanderbauwhede/LES
+\end_layout
+
+\end_inset
+
+
 \end_layout
 
 \end_inset
@@ -538,7 +572,16 @@ If we could achieve this, the simulation could run on a 4 times larger domain
  with the same memory utilisation.
  In this paper we present a novel approach to aggressively reduce memory
  utilisation of stencil-based legacy scientific code that has been auto-parallel
-ised for GPUs, through automatic program transformation.
+ised for GPUs, through automatic program transformation using our approach
+ 
+\begin_inset CommandInset citation
+LatexCommand cite
+key "vanderbauwhede2018domain"
+literal "false"
+
+\end_inset
+
+.
  The problem with accelerators such as GPUs and FPGAs is that they use static
  memory allocation.
  Therefore, memory for intermediate arrays has to be allocated before a
@@ -611,10 +654,45 @@ name "relationship-to-our-existing-work-and-contribution-of-this-work"
 
 \begin_layout Standard
 We have developed a compilation chain which can automatically transform
- legacy scientific code into GPU- and FPGA- accelerated variants 
-\begin_inset CommandInset citation
-LatexCommand cite
-literal "false"
+ legacy scientific code into GPU- and FPGA- accelerated variants
+\begin_inset Foot
+status open
+
+\begin_layout Plain Layout
+\begin_inset Flex URL
+status open
+
+\begin_layout Plain Layout
+
+https://github.com/wimvanderbauwhede/RefactorF4Acc
+\end_layout
+
+\end_inset
+
+,
+\begin_inset Flex URL
+status open
+
+\begin_layout Plain Layout
+
+https://github.com/wimvanderbauwhede/AutoParallel-Fortran
+\end_layout
+
+\end_inset
+
+,
+\begin_inset Flex URL
+status open
+
+\begin_layout Plain Layout
+
+https://github.com/tytra-gu/tybec
+\end_layout
+
+\end_inset
+
+
+\end_layout
 
 \end_inset
 
@@ -634,10 +712,11 @@ map
 fold
 \emph default
  higher-order functions.
- We have shown how to transform the code into map/fold based code for GPU
- acceleration 
+ We have demonstrated the effectiveness of this approach for GPU acceleration
+ 
 \begin_inset CommandInset citation
 LatexCommand cite
+key "vanderbauwhede2018domain"
 literal "false"
 
 \end_inset
@@ -647,6 +726,7 @@ literal "false"
  developed a functional language, TyTraCL 
 \begin_inset CommandInset citation
 LatexCommand cite
+key "vanderbauwhede2019type"
 literal "false"
 
 \end_inset
@@ -713,6 +793,10 @@ status open
 XXX Experiments will have to show if this is slower and by how much XXX
 \end_layout
 
+\begin_layout Plain Layout
+XXX Approach ??? XXX
+\end_layout
+
 \end_inset
 
 
@@ -748,9 +832,34 @@ name "tytracl-concrete-syntax"
 \end_layout
 
 \begin_layout Standard
-The TyTraCL language is syntactically a subset of Haskell REF, with the
- addition of two types of vectors of fixed size, similar to the vector type
- in Idris REF.
+The TyTraCL language (Listing 
+\begin_inset CommandInset ref
+LatexCommand ref
+reference "the-tytracl-language"
+plural "false"
+caps "false"
+noprefix "false"
+
+\end_inset
+
+) is syntactically a subset of Haskell 
+\begin_inset CommandInset citation
+LatexCommand cite
+key "marlow2010haskell"
+literal "false"
+
+\end_inset
+
+, with the addition of two types of vectors of fixed size, similar to the
+ vector type in Idris 
+\begin_inset CommandInset citation
+LatexCommand cite
+key "brady2013idris"
+literal "false"
+
+\end_inset
+
+.
  Purely for convenience we also define 
 \family typewriter
 zipt
@@ -790,17 +899,39 @@ status open
 
 \begin_layout Plain Layout
 
-v_i :: Vec n a
+v~$_i$~ :: Vec n a
 \end_layout
 
 \begin_layout Plain Layout
 
-s_i :: SVec k Int
+s~$_i$~ :: SVec k Int
 \end_layout
 
 \begin_layout Plain Layout
 
-f_i :: a -> b
+f~$_i$~ :: a ~$
+\backslash
+rightarrow$~ b
+\end_layout
+
+\begin_layout Plain Layout
+
+\begin_inset Caption Standard
+
+\begin_layout Plain Layout
+TyTraCL primitive types
+\begin_inset CommandInset label
+LatexCommand label
+name "lis:TyTraCL-types"
+
+\end_inset
+
+
+\end_layout
+
+\end_inset
+
+
 \end_layout
 
 \end_inset
@@ -845,7 +976,13 @@ status open
 
 \begin_layout Plain Layout
 
-map :: (a -> b) -> Vec n a -> Vec n b
+map :: (a ~$
+\backslash
+rightarrow$~ b) ~$
+\backslash
+rightarrow$~ Vec n a ~$
+\backslash
+rightarrow$~ Vec n b
 \end_layout
 
 \begin_layout Plain Layout
@@ -859,7 +996,17 @@ map :: (a -> b) -> Vec n a -> Vec n b
 
 \begin_layout Plain Layout
 
-fold :: (a -> b -> a) -> a -> Vec n b -> a
+fold :: (a ~$
+\backslash
+rightarrow$~ b ~$
+\backslash
+rightarrow$~ a) ~$
+\backslash
+rightarrow$~ a ~$
+\backslash
+rightarrow$~ Vec n b ~$
+\backslash
+rightarrow$~ a
 \end_layout
 
 \begin_layout Plain Layout
@@ -873,7 +1020,13 @@ fold :: (a -> b -> a) -> a -> Vec n b -> a
 
 \begin_layout Plain Layout
 
-maps :: (a -> b) -> SVec k a -> SVec k b
+maps :: (a ~$
+\backslash
+rightarrow$~ b) ~$
+\backslash
+rightarrow$~ SVec k a ~$
+\backslash
+rightarrow$~ SVec k b
 \end_layout
 
 \begin_layout Plain Layout
@@ -882,13 +1035,21 @@ maps :: (a -> b) -> SVec k a -> SVec k b
 
 \begin_layout Plain Layout
 
--- Every element of the vector is replaced by the stencil defined by the
- first argument
+-- Every element of the vector is replaced 
 \end_layout
 
 \begin_layout Plain Layout
 
-stencil :: SVec k Int -> Vec n a -> Vec n (SVec k a)
+-- by the stencil defined by the first argument
+\end_layout
+
+\begin_layout Plain Layout
+
+stencil :: SVec k Int ~$
+\backslash
+rightarrow$~ Vec n a ~$
+\backslash
+rightarrow$~ Vec n (SVec k a)
 \end_layout
 
 \begin_layout Plain Layout
@@ -906,12 +1067,16 @@ stencil :: SVec k Int -> Vec n a -> Vec n (SVec k a)
 
 \begin_layout Plain Layout
 
-zipt :: Tup k (...,Vec n a_i,...)  -> Vec n $ Tup k (...,a_i,...)
+zipt :: Tup k (...,Vec n a~$_i$~,...)  ~$
+\backslash
+rightarrow$~ Vec n $ Tup k (...,a~$_i$~,...)
 \end_layout
 
 \begin_layout Plain Layout
 
-unzipt :: Vec n Tup k (...,a_i,...) -> Tup k (...,Vec n a_i,...)
+unzipt :: Vec n Tup k (...,a~$_i$~,...) ~$
+\backslash
+rightarrow$~ Tup k (...,Vec n a~$_i$~,...)
 \end_layout
 
 \begin_layout Plain Layout
@@ -925,14 +1090,32 @@ unzipt :: Vec n Tup k (...,a_i,...) -> Tup k (...,Vec n a_i,...)
 
 \begin_layout Plain Layout
 
-applyt :: Tup k (...,a_i -> b_i,...) -> Tup k (...,a_i,...) -> Tup k (...,b_i,...)
+applyt :: Tup k (...,a~$_i$~ ~$
+\backslash
+rightarrow$~ b~$_i$~,...) ~$
+\backslash
+rightarrow$~ Tup k (...,a~$_i$~,...) 
 \end_layout
 
 \begin_layout Plain Layout
 
-applyt (...,f_i,...) (...,e_i,...) = 
+  ~$
 \backslash
-(...,e_i,...) -> (...,f_i e_i,...)
+rightarrow$~ Tup k (...,b~$_i$~,...)
+\end_layout
+
+\begin_layout Plain Layout
+
+applyt (...,f~$_i$~,...) (...,e~$_i$~,...) = 
+\backslash
+(...,e~$_i$~,...) 
+\end_layout
+
+\begin_layout Plain Layout
+
+  ~$
+\backslash
+rightarrow$~ (...,f~$_i$~ e~$_i$~,...)
 \end_layout
 
 \begin_layout Plain Layout
@@ -946,12 +1129,16 @@ applyt (...,f_i,...) (...,e_i,...) =
 
 \begin_layout Plain Layout
 
-elt :: (i:: Int) -> (...,a_i,...) -> a_i
+elt :: (i:: Int) ~$
+\backslash
+rightarrow$~ (...,a~$_i$~,...) ~$
+\backslash
+rightarrow$~ a~$_i$~
 \end_layout
 
 \begin_layout Plain Layout
 
-elt i (...,e_i,...) = e_i
+elt i (...,e~$_i$~,...) = e~$_i$~
 \end_layout
 
 \begin_layout Plain Layout
@@ -965,12 +1152,73 @@ elt i (...,e_i,...) = e_i
 
 \begin_layout Plain Layout
 
-scomb :: (SVec k_1 Int) -> (SVec k_2 Int) -> SVec k_1 (SVec k_2 Int)
+scomb :: (SVec k~$_1$~ Int) ~$
+\backslash
+rightarrow$~ (SVec k~$_2$~ Int) ~$
+\backslash
+rightarrow$~ SVec k~$_1$~ (SVec k~$_2$~ Int)
 \end_layout
 
 \begin_layout Plain Layout
 
 stencil s2 (stencil s1 v1) = stencil (scomb s2 s1) v1
+\end_layout
+
+\begin_layout Plain Layout
+
+\end_layout
+
+\begin_layout Plain Layout
+
+-- Function composition
+\end_layout
+
+\begin_layout Plain Layout
+
+(.) ::  (b ~$
+\backslash
+rightarrow$~ c) ~$
+\backslash
+rightarrow$~ (a ~$
+\backslash
+rightarrow$~ b) ~$
+\backslash
+rightarrow$~ (a ~$
+\backslash
+rightarrow$~ c)
+\end_layout
+
+\begin_layout Plain Layout
+
+-- Function composition for fold of map 
+\end_layout
+
+\begin_layout Plain Layout
+
+fcomp :: (c ~$
+\backslash
+rightarrow$~ b ~$
+\backslash
+rightarrow$~ c) ~$
+\backslash
+rightarrow$~ (a ~$
+\backslash
+rightarrow$~ b) ~$
+\backslash
+rightarrow$~ (c ~$
+\backslash
+rightarrow$~ a ~$
+\backslash
+rightarrow$~ c)
+\end_layout
+
+\begin_layout Plain Layout
+
+fold g acc (map f v) = fold (g `fcomp` f) acc v
+\end_layout
+
+\begin_layout Plain Layout
+
 \begin_inset Caption Standard
 
 \begin_layout Plain Layout
@@ -999,7 +1247,7 @@ To formalise the definition of the
 \family typewriter
 stencil
 \family default
- primitive we present a possible Haskell implementation:
+ primitive we express in in Haskell as:
 \end_layout
 
 \begin_layout Standard
@@ -1010,11 +1258,23 @@ status open
 
 \begin_layout Plain Layout
 
-stencil s v = map (
+stencil s v = map 
+\end_layout
+
+\begin_layout Plain Layout
+
+    (
 \backslash
-idx -> map (
+idx ~$
 \backslash
-delta ->(v !! (idx - 1 + delta)) s)) [1 ..
+rightarrow$~ map (
+\backslash
+delta ->(v !! (idx - 1 + delta)) s)) 
+\end_layout
+
+\begin_layout Plain Layout
+
+    [1 ..
  length v]
 \end_layout
 
@@ -1059,7 +1319,7 @@ name "tytracl-abstract-syntax"
 \end_layout
 
 \begin_layout Standard
-In practice, the TyTraCL program transformations are implemented in Haskell.
+We have implemented the TyTraCL program transformations in Haskell.
  The abstract syntax for the untyped TyTraCL language, expressed as a Haskell
  type, is shown in Listing 
 \begin_inset CommandInset ref
@@ -1092,51 +1352,22 @@ status open
 
 \begin_layout Plain Layout
 
-    type Name = String
+type Name = String
 \end_layout
 
 \begin_layout Plain Layout
 
-    data VE = VI  | VO  | VS  | VT | VU
+data VE = VI  | VO  | VS  | VT | VU
 \end_layout
 
 \begin_layout Plain Layout
 
-        deriving (Show, Typeable, Data, Eq)            
+    deriving (Show, Typeable, Data, Eq)            
 \end_layout
 
 \begin_layout Plain Layout
 
-    type TyTraCLAST = [(Expr,Expr)]                      
-\end_layout
-
-\begin_layout Plain Layout
-
-\end_layout
-
-\begin_layout Plain Layout
-
-    data Expr =
-\end_layout
-
-\begin_layout Plain Layout
-
-            -- Left-hand side:
-\end_layout
-
-\begin_layout Plain Layout
-
-                          Scalar Name
-\end_layout
-
-\begin_layout Plain Layout
-
-                        | Tuple [Expr] 
-\end_layout
-
-\begin_layout Plain Layout
-
-                        | Vec VE Expr
+type TyTraCLAST = [(Expr,Expr)]                      
 \end_layout
 
 \begin_layout Plain Layout
@@ -1145,84 +1376,111 @@ status open
 
 \begin_layout Plain Layout
 
-            -- Right-hand side:
+data Expr =
 \end_layout
 
 \begin_layout Plain Layout
 
-                        | SVec Int Expr -- Stencil vector
+-- Left-hand side:
 \end_layout
 
 \begin_layout Plain Layout
 
-                        | ZipT [Expr] -- generalised zip
+          Scalar Name
 \end_layout
 
 \begin_layout Plain Layout
 
-                        | UnzipT Expr -- generalised unzip
+	    | Tuple [Expr] 
 \end_layout
 
 \begin_layout Plain Layout
 
-                        | Elt Int Expr -- generalised tuple access
+    	| Vec VE Expr
 \end_layout
 
 \begin_layout Plain Layout
 
-                        | Map Expr Expr
 \end_layout
 
 \begin_layout Plain Layout
 
-                        | Fold Expr Expr Expr
+-- Right-hand side:
 \end_layout
 
 \begin_layout Plain Layout
 
-                        | Stencil Expr Expr
+        | SVec Int Expr -- Stencil vector
 \end_layout
 
 \begin_layout Plain Layout
 
-                        | Function Name Expr -- Expr contains args that
- are partially applied
+        | ZipT [Expr] -- generalised zip
 \end_layout
 
 \begin_layout Plain Layout
 
-                        | Id Name [Expr] -- Id is treated as a named function
- for code generation
+        | UnzipT Expr -- generalised unzip
 \end_layout
 
 \begin_layout Plain Layout
 
-                        | ApplyT [Expr] 
+        | Elt Int Expr -- generalised tuple access
 \end_layout
 
 \begin_layout Plain Layout
 
-                        | MapS Expr Expr
+        | Map Expr Expr
 \end_layout
 
 \begin_layout Plain Layout
 
-                        | Comp Expr Expr -- function composition
+        | Fold Expr Expr Expr
 \end_layout
 
 \begin_layout Plain Layout
 
-                        | FComp Expr Expr -- fold-map function composition
+        | Stencil Expr Expr
 \end_layout
 
 \begin_layout Plain Layout
 
-                        | SComb Expr Expr
+        | Function Name [Expr] -- [Expr] args that are partially applied
 \end_layout
 
 \begin_layout Plain Layout
 
-                            deriving (Show, Typeable, Data, Eq)
+        | Id Name [Expr] -- treated as a named for code generation
+\end_layout
+
+\begin_layout Plain Layout
+
+        | ApplyT [Expr] 
+\end_layout
+
+\begin_layout Plain Layout
+
+        | MapS Expr Expr
+\end_layout
+
+\begin_layout Plain Layout
+
+        | Comp Expr Expr -- function composition
+\end_layout
+
+\begin_layout Plain Layout
+
+        | FComp Expr Expr -- fold-map function composition
+\end_layout
+
+\begin_layout Plain Layout
+
+        | SComb Expr Expr
+\end_layout
+
+\begin_layout Plain Layout
+
+            deriving (Show, Typeable, Data, Eq)
 \end_layout
 
 \begin_layout Plain Layout
@@ -1401,6 +1659,10 @@ fold
 \emph on
 map
 \emph default
+ as a single 
+\emph on
+fold
+\emph default
 :
 \end_layout
 
@@ -1446,8 +1708,44 @@ noprefix "false"
 \end_layout
 
 \begin_layout Standard
-data FDecl = MkFDecl { ftype :: String, dim :: Maybe [Int], intent :: Maybe
- FIntent, names :: [String] } 
+\begin_inset listings
+lstparams "mathescape=true,escapeinside={~~},language=Haskell"
+inline false
+status open
+
+\begin_layout Plain Layout
+
+data FDecl = MkFDecl { 
+\end_layout
+
+\begin_layout Plain Layout
+
+	ftype :: String, 
+\end_layout
+
+\begin_layout Plain Layout
+
+	dim :: Maybe [Int], 
+\end_layout
+
+\begin_layout Plain Layout
+
+	intent :: Maybe FIntent, 
+\end_layout
+
+\begin_layout Plain Layout
+
+	names :: [String] 
+\end_layout
+
+\begin_layout Plain Layout
+
+} 
+\end_layout
+
+\end_inset
+
+
 \end_layout
 
 \begin_layout Subsection
@@ -1506,8 +1804,9 @@ stencil
 \end_layout
 
 \begin_layout Standard
-It is clear that implementation of the stream-based view will require considerab
-ly less memory than the strict vector-based view.
+Although both views are computationally equivalent, it is clear that implementat
+ion of the stream-based view will require considerably less memory than
+ the strict vector-based view.
 \end_layout
 
 \begin_layout Section
@@ -1555,12 +1854,20 @@ they are not yet pure functions
 , but we already have the guarantee that they can be transformed into such
  pure functions.
  In other words, the program is semantically similar to programs in a functional
- array language such as Single-Assignment C (SaC, REF).
+ array language such as Single-Assignment C (SaC 
+\begin_inset CommandInset citation
+LatexCommand cite
+key "grelck2006sac"
+literal "false"
+
+\end_inset
+
+).
  This form is suitable for e.g.
 \begin_inset space ~
 \end_inset
 
-parallelisation on CPU or GPU using OpenCL, as shown in REF.
+parallelisation on CPU or GPU using OpenCL.
  
 \end_layout
 
@@ -1635,10 +1942,30 @@ y the
 \emph on
 stencil
 \emph default
- primitive defined above.
+ primitive defined above, as shown in Algorithm 
+\begin_inset CommandInset ref
+LatexCommand ref
+reference "alg:Stencil-detection"
+plural "false"
+caps "false"
+noprefix "false"
+
+\end_inset
+
+.
 \end_layout
 
 \begin_layout Standard
+\begin_inset Float algorithm
+wide false
+sideways false
+status open
+
+\begin_layout Plain Layout
+
+\end_layout
+
+\begin_layout Plain Layout
 \begin_inset Formula 
 \begin{align*}
 s & ::\mbox{SVec}\,k\,\mbox{Int}\\
@@ -1650,6 +1977,31 @@ f & ::\mbox{SVec}\,k\,a\rightarrow b\\
 v_{out} & ::\mbox{Vec}\,n\,b\\
 v_{out} & =\mbox{map}\,f\,v_{s}
 \end{align*}
+
+\end_inset
+
+
+\begin_inset Caption Standard
+
+\begin_layout Plain Layout
+Stencil detection
+\begin_inset CommandInset label
+LatexCommand label
+name "alg:Stencil-detection"
+
+\end_inset
+
+
+\end_layout
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Plain Layout
+
+\end_layout
 
 \end_inset
 
@@ -1671,8 +2023,24 @@ name "scalarisation"
 Scalarisation refers to transforming the kernel functions into pure functions
  that can be mapped or folded.
  This is done by replacing all array accesses with scalars.
- The algorithm is surprisingly simple: 
+ The algorithm (Algorithm 
+\begin_inset CommandInset ref
+LatexCommand ref
+reference "alg:Scalarisation-algorithm"
+plural "false"
+caps "false"
+noprefix "false"
+
+\end_inset
+
+) is surprisingly simple.
 \end_layout
+
+\begin_layout Standard
+\begin_inset Float algorithm
+wide false
+sideways false
+status open
 
 \begin_layout Itemize
 Transliterate every array access into a scalar variable name as follows
@@ -1680,7 +2048,7 @@ Transliterate every array access into a scalar variable name as follows
 \end_layout
 
 \begin_deeper
-\begin_layout Standard
+\begin_layout Plain Layout
 \begin_inset listings
 lstparams "mathescape=true,escapeinside={~~},language=Haskell"
 inline false
@@ -1695,37 +2063,51 @@ scalar_var_str = filter (/= ' ') (
 
       map 
 \backslash
-c -> case c of 
+c ~$
+\backslash
+rightarrow$~ case c of 
 \end_layout
 
 \begin_layout Plain Layout
 
-          '(' -> '_'
+          '(' ~$
+\backslash
+rightarrow$~ '_'
 \end_layout
 
 \begin_layout Plain Layout
 
-          ',' -> '_'
+          ',' ~$
+\backslash
+rightarrow$~ '_'
 \end_layout
 
 \begin_layout Plain Layout
 
-          '+' -> 'p'
+          '+' ~$
+\backslash
+rightarrow$~ 'p'
 \end_layout
 
 \begin_layout Plain Layout
 
-          '-' -> 'm'
+          '-' ~$
+\backslash
+rightarrow$~ 'm'
 \end_layout
 
 \begin_layout Plain Layout
 
-          '*' -> 't'
+          '*' ~$
+\backslash
+rightarrow$~ 't'
 \end_layout
 
 \begin_layout Plain Layout
 
-          ')' -> ' '
+          ')' ~$
+\backslash
+rightarrow$~ ' '
 \end_layout
 
 \begin_layout Plain Layout
@@ -1740,6 +2122,11 @@ c -> case c of
 
 \end_deeper
 \begin_layout Itemize
+Perform constant propagation and folding to ensure that all index variables
+ in the array are loop iterators.
+\end_layout
+
+\begin_layout Itemize
 Replace the array arguments of the kernel subroutine with the scalarised
  names.
  In the case of a stencil, the array argument is replaced by the sequence
@@ -1748,9 +2135,32 @@ Replace the array arguments of the kernel subroutine with the scalarised
  
 \end_layout
 
-\begin_layout Itemize
-Needless to say, this operation is preceded by a constant propagation and
- folding pass to ensure that all index variables in the array are loop iterators.
+\begin_layout Plain Layout
+\begin_inset Caption Standard
+
+\begin_layout Plain Layout
+Scalarisation algorithm
+\begin_inset CommandInset label
+LatexCommand label
+name "alg:Scalarisation-algorithm"
+
+\end_inset
+
+
+\end_layout
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Plain Layout
+
+\end_layout
+
+\end_inset
+
+
 \end_layout
 
 \begin_layout Subsection
@@ -1769,15 +2179,35 @@ A Fortran subroutine takes and returns values via its argurment list.
  To obtain the final TyTraCL function signature, we must group the scalarised
  arguments to get the required type for mappable and foldable functions.
  In the most general case, a mappable kernel subroutine can take vector
- arguments to mapped and any other read-only scalar arguments, and return
- vector arguments; a foldable kernel subroutine can take vector arguments
- to folded, accumulator arguments which ar typically readabe and writeable,
- and any other read-only scalar arguments.
+ arguments to be mapped and any other read-only scalar or vector arguments,
+ and return vector arguments; a foldable kernel subroutine can take vector
+ arguments to folded, scalar or vector accumulator arguments which are typically
+ readabe and writeable, and any other read-only scalar or vector arguments.
  Our previous analysis has already resolved if an argument is used for input,
  output or both (i.e.
- we infer the Fortran INTENT attribute), and of course we know which arguments
- originally were arrays, and which of these have stencil accesses.
- With this information, it is straightforward to transform the scalarised
+ we infer the Fortran INTENT attribute) 
+\begin_inset Note Note
+status open
+
+\begin_layout Plain Layout
+XXX Could reference the SUPE paper here XXX
+\end_layout
+
+\end_inset
+
+, and of course we know which arguments originally were arrays, and which
+ of these have stencil accesses.
+ 
+\begin_inset Note Note
+status open
+
+\begin_layout Plain Layout
+XXX Stencil detection algorithm has not been published yet XXX
+\end_layout
+
+\end_inset
+
+With this information, it is straightforward to transform the scalarised
  Fortran kernel signature into the correct signature for the TyTraCL by
  first grouping the stencil arguments into stencil vectors and then grouping
  the arguments into tuples.
@@ -1801,17 +2231,17 @@ subroutine f(a, v_in, v_out)
 
 \begin_layout Plain Layout
 
-	real, intent(in) :: a
+    real, intent(in) :: a
 \end_layout
 
 \begin_layout Plain Layout
 
-    real, dimension(im), intent(in) :: v_in
+    real, dimension(isz), intent(in) :: v_in
 \end_layout
 
 \begin_layout Plain Layout
 
-    real, dimension(im), intent(out) :: v_out
+    real, dimension(isz), intent(out) :: v_out
 \end_layout
 
 \begin_layout Plain Layout
@@ -1821,7 +2251,7 @@ subroutine f(a, v_in, v_out)
 
 \begin_layout Plain Layout
 
-    do i=1,im
+    do i=1,isz
 \end_layout
 
 \begin_layout Plain Layout
@@ -1850,7 +2280,7 @@ end subroutine f
 
 \begin_layout Plain Layout
 
-subroutine f(a, v_in_im1, v_in_ip1, v_out)
+subroutine f~$_{scal}$~(a, v_in_im1, v_in_ip1, v_out)
 \end_layout
 
 \begin_layout Plain Layout
@@ -1895,22 +2325,26 @@ a :: Float
 
 \begin_layout Plain Layout
 
-sv_in :: SVec 2 Float
+sv~$_{in}$~ :: SVec 2 Float
 \end_layout
 
 \begin_layout Plain Layout
 
-v_out :: Float
+v~$_{out}$~ :: Float
 \end_layout
 
 \begin_layout Plain Layout
 
-f :: Float -> SVec 2 Float -> Float
+f~$_{scal}$~ :: Float ~$
+\backslash
+rightarrow$~ SVec 2 Float ~$
+\backslash
+rightarrow$~ Float
 \end_layout
 
 \begin_layout Plain Layout
 
-v_out = f a sv_in
+v~$_{out}$~ = f a sv~$_{in}$~
 \end_layout
 
 \end_inset
@@ -1957,12 +2391,12 @@ s = [-1,1]
 
 \begin_layout Plain Layout
 
-sv_in = stencil s v
+sv~$_{in}$~ = stencil s v
 \end_layout
 
 \begin_layout Plain Layout
 
-v_out = map (f a) sv_in 
+v~$_{out}$~ = map (f a) sv~$_{in}$~ 
 \end_layout
 
 \end_inset
@@ -2003,12 +2437,12 @@ status open
 
 \begin_layout Plain Layout
 
-v1 = map f1 v0
+v~$_1$~ = map f~$_1$~ v~$_0$~
 \end_layout
 
 \begin_layout Plain Layout
 
-v2 = map f2 v1
+v~$_2$~ = map f~$_2$~ v~$_1$~
 \end_layout
 
 \end_inset
@@ -2036,11 +2470,7 @@ status open
 
 \begin_layout Plain Layout
 
-\end_layout
-
-\begin_layout Plain Layout
-
-v2 = map f2 $ map f1 v0
+v~$_2$~ = map f~$_2$~ $ map f~$_1$~ v~$_0$~
 \end_layout
 
 \end_inset
@@ -2075,13 +2505,12 @@ map
 \family typewriter
 fold
 \family default
-.
- And the preceding computation can only be a 
+; and the preceding computation can only be a 
 \family typewriter
 map
 \family default
 .
- Note also that a stencil call only ever operates on a vector of scalars
+ Note also that a stencil call only ever operate on a vector of scalars
  or stencils, not on a vector of tuples, i.e.: 
 \end_layout
 
@@ -2094,22 +2523,17 @@ status open
 
 \begin_layout Plain Layout
 
-v1 = map f1 v0
+v~$_1$~ = map f~$_1$~ v~$_0$~
 \end_layout
 
 \begin_layout Plain Layout
 
-v1_s = stencil s1 v1
+v~$_{1,s}$~ = stencil s~$_1$~ v~$_1$~
 \end_layout
 
 \begin_layout Plain Layout
 
-v2 = map f2 v1_s
-\end_layout
-
-\begin_layout Plain Layout
-
-  
+v~$_2$~ = map f~$_2$~ v~$_{1,s}$~
 \end_layout
 
 \end_inset
@@ -2122,17 +2546,17 @@ status open
 
 \begin_layout Plain Layout
 
-v1 = map f1 v0
+v~$_1$~ = map f~$_1$~ v~$_0$~
 \end_layout
 
 \begin_layout Plain Layout
 
-v1_s = stencil s1 v1
+v~$_{1,s}$~ = stencil s~$_1$~ v~$_1$~
 \end_layout
 
 \begin_layout Plain Layout
 
-acc2 = fold f2 acc0 v1_s
+acc~$_2$~ = fold f~$_2$~ acc~$_0$~ v~$_{1,s}$~
 \end_layout
 
 \end_inset
@@ -2149,12 +2573,12 @@ status open
 
 \begin_layout Plain Layout
 
-acc2 = fold f2 acc0 (stencil s1 (map f1 v0))
+acc~$_2$~ = fold f~$_2$~ acc~$_0$~ (stencil s1 (map f~$_1$~ v~$_0$~))
 \end_layout
 
 \end_inset
 
-As discussed in detail in Section
+As discussed in detail in Section 
 \begin_inset CommandInset ref
 LatexCommand ref
 reference "intermediate-vector-removal-part-ii-the-hard-part"
@@ -2172,7 +2596,8 @@ status open
 
 \begin_layout Plain Layout
 
-acc2 = fold f2 acc0 (map (maps f1) (stencil s1 v0))
+acc~$_2$~ = fold f~$_2$~ acc~$_0$~ (map (maps f~$_1$~) (stencil s~$_1$~
+ v~$_0$~))
 \end_layout
 
 \end_inset
@@ -2182,8 +2607,8 @@ Thus we can always remove the intermediate vectors of stencils.
 
 \end_deeper
 \begin_layout Standard
-With the program expressed in TyTraCL we perform first a normalisation transform
-ation and then the actual intermediate vector removal.
+With the program thus expressed in TyTraCL we perform first a normalisation
+ transformation and then the actual intermediate vector removal.
  The intermediate vector identification is trivial: we know the input and
  output arrays as well as any vector resulting from a stencil application.
  Any remaining vector is an intermediate.
@@ -2201,10 +2626,20 @@ name "normalisation"
 \end_layout
 
 \begin_layout Standard
-Recall that the TyTraCL AST is a list of tuples 
-\emph on
-[(Expr,Expr)]
-\emph default
+Recall from Listing 
+\begin_inset CommandInset ref
+LatexCommand ref
+reference "lis:TyTraCL-AST-data"
+plural "false"
+caps "false"
+noprefix "false"
+
+\end_inset
+
+ that the TyTraCL AST is a list of tuples 
+\begin_inset Formula $[(\textrm{Expr},\textrm{Expr})]$
+\end_inset
+
  where the elements of the tuple are the LHS and RHS of an assignment in
  a 
 \emph on
@@ -2214,8 +2649,8 @@ let
 \end_layout
 
 \begin_layout Standard
-First we normalise so the LHS of any element in the TyTraCLAST list is either
- Vec or Scalar.
+First we normalise the AST so that the LHS of any element in the TyTraCLAST
+ list is either Vec or Scalar.
  We do this by replacing all LHS 
 \emph on
 Tuple
@@ -2370,8 +2805,8 @@ name "intermediate-vector-removal-part-ii-the-hard-part"
 \begin_layout Standard
 Although all intermediate vectors have been removed, this removal so far
  is purely in terms of the occurrences in the AST.
- Were we to run the program, it would require memory for implicit temporary
- vectors.
+ Were we to run the program, it would still require memory for implicit
+ temporary vectors.
  This is because an intermediate expression, e.g.
  a stencil, will require additional memory.
 \end_layout
@@ -2411,8 +2846,17 @@ name "rewrite-rules-theorem"
 \end_layout
 
 \begin_layout Standard
-Given the AST in normalised form and the rewrite rules shown in Listing
- 
+Given the AST in normalised form (Section 
+\begin_inset CommandInset ref
+LatexCommand ref
+reference "normalisation"
+plural "false"
+caps "false"
+noprefix "false"
+
+\end_inset
+
+) and the rewrite rules shown in Listing 
 \begin_inset CommandInset ref
 LatexCommand ref
 reference "lis:Rewrite-rules-to"
@@ -2430,29 +2874,34 @@ status open
 
 \begin_layout Plain Layout
 
-map f_2 (map f_1 v) = map (f_2 .
+map f~$_2$~ (map f~$_1$~ v) = map (f~$_2$~ .
  f_1) v -- Map-Map
 \end_layout
 
 \begin_layout Plain Layout
 
-fold f_1 acc (map f_2 v) = fold (f1 `fcomp` f2) acc v -- Fold-Map
+fold f~$_1$~ acc (map f~$_2$~ v) = fold (f1 `fcomp` f2) acc v -- Fold-Map
 \end_layout
 
 \begin_layout Plain Layout
 
-stencil s_1 (map f_1) = map (maps f_1) (stencil s_1) -- Stencil-Map
+stencil s~$_1$~ (map f_1) = map (maps f_1) (stencil s_1) -- Stencil-Map
 \end_layout
 
 \begin_layout Plain Layout
 
-zipt (map f_1 v_1, map f_2 v_2, ..., map f_1 v_1, ...) 
+zipt (map f~$_1$~ v~$_1$~, map f~$_2$~ v~$_2$~, ..., map f~$_i$~ v~$_i$~, ...)
+ -- ZipT-Map
 \end_layout
 
 \begin_layout Plain Layout
 
-    = map (applyt (f_1,f_2, ..., f_i, ...)) (zipt (v_1, v_2, ..., v_i, ...)) -- ZipT-Map
- 
+    = map (applyt (f~$_1$~,f~$_2$~, ..., f~$_i$~, ...)) 
+\end_layout
+
+\begin_layout Plain Layout
+
+		  (zipt (v~$_1$~, v~$_2$~, ..., v~$_i$~, ...))  
 \end_layout
 
 \begin_layout Plain Layout
@@ -2580,17 +3029,19 @@ status open
 
 \begin_layout Plain Layout
 
-v0 :: Vec n a
+v~$_0$~ :: Vec n a
 \end_layout
 
 \begin_layout Plain Layout
 
-v1 :: Vec n b
+v~$_1$~ :: Vec n b
 \end_layout
 
 \begin_layout Plain Layout
 
-f1 :: a -> b
+f~$_1$~ :: a ~$
+\backslash
+rightarrow$~ b
 \end_layout
 
 \begin_layout Plain Layout
@@ -2599,17 +3050,17 @@ f1 :: a -> b
 
 \begin_layout Plain Layout
 
-v0 = [e0_0, e0_1, ..., e0_{n-1}]
+v~$_0$~ = [e~$_{0,0}$~, e~$_{0,1}$~, ..., e~$_{0,n-1}$~]
 \end_layout
 
 \begin_layout Plain Layout
 
-v1 = [f1 e0_0, f1 e0_1, ..., f1 e0_{n-1}]
+v~$_1$~ = [f~$_1$~ e~$_{0,0}$~, f~$_1$~ e~$_{0,1}$~, ..., f~$_1$~ e~$_{0,n-1}$~]
 \end_layout
 
 \begin_layout Plain Layout
 
- = [e1_0, e1_1, ..., , e1_{n-1}] 
+ = [e~$_{1,0}$~, e~$_{1,1}$~, ..., , e~$_{1,n-1}$~] 
 \end_layout
 
 \end_inset
@@ -2631,12 +3082,12 @@ status open
 
 \begin_layout Plain Layout
 
-s1 :: SVec k Int
+s~$_1$~ :: SVec k Int
 \end_layout
 
 \begin_layout Plain Layout
 
-s1 = [i_1,i_2,...,i_k]
+s~$_1$~ = [i~$_1$~,i~$_2$~,...,i~$_k$~]
 \end_layout
 
 \end_inset
@@ -2658,17 +3109,17 @@ status open
 
 \begin_layout Plain Layout
 
-stencil s1 (map f1 v0) 
+stencil s~$_1$~ (map f~$_1$~ v~$_0$~) 
 \end_layout
 
 \begin_layout Plain Layout
 
-= stencil s1 v1
+= stencil s~$_1$~ v~$_1$~
 \end_layout
 
 \begin_layout Plain Layout
 
-= v1s
+= v~$_{1,s}$~
 \end_layout
 
 \begin_layout Plain Layout
@@ -2678,12 +3129,12 @@ where
 
 \begin_layout Plain Layout
 
-v1s = [e1s_0, e1s_1, ...]
+v~$_{1,s}$~ = [e~$_{1,s_0}$~, e~$_{1,s_1}$~, ...]
 \end_layout
 
 \begin_layout Plain Layout
 
-e1s_j = [e1_{j+i_1},e1_{j+i_2},...e1_{j+i_k},], ~$
+e~$_{{1,s}_j}$~ = [e~$_{1,j+i_1}$~,e~$_{1,j+i_2}$~,...,e~$_{1,j+i_k}$~], ~$
 \backslash
 forall j 
 \backslash
@@ -2710,7 +3161,8 @@ status open
 
 \begin_layout Plain Layout
 
-map (maps s1 f1) (stencil s1 v0) = map (maps s1 f1) v0s
+map (maps s~$_1$~ f~$_1$~) (stencil s~$_1$~ v0) = map (maps s~$_1$~ f~$_1$~)
+ v~$_{0,s}$~
 \end_layout
 
 \begin_layout Plain Layout
@@ -2720,7 +3172,8 @@ where
 
 \begin_layout Plain Layout
 
-v0s = [e0s_0, e0s_1, ...] e0s_j = [e0_{j+i_1},e0_{j+i_2},...e0_{j+i_k},]
+v~$_{0,s}$~ = [e~$_{0,s_0}$~, e~$_{0,s_1}$~, ...] e~$_{0,s_j}$~ = [e~$_{0,j+i_1}$~,
+e~$_{0,j+i_2}$~,...e~$_{0,j+i_k}$~,]
 \end_layout
 
 \end_inset
@@ -2740,28 +3193,32 @@ status open
 
 \begin_layout Plain Layout
 
-(maps s1 f1) e0s_j 
+(maps s~$_1$~ f~$_1$~) e~$_{0,s_j}$~
 \end_layout
 
 \begin_layout Plain Layout
 
-= maps s1 f1 [e0_{j+i_1},e0_{j+i_2},...e0_{j+i_k},]
+= maps s~$_1$~ f~$_1$~ [e~$_{0,j+i_1}$~,e~$_{0,j+i_2}$~,...,e~$_{0,j+i_k}$~]
 \end_layout
 
 \begin_layout Plain Layout
 
-= [f1 e0_{j+i_1},f1 e0_{j+i_2},...,f1 e0_{j+i_k},]
+= [f~$_1$~ e~$_{0,j+i_1}$~,f~$_1$~ e~$_{0,j+i_2}$~,...,f~$_1$~ e~$_{0,j+i_k}$~]
 \end_layout
 
 \begin_layout Plain Layout
 
-= [e1_{j+i_1},e1_{j+i_2},..., e1_{j+i_k}]
+= [e~$_{1,j+i_1}$~,e~$_{1,j+i_2}$~,...,e~$_{1,j+i_k}$~]
 \end_layout
 
 \begin_layout Plain Layout
 
-= e1s_j, for all j in 0 ..
- n-1
+= e1s~$_j$~, ~$
+\backslash
+forall j 
+\backslash
+in [0 ..
+ n-1]$~
 \end_layout
 
 \end_inset
@@ -2781,7 +3238,7 @@ status open
 
 \begin_layout Plain Layout
 
-map (maps s1 f1) v0s = v1s
+map (maps s~$_1$~ f~$_1$~) v~$_{0,s}$~ = v~$_{1,s}$~
 \end_layout
 
 \end_inset
@@ -2818,12 +3275,12 @@ status open
 
 \begin_layout Plain Layout
 
-v_i = [e_i_0, ...]
+v~$_i$~ = [e~$_{i,0}$~, ...]
 \end_layout
 
 \begin_layout Plain Layout
 
-  (zipt (v_1, v_2) = [(e_1_0,e_2_0),...]
+  (zipt (v~$_1$~, v~$_2$~) = [(e~$_{1,0}$~,e~$_{2,0}$~),...]
 \end_layout
 
 \end_inset
@@ -2845,8 +3302,8 @@ status open
 
 \begin_layout Plain Layout
 
-zipt (map f_1 v_1, map f_2 v_2) = zipt ([f_1 e_1_0, f_1 e_1_1, ...], [f_2 e_2_0,
- f_2 e_2_1, ...])
+zipt (map f~$_1$~ v~$_1$~, map f~$_2$~ v~$_2$~) = zipt ([f~$_1$~ e~$_{1,0}$~,
+ f~$_1$~ e~$_{1,1}$~, ...], [f~$_2$~ e~$_{2,0}$~, f~$_2$~ e~$_{2,1}$~, ...])
 \end_layout
 
 \end_inset
@@ -2876,7 +3333,8 @@ status open
 
 \begin_layout Plain Layout
 
-= [(f_1 e_1_0,f_2 e_2_0),(f_1 e_1_1,f_2 e_2_1),] 
+= [(f~$_1$~ e~$_{1,0}$~,f~$_2$~ e~$_{2,0}$~),(f~$_1$~ e~$_{1,1}$~,f~$_2$~
+ e~$_{2,1}$~),] 
 \end_layout
 
 \end_inset
@@ -2902,7 +3360,8 @@ status open
 
 \begin_layout Plain Layout
 
-= [ applyt (f1,f_2) (e_1_0,e_2_0),applyt (f1,f_2) (e_1_1,e_2_1), ] 
+= [ applyt (f~$_1$~,f~$_2$~) (e~$_{1,0}$~,e~$_{2,0}$~),applyt (f~$_1$~,f~$_2$~)
+ (e~$_{1,1}$~,e~$_{2,1}$~), ] 
 \end_layout
 
 \end_inset
@@ -2928,7 +3387,8 @@ status open
 
 \begin_layout Plain Layout
 
-= map (applyt (f1,f_2)) [(e_1_0,e_2_0),(e_1_1,e_2_1),] 
+= map (applyt (f~$_1$~,f~$_2$~)) [(e~$_{1,0}$~,e~$_{2,0}$~),(e~$_{1,1}$~,e~$_{2,
+1}$~),] 
 \end_layout
 
 \end_inset
@@ -2954,7 +3414,7 @@ status open
 
 \begin_layout Plain Layout
 
- = map (applyt (f1,f_2)) (zipt (v_1, v_2)) 
+ = map (applyt (f~$_1$~,f~$_2$~)) (zipt (v~$_1$~, v~$_2$~)) 
 \end_layout
 
 \end_inset
@@ -2987,7 +3447,9 @@ status open
 
 \begin_layout Plain Layout
 
-f :: a -> (a_1,a_2)
+f :: a ~$
+\backslash
+rightarrow$~ (a~$_1$~,a~$_2$~)
 \end_layout
 
 \end_inset
@@ -3006,12 +3468,6 @@ map
 
 \begin_deeper
 \begin_layout Standard
-map f v = [f e_0, f e_1, \SpecialChar ldots
-] = [(e_1_0, e_2_0),(e_1_1, e_2_1),\SpecialChar ldots
-] 
-\end_layout
-
-\begin_layout Standard
 \begin_inset listings
 lstparams "mathescape=true,escapeinside={~~},language=Haskell"
 inline false
@@ -3019,7 +3475,15 @@ status open
 
 \begin_layout Plain Layout
 
-f :: a -> (a_1,a_2)
+map f v = [f e~$_0$~, f e~$_1$~, ] = [(e~$_{1,0}$~, e~$_{2,0}$~),(e~$_{1,1}$~,
+ e~$_{2,1}$~),] 
+\end_layout
+
+\begin_layout Plain Layout
+
+f :: a ~$
+\backslash
+rightarrow$~ (a~$_1$~,a~$_2$~)
 \end_layout
 
 \end_inset
@@ -3043,8 +3507,8 @@ status open
 
 \begin_layout Plain Layout
 
-unzipt (map f v) = unzipt [(e_1_0, e_2_0),(e_1_1, e_2_1),] = ([e_1_0, e_1_1,],[e
-_2_0,e_2-1,]) 
+unzipt (map f v) = unzipt [(e~$_{1,0}$~, e~$_{2,0}$~),(e~$_{1,1}$~, e~$_{2,1}$~)
+,] = ([e~$_{1,0}$~, e~$_{1,1}$~,],[e~$_{2,0}$~,e~$_{2,1}$~,]) 
 \end_layout
 
 \end_inset
@@ -3078,7 +3542,7 @@ status open
 
 \begin_layout Plain Layout
 
-(elt i) (unzipt (map f v)) = [e_1_0, e_1_1,] = v_1 
+(elt i) (unzipt (map f v)) = [e~$_{1,0}$~, e~$_{1,1}$~,] = v~$_1$~ 
 \end_layout
 
 \end_inset
@@ -3104,7 +3568,7 @@ status open
 
 \begin_layout Plain Layout
 
-v = [e_0, e_1,  e_j, ] 
+v = [e~$_0$~, e~$_1$~,  e~$_j$~, ] 
 \end_layout
 
 \end_inset
@@ -3130,7 +3594,7 @@ status open
 
 \begin_layout Plain Layout
 
-f e_j = (e_1_j, e_2_j) 
+f e~$_j$~ = (e~$_{1,j}$~, e~$_{2,j}$~) 
 \end_layout
 
 \end_inset
@@ -3164,7 +3628,7 @@ status open
 
 \begin_layout Plain Layout
 
-elt 0 (f e_l) = elt 0 (e_1_j, e_2_j) = e_1_j 
+elt 0 (f e~$_1$~) = elt 0 (e~$_{1,j}$~, e~$_{2,j}$~) = e~$_{1,j}$~
 \end_layout
 
 \end_inset
@@ -3194,7 +3658,9 @@ status open
 
 \begin_layout Plain Layout
 
-= [e_1_0, e_1_1, , e_1_j, ] = v_1 
+= [e~$_{1,0}$~, e~$_{1,1}$~,~$
+\backslash
+dots$~, e~$_{1,j}$~, ] = v~$_1$~ 
 \end_layout
 
 \end_inset
@@ -3214,6 +3680,10 @@ name "proof-of-the-rewrite-rule-theorem"
 
 \end_layout
 
+\begin_layout Standard
+With the above Lemmas, the proof for the rewrite rule theorem is simple:
+\end_layout
+
 \begin_layout Proof
 \begin_inset space ~
 \end_inset
@@ -3226,14 +3696,23 @@ The primitives in the language that return a
 \family typewriter
 Vec
 \family default
- type are the vector type constructor and the functions 
+ type are the vector type constructor 
+\begin_inset listings
+lstparams "language=Haskell,mathescape=true,escapeinside={~~}"
+inline true
+status open
+
+\begin_layout Plain Layout
+
+Vec
 \end_layout
 
-\begin_deeper
-\begin_layout Standard
+\end_inset
+
+ and the functions 
 \begin_inset listings
-lstparams "mathescape=true,escapeinside={~~},language=Haskell"
-inline false
+lstparams "language=Haskell,mathescape=true,escapeinside={~~}"
+inline true
 status open
 
 \begin_layout Plain Layout
@@ -3241,10 +3720,26 @@ status open
 map
 \end_layout
 
+\end_inset
+
+, 
+\begin_inset listings
+lstparams "language=Haskell,mathescape=true,escapeinside={~~}"
+inline true
+status open
+
 \begin_layout Plain Layout
 
 stencil
 \end_layout
+
+\end_inset
+
+ and 
+\begin_inset listings
+lstparams "language=Haskell,mathescape=true,escapeinside={~~}"
+inline true
+status open
 
 \begin_layout Plain Layout
 
@@ -3253,12 +3748,11 @@ zipt
 
 \end_inset
 
-
+.
 \end_layout
 
-\end_deeper
 \begin_layout Itemize
-Apart from that, only the expression 
+Apart from these primitives, only the expression 
 \begin_inset listings
 lstparams "language=Haskell,mathescape=true,escapeinside={~~}"
 inline true
@@ -3272,7 +3766,7 @@ status open
 
 \end_inset
 
- also returns a vector.
+ returns a vector.
  Because of the earlier normalisation, 
 \family typewriter
 unzipt
@@ -3285,15 +3779,24 @@ unzipt
 
 i)
 \family default
- so from the perspective of the rewrite rule this is a primitive.
+ so from the perspective of the rewrite rule this is also a primitive.
 \end_layout
 
 \begin_deeper
 \begin_layout Standard
 Therefore, if any of these acts on a 
-\family typewriter
+\begin_inset listings
+lstparams "language=Haskell,mathescape=true,escapeinside={~~}"
+inline true
+status open
+
+\begin_layout Plain Layout
+
 map
-\family default
+\end_layout
+
+\end_inset
+
  expression, one of the rules will fire and result in an expression with
  a single map as the outer function.
  
@@ -3311,23 +3814,50 @@ Map-ZipT
 map
 \family default
  expressions, so any elements that can't be rewritten into a 
-\family typewriter
+\begin_inset listings
+lstparams "language=Haskell,mathescape=true,escapeinside={~~}"
+inline true
+status open
+
+\begin_layout Plain Layout
+
 map
-\family default
+\end_layout
+
+\end_inset
+
  expressions using the other rules are turned into 
-\family typewriter
+\begin_inset listings
+lstparams "language=Haskell,mathescape=true,escapeinside={~~}"
+inline true
+status open
+
+\begin_layout Plain Layout
+
 map
-\family default
+\end_layout
+
+\end_inset
+
  expressions by applying a 
-\family typewriter
+\begin_inset listings
+lstparams "language=Haskell,mathescape=true,escapeinside={~~}"
+inline true
+status open
+
+\begin_layout Plain Layout
+
 map
-\family default
+\end_layout
+
+\end_inset
+
  over the identity function.
  
 \end_layout
 
 \begin_layout Itemize
-If the an expression is of the form 
+If an expression is of the form 
 \end_layout
 
 \begin_deeper
@@ -3402,7 +3932,8 @@ status open
 
 \begin_layout Plain Layout
 
-stencil s2 (stencil s1 v1) = stencil (scomb s2 s1) v1 -- SComb 
+stencil s~$_2$~ (stencil s~$_1$~ v~$_1$~) = stencil (scomb s~$_2$~ s~$_1$~)
+ v~$_1$~ -- SComb 
 \end_layout
 
 \end_inset
@@ -3427,7 +3958,8 @@ status open
 
 \begin_layout Plain Layout
 
-stencil s2 (zipt (v1,v2)) = zipt (stencil s2 v1,stencil s2 v2) -- Stencil-ZipT
+stencil s~$_2$~ (zipt (v~$_1$~,v~$_2$~)) = zipt (stencil s~$_2$~ v~$_1$~,stencil
+ s~$_2$~ v~$_2$~) -- Stencil-ZipT
 \end_layout
 
 \end_inset
@@ -3447,22 +3979,23 @@ status open
 
 \begin_layout Plain Layout
 
-stencil s1 (zipt (stencil s2 v1,stencil s2 v2))
+stencil s~$_1$~ (zipt (stencil s~$_2$~ v~$_1$~,stencil s~$_2$~ v~$_2$~))
 \end_layout
 
 \begin_layout Plain Layout
 
-    = stencil s1 $ stencil s2 (zipt (v1,v2))
+    = stencil s~$_1$~ $ stencil s~$_2$~ (zipt (v~$_1$~,v~$_2$~))
 \end_layout
 
 \begin_layout Plain Layout
 
-    = stencil (scomb s1 s2) (zipt (v1,v2))
+    = stencil (scomb s~$_1$~ s~$_2$~) (zipt (v~$_1$~,v~$_2$~))
 \end_layout
 
 \begin_layout Plain Layout
 
-    = zipt (stencil (scomb s1 s2) v1,stencil (scomb s1 s2) v2)
+    = zipt (stencil (scomb s~$_1$~ s~$_2$~) v~$_1$~,stencil (scomb s~$_1$~
+ s~$_2$~) v~$_2$~)
 \end_layout
 
 \end_inset
@@ -3547,18 +4080,47 @@ Fold
 The next step is to transform the program into a form suitable for emitting
  code in an imperative language such as Fortran or C.
  A suitable representation for this purpose is Administrative Normal Form
- REF; we use a variant where rather than nested let-expressions there is
- a single let with all bindings in order of dependency.
+ 
+\begin_inset CommandInset citation
+LatexCommand cite
+key "sabry1993reasoning"
+literal "false"
+
+\end_inset
+
+; we use a variant where rather than nested let-expressions there is a single
+ let with all bindings in order of dependency.
  
 \end_layout
 
 \begin_layout Standard
-The algorithm is quite straightforward.
+The algorithm (Algorithm 
+\begin_inset CommandInset ref
+LatexCommand ref
+reference "alg:Transformatiom-into-Administrati"
+plural "false"
+caps "false"
+noprefix "false"
+
+\end_inset
+
+) is quite straightforward.
  We create new names to bind all sub expressions in an expression (i.e.
  the RHS element in the TyTraCL AST)  using a running counter, the type
  of the sub expression and the name of the output vector to which the expression
  is bound.
+ The algorithm traverses the AST in bottom-up fashion and effectively replaces
+ every node with a list of let bindings for its sub-expressions.
+ The result is a lists of lists which has the correct order for imperative
+ computation.
+ 
 \end_layout
+
+\begin_layout Standard
+\begin_inset Float algorithm
+wide false
+sideways false
+status open
 
 \begin_layout Itemize
 
@@ -3582,7 +4144,7 @@ MapS
 \end_layout
 
 \begin_deeper
-\begin_layout Standard
+\begin_layout Plain Layout
 \begin_inset listings
 lstparams "mathescape=true,escapeinside={~~},language=Haskell"
 inline false
@@ -3590,8 +4152,14 @@ status open
 
 \begin_layout Plain Layout
 
-MapS _ _ -> let f_expr = Function ("f_maps_"++vec_name++"_"++(show ct))
- [] in ...
+MapS _ _ ~$
+\backslash
+rightarrow$~ let f_expr = 
+\end_layout
+
+\begin_layout Plain Layout
+
+	Function ("f_maps_"++vec_name++"_"++(show ct)) [] in ...
 \end_layout
 
 \end_inset
@@ -3613,7 +4181,7 @@ VS
 \end_layout
 
 \begin_deeper
-\begin_layout Standard
+\begin_layout Plain Layout
 \begin_inset listings
 lstparams "mathescape=true,escapeinside={~~},language=Haskell"
 inline false
@@ -3621,8 +4189,14 @@ status open
 
 \begin_layout Plain Layout
 
-Stencil (SVec n _) _ -> let var = Vec VS ("svec_"++vec_name++"_"++(show
- ct)) in ...
+Stencil (SVec n _) _ ~$
+\backslash
+rightarrow$~ let var = 
+\end_layout
+
+\begin_layout Plain Layout
+
+	Vec VS ("svec_"++vec_name++"_"++(show ct)) in ...
 \end_layout
 
 \end_inset
@@ -3649,7 +4223,7 @@ VT
 \end_layout
 
 \begin_deeper
-\begin_layout Standard
+\begin_layout Plain Layout
 \begin_inset listings
 lstparams "mathescape=true,escapeinside={~~},language=Haskell"
 inline false
@@ -3657,7 +4231,9 @@ status open
 
 \begin_layout Plain Layout
 
-_ -> let var = Vec VT ("vec_"++vec_name++"_"++(show ct))
+_ ~$
+\backslash
+rightarrow$~ let var = Vec VT ("vec_"++vec_name++"_"++(show ct))
 \end_layout
 
 \end_inset
@@ -3670,12 +4246,32 @@ _ -> let var = Vec VT ("vec_"++vec_name++"_"++(show ct))
 All other sub-expressions are left unchanged
 \end_layout
 
-\begin_layout Standard
-The algorithm traverses the AST in bottom-up fashion and effectively replaces
- every node with a list of let bindings for its sub-expressions.
- The result is a lists of lists which has the correct order for imperative
- computation.
+\begin_layout Plain Layout
+\begin_inset Caption Standard
+
+\begin_layout Plain Layout
+Transformation into Administrative Normal Form
+\begin_inset CommandInset label
+LatexCommand label
+name "alg:Transformatiom-into-Administrati"
+
+\end_inset
+
  
+\end_layout
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Plain Layout
+
+\end_layout
+
+\end_inset
+
+
 \end_layout
 
 \begin_layout Subsection
@@ -3763,18 +4359,121 @@ Intermediate functions
 The first step in generation of the intermediate functions is infering the
  signature based on the signatures of the original functions and the higher-orde
 r functions that operate on them.
- The types of these higher order functions are:
+ The types of these higher order functions are summarized in Listing 
+\begin_inset CommandInset ref
+LatexCommand ref
+reference "lis:TyTraCL-types-1"
+plural "false"
+caps "false"
+noprefix "false"
+
+\end_inset
+
+ (which is taken from Listing 
+\begin_inset CommandInset ref
+LatexCommand ref
+reference "lis:TyTraCL-types"
+plural "false"
+caps "false"
+noprefix "false"
+
+\end_inset
+
+).
 \end_layout
 
 \begin_layout Standard
-\begin_inset Formula 
-\begin{align*}
-\mathsf{maps} & ::(a\rightarrow b)\rightarrow\mbox{SVec}\,k\,a\rightarrow\mbox{SVec}\,k\,a\\
-\mathsf{applyt} & ::\mbox{Tup}\,k\,(\dots,a_{i}\rightarrow b_{i},\dots)\rightarrow\mbox{Tup}\,k\,(\dots,a_{i},\dots)\rightarrow\mbox{Tup}\,k\,(\dots,b_{i},\dots)\\
-\mathsf{comp} & ::(b\rightarrow c)\rightarrow(a\rightarrow b)\rightarrow(a\rightarrow c)\\
-\mathsf{fcomp} & ::(c\rightarrow b\rightarrow c)\rightarrow(a\rightarrow b)\rightarrow(c\rightarrow a\rightarrow c)\\
-\mathsf{elt} & ::(i::Int)\rightarrow\mbox{Tup}\,k\,(\dots,a_{i},\dots)\rightarrow a_{i}
-\end{align*}
+\begin_inset listings
+lstparams "mathescape=true,escapeinside={~~},language=Haskell"
+inline false
+status open
+
+\begin_layout Plain Layout
+
+maps :: (a ~$
+\backslash
+rightarrow$~ b) ~$
+\backslash
+rightarrow$~ SVec k a ~$
+\backslash
+rightarrow$~ SVec k b
+\end_layout
+
+\begin_layout Plain Layout
+
+applyt :: Tup k (...,a~$_i$~ ~$
+\backslash
+rightarrow$~ b~$_i$~,...) ~$
+\backslash
+rightarrow$~ Tup k (...,a~$_i$~,...) 
+\end_layout
+
+\begin_layout Plain Layout
+
+elt :: (i:: Int) ~$
+\backslash
+rightarrow$~ (...,a~$_i$~,...) ~$
+\backslash
+rightarrow$~ a~$_i$~
+\end_layout
+
+\begin_layout Plain Layout
+
+(.) ::  (b ~$
+\backslash
+rightarrow$~ c) ~$
+\backslash
+rightarrow$~ (a ~$
+\backslash
+rightarrow$~ b) ~$
+\backslash
+rightarrow$~ (a ~$
+\backslash
+rightarrow$~ c)
+\end_layout
+
+\begin_layout Plain Layout
+
+fcomp :: (c ~$
+\backslash
+rightarrow$~ b ~$
+\backslash
+rightarrow$~ c) ~$
+\backslash
+rightarrow$~ (a ~$
+\backslash
+rightarrow$~ b) ~$
+\backslash
+rightarrow$~ (c ~$
+\backslash
+rightarrow$~ a ~$
+\backslash
+rightarrow$~ c)
+\end_layout
+
+\begin_layout Plain Layout
+
+\end_layout
+
+\begin_layout Plain Layout
+
+\begin_inset Caption Standard
+
+\begin_layout Plain Layout
+TyTraCL higher-order-function types
+\begin_inset CommandInset label
+LatexCommand label
+name "lis:TyTraCL-types-1"
+
+\end_inset
+
+
+\end_layout
+
+\end_inset
+
+
+\end_layout
 
 \end_inset
 
@@ -3818,51 +4517,27 @@ status open
 
 \begin_layout Plain Layout
 
-	data DType = 
+data DType = 
 \end_layout
 
 \begin_layout Plain Layout
 
-    	DInteger 
+	DInteger 
 \end_layout
 
 \begin_layout Plain Layout
 
-	  | DReal 
+  | DReal 
 \end_layout
 
 \begin_layout Plain Layout
 
-	  | DSVec Int DType 
+  | DSVec Int DType 
 \end_layout
 
 \begin_layout Plain Layout
 
-	  | DTuple [DType]
-\end_layout
-
-\begin_layout Plain Layout
-
-\end_layout
-
-\begin_layout Plain Layout
-
-	data Expr =
-\end_layout
-
-\begin_layout Plain Layout
-
-	-- Left-hand side:
-\end_layout
-
-\begin_layout Plain Layout
-
-              Scalar VE DType Name
-\end_layout
-
-\begin_layout Plain Layout
-
-				...
+  | DTuple [DType]
 \end_layout
 
 \begin_layout Plain Layout
@@ -3871,36 +4546,22 @@ status open
 
 \begin_layout Plain Layout
 
+data Expr =
 \end_layout
 
 \begin_layout Plain Layout
 
-	data FDecl = MkFDecl {
+-- Left-hand side:
 \end_layout
 
 \begin_layout Plain Layout
 
-	  ftype :: String,  
+          Scalar VE DType Name
 \end_layout
 
 \begin_layout Plain Layout
 
-	  dim :: Maybe [Int],
-\end_layout
-
-\begin_layout Plain Layout
-
-	  intent :: Maybe FIntent,
-\end_layout
-
-\begin_layout Plain Layout
-
-	  names :: [String] 
-\end_layout
-
-\begin_layout Plain Layout
-
-    } 
+			...
 \end_layout
 
 \begin_layout Plain Layout
@@ -3909,7 +4570,41 @@ status open
 
 \begin_layout Plain Layout
 
-	type FSig = [Expr]
+data FDecl = MkFDecl {
+\end_layout
+
+\begin_layout Plain Layout
+
+  ftype :: String,  
+\end_layout
+
+\begin_layout Plain Layout
+
+  dim :: Maybe [Int],
+\end_layout
+
+\begin_layout Plain Layout
+
+  intent :: Maybe FIntent,
+\end_layout
+
+\begin_layout Plain Layout
+
+  names :: [String] 
+\end_layout
+
+\begin_layout Plain Layout
+
+} 
+\end_layout
+
+\begin_layout Plain Layout
+
+\end_layout
+
+\begin_layout Plain Layout
+
+type FSig = [Expr]
 \end_layout
 
 \begin_layout Plain Layout
@@ -4658,1541 +5353,6 @@ RefactorF4Acc::Translation::LlvmToTyTraIR
 
 \end_layout
 
-\begin_layout Subsection
-SVec encoding
-\begin_inset CommandInset label
-LatexCommand label
-name "svec-encoding"
-
-\end_inset
-
-
-\end_layout
-
-\begin_layout Standard
-The SVec containing the stencil pattern is encoded as a 1-D array which
- contains the index offset tuple for each stencil point:
-\end_layout
-
-\begin_layout Standard
-\begin_inset Note Note
-status open
-
-\begin_layout Plain Layout
-For a paper I think making this work for 2-D arrays is fine.
- For every global index value, we derive 
-\family typewriter
-j
-\family default
- and 
-\family typewriter
-k
-\family default
- as usual.
- Then we populate the array 
-\family typewriter
-v_s
-\family default
- with the values at the points in 
-\family typewriter
-v
-\family default
- referenced by the stencil around 
-\family typewriter
-(j,k)
-\family default
-.
-\end_layout
-
-\begin_layout Plain Layout
-We can emit all of these from the stencil pattern info, see e.g.
-\begin_inset space ~
-\end_inset
-
-
-\family typewriter
-RefactorF4Acc::Translation::TyTraCL::generate_TyTraCL_stencils()
-\family default
-.
-\end_layout
-
-\begin_layout Plain Layout
-=> WV 2021-05-17 I think this is already none in the MemoryReduction.pm code
-\end_layout
-
-\end_inset
-
-
-\end_layout
-
-\begin_layout Subsection
-Stencil
-\begin_inset CommandInset label
-LatexCommand label
-name "stencil"
-
-\end_inset
-
-
-\end_layout
-
-\begin_layout Standard
-Given the stencil information, we can generate the stencil as a constant
- array.
-\end_layout
-
-\begin_layout Standard
-\begin_inset listings
-lstparams "mathescape=true,escapeinside={~~},language=Haskell"
-inline false
-status open
-
-\begin_layout Plain Layout
-
-stencilDefs = [("s1" , [-502,-1,0,1,502] ), ...]
-\end_layout
-
-\begin_layout Plain Layout
-
-\end_layout
-
-\begin_layout Plain Layout
-
-stencilAppl = (
-\end_layout
-
-\begin_layout Plain Layout
-
-	Vec VS DInt "svec_eta_1_0",
-\end_layout
-
-\begin_layout Plain Layout
-
-	Stencil (SVec 5 DInt "s1") (Vec VI DInt "wet_0")) 		
-\end_layout
-
-\begin_layout Plain Layout
-
-	)
-\end_layout
-
-\end_inset
-
-
-\end_layout
-
-\begin_layout Standard
-Example:
-\begin_inset listings
-lstparams "language=Fortran"
-inline false
-status open
-
-\begin_layout Plain Layout
-
-integer, parameter, dimension(5) :: s1 = [-502,-1,0,1,502]
-\end_layout
-
-\begin_layout Plain Layout
-
-integer, dimension(5) :: svec_eta_1_0
-\end_layout
-
-\begin_layout Plain Layout
-
-do s_idx = 1,5
-\end_layout
-
-\begin_layout Plain Layout
-
-    svec_eta_1_0(s_idx) = wet_0(idx+s1(s_idx))
-\end_layout
-
-\begin_layout Plain Layout
-
-end do
-\end_layout
-
-\end_inset
-
-
-\end_layout
-
-\begin_layout Standard
-And a more complicated example with a combined stencil.
- 
-\end_layout
-
-\begin_layout Standard
-\begin_inset listings
-lstparams "mathescape=true,escapeinside={~~},language=Haskell"
-inline false
-status open
-
-\begin_layout Plain Layout
-
-stencilDefs = [("s1" , [-502,-1,0,1,502] ), (
-\begin_inset Quotes eld
-\end_inset
-
-s5
-\begin_inset Quotes erd
-\end_inset
-
- , [0,1,502]), ...]
-\end_layout
-
-\begin_layout Plain Layout
-
-\end_layout
-
-\begin_layout Plain Layout
-
-stencilAppl = (
-\end_layout
-
-\begin_layout Plain Layout
-
-	Vec VS DInt "svec_du_1_4",
-\end_layout
-
-\begin_layout Plain Layout
-
-		Stencil (SComb (SVec 3 DInt "s5") (SVec 5 DInt "s1")) (Vec VI DInt "wet_0")
-\end_layout
-
-\begin_layout Plain Layout
-
-	) 
-\end_layout
-
-\end_inset
-
-
-\end_layout
-
-\begin_layout Standard
-We add the two stencils offsets directly rather than constructing a new
- stencil definition.
- The actual value vector (svec_du_1_4 in the example) is a 2-D vector.
-\begin_inset listings
-lstparams "language=Fortran"
-inline false
-status open
-
-\begin_layout Plain Layout
-
-integer, parameter, dimension(5) :: s1 = [-502,-1,0,1,502]
-\end_layout
-
-\begin_layout Plain Layout
-
-integer, parameter, dimension(3) :: s5 = [0,1,502]
-\end_layout
-
-\begin_layout Plain Layout
-
-integer, dimension(3,5) :: svec_du_1_4
-\end_layout
-
-\begin_layout Plain Layout
-
-do s_idx_1 = 1,3
-\end_layout
-
-\begin_layout Plain Layout
-
-do s_idx_2 = 1,5
-\end_layout
-
-\begin_layout Plain Layout
-
-    svec_du_1_4(s_idx_1, s_idx_2) = wet_0(idx+s5(s_idx1)+s1(s_idx2))
-\end_layout
-
-\begin_layout Plain Layout
-
-end do
-\end_layout
-
-\begin_layout Plain Layout
-
-end do
-\end_layout
-
-\end_inset
-
-
-\end_layout
-
-\begin_layout Subsection
-MapS
-\begin_inset CommandInset label
-LatexCommand label
-name "maps"
-
-\end_inset
-
-
-\end_layout
-
-\begin_layout Standard
-The stencil computations are handled via MapS, which computes the values
- for its function for every point in the stencil.
- An interesting point is the type of 
-\family typewriter
-sv_shapiro_map_16_in
-\family default
-, which is a stencil vector of a tuple of stencil vectors.
-\end_layout
-
-\begin_layout Standard
-\begin_inset listings
-lstparams "mathescape=true,escapeinside={~~},language=Haskell"
-inline false
-status open
-
-\begin_layout Plain Layout
-
-shapiro_Sig = [
-\end_layout
-
-\begin_layout Plain Layout
-
-	Scalar VDC DFloat "eps_0",
-\end_layout
-
-\begin_layout Plain Layout
-
-	Tuple [SVec 5 DInt "wet_s_0",SVec 5 DFloat "etan_s_0"],
-\end_layout
-
-\begin_layout Plain Layout
-
-	Scalar VDC DFloat "eta_1")
-\end_layout
-
-\begin_layout Plain Layout
-
-  ]
-\end_layout
-
-\begin_layout Plain Layout
-
-f_maps_du_1_1_Sig = [
-\end_layout
-
-\begin_layout Plain Layout
-
-	Scalar VDC DFloat "eps_0",
-\end_layout
-
-\begin_layout Plain Layout
-
-	SVec 3 (DTuple [DSVec 5 DInt,DSVec 5 DFloat]) "sv_shapiro_map_16_in",
-\end_layout
-
-\begin_layout Plain Layout
-
-	SVec 3 DFloat "sv_shapiro_map_16_out")
-\end_layout
-
-\begin_layout Plain Layout
-
-  ]
-\end_layout
-
-\begin_layout Plain Layout
-
-\end_layout
-
-\begin_layout Plain Layout
-
-mapS = (Function "f_maps_du_1_1" f_maps_du_1_1_Sig, 
-\end_layout
-
-\begin_layout Plain Layout
-
-	MapS (SVec 3 DInt "s4") (Function "shapiro_map_16" shapiro_Sig))
-\end_layout
-
-\end_inset
-
-
-\end_layout
-
-\begin_layout Standard
-The code generation for 
-\family typewriter
-sv_shapiro_map_16_in
-\family default
- results in two 2-D stencils.
- The Fortran array slice feature makes it easy to partially apply stencils.
- 
-\end_layout
-
-\begin_layout Standard
-\begin_inset listings
-lstparams "language=Fortran"
-inline false
-status open
-
-\begin_layout Plain Layout
-
-subroutine f_maps_du_1_1(eps_0, sv_shapiro_map_16_in0, sv_shapiro_map_16_in1,
- sv_shapiro_map_16_out)
-\end_layout
-
-\begin_layout Plain Layout
-
-    real :: eps_0
-\end_layout
-
-\begin_layout Plain Layout
-
-    integer, dimension(3,5) :: sv_shapiro_map_16_in0
-\end_layout
-
-\begin_layout Plain Layout
-
-    real, dimension(3,5) :: sv_shapiro_map_16_in1
-\end_layout
-
-\begin_layout Plain Layout
-
-    real, dimension(3) :: sv_shapiro_map_16_out
-\end_layout
-
-\begin_layout Plain Layout
-
-\end_layout
-
-\begin_layout Plain Layout
-
-    do i=1,3
-\end_layout
-
-\begin_layout Plain Layout
-
-        call shapiro_map_16(eps_0, sv_shapiro_map_16_in0(i,:), sv_shapiro_map_16
-_in1(i,:), sv_shapiro_map_16_out(i))
-\end_layout
-
-\begin_layout Plain Layout
-
-    end do
-\end_layout
-
-\begin_layout Plain Layout
-
-end subroutine f_maps_du_1_1
-\end_layout
-
-\end_inset
-
-
-\end_layout
-
-\begin_layout Subsection
-ApplyT
-\begin_inset CommandInset label
-LatexCommand label
-name "applyt"
-
-\end_inset
-
-
-\end_layout
-
-\begin_layout Standard
-ApplyT applies a tuple of functions to a tuple of values.
- 
-\end_layout
-
-\begin_layout Standard
-\begin_inset listings
-lstparams "mathescape=true,escapeinside={~~},language=Haskell"
-inline false
-status open
-
-\begin_layout Plain Layout
-
-f_applyt_du_1_2_Sig = [
-\end_layout
-
-\begin_layout Plain Layout
-
-	Scalar VDC DFloat "eps_0",
-\end_layout
-
-\begin_layout Plain Layout
-
-	Tuple [
-\end_layout
-
-\begin_layout Plain Layout
-
-		SVec 3 (DTuple [DSVec 5 DInt,DSVec 5 DFloat]) "sv_shapiro_map_16_in",
-\end_layout
-
-\begin_layout Plain Layout
-
-		Scalar VDC DFloat "id_in_2",
-\end_layout
-
-\begin_layout Plain Layout
-
-		Scalar VDC (DSVec 3 DInt) "id_in_3",
-\end_layout
-
-\begin_layout Plain Layout
-
-		Scalar VDC DFloat "id_in_4",
-\end_layout
-
-\begin_layout Plain Layout
-
-		Scalar VDC (DSVec 5 DFloat) "id_in_5"
-\end_layout
-
-\begin_layout Plain Layout
-
-	],
-\end_layout
-
-\begin_layout Plain Layout
-
-	Tuple [
-\end_layout
-
-\begin_layout Plain Layout
-
-		SVec 3 DFloat "sv_shapiro_map_16_out",
-\end_layout
-
-\begin_layout Plain Layout
-
-		Scalar VDC DFloat "id_out_2",
-\end_layout
-
-\begin_layout Plain Layout
-
-		Scalar VDC (DSVec 3 DInt) "id_out_3",
-\end_layout
-
-\begin_layout Plain Layout
-
-		Scalar VDC DFloat "id_out_4",
-\end_layout
-
-\begin_layout Plain Layout
-
-		Scalar VDC (DSVec 5 DFloat) "id_out_5"
-\end_layout
-
-\begin_layout Plain Layout
-
-	]
-\end_layout
-
-\begin_layout Plain Layout
-
-  ] 
-\end_layout
-
-\begin_layout Plain Layout
-
-f_maps_du_1_1_Sig = [
-\end_layout
-
-\begin_layout Plain Layout
-
-	Scalar VDC DFloat "eps_0",
-\end_layout
-
-\begin_layout Plain Layout
-
-	SVec 3 (DTuple [DSVec 5 DInt,DSVec 5 DFloat]) "sv_shapiro_map_16_in",
-\end_layout
-
-\begin_layout Plain Layout
-
-	SVec 3 DFloat "sv_shapiro_map_16_out")
-\end_layout
-
-\begin_layout Plain Layout
-
-  ]
-\end_layout
-
-\begin_layout Plain Layout
-
-\end_layout
-
-\begin_layout Plain Layout
-
-applyT = (Function "f_applyt_du_1_2" f_applyt_du_1_2_Sig,
-\end_layout
-
-\begin_layout Plain Layout
-
-	ApplyT [
-\end_layout
-
-\begin_layout Plain Layout
-
-		Function "f_maps_du_1_1" f_maps_du_1_1_Sig,
-\end_layout
-
-\begin_layout Plain Layout
-
-		Id DFloat,Id (DSVec 3 DInt),Id DFloat,Id (DSVec 5 DFloat)
-\end_layout
-
-\begin_layout Plain Layout
-
-	]
-\end_layout
-
-\begin_layout Plain Layout
-
-) 
-\end_layout
-
-\end_inset
-
-
-\end_layout
-
-\begin_layout Standard
-ApplyT applies a tuple of functions to a tuple of values.
- The identity function becomes a simple assigment.
-\begin_inset listings
-lstparams "language=Fortran"
-inline false
-status open
-
-\begin_layout Plain Layout
-
-subroutine f_applyt_du_1_2( &
-\end_layout
-
-\begin_layout Plain Layout
-
-	eps_0, sv_shapiro_map_16_in0, sv_shapiro_map_16_in1, &
-\end_layout
-
-\begin_layout Plain Layout
-
-	id_in_2, id_in_3, id_in_4, id_in_5, sv_shapiro_map_16_out, &
-\end_layout
-
-\begin_layout Plain Layout
-
-	id_out_2, id_out_3, id_out_4, id_out_5)
-\end_layout
-
-\begin_layout Plain Layout
-
-    real :: eps_0
-\end_layout
-
-\begin_layout Plain Layout
-
-    integer, dimension(3, 5) :: sv_shapiro_map_16_in0
-\end_layout
-
-\begin_layout Plain Layout
-
-    real, dimension(3, 5) :: sv_shapiro_map_16_in1
-\end_layout
-
-\begin_layout Plain Layout
-
-    real :: id_in_2
-\end_layout
-
-\begin_layout Plain Layout
-
-    integer, dimension(3) :: id_in_3
-\end_layout
-
-\begin_layout Plain Layout
-
-    real :: id_in_4
-\end_layout
-
-\begin_layout Plain Layout
-
-    real, dimension(5) :: id_in_5
-\end_layout
-
-\begin_layout Plain Layout
-
-    real, dimension(3) :: sv_shapiro_map_16_out
-\end_layout
-
-\begin_layout Plain Layout
-
-    real :: id_out_2
-\end_layout
-
-\begin_layout Plain Layout
-
-    integer, dimension(3) :: id_out_3
-\end_layout
-
-\begin_layout Plain Layout
-
-    real :: id_out_4
-\end_layout
-
-\begin_layout Plain Layout
-
-    real, dimension(5) :: id_out_5
-\end_layout
-
-\begin_layout Plain Layout
-
-\end_layout
-
-\begin_layout Plain Layout
-
-    call f_maps_du_1_1(eps_0, sv_shapiro_map_16_in0, sv_shapiro_map_16_in1,
- sv_shapiro_map_16_out)
-\end_layout
-
-\begin_layout Plain Layout
-
-    id_out_2 = id_in_2
-\end_layout
-
-\begin_layout Plain Layout
-
-    id_out_3 = id_in_3
-\end_layout
-
-\begin_layout Plain Layout
-
-    id_out_4 = id_in_4
-\end_layout
-
-\begin_layout Plain Layout
-
-    id_out_5 = id_in_5
-\end_layout
-
-\begin_layout Plain Layout
-
-\end_layout
-
-\begin_layout Plain Layout
-
-end subroutine f_applyt_du_1_2
-\end_layout
-
-\end_inset
-
-
-\end_layout
-
-\begin_layout Subsection
-Comp
-\begin_inset CommandInset label
-LatexCommand label
-name "comp"
-
-\end_inset
-
-
-\end_layout
-
-\begin_layout Standard
-Function composition 
-\end_layout
-
-\begin_layout Standard
-\begin_inset listings
-lstparams "mathescape=true,escapeinside={~~},language=Haskell"
-inline false
-status open
-
-\begin_layout Plain Layout
-
-f_comp_dv_1_3_Sig = [
-\end_layout
-
-\begin_layout Plain Layout
-
-	Tuple [
-\end_layout
-
-\begin_layout Plain Layout
-
-		Tuple [
-\end_layout
-
-\begin_layout Plain Layout
-
-			Scalar VDC DFloat "dt_0",Scalar VDC DFloat "g_0",Scalar VDC DFloat "dx_0",Sca
-lar VDC DFloat "dy_0"
-\end_layout
-
-\begin_layout Plain Layout
-
-		],
-\end_layout
-
-\begin_layout Plain Layout
-
-		Scalar VDC DFloat "eps_0"],
-\end_layout
-
-\begin_layout Plain Layout
-
-	Tuple [
-\end_layout
-
-\begin_layout Plain Layout
-
-		SVec 3 (DTuple [DSVec 5 DInt,DSVec 5 DFloat]) "sv_shapiro_map_16_in",
-\end_layout
-
-\begin_layout Plain Layout
-
-		Scalar VDC DFloat "id_in_2", Scalar VDC (DSVec 3 DInt) "id_in_3",
-\end_layout
-
-\begin_layout Plain Layout
-
-		Scalar VDC DFloat "id_in_4", Scalar VDC (DSVec 5 DFloat) "id_in_5"
-\end_layout
-
-\begin_layout Plain Layout
-
-	],
-\end_layout
-
-\begin_layout Plain Layout
-
-	Scalar VDC DFloat "dv_1"
-\end_layout
-
-\begin_layout Plain Layout
-
-  ]
-\end_layout
-
-\begin_layout Plain Layout
-
-f_pelt_dv_1_Sig =[
-\end_layout
-
-\begin_layout Plain Layout
-
-	Tuple [
-\end_layout
-
-\begin_layout Plain Layout
-
-		Scalar VDC DFloat "dt_0",Scalar VDC DFloat "g_0",Scalar VDC DFloat "dx_0",Scal
-ar VDC DFloat "dy_0"
-\end_layout
-
-\begin_layout Plain Layout
-
-	],
-\end_layout
-
-\begin_layout Plain Layout
-
-	Tuple [
-\end_layout
-
-\begin_layout Plain Layout
-
-		SVec 3 DFloat "eta_s_0",Scalar VDC DFloat "u_0",SVec 3 DInt "wet_s_1",
-\end_layout
-
-\begin_layout Plain Layout
-
-		Scalar VDC DFloat "v_0",SVec 5 DFloat "h_s_0"
-\end_layout
-
-\begin_layout Plain Layout
-
-	],Scalar VDC DFloat "dv_1"
-\end_layout
-
-\begin_layout Plain Layout
-
-  ]	
-\end_layout
-
-\begin_layout Plain Layout
-
-f_applyt_dv_1_2_Sig = [
-\end_layout
-
-\begin_layout Plain Layout
-
-	Scalar VDC DFloat "eps_0",
-\end_layout
-
-\begin_layout Plain Layout
-
-	Tuple [
-\end_layout
-
-\begin_layout Plain Layout
-
-		SVec 3 (DTuple [DSVec 5 DInt,DSVec 5 DFloat]) "sv_shapiro_map_16_in",
-\end_layout
-
-\begin_layout Plain Layout
-
-		Scalar VDC DFloat "id_in_2",Scalar VDC (DSVec 3 DInt) "id_in_3",
-\end_layout
-
-\begin_layout Plain Layout
-
-		Scalar VDC DFloat "id_in_4",Scalar VDC (DSVec 5 DFloat) "id_in_5"
-\end_layout
-
-\begin_layout Plain Layout
-
-	],
-\end_layout
-
-\begin_layout Plain Layout
-
-	Tuple [
-\end_layout
-
-\begin_layout Plain Layout
-
-		SVec 3 DFloat "sv_shapiro_map_16_out",Scalar VDC DFloat "id_out_2",
-\end_layout
-
-\begin_layout Plain Layout
-
-		Scalar VDC (DSVec 3 DInt) "id_out_3",Scalar VDC DFloat "id_out_4",
-\end_layout
-
-\begin_layout Plain Layout
-
-		Scalar VDC (DSVec 5 DFloat) "id_out_5"
-\end_layout
-
-\begin_layout Plain Layout
-
-	]
-\end_layout
-
-\begin_layout Plain Layout
-
-  ]
-\end_layout
-
-\begin_layout Plain Layout
-
-\end_layout
-
-\begin_layout Plain Layout
-
-comp = (Function "f_comp_dv_1_3" f_comp_dv_1_3_Sig,
-\end_layout
-
-\begin_layout Plain Layout
-
-	Comp (Function "f_pelt_dv_1" f_pelt_dv_1_Sig) (Function "f_applyt_dv_1_2"
- f_applyt_dv_1_2_Sig)
-\end_layout
-
-\begin_layout Plain Layout
-
-	)
-\end_layout
-
-\begin_layout Plain Layout
-
-\end_layout
-
-\end_inset
-
-
-\begin_inset listings
-lstparams "language=Fortran"
-inline false
-status open
-
-\begin_layout Plain Layout
-
-\end_layout
-
-\begin_layout Plain Layout
-
-subroutine f_comp_dv_1_3(dt_0, g_0, dx_0, dy_0, eps_0, &
-\end_layout
-
-\begin_layout Plain Layout
-
-	sv_shapiro_map_16_in0, sv_shapiro_map_16_in1, &
-\end_layout
-
-\begin_layout Plain Layout
-
-	id_in_2, id_in_3, id_in_4, id_in_5, dv_1)
-\end_layout
-
-\begin_layout Plain Layout
-
-    real :: dt_0
-\end_layout
-
-\begin_layout Plain Layout
-
-    real :: g_0
-\end_layout
-
-\begin_layout Plain Layout
-
-    real :: dx_0
-\end_layout
-
-\begin_layout Plain Layout
-
-    real :: dy_0
-\end_layout
-
-\begin_layout Plain Layout
-
-    real :: eps_0
-\end_layout
-
-\begin_layout Plain Layout
-
-    integer, dimension(3, 5) :: sv_shapiro_map_16_in0
-\end_layout
-
-\begin_layout Plain Layout
-
-    real, dimension(3, 5) :: sv_shapiro_map_16_in1
-\end_layout
-
-\begin_layout Plain Layout
-
-    real :: id_in_2
-\end_layout
-
-\begin_layout Plain Layout
-
-    integer, dimension(3) :: id_in_3
-\end_layout
-
-\begin_layout Plain Layout
-
-    real :: id_in_4
-\end_layout
-
-\begin_layout Plain Layout
-
-    real, dimension(5) :: id_in_5
-\end_layout
-
-\begin_layout Plain Layout
-
-    real :: dv_1
-\end_layout
-
-\begin_layout Plain Layout
-
-    real, dimension(3) :: eta_s_0
-\end_layout
-
-\begin_layout Plain Layout
-
-    real :: u_0
-\end_layout
-
-\begin_layout Plain Layout
-
-    integer, dimension(3) :: wet_s_1
-\end_layout
-
-\begin_layout Plain Layout
-
-    real :: v_0
-\end_layout
-
-\begin_layout Plain Layout
-
-    real, dimension(5) :: h_s_0
-\end_layout
-
-\begin_layout Plain Layout
-
-\end_layout
-
-\begin_layout Plain Layout
-
-    call f_applyt_dv_1_2(eps_0, sv_shapiro_map_16_in0, sv_shapiro_map_16_in1,
- &
-\end_layout
-
-\begin_layout Plain Layout
-
-		id_in_2, id_in_3, id_in_4, id_in_5, eta_s_0, u_0, wet_s_1, v_0, h_s_0)
-\end_layout
-
-\begin_layout Plain Layout
-
-    call f_pelt_dv_1(dt_0, g_0, dx_0, dy_0, eta_s_0, u_0, wet_s_1, v_0,
- h_s_0, dv_1)
-\end_layout
-
-\begin_layout Plain Layout
-
-end subroutine f_comp_dv_1_3
-\end_layout
-
-\end_inset
-
-Example: 
-\family typewriter
-(Function
-\begin_inset space \space{}
-\end_inset
-
-
-\begin_inset ERT
-status collapsed
-
-\begin_layout Plain Layout
-
-"
-\end_layout
-
-\end_inset
-
-exp_h_1_3
-\begin_inset ERT
-status collapsed
-
-\begin_layout Plain Layout
-
-"
-\end_layout
-
-\end_inset
-
-,Comp
-\begin_inset space \space{}
-\end_inset
-
-(Function
-\begin_inset space \space{}
-\end_inset
-
-
-\begin_inset ERT
-status collapsed
-
-\begin_layout Plain Layout
-
-"
-\end_layout
-
-\end_inset
-
-exp_h_1_0
-\begin_inset ERT
-status collapsed
-
-\begin_layout Plain Layout
-
-"
-\end_layout
-
-\end_inset
-
-)
-\begin_inset space \space{}
-\end_inset
-
-(Function
-\begin_inset space \space{}
-\end_inset
-
-
-\begin_inset ERT
-status collapsed
-
-\begin_layout Plain Layout
-
-"
-\end_layout
-
-\end_inset
-
-exp_h_1_2
-\begin_inset ERT
-status collapsed
-
-\begin_layout Plain Layout
-
-"
-\end_layout
-
-\end_inset
-
-))
-\family default
- 
-\end_layout
-
-\begin_layout Standard
-\begin_inset listings
-lstparams "mathescape=true,escapeinside={~~},language=Haskell"
-inline false
-status open
-
-\begin_layout Plain Layout
-
-shapiro_Sig = [
-\end_layout
-
-\begin_layout Plain Layout
-
-	Scalar VDC DFloat "eps_0",
-\end_layout
-
-\begin_layout Plain Layout
-
-	Tuple [SVec 5 DInt "wet_s_0",
-\end_layout
-
-\begin_layout Plain Layout
-
-	SVec 5 DFloat "etan_s_0"],Scalar VDC DFloat "eta_1")
-\end_layout
-
-\begin_layout Plain Layout
-
-	]
-\end_layout
-
-\begin_layout Plain Layout
-
-f_maps_du_1_1_Sig = [
-\end_layout
-
-\begin_layout Plain Layout
-
-	Scalar VDC DFloat "eps_0",
-\end_layout
-
-\begin_layout Plain Layout
-
-	SVec 3 (DTuple [DSVec 5 DInt,DSVec 5 DFloat]) "sv_shapiro_map_16_in",
-\end_layout
-
-\begin_layout Plain Layout
-
-	SVec 3 DFloat "sv_shapiro_map_16_out")
-\end_layout
-
-\begin_layout Plain Layout
-
-	]
-\end_layout
-
-\begin_layout Plain Layout
-
-\end_layout
-
-\begin_layout Plain Layout
-
-mapS = (Function "f_maps_du_1_1" f_maps_du_1_1_Sig, 
-\end_layout
-
-\begin_layout Plain Layout
-
-	MapS (SVec 3 DInt "s4") (Function "shapiro_map_16" shapiro_Sig))
-\end_layout
-
-\end_inset
-
-
-\end_layout
-
-\begin_layout Standard
-\begin_inset listings
-lstparams "language=Fortran"
-inline false
-status open
-
-\begin_layout Plain Layout
-
-! comp
-\end_layout
-
-\begin_layout Plain Layout
-
-subroutine exp_h_1_3(t_i,t_o)        
-\end_layout
-
-\begin_layout Plain Layout
-
-    real, intent(in) :: t_i
-\end_layout
-
-\begin_layout Plain Layout
-
-    real, intent(out) :: t_o
-\end_layout
-
-\begin_layout Plain Layout
-
-    real :: t_int        
-\end_layout
-
-\begin_layout Plain Layout
-
-    call exp_h_1_0(t_i, t_int)
-\end_layout
-
-\begin_layout Plain Layout
-
-    call exp_h_1_2(t_int,t_o)
-\end_layout
-
-\begin_layout Plain Layout
-
-end subroutine exp_h_1_3
-\end_layout
-
-\end_inset
-
-
-\end_layout
-
-\begin_layout Subsection
-Map
-\end_layout
-
-\begin_layout Standard
-\begin_inset listings
-lstparams "mathescape=true,escapeinside={~~},language=Haskell"
-inline false
-status open
-
-\begin_layout Plain Layout
-
-f_comp_u_1_3_Sig = [
-\end_layout
-
-\begin_layout Plain Layout
-
-	Tuple [
-\end_layout
-
-\begin_layout Plain Layout
-
-		Scalar VDC DFloat "hmin_0",Scalar VDC DFloat "eps_0"
-\end_layout
-
-\begin_layout Plain Layout
-
-	],
-\end_layout
-
-\begin_layout Plain Layout
-
-	Tuple [
-\end_layout
-
-\begin_layout Plain Layout
-
-		Scalar VDC DFloat "id_in_1",
-\end_layout
-
-\begin_layout Plain Layout
-
-		SVec 3 (DTuple [DSVec 5 DInt,DSVec 5 DFloat]) "sv_shapiro_map_16_in",
-\end_layout
-
-\begin_layout Plain Layout
-
-		Scalar VDC (DSVec 2 DFloat) "id_in_3",Scalar VDC (DSVec 2 DFloat) "id_in_4"
-\end_layout
-
-\begin_layout Plain Layout
-
-	],
-\end_layout
-
-\begin_layout Plain Layout
-
-	Scalar VDC DFloat "u_1"
-\end_layout
-
-\begin_layout Plain Layout
-
-  ]
-\end_layout
-
-\begin_layout Plain Layout
-
-\end_layout
-
-\begin_layout Plain Layout
-
-(
-\end_layout
-
-\begin_layout Plain Layout
-
-Vec VO DFloat "u_1",
-\end_layout
-
-\begin_layout Plain Layout
-
-Map (Function "f_comp_u_1_3" f_comp_u_1_3_Sig) 
-\end_layout
-
-\begin_layout Plain Layout
-
-	(ZipT [
-\end_layout
-
-\begin_layout Plain Layout
-
-		Vec VI DFloat "hzero_0",
-\end_layout
-
-\begin_layout Plain Layout
-
-		ZipT [
-\end_layout
-
-\begin_layout Plain Layout
-
-			Vec VS DInt "svec_u_1_4",
-\end_layout
-
-\begin_layout Plain Layout
-
-			Vec VS DFloat "svec_u_1_5"
-\end_layout
-
-\begin_layout Plain Layout
-
-		],
-\end_layout
-
-\begin_layout Plain Layout
-
-		Vec VS DFloat "svec_u_1_6",
-\end_layout
-
-\begin_layout Plain Layout
-
-		Vec VS DFloat "svec_u_1_7"
-\end_layout
-
-\begin_layout Plain Layout
-
-	]
-\end_layout
-
-\begin_layout Plain Layout
-
-	)
-\end_layout
-
-\begin_layout Plain Layout
-
-) 
-\end_layout
-
-\end_inset
-
-
-\end_layout
-
-\begin_layout Standard
-\begin_inset listings
-lstparams "language=Fortran"
-inline false
-status open
-
-\begin_layout Plain Layout
-
- call f_comp_u_1_3( &
-\end_layout
-
-\begin_layout Plain Layout
-
-	hmin_0, eps_0, &
-\end_layout
-
-\begin_layout Plain Layout
-
-	hzero_0(idx), svec_u_1_4, svec_u_1_5, &
-\end_layout
-
-\begin_layout Plain Layout
-
-	svec_u_1_6, svec_u_1_7, &
-\end_layout
-
-\begin_layout Plain Layout
-
-	u_1(idx))  
-\end_layout
-
-\end_inset
-
-
-\end_layout
-
-\begin_layout Subsection
-Fold
-\end_layout
-
-\begin_layout Standard
-\begin_inset listings
-lstparams "mathescape=true,escapeinside={~~},language=Haskell"
-inline false
-status open
-
-\begin_layout Plain Layout
-
-s
-\end_layout
-
-\end_inset
-
-
-\end_layout
-
-\begin_layout Standard
-\begin_inset listings
-lstparams "language=Fortran"
-inline false
-status open
-
-\begin_layout Plain Layout
-
-!
-\end_layout
-
-\end_inset
-
-
-\end_layout
-
 \begin_layout Acknowledgements
 If you'd like to thank anyone, place your comments here.
  
@@ -6203,7 +5363,7 @@ If you'd like to thank anyone, place your comments here.
 LatexCommand bibtex
 btprint "btPrintCited"
 bibfiles "IEEEabrv,paper-memory-reduction-TyTraCL"
-options "bibtotoc,spbasic"
+options "bibtotoc,spmpsci"
 
 \end_inset
 
