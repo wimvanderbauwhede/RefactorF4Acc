@@ -27,11 +27,11 @@ MemoryReduction-exe: (
       "f",
       "acc")
 
-      So there is a problem here that acc_1 should be In or InOut, not Out! FIXME in the Perl code
+      So there is a problem here that acc_1 should be In or InOut, not Out! FIXME in the Perl code MemoryReduction around line 1257
       Furthermore, this should lead to 
       "acc" => [("acc_0",Out),("acc_1",In)]
       or even
-      "acc" => {"acc_0" =>Out,"acc_1" =>In} , FIXME in CodeGeneration.hs
+      "acc" => {"acc_0" =>Out,"acc_1" =>In} , FIXME in CodeGeneration.hs, the creation of origNames from origNamesList
 
 
 
