@@ -58,8 +58,41 @@ mainArgDecls =  Map.fromList mainArgDeclsList
 stencilDefinitions :: Map.Map Name [Integer]
 stencilDefinitions  =  Map.fromList stencilDefinitionsList
 
+{-
+("f" => 
+    ("acc" => [("acc_1",Out)],
+    "v" => [("v_0",In)],
+    "acc" => [("acc_0",In)]
+    )
+)
+
+fromList [("f",fromList [("acc",[("acc_0",In)]),("v",[("v_0",In)])])],"f","acc")
+
+So we have a list of tuples (f, [("acc",[("acc_0",In)]),("acc",[("acc_1",Out)]) ]
+
+So I map over that list, and I work on the second elt in the tuple, i.e. a list of tuples
+
+But rather than doing simply fromList, I first transform that list:
+-}
+mergeFields lst = let
+-- get the unique names:
+    unique_names = nub $ map (\(n,_) -> n) lst
+-- for each unique name, filter the list 
+    in
+        map (\un -> let 
+                tups_n = filter (\(n,_) -> n == un) lst
+                -- [(n,l1),(n,l2)]
+                n = fst $ head tups_n
+                snds = map snd tups_n
+                -- [l1,l2]
+                snds_merged = concat snds
+            in     
+                (n,snds_merged)
+        ) unique_names 
+
+
 origNames :: Map.Map Name (Map.Map Name [(Name, FIntent)])
-origNames = Map.fromList $ map (second Map.fromList) origNamesList
+origNames = Map.fromList $ map (second (Map.fromList . mergeFields)) origNamesList
 
 scalarisedArgs :: Map.Map Name [(Name,(Integer, FIntent, Name))]
 scalarisedArgs = Map.fromList scalarisedArgsList
@@ -274,7 +307,7 @@ createCallArg fname orig_name stencil_index =
             then
                 fst $ head ( origNames ! fname ! orig_name)
             else
-                 error $ show (origNames ! fname) ++ "; "++ orig_name
+                error $ show (origNames ! fname) ++ "; "++ orig_name
     in
         actual_arg_name ++ (if stencil_index==0 then "" else "("++show stencil_index++")")
 
@@ -308,8 +341,9 @@ handleInOutArg fname orig_name ftype stencil_index = let
         Just actual_out_arg_name -> "    "++actual_out_arg_name++" = "++orig_name
         Nothing -> ""
     in
-        -- (orig_arg_decl_str,pre_call_assignment_str,post_call_assignment_str)
-        error $ show(origNamesList,origNames, fname, orig_name)
+        -- error $ show 
+        (orig_arg_decl_str,pre_call_assignment_str,post_call_assignment_str)
+        -- error $ show(origNamesList,origNames, fname, orig_name)
 
 generateSubDefOpaque fname functionSignatures =
     let

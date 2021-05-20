@@ -20,8 +20,8 @@ functionSignaturesList = [
 stencilDefinitionsList = []
 
 mainArgDeclsList = [
-      ("v_0" , MkFDecl "real"  (Just [500]) (Just In) ["v_0"] )
-    , ("acc_0" , MkFDecl "real" Nothing (Just In) ["acc_0"] )
+      ("acc_0" , MkFDecl "real" Nothing (Just In) ["acc_0"] )
+    , ("v_0" , MkFDecl "real"  (Just [500]) (Just In) ["v_0"] )
     , ("acc_1" , MkFDecl "real" Nothing (Just Out) ["acc_1"] )
   ]
 
@@ -30,7 +30,7 @@ scalarisedArgsList = [
   ]
 
 origNamesList = [
-     ( "f",[("acc",[("acc_1",Out)]), ("v",[("v_0",In)]), ("acc",[("acc_0",Out)])])
+     ( "f",[("acc",[("acc_1",Out)]), ("v",[("v_0",In)]), ("acc",[("acc_0",In)])])
   ]
 
 {-

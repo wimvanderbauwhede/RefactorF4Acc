@@ -2,7 +2,9 @@
 
 ## 2021-05-20
 
-There is a problem with the trivial fold: 
+SOLVED!
+<!--
+There is a problem with the trivial fold:
 
 - In the shell subroutine f(acc_0, v_0, acc_1) we get
 
@@ -32,8 +34,7 @@ MemoryReduction-exe: (
       "acc" => [("acc_0",Out),("acc_1",In)]
       or even
       "acc" => {"acc_0" =>Out,"acc_1" =>In} , FIXME in CodeGeneration.hs, the creation of origNames from origNamesList
-
-
+-->
 
 ## 2021-05-19
 

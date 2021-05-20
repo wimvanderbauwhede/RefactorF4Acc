@@ -1153,7 +1153,6 @@ sub _create_TyTraCL_Haskell_origNamesList { (my $orig_names_list)=@_;
 sub __origNamesListEntry { my ($node) = @_;
     my $arg_name_pairs = [];
     my $fname = $node->{'FunctionName'};
-# croak Dumper $node if $fname eq 'dyn_map_65';
 
         if ($node->{'NodeType'} eq 'Map') {
 
@@ -1186,7 +1185,11 @@ sub __origNamesListEntry { my ($node) = @_;
                         push @{$arg_name_pairs},[
                             $arg_rec->[0],[
                                 _mkVarName($arg_rec)
-                                , exists $out_args{$arg_rec->[0]} ? 'Out' : 'In'
+                                , 
+                                # exists $out_args{$arg_rec->[0]} ? 'Out' : 'In'
+                                $arg_rec->[3] ne 'VT' 
+                                    ? __VE_to_Intent($arg_rec->[3])
+                                    : exists $out_args{$arg_rec->[0]} ? 'InOut' : 'In'
                             ]
                         ];
                     } 
@@ -1197,66 +1200,58 @@ sub __origNamesListEntry { my ($node) = @_;
             }
         }
         elsif ($node->{'NodeType'} eq 'Fold') {
-carp 'HERE THE Acc is OK in $node but WRONG later'.Dumper $node;
-            # my %out_args = ();
-            # map { $out_args{$_->[0]} = $_ } @{$node->{'Lhs'}{'Vars'}};
-            # say Dumper %out_args;
-            # # my %out_args = map { $_->[0]=>$_ } @{$node->{'Lhs'}{'Vars'}};
-            # say Dumper $node->{'Rhs'}{'AccArgs'}{'Vars'};# = [['acc',0,'','VI']];
-            # say Dumper $node->{'Rhs'}{'FoldArgs'}{'Vars'};# = [['acc',0,'','VI']];
-            # my @tmp1 = map { $_->[0] } @{$node->{'Rhs'}{'AccArgs'}{'Vars'}};
-            # say Dumper @tmp1;
-            # my @tmp2 =   grep { exists $out_args{$_} } @tmp1;
-            # say Dumper @tmp2;
-            # my %tmp3 = map { $_->[0]=>[$_,$out_args{$_}] } @tmp2;            
-            # my %inout_args =  map { $_->[0]=>[$_,$out_args{$_->[0]}] } grep { exists $out_args{$_->[0]} } map { $_->[0] } @{$node->{'Rhs'}{'AccArgs'}{'Vars'}};
-            # my %done=();
 
             my %out_args = ();
             map { $out_args{$_->[0]} = $_ } @{$node->{'Lhs'}{'Vars'}};
+
             my %inout_args =  map { 
                 $_->[0]=>[[$_,'In'],[$out_args{$_->[0]},'Out']] 
                 } grep { exists $out_args{$_->[0]}  } @{$node->{'Rhs'}{'MapArgs'}{'Vars'}};
-            my %done=();
 
+            my %done=();
 
             for my $arg_rec (
                 @{$node->{'Lhs'}{'Vars'}}
                ,@{$node->{'Rhs'}{'FoldArgs'}{'Vars'}}
                ,@{$node->{'Rhs'}{'NonFoldArgs'}{'Vars'}}
-            ,@{$node->{'Rhs'}{'AccArgs'}{'Vars'}}
+               ,@{$node->{'Rhs'}{'AccArgs'}{'Vars'}}
             ) {
-
-                                if (exists $inout_args{$arg_rec->[0]}) {
+                if (exists $inout_args{$arg_rec->[0]}) {
                     my $entry = [ map { 
                             [
                                 _mkVarName($_->[0]), $_->[1]
                             ]
                      }  @{$inout_args{$arg_rec->[0]}}
-                     ];            
+                     ];         
+                        
                      $done{$arg_rec->[0]}=1;  
                      delete $inout_args{$arg_rec->[0]};       
                     push @{$arg_name_pairs},[$arg_rec->[0],$entry];
                 } else {
                     if (not exists $done{$arg_rec->[0]}) {
-                        push @{$arg_name_pairs},[
+                        my $entry = [
                             $arg_rec->[0],[
-                                _mkVarName($arg_rec)
-                                , exists $out_args{$arg_rec->[0]} ? 'Out' : 'In'
+                                _mkVarName($arg_rec),
+                                # THIS IS WRONG! Why not take it from VE?
+                                # Can be we might need to change In to InOut?                                
+                                # exists $out_args{$arg_rec->[0]} ? 'Out' : 'In'
+                                # I don't think we ever have VT here but it does not hurt
+                                $arg_rec->[3] ne 'VT' ? __VE_to_Intent($arg_rec->[3])
+                                : exists $out_args{$arg_rec->[0]} ? 'InOut' : 'In'
                             ]
                         ];
+                        push @{$arg_name_pairs}, $entry;
                     } 
-                    # else {
-                    #     carp "Skipping ". $arg_rec->[0];
-                    # }
                 }
-
-                # push @{$arg_name_pairs},[$arg_rec->[0],_mkVarName($arg_rec)];
             }
         }
-        carp 'WRONG!'. Dumper $arg_name_pairs;  
     return [$fname,$arg_name_pairs];
         
 } # END of __origNamesListEntry
+
+# Only Intent if VI or VO. VS and VT are local.
+sub __VE_to_Intent { my ($ve) = @_;
+    $ve eq 'VI' ? 'In' : $ve eq 'VO' ? 'Out' : ''
+}
 
 1;
