@@ -1,5 +1,13 @@
 # REMAINING ISSUES : Memory Reduction for Scientific Computing on GPUs
 
+## 2021-05-19
+
+Been working on getting actual OpenCL Fortran to generate to ASTInstance.hs
+Current status is that a simple fold-map example without stencils seems to work full chain.
+Next step is to test a stencil, then two stencils
+
+I think the detection of non-stream arguments still needs to be improved: we should use Accesses etc to see if an array is not using all iterators. If so, it is not a stream.
+
 ## 2021-05-17
 
 Trivial tests for map and fold (13, 14, 15) also HANG on Substitute vectors (recursive), which is really silly.
@@ -272,13 +280,13 @@ We need to add this to
 
       RefactorF4Acc::Translation::OpenCLC
 
-The current (20191106) status is that the slices are now done, I need to verify if return into array elt works.
+The current (2019-11-06) status is that the slices are now done, I need to verify if return into array elt works.
 
 ## More general case for stencils
 
 The stencil currently is defined for non-constant accesses only, I could generalise this using the algorithm in
 
-See `/Users/wim/Desktop/FortranRefactoring/2018-10-30-stencil-algo.txt`      
+See `~wim/FortranRefactoring/2018-10-30-stencil-algo.txt`      
 
 ## How to deal with iteration?
 
@@ -306,7 +314,7 @@ If I would ignore the boundaries, it might be possible ...
 
 I think the best thing to do is to use velfg/vel2 as example.
 
-## Combinatorial explosion
+## Complexity Analysis: Combinatorial explosion
 
 Given a stencil of m points, called k times, we'll have m**k operations.
 I don't think we can avoid the actual computations, but we can avoid reading m**k values from main memory:
@@ -318,9 +326,9 @@ Compared to the original: say that we have k iterations, we have k intermediate 
 m**k/k/m
 
 say m=6 and k=5
-6**5/5/6 = 6**4/5 = 260
+6**5/5/6 = 6**4/5 = 260x
 
-I should provide a table : 2, 4, 6 point stencils; 1..10 iterations
+See CombinatorialExplosion.ods
 
 Looking at e.g. the GeForce GTX TITAN:
 
@@ -328,5 +336,5 @@ threads: 2688
 clock 837 MHz
 Memory Bandwidth (GB/sec) 288
 
-So per ns, we can read 77 words from the memory, to be divided amongst 2688 threads. So per thread it takes 35 ns for a word, i.e. about 40 cycles can be spend on computation.
+So per ns, we can read 77 words from the memory, to be divided amongst 2688 threads. So per thread it takes 35 ns for a word (2688/77), i.e. about 30 cycles can be spend on computation before it becomes compute dominated. 
 

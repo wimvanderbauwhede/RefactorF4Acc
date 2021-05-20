@@ -7,7 +7,7 @@ module module_test_superkernel
 subroutine f1(acc,v)
 
     integer(4), parameter :: nx=500
-    real, dimension(2:nx+1), intent(In) :: v
+    real, dimension(nx), intent(In) :: v
     real, intent(InOut) :: acc
 ! globalIdDeclaration
     integer :: global_id, i, i_rel, i_range

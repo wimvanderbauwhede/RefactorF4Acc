@@ -247,17 +247,22 @@ sub identify_array_accesses_in_exprs { (my $stref, my $f) = @_;
 				# 	}						
 					
 				# }
-				# # Assignment to scalar *_range
-				# # This is ad hoc for the output of the AutoParallelFortran compiler!
-				# # WV 2021-05-18 FIXME: we must do this by looking at any vars that dependend on get_global_id()
-				# elsif ($Config{'KERNEL'} ne '' and $info->{'Lhs'}{'ArrayOrScalar'} eq 'Scalar' and $info->{'Lhs'}{'VarName'} =~/^(\w+)_range/) {
-				# 	my $loop_iter=$1;
 
-				# 	my $expr_str = emit_expr_from_ast($info->{'Rhs'}{'ExpressionAST'});
-				# 	my $loop_range = eval($expr_str);
-				# 	$state->{'Subroutines'}{ $f }{'Blocks'}{$block_id}{'LoopIters'}{$loop_iter}={'Range' => [1,$loop_range,1]};
-				# 	# croak $block_id. Dumper $state->{'Subroutines'}{ $f }{'Blocks'}{$block_id}{'LoopIters'}
-				# } 
+				# Assignment to scalar *_range
+				# This is ad hoc for the output of the AutoParallelFortran compiler!
+				# WV 2021-05-20 We already know the iters from get_global_id() 
+				# but we don't know the range because it is only defined via enqueueNDRange
+				# so this is the only way to get it
+				# I guess what I should do is set the range to the dimension of the largest array as a "first guess", this will still allow us to detect small arrays
+				# We should do that in 
+				if ($Config{'KERNEL'} ne '' and $info->{'Lhs'}{'ArrayOrScalar'} eq 'Scalar' and $info->{'Lhs'}{'VarName'} =~/^(\w+)_range/) {
+					my $loop_iter=$1;
+
+					my $expr_str = emit_expr_from_ast($info->{'Rhs'}{'ExpressionAST'});
+					# Can do this as it should all be constants
+					my $loop_range = eval($expr_str);
+					$state->{'Subroutines'}{ $f }{'Blocks'}{$block_id}{'LoopIters'}{$loop_iter}{'Range'} = [1,$loop_range,1];
+				} 
 				# else {
 					# First check if this is maybe an accumulator
 				if ($info->{'Lhs'}{'ArrayOrScalar'} eq 'Scalar' ) { 
@@ -1484,6 +1489,9 @@ sub _is_stream_var { my ($state, $f, $block_id, $var_name) =@_;
 	#   carp "$f $block_id $var_name", Dumper $state->{'Subroutines'}{ $f }{'Blocks'}{ $block_id };
 	  croak "PROBLEM: NO LoopIters for block $block_id in $f" if not exists $state->{'Subroutines'}{$f}{'Blocks'}{$block_id}{'LoopIters'}; 
 	  my $iters =  $state->{'Subroutines'}{$f}{'Blocks'}{$block_id}{'LoopIters'};
+	  my $n_iters = scalar keys %{$iters};
+	  my $used_iters = __get_used_iters($var_name, $state, $f, $block_id);
+	  my $n_used_iters = scalar keys %{$used_iters};
 	  my $dims = $state->{'Subroutines'}{ $f }{'Blocks'}{ $block_id }{'Arrays'}{$var_name}{'Dims'} ;	  
 	#   carp $var_name.Dumper($dims,$iters);
 	# carp Dumper $state->{'Subroutines'}{ $f }{'Blocks'}{ $block_id };
@@ -1491,12 +1499,17 @@ sub _is_stream_var { my ($state, $f, $block_id, $var_name) =@_;
 		  say "$f $var_name dim mismatch" if $V;
 		  return 0;
 	  } 
-	  # If an array dim is smaller than the range for iteration, it can't be a stream
+	  elsif ($n_used_iters<$n_iters) {
+		  return 0;
+	  }
+	  # If an array dim is smaller than the range for iteration, it can't be a stream. But in OpenCL we don't really know the iterange range
+	  # Unless we would rely on _range, which is OK for our approach.
 	  # If an array only has const accesses, it can't be a stream
 	  elsif (__only_const_acccesses($var_name, $state, $f, $block_id) ) {
 			return 0;		  
 	  } else {
 		  # needs more checking of the sizes but a global size comp should do it I think
+		  # Also, this only works if there is one iter per dim
 		  my $iter_space=1;
 		  my $array_sz=1;
 		  my $ok=1;
@@ -1543,6 +1556,25 @@ sub __only_const_acccesses { my ($array_var, $state, $f, $block_id) = @_;
 	return 1;	
 }
 
+sub __get_used_iters {my ($array_var, $state, $f, $block_id) = @_;
+my $used_iters={};
+	for my $rw('Read','Write') {
+		if (exists
+			$state->{'Subroutines'}{ $f }{'Blocks'}{ $block_id }{'Arrays'}{$array_var}{$rw}
+		) {
+			my $iter_pairs = $state->{'Subroutines'}{ $f }{'Blocks'}{ $block_id }{'Arrays'}{$array_var}{$rw}{'Iterators'};
+			# croak $array_var.' BOOM!' . Dumper($iter_pairs) if $array_var eq 'w';
+
+			for my $iter_pair (@{$iter_pairs})  {
+				my ($iter,$idx) = split(/:/,$iter_pair);
+				if ($iter ne '?') { 
+					$used_iters->{$iter}=$idx;
+				}
+			}
+		}
+	}
+	return $used_iters;
+} # END of __get_used_iters
 # sub __array_dim_too_small { my ($array_var, $state, $f, $block_id) = @_;
 
 # }
@@ -1763,27 +1795,95 @@ sub _get_loop_iters_from_global_id { my ($stref,$f) = @_;
 	(my $new_annlines,$state) = stateful_pass($annlines,$pass_get_loop_iters_from_global_id,$state,"pass_get_loop_iters_from_global_id($f)");
 	
 	# Adapt the Range for the LoopIters, this is used to decide if an array is a StreamVar
-	for my $iter (sort keys %{$state->{'LoopIters'}}) {
-		for my $array_var (sort keys %{$state->{'LoopIters'}{$iter}{'Arrays'}}) {
-			my $idx = $state->{'LoopIters'}{$iter}{'Arrays'}{$array_var};
-			my $subset = in_nested_set( $stref->{'Subroutines'}{$f}, 'Vars', $array_var );
-			# say "SUBSET <$subset>";
-			if ($subset) { 
-				my $decl = get_var_record_from_set( $stref->{'Subroutines'}{$f}{'Vars'},$array_var);
-				if (exists $decl->{'ConstDim'}) {
-				# say Dumper($decl);
-				my $const_dim = $decl->{'ConstDim'};
-				# carp "$array_var $iter $idx ".Dumper($const_dim->[$idx]);
-				$state->{'LoopIters'}{$iter}{'Range'}=[1,$const_dim->[$idx][1]-$const_dim->[$idx][0]+1,1];
-				}
-			}
-		}
-	}
+	# This is not good as it uses just any array, at the very least I should test if the array uses all iters!
+	# Better would be not to rely on the size
+	# Also see below, what about accesses with multiple iters per dimension?
+	$stref = _get_iter_range_from_largest_array($stref,$f);
+	# for my $iter (sort keys %{$state->{'LoopIters'}}) {
+	# 	for my $array_var (sort keys %{$state->{'LoopIters'}{$iter}{'Arrays'}}) {
+	# 		my $idx = $state->{'LoopIters'}{$iter}{'Arrays'}{$array_var};
+	# 		my $subset = in_nested_set( $stref->{'Subroutines'}{$f}, 'Vars', $array_var );
+	# 		# say "SUBSET <$subset>";
+	# 		if ($subset) { 
+	# 			my $decl = get_var_record_from_set( $stref->{'Subroutines'}{$f}{'Vars'},$array_var);
+	# 			if (exists $decl->{'ConstDim'}) {
+	# 			# say Dumper($decl);
+	# 			my $const_dim = $decl->{'ConstDim'};
+	# 			# carp "$array_var $iter $idx ".Dumper($const_dim->[$idx]);
+	# 			$state->{'LoopIters'}{$iter}{'Range'}=[1,$const_dim->[$idx][1]-$const_dim->[$idx][0]+1,1];
+	# 			}
+	# 		}
+	# 	}
+	# }
 	# Now assign this to LoopIters
 	$stref->{'Subroutines'}{ $f }{'ArrayAccesses'}{0}{'LoopIters'} = $state->{'LoopIters'};
 	return $stref;
 } # END of _get_loop_iters_from_global_id
 
+# WV 2021-05-20
+# There is some complication here. If there is one iter per dimension it is all very well, we use the dimension as the range
+# But if we have v(i+j*i_sz), then what is the range for i and j? 
+# The only decent way to do this is to replace this expression by a new variable and define that as the iter.
+# 
+# The purpose is to determine what is a stream var. I reason that an array smaller than the largest but with the same dimension
+# can't use the same number of loop iterators because it would mean that the loop iteration range would be capped by the smallest array
+# We know the dimensions. If we have e.g. w=10, v=500 and we have v(i+j*i_sz) and w(i+j*i_sz) then that would mean that the global_range can only be 10
+# In any case, an array accessed with a subset of iterators can't be a stream 
+# So we should have the ItersPerDim 
+# I actually think we get this from the Accesses analysis.
+sub _get_iter_range_from_largest_array { my ($stref,$f) = @_;
+	my $Sf = $stref->{'Subroutines'}{$f};
+	my $annlines = $Sf->{'RefactoredCode'};
+	my $state = {};
+	$state->{'LoopIters'} = $stref->{'Subroutines'}{ $f }{'ArrayAccesses'}{0}{'LoopIters'};
+	# What we need to do is look at all arrays in {}
+	my %arrays_with_iters = ();
+	my %iters_per_dim  = ();
+	my $n_iters = scalar keys %{$state->{'LoopIters'}};
+	for my $iter (sort keys %{$state->{'LoopIters'}}) {
+		for my $array_var (sort keys %{$state->{'LoopIters'}{$iter}{'Arrays'}} ) {
+			$arrays_with_iters{$array_var}{$iter}=1;
+	# For every array var, we look at which iters are used for which dim
+			my $idx =$state->{'LoopIters'}{$iter}{'Arrays'}{$array_var};
+			$iters_per_dim{$array_var}{$idx}{$iter}=1;
+		}
+	}
+	
+
+	my $max_range_size = {};
+	for my $iter (sort keys %{$state->{'LoopIters'}}) {
+		$max_range_size->{$iter}=0;
+	}
+	for my $array_var ( sort keys %arrays_with_iters ) {
+		my $n_iters_used = scalar keys %{$arrays_with_iters{$array_var}};
+		if ($n_iters_used == $n_iters) {
+			my $subset = in_nested_set( $stref->{'Subroutines'}{$f}, 'Vars', $array_var );
+			# say "SUBSET <$subset>";
+			if ($subset) { 
+				my $decl = get_var_record_from_set( $stref->{'Subroutines'}{$f}{'Vars'},$array_var);
+				if (exists $decl->{'ConstDim'}) {
+					# say Dumper($decl);
+					my $const_dim = $decl->{'ConstDim'};
+					if (scalar @{$const_dim} == $n_iters) {
+						for my $iter (sort keys %{$arrays_with_iters{$array_var}}) {
+							my $idx = $state->{'LoopIters'}{$iter}{'Arrays'}{$array_var};
+					 		my $entry = $const_dim->[$idx];
+							my $sz_str = '((' . $entry->[1] . ') - (' . $entry->[0] . ')+1)';
+
+							my $range_size = eval($sz_str);
+							$max_range_size->{$iter} = max($max_range_size->{$iter},$range_size);
+						}
+					}
+				}
+			}
+		}
+	}
+	for my $iter (sort keys %{$state->{'LoopIters'}}) {
+		$state->{'LoopIters'}{$iter}{'Range'}=[1,$max_range_size->{$iter},1];
+	}	
+	$stref->{'Subroutines'}{ $f }{'ArrayAccesses'}{0}{'LoopIters'} = $state->{'LoopIters'};
+	return $stref;
+} # END of _get_iter_range_from_largest_array
 
 sub __find_loop_iter_access_in_ast { ( my $state, my $ast)=@_;
     if (ref($ast) eq 'ARRAY') {
