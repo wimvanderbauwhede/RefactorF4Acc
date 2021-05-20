@@ -308,7 +308,8 @@ handleInOutArg fname orig_name ftype stencil_index = let
         Just actual_out_arg_name -> "    "++actual_out_arg_name++" = "++orig_name
         Nothing -> ""
     in
-        (orig_arg_decl_str,pre_call_assignment_str,post_call_assignment_str)
+        -- (orig_arg_decl_str,pre_call_assignment_str,post_call_assignment_str)
+        error $ show(origNamesList,origNames, fname, orig_name)
 
 generateSubDefOpaque fname functionSignatures =
     let
@@ -338,9 +339,9 @@ generateSubDefOpaque fname functionSignatures =
                     "    ! Temp vars"
                     , unlines $ filter (/="") orig_arg_decl_strs
                     ,"    ! Call to the original scalarised subroutine"
-                    , unlines $ filter (/="") pre_call_assignment_strs
+                    , unlines $ filter (/="") pre_call_assignment_strs -- WV 2021-05-20 FIXME: this is empty for Fold
                     ,"    call "++fname++"_scal("++mappedArgsListStr++")"
-                    , unlines $ filter (/="") post_call_assignment_strs
+                    , unlines $ filter (/="") post_call_assignment_strs -- WV 2021-05-20 FIXME: this is incorrect for Fold, has acc_0 instead of acc_1
                     ]
 
         in
@@ -935,10 +936,14 @@ generateFold functionSignatures f_exp acc_exp v_exp t =
         out_vars_lst = getName lhs
         Fold _ _ rhs_v_exp = rhs -- fold f acc v
         (out_var_name, extra_out_var_decls) = case out_vars_lst of
-            Single ov_name'' -> if Map.member ov_name'' mainArgDecls
-                                    then (ov_name''++"(idx)" ,[])
-                                    else (ov_name'',[])
-            Composite ov_names -> error $ show $ map (\(Single ov_name'') -> if Map.member ov_name'' mainArgDecls then  ov_name''++"(idx)" else  ov_name'') ov_names
+            Single ov_name'' -> (ov_name'',[])
+        -- WV 2021-05-20 this is WRONG: we *never* need to index the accumulator, even if it was a vector
+            -- if Map.member ov_name'' mainArgDecls
+            --                         then (ov_name''++"(___idx)" ,[])
+            --                         else (ov_name'',[])
+            Composite ov_names -> error $ show $ map (\(Single ov_name'') ->  ov_name'') ov_names -- TODO
+        -- WV 2021-05-20 this is WRONG: we *never* need to index the accumulator, even if it was a vector
+            -- if Map.member ov_name'' mainArgDecls then  ov_name''++"(_X_idx)" else  ov_name'') ov_names
         nms_vars_lst =  nub $ map (show . getName) nms_exps
         nms_decls 
             | foldl (\acc exp -> acc || isZipT exp) False nms_exps = error $ show nms_exps 

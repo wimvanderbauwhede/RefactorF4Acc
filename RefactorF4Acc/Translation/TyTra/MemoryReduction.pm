@@ -1197,7 +1197,7 @@ sub __origNamesListEntry { my ($node) = @_;
             }
         }
         elsif ($node->{'NodeType'} eq 'Fold') {
-
+carp 'HERE THE Acc is OK in $node but WRONG later'.Dumper $node;
             # my %out_args = ();
             # map { $out_args{$_->[0]} = $_ } @{$node->{'Lhs'}{'Vars'}};
             # say Dumper %out_args;
@@ -1254,7 +1254,7 @@ sub __origNamesListEntry { my ($node) = @_;
                 # push @{$arg_name_pairs},[$arg_rec->[0],_mkVarName($arg_rec)];
             }
         }
-        
+        carp 'WRONG!'. Dumper $arg_name_pairs;  
     return [$fname,$arg_name_pairs];
         
 } # END of __origNamesListEntry

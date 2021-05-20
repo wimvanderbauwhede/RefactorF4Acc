@@ -1,5 +1,40 @@
 # REMAINING ISSUES : Memory Reduction for Scientific Computing on GPUs
 
+## 2021-05-20
+
+There is a problem with the trivial fold: 
+
+- In the shell subroutine f(acc_0, v_0, acc_1) we get
+
+    call f_scal(acc, v_0)
+    acc_0 = acc
+
+and it should be 
+
+    acc = acc_0
+    call f_scal(acc, v_0)
+    acc_1 = acc
+
+The reason for this is the following:
+
+MemoryReduction-exe: (
+      origNamesList: ("f",[ ("acc", [("acc_1",Out)] ), ("v",[("v_0",In)]), ("acc",[("acc_0",Out)]) ] ),
+      origNames: {"f" => {
+            "acc" => [("acc_0",Out)],
+            "v" =>[("v_0",In)]
+            }
+            },
+      "f",
+      "acc")
+
+      So there is a problem here that acc_1 should be In or InOut, not Out! FIXME in the Perl code
+      Furthermore, this should lead to 
+      "acc" => [("acc_0",Out),("acc_1",In)]
+      or even
+      "acc" => {"acc_0" =>Out,"acc_1" =>In} , FIXME in CodeGeneration.hs
+
+
+
 ## 2021-05-19
 
 Been working on getting actual OpenCL Fortran to generate to ASTInstance.hs

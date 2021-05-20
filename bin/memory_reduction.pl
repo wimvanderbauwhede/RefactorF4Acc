@@ -16,7 +16,7 @@ use Carp;
 use Data::Dumper;
 
 my %opts = ();
-getopts( 'hvmst:e:w:d', \%opts );
+getopts( 'hvmst:e:w:dc', \%opts );
 
 if ($opts{'h'}){
     die "
@@ -29,12 +29,18 @@ if ($opts{'h'}){
     -w <\$W>: warnings
     -d : debug messages
     -i : info messages 
+    -c : copy the generated ASTInstance.hs to the Haskell source tree
     \n";
 }
 our $V=0;
 our $W=0;
 our $I=0;
 our $DBG=0;
+our $copy_generated_file=0;
+if ($opts{'c'}) {
+    $copy_generated_file=1;
+}
+
 if ($opts{'v'}) {
     $V=1;
 }
@@ -135,7 +141,10 @@ if ($gen_main) {
                 }
                 return $stref;
             };
-	        $stref = main($args, $stref_init, $stref_merger);                                
+	        $stref = main($args, $stref_init, $stref_merger);     
+            if ($copy_generated_file and -e  './ASTInstance.hs') {
+                system('cp ASTInstance.hs $RF4A_DIR/TyTraCLTransformations/MemoryReduction/src');
+            }
             }
         } else {
             # Tests
