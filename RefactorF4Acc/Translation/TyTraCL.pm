@@ -406,7 +406,7 @@ sub __toTyTraCLType {
         }
 
         my $tycl_type = [$non==1 ? 'SVec' : 'Vec', $vec_sz, $scalar_type];
-        carp Dumper $tycl_type;
+        # carp Dumper $tycl_type;
         # WV 2019-08-12 the '0' below feels hacky
         # say $tycl_type;
         return $tycl_type;

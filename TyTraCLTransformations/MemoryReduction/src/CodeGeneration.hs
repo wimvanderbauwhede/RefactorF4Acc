@@ -312,6 +312,30 @@ createCallArg fname orig_name stencil_index =
         actual_arg_name ++ (if stencil_index==0 then "" else "("++show stencil_index++")")
 
 
+-- To be used instead of createCallArg in generateSubDefOpaque
+createCallArgFromArgRec :: Name -> (Name,(Integer,FIntent,FType)) -> Name
+createCallArgFromArgRec fname arg_rec@(orig_name, (stencil_index, intent, ftype)) =
+    if not (null ( (origNames ! fname) ! orig_name))
+        then
+            | intent == Out =
+                let
+                    scal_args = origNames ! fname ! orig_name
+                    out_scal_args = filter (\(_, intent) -> intent == Out) scal_args;
+                    out_scal_arg = fst $ head out_scal_args
+                in
+                    out_scal_arg
+            | intent == InOut = handleInOutArg fname orig_name ftype stencil_index
+            | intent == In = 
+                let
+                    scal_args = origNames ! fname ! orig_name
+                    in_scal_args = filter (\(_, intent) -> intent == In) scal_args;
+                    in_scal_arg = fst $ head out_scal_args
+                in
+                    in_scal_arg ++ (if stencil_index==0 then "" else "("++show stencil_index++")")
+        else
+            error $ show (origNames ! fname) ++ "; "++ orig_name
+        
+
 handleInOutArg fname orig_name ftype stencil_index = let
     actual_arg_names = origNames ! fname ! orig_name
     actual_in_arg_name = if not (not (any (\(n,i) -> i==In) actual_arg_names))
@@ -356,7 +380,7 @@ generateSubDefOpaque fname functionSignatures =
                 let
                     argsList = scalarisedArgs ! fname
                     (mappedArgsList, extra_statements) = unzip $ map (
-                            \(orig_name, (stencil_index, intent, ftype)) ->
+                            \arg_rec@(orig_name, (stencil_index, intent, ftype)) ->
                                 case intent of
                                     InOut -> let
                                                 extra_statements = handleInOutArg fname orig_name ftype stencil_index
@@ -364,7 +388,14 @@ generateSubDefOpaque fname functionSignatures =
                                             -- we need to use the orig_name instead of the new name!
                                             -- createCallArg fname  stencil_index
                                             (orig_name, extra_statements)
-                                    _ ->  (createCallArg fname orig_name stencil_index,("","",""))
+                                    Out -> let 
+                                                scal_args = origNames ! fname ! orig_name
+                                                out_scal_args = filter (\(_, intent) -> intent == Out) scal_args;
+                                                out_scal_arg = fst $ head out_scal_args
+                                            in
+                                                (out_scal_arg,("","",""))
+                                    In ->  (createCallArg fname orig_name stencil_index,("","",""))
+                                    _ -> error $ "Unknown Intent: "++(show intent)++" for orig_name in fname"
                         ) argsList
                     (orig_arg_decl_strs,pre_call_assignment_strs,post_call_assignment_strs) = unzip3 extra_statements
                     mappedArgsListStr = commaSepList mappedArgsList

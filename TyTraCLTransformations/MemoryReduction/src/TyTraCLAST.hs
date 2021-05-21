@@ -7,6 +7,7 @@ import Data.List (intercalate)
 noStencilRewrites = False -- FIXME: hangs when set to True, I need a different halting condition for the rewrite rules!
 
 type Name = String
+type FType = String
 type Size = Int
 -- Vector In   Out  Stencil Temp Don't care
 data VE = VI  | VO  | VS  | VT | VDC deriving (Show, Ord, Typeable, Data, Eq)

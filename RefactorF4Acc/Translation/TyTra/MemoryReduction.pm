@@ -955,7 +955,7 @@ sub _create_TyTraCL_Haskell_signatures { (my $stref) = @_;
             if (scalar @{$typetup}) {
                 for my $type (@{$typetup}) {
                     my $arg_rec = shift @{$argtup};
-                    # carp "$f ".Dumper($arg_rec)." : ",Dumper( $typetup,$args_types);
+                    # carp "$f  arg rec:".Dumper($arg_rec)."\ntypetup: ",Dumper( $typetup);
                     my $arg = $arg_rec->[0];
                     my $arg_name = _mkVarName($arg_rec);
                     
@@ -963,14 +963,23 @@ sub _create_TyTraCL_Haskell_signatures { (my $stref) = @_;
                     # say "SUBSET <$subset>";
                     if ($subset) { 
                         my $decl = get_var_record_from_set( $stref->{'Subroutines'}{$f}{'Vars'},$arg);
-                        # say Dumper($decl);
+                        # say $arg. Dumper($decl);
                         # If the argument is the first, it is Non-Map or Non-Fold
                         # But in principle the Accumulator can also be a vector
-                        my $svec = ($idx == 1) or ($FSig_ctor eq 'FoldFSig' and $idx == 2) ? 1 : 0;
-                        my $arg_type = ($decl->{'ArrayOrScalar'} eq 'Array') 
-                            ? __toTyTraCLType($decl->{'Type'},$decl->{'ConstDim'},$svec)
-                            : __toTyTraCLType($decl->{'Type'},[],$svec);
-                            # carp $arg_name. Dumper( $decl->{'ConstDim'}). Dumper( $arg_type);
+                        # Non-maps and accumulators are always SVec i.o. Vec; 
+                        # But the other args can be SVec or Vec
+                        my $svec = (($idx == 1) or ($FSig_ctor eq 'FoldFSig' and $idx == 2))
+                            ? 1 
+                            : ($type->[0] eq 'SVec') ? 1 : 0;
+                            # say "$idx <". $type->[0]."> <$svec>";
+                        my $arg_type = ($type->[0] eq 'SVec') 
+                            ? $type
+                            : ($decl->{'ArrayOrScalar'} eq 'Array') 
+                                # Vec of SVec depending on $svec
+                                ? __toTyTraCLType($decl->{'Type'},$decl->{'ConstDim'},$svec)
+                                # Scalar
+                                : __toTyTraCLType($decl->{'Type'},[],$svec); 
+                        # carp "$f $arg => $arg_name:\narg rec:".Dumper($arg_rec)."\ntypetup: ".Dumper( $type)."\n argtype: ".Dumper( $arg_type);
                         if ($arg_type->[0] ne 'SVec' and 
                             $arg_type->[0] ne 'Vec') { # It's a scalar FIXME: This information is not there!
                             push @{$typed_arg_tup}, 'Scalar '.$arg_rec->[3].' D'.$arg_type->[0].' "'.$arg_name.'"';
