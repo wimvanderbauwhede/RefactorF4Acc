@@ -78,26 +78,25 @@ sub pass_rename_array_accesses_to_scalars {(my $stref, my $code_unit_name)=@_;
 				 alias_ordered_set($stref,$f,'RefactoredArgs','DeclaredOrigArgs');
                        
                     } ],
-#				[ \&_fix_scalar_ptr_args ],
-#		  		[\&_fix_scalar_ptr_args_subcall],
+                # This is mostly to work around bugs in the AutoParallelFortran compiler
 	            [\&remove_redundant_arguments_and_fix_intents],
-				# [ sub { (my $stref, my $f)=@_; 
-				
-				#  	($stref, my $annlines) = fold_constants($stref,$f,0);
-                #        return $stref;
-				# } ],				
+				# This creates the ConstDim field
 				[\&fold_constants_in_decls],
+                # This is the key step to identify stencils
     	        [\&identify_array_accesses_in_exprs ],
 		  		[
 			  		\&_declare_undeclared_variables,
+					# Here is where it goes wrong I think
 					\&_rename_array_accesses_to_scalars,
 					\&_removed_unused_variables,
 				],
+                # Scalarises the calls to the scalarised routines
 				[
 					\&_rename_array_accesses_to_scalars_in_subcalls
 				],			
 				[
 					\&determine_argument_io_direction_rec,
+                    # This needs checking
                     \&update_arg_var_decl_sourcelines,
 				],
 				[
@@ -105,6 +104,7 @@ sub pass_rename_array_accesses_to_scalars {(my $stref, my $code_unit_name)=@_;
 					\&_add_assignments_for_called_subs
 				],				
 				[
+                    # What does this do?
 					\&_make_dim_vars_scalar_consts_in_sigs
 				],
 			]
@@ -173,7 +173,6 @@ As we first do identify_array_accesses_in_exprs, we should make sure there is a 
 =cut
 
 sub _rename_array_accesses_to_scalars { (my $stref, my $f) = @_;
-
 	if ($f ne $Config{'KERNEL'} ) {
 		$stref->{'TyTraLlvmArgTuples'}={};
 
@@ -253,7 +252,8 @@ sub _rename_array_accesses_to_scalars { (my $stref, my $f) = @_;
 # So I think I should put the arguments in $state, I can do that when I encounter the Signature
 	my $state = {'IndexVars'=>{}, 'StreamVars'=>{}, 'Args' =>{}};
  	($stref,$state) = stateful_pass_inplace($stref,$f,$pass_rename_array_accesses_in_exprs, $state,'pass_rename_array_accesses_in_exprs ' . __LINE__  ) ;
- 	
+	 
+	# croak $f.': '.Dumper($state->{'StreamVars'});
 # -------------------------------------------------------------------------------------------------------- 	
  	# 2. Now we create new assignment lines, these go into LiftedScalarAssignments 
  	# v_i_j = v(i,j)
@@ -273,35 +273,36 @@ sub _rename_array_accesses_to_scalars { (my $stref, my $f) = @_;
 	$stref->{'TyTraLlvmArgTuples'}{$f}={};
 	for my $var (sort keys %{ $state->{'StreamVars'} } ){
 		$state->{'StreamVars'}{$var}{'List'}=[];
-		# Here is where we have the wrong order
-		# carp Dumper $state->{'StreamVars'};
-		# So what we need instead of that is the order defined by link_scalarised_vars_to_linear_offsets()
-
+		# The order defined by _link_scalarised_vars_to_linear_offsets()
+		# This is very odd: if there are Read accesses, we get them, else we use the Write accesses?
 		my $accesses = 
 		exists $stref->{'Subroutines'}{ $f }{'ArrayAccesses'}{0}{'Arrays'}{$var}{'Read'} ?
 		 $stref->{'Subroutines'}{ $f }{'ArrayAccesses'}{0}{'Arrays'}{$var}{'Read'}{'Accesses'} :
-		$stref->{'Subroutines'}{ $f }{'ArrayAccesses'}{0}{'Arrays'}{$var}{'Write'}{'Accesses'} ;
+		croak "ERROR: StreamVars without Read access make no sense: ".Dumper($stref->{'Subroutines'}{ $f }{'ArrayAccesses'}{0}{'Arrays'}{$var});
+		# $stref->{'Subroutines'}{ $f }{'ArrayAccesses'}{0}{'Arrays'}{$var}{'Write'}{'Accesses'} ;
 		
 		my $array_dims = $stref->{'Subroutines'}{ $f }{'ArrayAccesses'}{0}{'Arrays'}{$var}{'Dims'};
-		my ($offsets_for_scalarised_vars,$ordered_stencil_var_tuple) = link_scalarised_vars_to_linear_offsets($var, $accesses, $array_dims);
+		my ($offsets_for_scalarised_vars,$ordered_stencil_var_tuple) = _link_scalarised_vars_to_linear_offsets($var, $accesses, $array_dims);
 		$stref->{'TyTraLlvmArgTuples'}{$f}{$var}=$ordered_stencil_var_tuple;
-		# if (scalar @{$ordered_stencil_var_tuple}==0) {
+		
+			# ordered_stencil_var_tuple is OK as it should only have the Read accesses. But I need to put the Write access in the list as well!
+			# I guess that we ultimately should have  f(v_0_ip1,v_0_im1,v_1_i) 
+			# So I will put the Write access at the end. 
 		# say $f;
 		# say Dumper(
 		# 	[sort keys %{ $state->{'StreamVars'}{$var}{'Set'} }],
 		# 	$ordered_stencil_var_tuple
 		# );
-		# }
-		# for my $stream_var (sort keys %{ $state->{'StreamVars'}{$var}{'Set'} } ){
-			for my $stream_var (@{$ordered_stencil_var_tuple} ) {
-				# carp "$f STREAM VAR $stream_var\n";
+		for my $stream_var (@{$ordered_stencil_var_tuple} ) {
+				# carp "$f VAR $var STREAM VAR $stream_var\n";
 			push @{$state->{'StreamVars'}{$var}{'List'}},$stream_var;		
 			my $scalar_assignment_line= '      '.$stream_var.' = '.$state->{'StreamVars'}{$var}{'Set'}{$stream_var}{'ArrayIndexExpr'};
 			my $array_assignment_line= '      '.$state->{'StreamVars'}{$var}{'Set'}{$stream_var}{'ArrayIndexExpr'}.' = '.$stream_var;
 			my $scalar_assignment_rhs_ast = parse_expression($state->{'StreamVars'}{$var}{'Set'}{$stream_var}{'ArrayIndexExpr'}, {},$stref, $f);
 			my $array_assignment_lhs_ast = $scalar_assignment_rhs_ast; 
 			my $scalar_assignment_rhs_vars = get_vars_from_expression($scalar_assignment_rhs_ast ,{});
-			my $array_assignment_lhs_vars =$scalar_assignment_rhs_vars; 
+			my $array_assignment_lhs_vars =$scalar_assignment_rhs_vars;  		
+
 			my $scalar_assignment_rhs_vars_list = [ sort keys %{$scalar_assignment_rhs_vars} ];
 			my $array_assignment_lhs_vars_list = $scalar_assignment_rhs_vars_list;
 			push @{ $stref->{'Subroutines'}{$f}{'LiftedScalarAssignments'} }, 
@@ -345,7 +346,29 @@ sub _rename_array_accesses_to_scalars { (my $stref, my $f) = @_;
 				}
 			]; 
 		}		
+		# Append the Out access to the List because it is not part of the stencil but we need it for the arguments. There should only be one per array!
+		my $found=0;
+		for my $scalarised_access_var (sort keys %{$state->{'StreamVars'}{$var}{'Set'}}) {
+			if (not exists $offsets_for_scalarised_vars->{$scalarised_access_var} and
+			$state->{'StreamVars'}{$var}{'Set'}{$scalarised_access_var}{'IODir'} eq 'Out'
+			) {
+				if ($found == 0) {
+				push @{$state->{'StreamVars'}{$var}{'List'}}, $scalarised_access_var;
+				$found=1;
+				} else {
+					croak "ERROR: There should be only one Out access for each array in a Map function: ".Dumper($state->{'StreamVars'}{$var}{'Set'});
+				}
+			}
+		}
+		# If this is a Map, and we did not find an output, that's an error.
+		# But if it is a Fold of course not. How do we know?
+		if ($found == 0) {
+			say "INFO: There should be just one Out access for each array in a Map function: ".Dumper($state->{'StreamVars'}{$var}{'Set'}) if $I;
+		}
+
 	}
+
+
 	$stref->{'Subroutines'}{$f}{'StreamVars'}=$state->{'StreamVars'};
 
 # --------------------------------------------------------------------------------------------------------
@@ -399,11 +422,9 @@ sub _rename_array_accesses_to_scalars { (my $stref, my $f) = @_;
 	};
 
  	($stref,$state) = stateful_pass_inplace($stref,$f,$pass_update_sig_and_decls, $state,'pass_update_sig_and_decls' . __LINE__  ) ;
- 	
+
 # --------------------------------------------------------------------------------------------------------	
 	# 4. Here we update DeclaredOrigArgs
- 	# At this point the argument list already has the stream vars as args
- 	
  	my @updated_args_list=();		
 	for my $orig_arg ( @{ $stref->{'Subroutines'}{$f}{'DeclaredOrigArgs'}{'List'} } ) {		
 		
@@ -415,13 +436,8 @@ sub _rename_array_accesses_to_scalars { (my $stref, my $f) = @_;
 				$new_decl->{'ArrayOrScalar'}='Scalar';
 				$new_decl->{'Dim'}=[];
 				$new_decl->{'IODir'}=$state->{'StreamVars'}{$orig_arg}{'Set'}{$new_arg}{'IODir'};
-				# my $new_arg_index_expr = $state->{'StreamVars'}{$orig_arg}{'Set'}{$new_arg}{'ArrayIndexExpr'};
-				# $new_decl->{'ArrayIndexExpr'}=++$iii;#$new_arg_index_expr;
 				$new_decl->{'ArrayIndexExpr'}=$state->{'StreamVars'}{$orig_arg}{'Set'}{$new_arg}{'ArrayIndexExpr'};
 				if (scalar @{ $state->{'StreamVars'}{$orig_arg}{'List'} } > 1) {
-				# 	# Only one access, not a stencil!
-				# 	# carp "NOT A STENCIL $f $orig_arg $new_arg ";
-				# } else {
 					$new_decl->{'StencilIndex'}=++$idx;
 				}
 				$stref->{'Subroutines'}{$f}{'DeclaredOrigArgs'}{'Set'}{$new_arg}=$new_decl;					
@@ -435,7 +451,7 @@ sub _rename_array_accesses_to_scalars { (my $stref, my $f) = @_;
 	}
 	
 	$stref->{'Subroutines'}{$f}{'DeclaredOrigArgs'}{'List'}=[@updated_args_list]; 	
-	# croak $f.': '.Dumper( $stref->{'Subroutines'}{$f}{'DeclaredOrigArgs'});
+
 # --------------------------------------------------------------------------------------------------------	 	
  	# So at this point we should do the lifting of everything to do with indexing
  	
@@ -599,9 +615,8 @@ sub _rename_array_accesses_to_scalars { (my $stref, my $f) = @_;
 # After we've renamed all args in the subroutine definitions, we update the calls as well, but ONLY in the kernel 
 sub _rename_array_accesses_to_scalars_in_subcalls { (my $stref, my $f) = @_;
 # croak 'shapiro_map_16: '.Dumper( $stref->{'Subroutines'}{'shapiro_map_16'}{'DeclaredOrigArgs'});
-# croak Dumper $stref->{'Subroutines'}{'f1'}{'DeclaredOrigArgs'};
-	if ($f eq $Config{'KERNEL'} ) {
-			
+# carp $f.Dumper $stref->{'Subroutines'}{'f'}{'DeclaredOrigArgs'};
+	if ($f eq $Config{'KERNEL'} ) { 
 	my $pass_action = sub { (my $annline, my $state)=@_;		
 		(my $line,my $info)=@{$annline};
 		(my $stref, my $f) = @{$state};
@@ -849,11 +864,13 @@ sub _scalarise_array_accesses_in_ast { (my $stref, my $f,  my $state, my $ast, m
 						my $expr_str = emit_expr_from_ast($ast);
 						my $var_str=$expr_str;
 						# TODO: I should use tr// here
+						$var_str=~s/\s+//g;
 						$var_str=~s/[\(,]/_/g; 
 						$var_str=~s/\)//g; 
 						$var_str=~s/\+/p/g;
 						$var_str=~s/\-/m/g;
 						$var_str=~s/\*/t/g;
+						# carp "STREAM VAR STR: $expr_str => $var_str";
 						# Taking the IODir from the orig var is not optimal: it leads to many InOut that actually are Out
 						# Ideally I should re-run the analysis for the stream vars
 						
@@ -973,7 +990,7 @@ sub _emit_subroutine_call_w_streams {
 
 
 # This function returns a map linking the names to the linear offsets and also the scalarised args in the correct order
-sub link_scalarised_vars_to_linear_offsets { (my $var, my $accesses, my $array_dims)=@_;
+sub _link_scalarised_vars_to_linear_offsets { (my $var, my $accesses, my $array_dims)=@_;
 
     my $offsets_for_scalarised_vars = {};
     my $scalarised_vars_for_offsets = {};
@@ -1004,7 +1021,7 @@ sub link_scalarised_vars_to_linear_offsets { (my $var, my $accesses, my $array_d
     my @stencil_order =  sort numeric keys %{$scalarised_vars_for_offsets};
     $ordered_stencil_var_tuple = [map { $scalarised_vars_for_offsets->{$_} } @stencil_order];
     return ($offsets_for_scalarised_vars,$ordered_stencil_var_tuple);
-} # END of link_scalarised_vars_to_linear_offsets
+} # END of _link_scalarised_vars_to_linear_offsets
 
 # This is the same as the regex used to scalarise:
 # - if the mult is <0, I emit "m$mult"
