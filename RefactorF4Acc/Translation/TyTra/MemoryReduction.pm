@@ -971,8 +971,14 @@ sub _create_TyTraCL_Haskell_signatures { (my $stref) = @_;
                             ? __toTyTraCLType($decl->{'Type'},$decl->{'ConstDim'},$svec)
                             : __toTyTraCLType($decl->{'Type'},[],$svec);
                             # carp $arg_name. Dumper( $decl->{'ConstDim'}). Dumper( $arg_type);
-                        if ($arg_type->[0] ne 'SVec') { # It's a scalar FIXME: This information is not there!
-                            push @{$typed_arg_tup}, 'Scalar VDC D'.$arg_type->[0].' "'.$arg_name.'"';
+                        if ($arg_type->[0] ne 'SVec' and 
+                            $arg_type->[0] ne 'Vec') { # It's a scalar FIXME: This information is not there!
+                            push @{$typed_arg_tup}, 'Scalar '.$arg_rec->[3].' D'.$arg_type->[0].' "'.$arg_name.'"';
+                        } elsif ($arg_type->[0] eq 'Vec') {
+                            # croak Dumper $arg_type;
+                            # push @{$typed_arg_tup}, 'Vec '.$arg_rec->[3].' (Scalar VDC D'.$arg_type->[2].' "'.$arg_name.'")';
+                            # push @{$typed_arg_tup}, 'Vec '.$arg_rec->[3].' (Scalar VDC D'.$arg_type->[2].' "'.$arg_name.'")';
+                            push @{$typed_arg_tup}, 'Scalar '.$arg_rec->[3].' D'.$arg_type->[2].' "'.$arg_name.'"';
                         } else {
                             push @{$typed_arg_tup}, 'SVec '.$arg_type->[1].' (Scalar VDC D'.$arg_type->[2].' "'.$arg_name.'")';
                         }  

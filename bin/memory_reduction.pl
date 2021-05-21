@@ -142,6 +142,9 @@ if ($gen_main) {
                 return $stref;
             };
 	        $stref = main($args, $stref_init, $stref_merger);     
+            if ($V and -e  './ASTInstance.hs') {
+                system('cat ./ASTInstance.hs');
+            }
             if ($copy_generated_file and -e  './ASTInstance.hs') {
                 system('cp ASTInstance.hs $RF4A_DIR/TyTraCLTransformations/MemoryReduction/src');
             }

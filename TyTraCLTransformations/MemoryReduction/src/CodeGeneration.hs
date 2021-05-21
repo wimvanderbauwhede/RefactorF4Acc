@@ -664,6 +664,7 @@ createIODecls intent (SVec sz dt)  = let
 createIODecls intent (Scalar _ DDC vn) =  error "DDC!"
 createIODecls intent sdt@(Scalar _ dt vn) = [MkFDecl (fortranType sdt) Nothing intent [vn]]
 createIODecls intent (Tuple es) = concatMap (createIODecls intent)  es
+createIODecls intent other = error $ show other
 
 createDecls :: Expr -> [String]
 createDecls (SVec sz dt) = let

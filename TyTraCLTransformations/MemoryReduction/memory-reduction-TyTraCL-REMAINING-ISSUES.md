@@ -1,5 +1,41 @@
 # REMAINING ISSUES : Memory Reduction for Scientific Computing on GPUs
 
+
+## 2021-05-21
+
+A simple stencil-map does not generate correct Fortran for the shell subroutine: we get
+
+subroutine f(acc_0, v_s_0, v_1)
+    real, intent(In) :: acc_0
+    real, dimension(1:500), intent(In) :: v_s_0
+    real, dimension(1:500), intent(Out) :: v_1
+
+    ! Temp vars
+
+    ! Call to the original scalarised subroutine
+
+    call f_scal(acc_0, v_s_0(1), v_s_0(2), v_s_0(3))
+
+end subroutine f
+
+but we should get
+
+subroutine f(acc_0, v_s_0, v_1)
+    real, intent(In) :: acc_0
+    real, dimension(2), intent(In) :: v_s_0
+    real, intent(Out) :: v_1
+
+    ! Temp vars
+
+    ! Call to the original scalarised subroutine
+
+    call f_scal(acc_0, v_s_0(1), v_s_0(2), v_1)
+
+end subroutine f
+
+
+
+
 ## 2021-05-20
 
 SOLVED!

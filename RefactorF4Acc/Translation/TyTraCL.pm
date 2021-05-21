@@ -375,6 +375,7 @@ sub __toTyTraCLScalarType {
 # Vec is only used for streams, anything else is SVec
 sub __toTyTraCLType {
     (my $type, my $array_dims, my $non) = @_;
+    $non = 0 unless defined $non;
     croak "TYPE $type is not defined" if not defined $type;
     if (not defined $array_dims or scalar @{$array_dims} == 0) {    # Scalar
         if ($type eq 'real') {
@@ -404,8 +405,8 @@ sub __toTyTraCLType {
             $scalar_type = 'Int';
         }
 
-        my $tycl_type = [defined $non ? 'SVec' : 'Vec', $vec_sz, $scalar_type];
-
+        my $tycl_type = [$non==1 ? 'SVec' : 'Vec', $vec_sz, $scalar_type];
+        carp Dumper $tycl_type;
         # WV 2019-08-12 the '0' below feels hacky
         # say $tycl_type;
         return $tycl_type;
