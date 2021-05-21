@@ -1189,7 +1189,7 @@ sub __origNamesListEntry { my ($node) = @_;
                                 # exists $out_args{$arg_rec->[0]} ? 'Out' : 'In'
                                 $arg_rec->[3] ne 'VT' 
                                     ? __VE_to_Intent($arg_rec->[3])
-                                    : exists $out_args{$arg_rec->[0]} ? 'InOut' : 'In'
+                                    : exists $out_args{$arg_rec->[0]} ? 'Out' : 'In'
                             ]
                         ];
                     } 
@@ -1237,7 +1237,7 @@ sub __origNamesListEntry { my ($node) = @_;
                                 # exists $out_args{$arg_rec->[0]} ? 'Out' : 'In'
                                 # I don't think we ever have VT here but it does not hurt
                                 $arg_rec->[3] ne 'VT' ? __VE_to_Intent($arg_rec->[3])
-                                : exists $out_args{$arg_rec->[0]} ? 'InOut' : 'In'
+                                : exists $out_args{$arg_rec->[0]} ? 'Out' : 'In'
                             ]
                         ];
                         push @{$arg_name_pairs}, $entry;
