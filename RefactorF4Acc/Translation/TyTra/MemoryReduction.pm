@@ -992,7 +992,7 @@ sub _create_TyTraCL_Haskell_signatures { (my $stref) = @_;
                             push @{$typed_arg_tup}, 'SVec '.$arg_type->[1].' (Scalar VDC D'.$arg_type->[2].' "'.$arg_name.'")';
                         }  
                     } else {
-                        croak "TROUBLE: NO DECL for $arg in $f"
+                        croak "TROUBLE: NO DECL for $arg in $f: ".Dumper($stref->{'Subroutines'});
                     }       
         
 

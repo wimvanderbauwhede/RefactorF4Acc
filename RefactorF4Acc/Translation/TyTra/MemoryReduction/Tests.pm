@@ -43,6 +43,8 @@ sub memory_reduction_tests {
     my $TEST =   $Config{'TEST'} ;
     my $comment = "TEST $TEST" ;
     
+    $stref = init_state('main');
+
     # WV: I think Selects and Inserts should be in Lines but I'm not sure
     $stref->{'EmitAST'}     = 'TyTraCL_AST';
     $stref->{'TyTraCL_AST'} = {

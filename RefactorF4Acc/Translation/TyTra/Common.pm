@@ -369,6 +369,10 @@ sub mkAST {
     }
             
     for my $f (@funcs) {
+        $stref->{'Subroutines'}{$f} = {};
+        my $Sf = $stref->{'Subroutines'}{$f};
+        $Sf = initialise_per_code_unit_tables($Sf, $stref, $f,0 ,0);
+
         for my $v (sort keys %vecs) {
             $stref = addTypeDecl($stref, $f, $v, $decls->{$v}[0], [$decls->{$v}[1]]);
         }
