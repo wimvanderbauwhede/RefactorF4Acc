@@ -2,6 +2,8 @@ package RefactorF4Acc::Translation::TyTra::Common;
 use v5.10;
 use RefactorF4Acc::Config;
 use RefactorF4Acc::Utils;
+use RefactorF4Acc::State qw( initialise_per_code_unit_tables);
+
 #
 #   (c) 2016 Wim Vanderbauwhede <wim@dcs.gla.ac.uk>
 #
@@ -263,7 +265,8 @@ sub addTypeDecl {
     $stref->{'Subroutines'}{$f}{'ArrayAccesses'}{0}{'Arrays'}{$var_name} = {'Dims' => $dim};
     $stref->{'Subroutines'}{$f}{'DeclaredOrigArgs'}{'Set'}{$var_name} = {
         'Type' => $var_type,
-        'Dim' => $dim
+        'Dim' => $dim,
+        'ArrayOrScalar' => scalar @{$dim} >0 ? 'Array' : 'Scalar'
         };
     return $stref;
 }

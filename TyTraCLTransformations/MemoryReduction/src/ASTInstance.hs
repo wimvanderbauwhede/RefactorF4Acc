@@ -1,4 +1,4 @@
--- module_test_superkernel
+-- TEST 1
 module ASTInstance ( ast
         , functionSignaturesList
         , stencilDefinitionsList
@@ -10,45 +10,46 @@ import TyTraCLAST
 
 ast :: TyTraCLAST
 ast = [
-        -- f
-       (Vec VS (SVec 2 (Scalar VDC DFloat "v_s_0" )) , Stencil (SVec 2 (Scalar VDC DInt "s1")) (Vec VI (Scalar VDC DFloat "v_0")))
-       ,( Vec VO (Scalar VDC DFloat "v_1"), Map (Function "f"  [Scalar VI DFloat "acc_0"]) (Vec VS (SVec 2(Scalar VDC DFloat "v_s_0"))) )
+       ( Vec VT (Scalar VDC DInt "v_1"), Map (Function "f1" []) (Vec VI (Scalar VDC DInt "v_0")) )
+       ,(Vec VS (SVec 3 (Scalar VDC DInt "v_s_1" )) , Stencil (SVec 3 (Scalar VDC DInt "s1")) (Vec VT (Scalar VDC DInt "v_1")))
+       ,( Vec VT (Scalar VDC DInt "v_2"), Map (Function "f2" []) (Vec VS (SVec 3(Scalar VDC DInt "v_s_1"))) )
+       ,(Vec VS (SVec 3 (Scalar VDC DInt "v_s_2" )) , Stencil (SVec 3 (Scalar VDC DInt "s2")) (Vec VT (Scalar VDC DInt "v_2")))
+       ,( Vec VO (Scalar VDC DInt "v_3"), Map (Function "f3" []) (Vec VS (SVec 3(Scalar VDC DInt "v_s_2"))) )
         ]
 
 functionSignaturesList = [
-        ("f",  [Scalar VI DFloat "acc_0",SVec 2 (Scalar VDC DFloat "v_s_0"),Scalar VO DFloat "v_1"])
+        ("f1",  [Tuple [],Scalar VI DInt "v_0",Scalar VT DInt "v_1"]),
+        ("f2",  [Tuple [],SVec 3 (Scalar VDC DInt "v_s_1"),Scalar VT DInt "v_2"]),
+        ("f3",  [Tuple [],SVec 3 (Scalar VDC DInt "v_s_2"),Scalar VO DInt "v_3"])
     ]
-stencilDefinitionsList = [("s1" , [-2,0] )]
+stencilDefinitionsList = [("s1" , [-1,0,1] ), ("s2" , [-1,0,1] )]
 
 mainArgDeclsList = [
-      ("v_0" , MkFDecl "real"  (Just [500]) (Just In) ["v_0"] )
-    , ("acc_0" , MkFDecl "real" Nothing (Just In) ["acc_0"] )
-    , ("v_1" , MkFDecl "real"  (Just [500]) (Just Out) ["v_1"] )
+      ("v_0" , MkFDecl "integer"  (Just [500]) (Just In) ["v_0"] )
+    , ("v_3" , MkFDecl "integer"  (Just [500]) (Just Out) ["v_3"] )
   ]
-
-scalarisedArgsList = [
-     ( "f",[("acc",(0,In,"real")), ("v",(1,In,"real")), ("v",(2,In,"real")), ("v",(3,Out,"real"))])
-  ]
-
-origNamesList = [
-     ( "f",[("acc",[("acc_0",In)]), ("v",[("v_s_0",In),("v_1",Out)])])
-  ]
+scalarisedArgsList = []
+origNamesList = []
 
 {-
-v_0 :: Vec 500 Float
-acc_0 :: Float
+v_0 :: Vec 500 Int
 
-v_1 :: Vec 500 Float
+v_3 :: Vec 500 Int
 
-f :: Float -> SVec 2 Float -> Float
+f3 :: SVec 3 Int -> Int
+f2 :: SVec 3 Int -> Int
+f1 :: Int -> Int
 
-main :: (Vec 500 Float,Float) -> (Vec 500 Float)
-main (v_0,acc_0) =
+main :: (Vec 500 Int) -> (Vec 500 Int)
+main v_0 =
   let
-     -- f
-    s1 = [-2,0]
-    v_s_0 = stencil s1 v_0
-    v_1 =  map (f acc_0) v_s_0
+    v_1 =  map f1 v_0
+    s1 = [-1,0,1]
+    v_s_1 = stencil s1 v_1
+    v_2 =  map f2 v_s_1
+    s2 = [-1,0,1]
+    v_s_2 = stencil s2 v_2
+    v_3 =  map f3 v_s_2
   in
-    v_1
+    v_3
 -}

@@ -2,6 +2,7 @@ package RefactorF4Acc::Translation::TyTra::MemoryReduction::Tests;
 use v5.10;
 use RefactorF4Acc::Config;
 use RefactorF4Acc::Utils;
+use RefactorF4Acc::State qw( init_state );
 use RefactorF4Acc::Translation::TyTra::Common qw( 
     mkMap
     mkFold

@@ -972,6 +972,7 @@ sub _create_TyTraCL_Haskell_signatures { (my $stref) = @_;
                             ? 1 
                             : ($type->[0] eq 'SVec') ? 1 : 0;
                             # say "$idx <". $type->[0]."> <$svec>";
+                        # carp Dumper $decl,$svec;    
                         my $arg_type = ($type->[0] eq 'SVec') 
                             ? $type
                             : ($decl->{'ArrayOrScalar'} eq 'Array') 

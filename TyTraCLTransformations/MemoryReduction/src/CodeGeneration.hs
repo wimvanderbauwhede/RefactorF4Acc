@@ -311,7 +311,7 @@ createCallArg fname orig_name stencil_index =
     in
         actual_arg_name ++ (if stencil_index==0 then "" else "("++show stencil_index++")")
 
-
+{-
 -- To be used instead of createCallArg in generateSubDefOpaque
 createCallArgFromArgRec :: Name -> (Name,(Integer,FIntent,FType)) -> Name
 createCallArgFromArgRec fname arg_rec@(orig_name, (stencil_index, intent, ftype)) =
@@ -334,7 +334,7 @@ createCallArgFromArgRec fname arg_rec@(orig_name, (stencil_index, intent, ftype)
                     in_scal_arg ++ (if stencil_index==0 then "" else "("++show stencil_index++")")
         else
             error $ show (origNames ! fname) ++ "; "++ orig_name
-        
+-}        
 
 handleInOutArg fname orig_name ftype stencil_index = let
     actual_arg_names = origNames ! fname ! orig_name
