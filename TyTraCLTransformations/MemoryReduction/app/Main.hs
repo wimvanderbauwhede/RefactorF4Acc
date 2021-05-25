@@ -102,10 +102,14 @@ main = do
             | stage == ApplyRewriteRules = [ast3]
             | stage == FuseStencils = [ast3']
             | stage == DecomposeExpressions = ast4
+        functionSignatures :: Map.Map Name FSig
+        functionSignatures =  Map.fromList functionSignaturesList
+            
         inferedSignatures :: [[(Name,FSig)]]
-        inferedSignatures = map inferSignatures ast4
+        inferedSignatures = map (inferSignatures functionSignatures) ast4
         -- We must pass astInst as arg into this instead of functionSignaturesList
-        generatedFortranCode = generateFortranCode asts functionSignaturesList idSigList 
+        -- generatedFortranCode = generateFortranCode asts functionSignaturesList idSigList 
+        generatedFortranCode = generateFortranCode asts astInst idSigList 
                 
     if info 
         then
