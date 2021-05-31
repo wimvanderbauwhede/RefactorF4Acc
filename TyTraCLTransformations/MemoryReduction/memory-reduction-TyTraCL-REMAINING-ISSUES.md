@@ -1,5 +1,9 @@
 # REMAINING ISSUES : Memory Reduction for Scientific Computing on GPUs
 
+## 2021-05-31
+
+I fixed the range for the global index iterator, to avoid out-of-bounds accesses. I also verified that 3-D Fortran code is properly converted to 1-D.
+TEST 16 fails. All other tests compile but there are many warnings on -Wunused-dummy-argument
 
 ## 2021-05-21
 

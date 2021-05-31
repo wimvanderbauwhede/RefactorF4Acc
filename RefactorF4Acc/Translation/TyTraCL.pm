@@ -375,7 +375,10 @@ sub __toTyTraCLScalarType {
 # Vec is only used for streams, anything else is SVec
 sub __toTyTraCLType {
     (my $type, my $array_dims, my $non) = @_;
-    $non = 0 unless defined $non;
+    # If $non is not defined, set it to 0;
+    $non = 0 unless defined $non;    
+    # If $non is not 0, set it to 1
+    $non = 1 unless "$non" eq 0;
     croak "TYPE $type is not defined" if not defined $type;
     if (not defined $array_dims or scalar @{$array_dims} == 0) {    # Scalar
         if ($type eq 'real') {

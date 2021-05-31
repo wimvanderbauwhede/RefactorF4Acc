@@ -95,12 +95,12 @@ if ($Config{'TEST'} == 0 ) {
     $stref = memory_reduction_tests($stref);
 }
 # croak Dumper get_vars_from_set($stref->{'Subroutines'}{'f1'}{'Vars'});
-# croak  Dumper $stref;
     $stref = construct_TyTraCL_AST_Main_node($stref);
 
-    $stref = _emit_TyTraCL_FunctionSigs($stref);    
 
+    $stref = _emit_TyTraCL_FunctionSigs($stref);    
     $stref = _add_VE_to_AST($stref);
+# croak  Dumper $stref;
     
     $stref = _emit_TyTraCL_Haskell_AST_Code($stref);
 
@@ -393,9 +393,10 @@ sub _emit_TyTraCL_Haskell_AST_Code {
             $node->{'NonMapType'}= $tytracl_ast->{'Main'}{'VarTypes'}{$fname}{'NonMapArgType'};
             $node->{'VecType'}= $tytracl_ast->{'Main'}{'VarTypes'}{$fname}{'MapArgType'};
             $node->{'ReturnType'}= $tytracl_ast->{'Main'}{'VarTypes'}{$fname}{'ReturnType'};
-            my $line = mkMapAST($node);            
+            my $line = mkMapAST($stref,$fname,$node);            
             push @origNamesList, __origNamesListEntry($node);
             push @{$tytracl_hs_ast_strs}, $line;
+
         }
         elsif ($node->{'NodeType'} eq 'Fold') {
             my $fname = $node->{'FunctionName'};
@@ -437,7 +438,9 @@ sub _emit_TyTraCL_Haskell_AST_Code {
     my $comment = $stref->{'TyTraCL_AST'}{'Comment'};
     my $module_name = $comment;
     if ($module_name=~/\W/) {
-        $module_name = 'module_no_name';
+        $module_name=~s/\W+/_/g;
+
+        $module_name = 'module_'.lc($module_name);
     }
     my $header =
     "-- $comment\n" .
@@ -452,7 +455,7 @@ sub _emit_TyTraCL_Haskell_AST_Code {
 import TyTraCLAST
 
 moduleName :: String
-moduleName = "'.$comment.'"
+moduleName = "'.$module_name.'"
 
 ast :: TyTraCLAST
 ast = [
@@ -735,7 +738,7 @@ So really the only issue is the I/O/S/T type
 
 # This will need context, unless I already add the I/O/T/S types when creating the AST
 sub mkMapAST {
-    (my $mapNode) = @_;
+    my($stref,$fname, $mapNode) = @_;
     my $non_map_type = $mapNode->{'NonMapType'};
     my $vec_type = $mapNode->{'VecType'}; # This is a list as it could be a tuple; can be SVecs as well
     my $ret_type = $mapNode->{'ReturnType'};
@@ -752,6 +755,7 @@ sub mkMapAST {
       : __mkVec($lhs_vars_types->[0]);
 
     my $non_map_vars_types = zip( $mapNode->{'Rhs'}{'NonMapArgs'}{'Vars'}, $non_map_type);
+    # croak Dumper $non_map_vars_types;
 
     my $map_vars_types=zip($mapNode->{'Rhs'}{'MapArgs'}{'Vars'}, $vec_type);
     my $map_args =
@@ -764,7 +768,14 @@ sub mkMapAST {
         and scalar @{$mapNode->{'Rhs'}{'NonMapArgs'}{'Vars'}} > 0)
     {
 # FIXME: I guess a single arg should not be a tuple ...
-        $non_map_arg_str = ' [' . join(',', map { __mkScalar($_,'In') } @{$non_map_vars_types}) . ']';        
+        # $non_map_arg_str = ' [' . join(',', map { __mkScalar($_,'In') } @{$non_map_vars_types}) . ']';        
+
+        my $idx = 0;
+        $non_map_arg_str = ' [' . join(',',
+        map {
+        _create_Haskell_TyTraAST_type($stref,$fname,$_->[0],$idx++,'MapFSig')
+        } @{$non_map_vars_types}) . ']'; 
+        # croak $non_map_arg_str;
         # $non_map_arg_str = ' [' . join(',', map { '"'._mkVarName($_).'"' } @{$mapNode->{'Rhs'}{'NonMapArgs'}{'Vars'}}) . ']';
     }
     my $rhs_core = 'Map (Function "' . $f_exp . '" '.$non_map_arg_str. ') ' . $map_args ;
@@ -834,12 +845,12 @@ sub mkFoldAST {
 # (Vec VS (SVec 5 (Scalar DFloat "eta_s_0") ) )
 # ['SVec',3,'DFloat']
 sub __mkType { (my $t_rec, my $v_name, my $v_intent)=@_; 
-    my $ve = defined $v_intent ? 'V'.ucfirst(substr($v_intent,0,1)) : 'VDC';
+    my $ve = (defined $v_intent and $v_intent ne '') ? 'V'.ucfirst(substr($v_intent,0,1)) : 'VDC';
     # carp Dumper($v_intent);#$ve;
     if ($t_rec->[0] ne 'SVec') {
         return 'Scalar '.$ve.' D'.$t_rec->[0].' "'.$v_name.'"';
     } else {
-        return 'SVec '.$t_rec->[1]. '(Scalar '.$ve.' D'.$t_rec->[2].' "'.$v_name.'")';
+        return 'SVec '.$t_rec->[1]. ' (Scalar '.$ve.' D'.$t_rec->[2].' "'.$v_name.'")';
     }
 }
 
@@ -978,7 +989,7 @@ sub _create_TyTraCL_Haskell_signatures { (my $stref) = @_;
                             ? 1 
                             : ($type->[0] eq 'SVec') ? 1 : 0;
                             # say "$idx <". $type->[0]."> <$svec>";
-                        # carp Dumper $decl,$svec;    
+                        # croak Dumper $decl if $svec==1;    
                         my $arg_type = ($type->[0] eq 'SVec') 
                             ? $type
                             : ($decl->{'ArrayOrScalar'} eq 'Array') 
@@ -986,18 +997,55 @@ sub _create_TyTraCL_Haskell_signatures { (my $stref) = @_;
                                 ? __toTyTraCLType($decl->{'Type'},$decl->{'ConstDim'},$svec)
                                 # Scalar
                                 : __toTyTraCLType($decl->{'Type'},[],$svec); 
-                        # carp "$f $arg => $arg_name:\narg rec:".Dumper($arg_rec)."\ntypetup: ".Dumper( $type)."\n argtype: ".Dumper( $arg_type);
+                        say "$f $arg => $arg_name:\narg rec:".Dumper($arg_rec)."\n type: ".$type->[0]."\n argtype: ". $arg_type->[0] ;
+                        # die Dumper $decl if $arg_name eq 'v_nm_0';
+                        # This is not good. Basically
+
                         if ($arg_type->[0] ne 'SVec' and 
                             $arg_type->[0] ne 'Vec') { # It's a scalar FIXME: This information is not there!
-                            push @{$typed_arg_tup}, 'Scalar '.$arg_rec->[3].' D'.$arg_type->[0].' "'.$arg_name.'"';
+                            if (defined $decl) {
+                                if ($decl->{'ArrayOrScalar'} eq 'Array' and
+                                    scalar @{$decl->{'Dim'}}>0) { # it's an array
+                                        if ($svec) {
+                                            # push @{$typed_arg_tup}, 'Scalar '.$arg_rec->[3].' D'.$arg_type->[0].' "'.$arg_name.'"';
+                                            my $tytra_cl_type= __toTyTraCLType($decl->{'Type'},$decl->{'Dim'},1);
+                                            my $intent = exists $decl->{'Intent'} 
+                                                ? $decl->{'Intent'} 
+                                                : defined $arg_rec->[3]
+                                                ? __VE_to_Intent($arg_rec->[3])
+                                                : croak "Can't work out INTENT for $arg_name in $f";
+                                            my $hs_type_decl_str = __mkType($tytra_cl_type,$arg_name,$intent);
+                                            push @{$typed_arg_tup}, $hs_type_decl_str;
+                            # SVec '.$arg_type->[1].' (Scalar V'.$arg_rec->[3]. ' D'.$arg_type->[2].' "'.$arg_name.'")';
+                                           
+                                        } else {
+                                            # Functions are scalarised
+                                            push @{$typed_arg_tup}, 'Scalar '.$arg_rec->[3].' D'.$arg_type->[0].' "'.$arg_name.'"';
+                                        }
+                                    } else {
+                                push @{$typed_arg_tup}, 'Scalar '.$arg_rec->[3].' D'.$arg_type->[0].' "'.$arg_name.'"';
+                                    }
+                            } else {
+                                push @{$typed_arg_tup}, 'Scalar '.$arg_rec->[3].' D'.$arg_type->[0].' "'.$arg_name.'"';
+                            }
                         } elsif ($arg_type->[0] eq 'Vec') {
                             # croak Dumper $arg_type;
                             # push @{$typed_arg_tup}, 'Vec '.$arg_rec->[3].' (Scalar VDC D'.$arg_type->[2].' "'.$arg_name.'")';
                             # push @{$typed_arg_tup}, 'Vec '.$arg_rec->[3].' (Scalar VDC D'.$arg_type->[2].' "'.$arg_name.'")';
                             push @{$typed_arg_tup}, 'Scalar '.$arg_rec->[3].' D'.$arg_type->[2].' "'.$arg_name.'"';
                         } else {
+                                            # my $tytra_cl_type= __toTyTraCLType($decl->{'Type'},$decl->{'Dim'},1);
+                                            # my $intent = exists $decl->{'Intent'} 
+                                            #     ? $decl->{'Intent'} 
+                                            #     : defined $arg_rec->[3]
+                                            #     ? __VE_to_Intent($arg_rec->[3])
+                                            #     : croak "Can't work out INTENT for $arg_name in $f";
+                                            # my $hs_type_decl_str = __mkType($tytra_cl_type,$arg_name,$intent);                            
+                            
                             push @{$typed_arg_tup}, 'SVec '.$arg_type->[1].' (Scalar VDC D'.$arg_type->[2].' "'.$arg_name.'")';
+                            # croak $arg_name.' : '.Dumper($arg_rec).$hs_type_decl_str .Dumper($typed_arg_tup);
                         }  
+                        # croak Dumper $decl if $arg_name eq 'v_nm_0';
                     } else {
                         croak "TROUBLE: NO DECL for $arg in $f: ".Dumper($stref->{'Subroutines'});
                     }       
@@ -1275,5 +1323,73 @@ sub __origNamesListEntry { my ($node) = @_;
 sub __VE_to_Intent { my ($ve) = @_;
     $ve eq 'VI' ? 'In' : $ve eq 'VO' ? 'Out' : ''
 }
+
+sub _create_Haskell_TyTraAST_type { my ($stref,$f,$arg_rec,$idx,$FSig_ctor,$type) = @_;
+
+                    my $arg = $arg_rec->[0];
+                    my $arg_name = _mkVarName($arg_rec);
+                    
+                    my $subset = in_nested_set( $stref->{'Subroutines'}{$f}, 'Vars', $arg );
+                    # say "SUBSET <$subset>";
+                    if ($subset) { 
+                        my $decl = get_var_record_from_set( $stref->{'Subroutines'}{$f}{'Vars'},$arg);
+                        if (not defined $type) {
+                            $type = ($decl->{'ArrayOrScalar'} eq 'Array') 
+                                    # Vec of SVec depending on $svec
+                                    ? __toTyTraCLType($decl->{'Type'},$decl->{'ConstDim'},1)
+                                    # Scalar
+                                    : __toTyTraCLType($decl->{'Type'},[],0); 
+                        }                        
+                        # say $arg. Dumper($decl);
+                        # If the argument is the first, it is Non-Map or Non-Fold
+                        # But in principle the Accumulator can also be a vector
+                        # Non-maps and accumulators are always SVec i.o. Vec; 
+                        # But the other args can be SVec or Vec
+                        my $svec = (($idx == 1) or ($FSig_ctor eq 'FoldFSig' and $idx == 2))
+                            ? 1 
+                            : ($type->[0] eq 'SVec') ? 1 : 0;
+                        my $arg_type = ($type->[0] eq 'SVec') 
+                            ? $type
+                            : ($decl->{'ArrayOrScalar'} eq 'Array') 
+                                # Vec of SVec depending on $svec
+                                ? __toTyTraCLType($decl->{'Type'},$decl->{'ConstDim'},$svec)
+                                # Scalar
+                                : __toTyTraCLType($decl->{'Type'},[],$svec); 
+
+                        if ($arg_type->[0] ne 'SVec' and 
+                            $arg_type->[0] ne 'Vec') { # It's a scalar FIXME: This information is not there!
+                            if (defined $decl) {
+                                if ($decl->{'ArrayOrScalar'} eq 'Array' and
+                                    scalar @{$decl->{'Dim'}}>0) { # it's an array
+                                        if ($svec) {
+                                            my $tytra_cl_type= __toTyTraCLType($decl->{'Type'},$decl->{'Dim'},1);
+                                            my $intent = exists $decl->{'Intent'} 
+                                                ? $decl->{'Intent'} 
+                                                : defined $arg_rec->[3]
+                                                ? __VE_to_Intent($arg_rec->[3])
+                                                : croak "Can't work out INTENT for $arg_name in $f";
+                                            my $hs_type_decl_str = __mkType($tytra_cl_type,$arg_name,$intent);
+                                            return $hs_type_decl_str;                                           
+                                        } else {
+                                            # Functions are scalarised
+                                            return 'Scalar '.$arg_rec->[3].' D'.$arg_type->[0].' "'.$arg_name.'"';
+                                        }
+                                    } else {
+                                return 'Scalar '.$arg_rec->[3].' D'.$arg_type->[0].' "'.$arg_name.'"';
+                                    }
+                            } else {
+                                return 'Scalar '.$arg_rec->[3].' D'.$arg_type->[0].' "'.$arg_name.'"';
+                            }
+                        } elsif ($arg_type->[0] eq 'Vec') {
+                            return 'Scalar '.$arg_rec->[3].' D'.$arg_type->[2].' "'.$arg_name.'"';
+                        } else {
+                            croak $arg_name;
+                            return 'SVec '.$arg_type->[1].' (Scalar VDC D'.$arg_type->[2].' "'.$arg_name.'")';
+                        }  
+                    } else {
+                        croak "TROUBLE: NO DECL for $arg in $f: ".Dumper($stref->{'Subroutines'});
+                    }       
+} # END of _create_Haskell_TyTraAST_type
+
 
 1;
