@@ -817,7 +817,7 @@ sub _classify_accesses_and_emit_AST { (my $stref, my $f, my $state ) =@_;
 		next unless _is_stream_var($state, $f, $block_id, $array_var);
 		# So there the $array_var is certainly (or at least per def) a stream variable
 		$stref->{'Subroutines'}{$f}{'StreamVars'}{$array_var}={};
-
+$state->{'Subroutines'}{ $f }{'StreamVars'}{$array_var}={};
 		$ast_to_emit = $ast_emitter->( $f,  $state,  $ast_to_emit, 'INIT_COUNTERS',  $block_id,  $array_var) if $emit_ast;
  		for my $rw ('Read','Write') {
  			if (exists  $state->{'Subroutines'}{ $f }{'Blocks'}{ $block_id }{'Arrays'}{$array_var}{$rw} ) {
@@ -874,7 +874,7 @@ sub _classify_accesses_and_emit_AST { (my $stref, my $f, my $state ) =@_;
 	}
 	
 	$ast_to_emit = $ast_emitter->( $f,  $state, $ast_to_emit, 'MAP', $block_id) if $emit_ast;
-	
+	# carp Dumper $ast_to_emit ;
 	return $stref ;
 } # END of _classify_accesses_and_emit_AST()
 
@@ -1499,7 +1499,7 @@ sub _is_stream_var { my ($state, $f, $block_id, $var_name) =@_;
 	#   carp $var_name.Dumper($dims,$iters);
 	# carp Dumper $state->{'Subroutines'}{ $f }{'Blocks'}{ $block_id };
 	  if (scalar @{$dims} < scalar keys %{$iters}) { 
-		  say "$f $var_name dim mismatch" if $V;
+		  say "$f $var_name dim mismatch" if $V; 
 		  return 0;
 	  } 
 	  elsif ($n_used_iters<$n_iters) {
@@ -1539,7 +1539,8 @@ sub _is_stream_var { my ($state, $f, $block_id, $var_name) =@_;
 
 
 sub __only_const_acccesses { my ($array_var, $state, $f, $block_id) = @_;
-#  carp Dumper($state->{'Subroutines'}{ $f }{'Blocks'}{ $block_id }{'Arrays'}{$array_var}) if $array_var eq 'w';
+#  carp $array_var;
+#  carp Dumper($state->{'Subroutines'}{ $f }{'Blocks'}{ $block_id }{'Arrays'}{$array_var}) if $array_var eq 'w2';
 	for my $rw('Read','Write') {
 		if (exists
 			$state->{'Subroutines'}{ $f }{'Blocks'}{ $block_id }{'Arrays'}{$array_var}{$rw}

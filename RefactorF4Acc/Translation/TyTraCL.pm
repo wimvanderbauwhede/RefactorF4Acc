@@ -872,8 +872,9 @@ sub _add_TyTraCL_AST_entry {
         my @in_tup             = grep { $_ !~ /^\!/ } @{$in_tup_maybe_dummies};
         # carp "$f $block_id: ".Dumper $state->{'Subroutines'}{$f}{'Blocks'}{$block_id}{'Arrays'};
         my @in_tup_correct_dim = grep {
-            exists $state->{'Subroutines'}{$f}{'Blocks'}{$block_id}{'Arrays'}{$_}
-            and scalar @{$state->{'Subroutines'}{$f}{'Blocks'}{$block_id}{'Arrays'}{$_}{'Dims'}} >= $n_dims
+            exists $state->{'Subroutines'}{$f}{'StreamVars'}{$_}
+            # exists $state->{'Subroutines'}{$f}{'Blocks'}{$block_id}{'Arrays'}{$_}
+            # and scalar @{$state->{'Subroutines'}{$f}{'Blocks'}{$block_id}{'Arrays'}{$_}{'Dims'}} >= $n_dims
         } @in_tup;
 
 # So a non-map arg is an arg that is either a scalar or an array with a lower dimensionality than the mapped arrays
@@ -882,9 +883,10 @@ sub _add_TyTraCL_AST_entry {
 # Taking into account that mappable args might have slightly different sizes because of the halos, in fact the mapped range should be the maximum
 # I could put an ad-hoc limit on the size of a halo, say 5 points.
         my @in_tup_non_map_args = grep {
-            (        (not exists $state->{'Subroutines'}{$f}{'Blocks'}{$block_id}{'Arrays'}{$_})
-                  or (scalar @{$state->{'Subroutines'}{$f}{'Blocks'}{$block_id}{'Arrays'}{$_}{'Dims'}} < $n_dims)
-            )
+            # (        (not exists $state->{'Subroutines'}{$f}{'Blocks'}{$block_id}{'Arrays'}{$_})
+            #       or (scalar @{$state->{'Subroutines'}{$f}{'Blocks'}{$block_id}{'Arrays'}{$_}{'Dims'}} < $n_dims)
+            # )
+            not exists $state->{'Subroutines'}{$f}{'StreamVars'}{$_}
         } @in_tup;
 # carp "NON-MAP ARGS: $f:".Dumper(@in_tup_non_map_args)."\n".Dumper($state->{'Subroutines'}{$f}{'Blocks'}{$block_id}{'Scalars'});
         # non-fold args are non-map args that are not acc args
@@ -989,16 +991,11 @@ sub _add_TyTraCL_AST_entry {
         # Here, $state is $stref
         $tytracl_ast->{'MainFunction'} = $f;
         my $arg_pos=0;
-        carp $f. ' RefactoredArgs: '.Dumper $state->{'Subroutines'}{$f}{'RefactoredArgs'}; # This is OK
-        croak $f.' DeclaredOrigArgs: '.Dumper $state->{'Subroutines'}{$f}{'DeclaredOrigArgs'}; # This is NOK?!
+        # carp $f. ' RefactoredArgs: '.Dumper $state->{'Subroutines'}{$f}{'RefactoredArgs'}; # This is OK
+        # croak $f.' DeclaredOrigArgs: '.Dumper $state->{'Subroutines'}{$f}{'DeclaredOrigArgs'}; # This is NOK?!
         for my $arg (@{$state->{'Subroutines'}{$f}{'RefactoredArgs'}{'List'}}) {
             $tytracl_ast->{'OrigArgs'}{$arg} = 
-            # [
-                # lc($state->{'Subroutines'}{$f}{'DeclaredOrigArgs'}{'Set'}{$arg}{'Type'}),
-            
                 $state->{'Subroutines'}{$f}{'DeclaredOrigArgs'}{'Set'}{$arg}{'IODir'};
-                say "ARG $arg: ".$state->{'Subroutines'}{$f}{'DeclaredOrigArgs'}{'Set'}{$arg}{'IODir'};
-            # ];
             $tytracl_ast->{'FunctionArgsMappings'}{$f}{$arg}=$arg_pos;
             ++$arg_pos;
         }

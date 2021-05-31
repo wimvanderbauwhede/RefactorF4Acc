@@ -764,7 +764,7 @@ sub _get_iodirs_from_subcall {
 # The $call_arg can be Array, Scalar, Sub, Expr or Const
 # Only if it is Array or Scalar  does it need to be considered for writing to by the subroutine
 # We need to check the other variables in Array, Sub and Expr but they cannot be anything else than read-only
-				carp $f.' => '.$name."($call_arg => $sig_arg)\t".Dumper($info) ;
+				# carp $f.' => '.$name."($call_arg => $sig_arg)\t".Dumper($info) ;
                     my $call_arg_type = $info->{'SubroutineCall'}{'Args'}{'Set'}{$call_arg}{'Type'};
                     # carp "CALL ARG: $sig_arg => $call_arg  " . Dumper($call_arg_type);
                     if ($call_arg_type eq 'Scalar' or $call_arg_type eq 'Array') {

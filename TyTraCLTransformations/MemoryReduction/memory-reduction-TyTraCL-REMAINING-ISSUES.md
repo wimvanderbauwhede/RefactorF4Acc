@@ -6,6 +6,10 @@ I fixed the range for the global index iterator, to avoid out-of-bounds accesses
 TEST 16 fails. All other tests compile but there are many warnings on -Wunused-dummy-argument
 
 Currently stuck on some bug in the scalariser: it removes a non-map argument, see Analysis/ArgumentIODirs.pm line 767.
+Part of the reason is that somehow it expects the same variable name for the call arg and the sig arg.
+When they have the same name, it is still not right because the argument is not treated as non-map.
+
+
 ## 2021-05-21
 
 A simple stencil-map does not generate correct Fortran for the shell subroutine: we get

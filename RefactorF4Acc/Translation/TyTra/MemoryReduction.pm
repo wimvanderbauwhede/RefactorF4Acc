@@ -96,7 +96,7 @@ if ($Config{'TEST'} == 0 ) {
 }
 # croak Dumper get_vars_from_set($stref->{'Subroutines'}{'f'}{'Vars'});
 # croak  Dumper $stref->{'Subroutines'}{ f }{'ArrayAccesses'};
-croak  Dumper ($stref->{TyTraCL_AST});
+# croak  Dumper ($stref->{TyTraCL_AST});
     $stref = construct_TyTraCL_AST_Main_node($stref);
 # croak  Dumper ($stref->{TyTraCL_AST});
 
@@ -999,7 +999,7 @@ sub _create_TyTraCL_Haskell_signatures { (my $stref) = @_;
                                 ? __toTyTraCLType($decl->{'Type'},$decl->{'ConstDim'},$svec)
                                 # Scalar
                                 : __toTyTraCLType($decl->{'Type'},[],$svec); 
-                        say "$f $arg => $arg_name:\narg rec:".Dumper($arg_rec)."\n type: ".$type->[0]."\n argtype: ". $arg_type->[0] ;
+                        # say "$f $arg => $arg_name:\narg rec:".Dumper($arg_rec)."\n type: ".$type->[0]."\n argtype: ". $arg_type->[0] ;
                         # die Dumper $decl if $arg_name eq 'v_nm_0';
                         # This is not good. Basically
 
@@ -1385,7 +1385,7 @@ sub _create_Haskell_TyTraAST_type { my ($stref,$f,$arg_rec,$idx,$FSig_ctor,$type
                         } elsif ($arg_type->[0] eq 'Vec') {
                             return 'Scalar '.$arg_rec->[3].' D'.$arg_type->[2].' "'.$arg_name.'"';
                         } else {
-                            croak $arg_name;
+                            # croak  'SVec '.$arg_type->[1].' (Scalar VDC D'.$arg_type->[2].' "'.$arg_name.'")';
                             return 'SVec '.$arg_type->[1].' (Scalar VDC D'.$arg_type->[2].' "'.$arg_name.'")';
                         }  
                     } else {
