@@ -418,7 +418,7 @@ sub identify_array_accesses_in_exprs { (my $stref, my $f) = @_;
 	 	($stref,$state) = stateful_pass_inplace($stref,$f,$pass_identify_array_accesses_in_exprs, $state,'pass_identify_array_accesses_in_exprs ' . __LINE__  ) ;
 	 	
 	 	$stref = _collect_dependencies_for_halo_access($stref,$f);
-
+# croak Dumper $state;
 		$state = _link_writes_to_reads( $stref, $f, $state);
 		
 		# I guess here is where we put the boundary stencil analysis
@@ -696,8 +696,11 @@ sub _link_writes_to_reads {(my $stref, my $f, my $state)=@_;
 	return $state;
 } # END of _link_writes_to_reads()
 
-sub _link_writes_to_reads_rec {(my $stref, my $f, my $block_id, my $some_var, my $assignments,my  $links, my $state)=@_;
+sub _link_writes_to_reads_rec {my ($stref, $f, $block_id, $some_var, $assignments, $links, $state)=@_;
+# carp "$f VAR: $some_var" . Dumper($stref->{'Subroutines'}{$f}{'Vars'});
+
  		my $decl = get_var_record_from_set( $stref->{'Subroutines'}{$f}{'Vars'},$some_var);
+		#  carp Dumper ($f, $block_id, $some_var, $assignments, $links, $state);
 		my $lhs_dim = scalar @{ $decl->{'Dim'} };
 		if (exists $assignments->{$some_var} ) {
 			my $rhs_array = $assignments->{$some_var};

@@ -94,13 +94,15 @@ if ($Config{'TEST'} == 0 ) {
 } else { 
     $stref = memory_reduction_tests($stref);
 }
-# croak Dumper get_vars_from_set($stref->{'Subroutines'}{'f1'}{'Vars'});
+# croak Dumper get_vars_from_set($stref->{'Subroutines'}{'f'}{'Vars'});
+# croak  Dumper $stref->{'Subroutines'}{ f }{'ArrayAccesses'};
+croak  Dumper ($stref->{TyTraCL_AST});
     $stref = construct_TyTraCL_AST_Main_node($stref);
-
+# croak  Dumper ($stref->{TyTraCL_AST});
 
     $stref = _emit_TyTraCL_FunctionSigs($stref);    
     $stref = _add_VE_to_AST($stref);
-# croak  Dumper $stref;
+# croak  Dumper ($stref->{TyTraCL_AST});
     
     $stref = _emit_TyTraCL_Haskell_AST_Code($stref);
 
@@ -1008,7 +1010,7 @@ sub _create_TyTraCL_Haskell_signatures { (my $stref) = @_;
                                     scalar @{$decl->{'Dim'}}>0) { # it's an array
                                         if ($svec) {
                                             # push @{$typed_arg_tup}, 'Scalar '.$arg_rec->[3].' D'.$arg_type->[0].' "'.$arg_name.'"';
-                                            my $tytra_cl_type= __toTyTraCLType($decl->{'Type'},$decl->{'Dim'},1);
+                                            my $tytra_cl_type= __toTyTraCLType($decl->{'Type'},$decl->{'ConstDim'},1);
                                             my $intent = exists $decl->{'Intent'} 
                                                 ? $decl->{'Intent'} 
                                                 : defined $arg_rec->[3]
@@ -1362,7 +1364,7 @@ sub _create_Haskell_TyTraAST_type { my ($stref,$f,$arg_rec,$idx,$FSig_ctor,$type
                                 if ($decl->{'ArrayOrScalar'} eq 'Array' and
                                     scalar @{$decl->{'Dim'}}>0) { # it's an array
                                         if ($svec) {
-                                            my $tytra_cl_type= __toTyTraCLType($decl->{'Type'},$decl->{'Dim'},1);
+                                            my $tytra_cl_type= __toTyTraCLType($decl->{'Type'},$decl->{'ConstDim'},1);
                                             my $intent = exists $decl->{'Intent'} 
                                                 ? $decl->{'Intent'} 
                                                 : defined $arg_rec->[3]

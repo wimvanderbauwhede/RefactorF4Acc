@@ -5,6 +5,7 @@
 I fixed the range for the global index iterator, to avoid out-of-bounds accesses. I also verified that 3-D Fortran code is properly converted to 1-D.
 TEST 16 fails. All other tests compile but there are many warnings on -Wunused-dummy-argument
 
+Currently stuck on some bug in the scalariser: it removes a non-map argument, see Analysis/ArgumentIODirs.pm line 767.
 ## 2021-05-21
 
 A simple stencil-map does not generate correct Fortran for the shell subroutine: we get

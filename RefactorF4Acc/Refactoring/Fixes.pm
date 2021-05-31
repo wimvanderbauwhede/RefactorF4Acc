@@ -245,6 +245,7 @@ sub _removed_unused_variables { (my $stref, my $f)=@_;
  	# Adapt the Signature in $stref
  	$stref->{'Subroutines'}{$f}{'DeletedArgs'} =$state->{'DeletedArgs'};
  	$stref->{'Subroutines'}{$f}{'DeclaredOrigArgs'}{'List'}=dclone($state->{'RemainingArgs'});
+	#  croak Dumper $state->{'DeletedArgs'} ;
  	map { delete $stref->{'Subroutines'}{$f}{'DeclaredOrigArgs'}{'Set'}{$_} }  @{ $state->{'DeletedArgs'} };
 # croak 'shapiro_map_16: '.Dumper( $stref->{'Subroutines'}{'shapiro_map_16'}{'DeclaredOrigArgs'});
 	return $stref;
@@ -434,6 +435,7 @@ sub _fix_scalar_ptr_args { (my $stref, my $f)=@_;
  		if ( exists $info->{'Signature'} ) {
 			my $new_args=[];
 			for my $arg (@{ $info->{'Signature'}{'Args'}{'List'} } ) {
+				carp "FIXME!!!";
 				if ($arg=~/_ptr/) {
 					my $new_arg=$arg;
 					$new_arg=~s/_ptr$//;
@@ -441,6 +443,7 @@ sub _fix_scalar_ptr_args { (my $stref, my $f)=@_;
 					push @{$new_args}, $new_arg;
 					my $orig_decl = dclone($stref->{'Subroutines'}{$f}{'DeclaredOrigArgs'}{'Set'}{$arg} );
 					$stref->{'Subroutines'}{$f}{'DeclaredOrigArgs'}{'Set'}{$new_arg} = $orig_decl ; 
+					# croak $arg;
 					delete $stref->{'Subroutines'}{$f}{'DeclaredOrigArgs'}{'Set'}{$arg} ;					
 				} else {
 					push @{$new_args}, $arg;

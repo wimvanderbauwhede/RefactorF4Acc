@@ -443,7 +443,7 @@ sub _rename_array_accesses_to_scalars { (my $stref, my $f) = @_;
 				}
 				$stref->{'Subroutines'}{$f}{'DeclaredOrigArgs'}{'Set'}{$new_arg}=$new_decl;					
 			}	
-			delete $stref->{'Subroutines'}{$f}{'DeclaredOrigArgs'}{'Set'}{$orig_arg};					
+			delete $stref->{'Subroutines'}{$f}{'DeclaredOrigArgs'}{'Set'}{$orig_arg};
 		} else {
 			if (exists $stref->{'Subroutines'}{$f}{'DeclaredOrigArgs'}{'Set'}{$orig_arg} ) {
 				push @updated_args_list, $orig_arg;	

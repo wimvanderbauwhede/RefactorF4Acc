@@ -989,11 +989,15 @@ sub _add_TyTraCL_AST_entry {
         # Here, $state is $stref
         $tytracl_ast->{'MainFunction'} = $f;
         my $arg_pos=0;
+        carp $f. ' RefactoredArgs: '.Dumper $state->{'Subroutines'}{$f}{'RefactoredArgs'}; # This is OK
+        croak $f.' DeclaredOrigArgs: '.Dumper $state->{'Subroutines'}{$f}{'DeclaredOrigArgs'}; # This is NOK?!
         for my $arg (@{$state->{'Subroutines'}{$f}{'RefactoredArgs'}{'List'}}) {
             $tytracl_ast->{'OrigArgs'}{$arg} = 
             # [
                 # lc($state->{'Subroutines'}{$f}{'DeclaredOrigArgs'}{'Set'}{$arg}{'Type'}),
+            
                 $state->{'Subroutines'}{$f}{'DeclaredOrigArgs'}{'Set'}{$arg}{'IODir'};
+                say "ARG $arg: ".$state->{'Subroutines'}{$f}{'DeclaredOrigArgs'}{'Set'}{$arg}{'IODir'};
             # ];
             $tytracl_ast->{'FunctionArgsMappings'}{$f}{$arg}=$arg_pos;
             ++$arg_pos;
