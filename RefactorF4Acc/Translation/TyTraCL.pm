@@ -456,7 +456,7 @@ sub generate_TyTraCL_stencils {
         my $n_dims       = scalar @{$array_dims};
         for my $array_dim (@{$array_dims}) {
             push @ranges,       eval($array_dim->[1] . ' - ' . $array_dim->[0] . ' + 1');
-            push @lower_bounds, $array_dim->[0];
+            push @lower_bounds, $array_dim->[0] - 1; # -1 because an array 1:500 in Fortran has a zero position of (1,1,1), not (0,0,0)
         }
         if ($n_dims == 1) {
             push @{$tytracl_stencils}, F1D2C(@lower_bounds, @{$index_tuple});

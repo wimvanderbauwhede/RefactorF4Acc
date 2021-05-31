@@ -2,8 +2,9 @@
 {- HLINT "ignore Use when" -}
 module Main where
 import Control.Monad ( when )
+import System.IO ( openFile, hPutStr, hClose, IOMode(..) )
 import TyTraCLAST 
-import ASTInstance (ast,functionSignaturesList)
+import ASTInstance (ast,functionSignaturesList,moduleName)
 import Transforms (splitLhsTuples, substituteVectors, applyRewriteRules, fuseStencils, decomposeExpressions)
 import CodeGeneration (
     inferSignatures, 
@@ -68,5 +69,12 @@ main = do
                 putStrLn "-- Infered function signatures"
                 mapM print x2
                 ) (zip (zip ast4 inferedSignatures) [1..])
-        else return ()            
+        else return ()     
     putStr generatedFortranCode
+    let
+        fp = mkSrcFileName moduleName       
+    fh <- openFile fp WriteMode     
+    hPutStr fh generatedFortranCode
+    hClose fh
+
+mkSrcFileName str = "gen_"++(drop (length "module_") str) ++ ".f95"

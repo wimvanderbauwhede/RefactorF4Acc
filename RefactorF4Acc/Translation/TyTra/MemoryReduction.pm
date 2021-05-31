@@ -435,8 +435,10 @@ sub _emit_TyTraCL_Haskell_AST_Code {
     my $tytracl_hs_ast_code_str = join("\n", @indented_tytracl_hs_ast_strs);
 
     my $comment = $stref->{'TyTraCL_AST'}{'Comment'};
-
-
+    my $module_name = $comment;
+    if ($module_name=~/\W/) {
+        $module_name = 'module_no_name';
+    }
     my $header =
     "-- $comment\n" .
 'module ASTInstance ( ast
@@ -445,8 +447,12 @@ sub _emit_TyTraCL_Haskell_AST_Code {
         , mainArgDeclsList 
         , scalarisedArgsList
         , origNamesList
+        , moduleName
         ) where
 import TyTraCLAST
+
+moduleName :: String
+moduleName = "'.$comment.'"
 
 ast :: TyTraCLAST
 ast = [

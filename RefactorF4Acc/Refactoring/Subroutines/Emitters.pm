@@ -24,7 +24,8 @@ use Exporter;
 our @ISA = qw(Exporter);
 
 our @EXPORT_OK = qw(
-    emit_subroutine_sig            
+    emit_subroutine_sig 
+	emit_end_subroutine           
 	emit_subroutine_call
 );
 
@@ -99,6 +100,20 @@ sub emit_subroutine_sig { #(my $stref, my $f,
 		return ( $indent . $rline , $info );
 } # END of emit_subroutine_sig
 
+# If there is a SUB_SUFFIX, change the $annline to match it
+sub emit_end_subroutine { my ( $annline) = @_;
+	my ($line, $info) = @{$annline};
+	my $name = $info->{'EndSubroutine'}{'Name'};
+	if ($Config{'SUB_SUFFIX'} ne '' ) {
+		$name.=$Config{'SUB_SUFFIX'};
+		$line.=$Config{'SUB_SUFFIX'};
+	}
+    $info->{'EndSubroutine'}{'Name'} = $name;
+    $info->{'Block'}{'Name'} = $name;
+	$info->{'Block'}{'InBlock'}{'Name'} = $name;
+	$annline = [$line,$info];
+	return $annline;
+} #END of emit_end_subroutine
 # ================================================================================================================================================
 # This is fairly generic and assumes the updated call args are DeclaredOrigArgs
 # But an Emitter should really only turn an AST into source code, so what is happening here?

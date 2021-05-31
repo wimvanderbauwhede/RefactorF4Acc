@@ -31,6 +31,7 @@ use RefactorF4Acc::Refactoring::FoldConstants qw( fold_constants_in_decls );
 # I'm not sure that this is the best place for this routine as it is only used in this pass    
 use RefactorF4Acc::Refactoring::Subroutines::Emitters qw( 
 	emit_subroutine_sig 
+	emit_end_subroutine
 	emit_subroutine_call
 	);
 use RefactorF4Acc::Analysis::ArgumentIODirs qw( determine_argument_io_direction_rec );
@@ -536,10 +537,14 @@ sub _rename_array_accesses_to_scalars { (my $stref, my $f) = @_;
 		my $rline=$line;
 		
 		my $rlines=[];
-		if (exists $info->{'Signature'} ) {
+		if (exists $info->{'Signature'} ) { 
 			($rline, $info) = emit_subroutine_sig( $annline);
 			say $rline if $DBG;
 			push @{$rlines},[$rline,$info];			
+		} elsif ( exists $info->{'EndSubroutine'} ) {
+			my $rannline =[$rline, $info];
+			$rannline = emit_end_subroutine($rannline);
+			push @{$rlines},$rannline;			
 		} elsif (
 			exists $info->{'VarDecl'} and exists $info->{'ParsedVarDecl'}{'StreamVars'}
 		) {
@@ -1066,8 +1071,5 @@ sub _calc_linear_offset {    my ($index_tuple,$array_dims ) =@_;
             croak "Sorry, only up to 4 dimensions supported right now!";
         }
 }
-
-
-
 
 1;
