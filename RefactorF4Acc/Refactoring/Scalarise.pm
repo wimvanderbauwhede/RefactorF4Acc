@@ -1,5 +1,5 @@
 # Rename array accesses to scalars to transform loops into streams
-package RefactorF4Acc::Refactoring::Streams;
+package RefactorF4Acc::Refactoring::Scalarise;
 use v5.10;
 use RefactorF4Acc::Config;
 use RefactorF4Acc::Utils;
@@ -60,9 +60,9 @@ use Data::Dumper;
 
 use Exporter;
 
-@RefactorF4Acc::Refactoring::Streams::ISA = qw(Exporter);
+@RefactorF4Acc::Refactoring::Scalarise::ISA = qw(Exporter);
 
-@RefactorF4Acc::Refactoring::Streams::EXPORT_OK = qw(
+@RefactorF4Acc::Refactoring::Scalarise::EXPORT_OK = qw(
 	&pass_rename_array_accesses_to_scalars
 );
 
@@ -87,7 +87,6 @@ sub pass_rename_array_accesses_to_scalars {(my $stref, my $code_unit_name)=@_;
     	        [\&identify_array_accesses_in_exprs ],
 		  		[
 			  		\&_declare_undeclared_variables,
-					# Here is where it goes wrong I think
 					\&_rename_array_accesses_to_scalars,
 					\&_removed_unused_variables,
 				],

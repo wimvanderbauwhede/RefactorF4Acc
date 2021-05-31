@@ -867,7 +867,7 @@ sub _add_TyTraCL_AST_entry {
         }
 
         # A slightly better way is to look at which arrays are covered entirely by a map operation
-        my $n_dims = scalar keys %{$state->{'Subroutines'}{$f}{'Blocks'}{$block_id}{'LoopIters'}};
+        # my $n_dims = scalar keys %{$state->{'Subroutines'}{$f}{'Blocks'}{$block_id}{'LoopIters'}};
 
         my @in_tup             = grep { $_ !~ /^\!/ } @{$in_tup_maybe_dummies};
         # carp "$f $block_id: ".Dumper $state->{'Subroutines'}{$f}{'Blocks'}{$block_id}{'Arrays'};

@@ -11,7 +11,7 @@ use RefactorF4Acc::Refactoring::Modules qw( add_module_decls );
 
 #### CUSTOM PASSES ####
 
-use RefactorF4Acc::Refactoring::Streams qw( pass_rename_array_accesses_to_scalars );
+use RefactorF4Acc::Refactoring::Scalarise qw( pass_rename_array_accesses_to_scalars );
 
 use RefactorF4Acc::Translation::SaC qw( translate_module_to_SaC );
 use RefactorF4Acc::Translation::OpenCLC qw( translate_module_to_C );
