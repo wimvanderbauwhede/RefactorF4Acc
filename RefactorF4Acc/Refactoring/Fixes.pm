@@ -863,7 +863,12 @@ if (not exists $Config{'FIXES'}{'remove_redundant_arguments_and_fix_intents'}) {
 		# First determine the context-free IODir for all arguments in every called subroutine
 		for my $csub (@call_sequence) {
 			for my $arg ( @{$stref->{'Subroutines'}{ $csub }{'DeclaredOrigArgs'}{'List'}}) {
+				my $_arg_idx=0;
+				if (not defined $arg) {
+					carp "Undefined arg in position $_arg_idx in DeclaredOrigArgs for $f";
+				}					
 				$iodir_for_arg_in_called_sub->{$csub}{$arg} = __determine_called_sub_arg_iodir_no_context($arg, $stref, $csub);
+				++$_arg_idx;
 			}
 		}
 		# Now that we have the context-free IODir for all args  in every called sub we can refine
@@ -871,6 +876,11 @@ if (not exists $Config{'FIXES'}{'remove_redundant_arguments_and_fix_intents'}) {
 		my $changed_iodirs={};		
 		
 		for my $arg ( @{$stref->{'Subroutines'}{ $f }{'DeclaredOrigArgs'}{'List'}} ) {
+			my $_arg_idx=0;
+			if (not defined $arg) {
+				carp "Undefined arg in position $_arg_idx in DeclaredOrigArgs for $f";
+			}					
+
 			$top_iodir->{$arg} = $stref->{'Subroutines'}{ $f }{'DeclaredOrigArgs'}{'Set'}{$arg}{'IODir'};
 			# First determine the context-free IODir for all arguments in every called subroutine
 			my $idx=0;
@@ -889,9 +899,6 @@ if (not exists $Config{'FIXES'}{'remove_redundant_arguments_and_fix_intents'}) {
 					} 		
 					
 				}
-		
-
-
 
 					($iodir_for_arg_in_called_sub->{$csub}{$arg}, $top_iodir->{$arg}) = __determine_called_sub_arg_iodir_w_context($arg, $stref, $csub, $top_iodir, $iodir_for_arg_in_called_sub,\@call_sequence, $idx);
 					if (
@@ -912,6 +919,7 @@ if (not exists $Config{'FIXES'}{'remove_redundant_arguments_and_fix_intents'}) {
 				say "TOP $f: CHANGED INTENT for $arg: ", $stref->{'Subroutines'}{ $f }{'DeclaredOrigArgs'}{'Set'}{$arg}{'IODir'},' to ', $top_iodir->{$arg} if $DBG;
 				$stref->{'Subroutines'}{ $f }{'DeclaredOrigArgs'}{'Set'}{$arg}{'IODir'} = $top_iodir->{$arg};
 			}
+			++$_arg_idx;
 		}
 
 		# We don't really need to re-emit the annlines but I guess I'd better?

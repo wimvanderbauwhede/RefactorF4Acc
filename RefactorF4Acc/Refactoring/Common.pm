@@ -402,6 +402,10 @@ sub _create_extra_arg_and_var_decls { #272 lines
 	
 	my %unique_ex_impl = ();
 	for my $var ( @{ $Sf->{'UndeclaredOrigArgs'}{'List'} } ) {
+		my $_arg_idx=0;
+		if (not defined $var) {
+			carp "Undefined arg in position $_arg_idx in DeclaredOrigArgs for $f";
+		}		
 		if (    not exists $Sf->{'UsedGlobalVars'}{'Set'}{$var}
 			and not exists $Sf->{'CalledSubs'}{'Set'}{$var} )
 		{
@@ -439,6 +443,7 @@ sub _create_extra_arg_and_var_decls { #272 lines
 				}
 			}
 		}
+		++$_arg_idx;
 	}    # for
 
 	print "INFO: ExInclLocalVars in $f\n" if $I;

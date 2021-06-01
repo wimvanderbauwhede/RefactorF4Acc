@@ -428,7 +428,10 @@ sub _rename_array_accesses_to_scalars { (my $stref, my $f) = @_;
 	# 4. Here we update DeclaredOrigArgs
  	my @updated_args_list=();		
 	for my $orig_arg ( @{ $stref->{'Subroutines'}{$f}{'DeclaredOrigArgs'}{'List'} } ) {		
-		
+		my $_arg_idx=0;
+		if (not defined $orig_arg) {
+			carp "Undefined arg in position $_arg_idx in DeclaredOrigArgs for $f";
+		}
 		if (exists $state->{'StreamVars'}{$orig_arg}) {
 						my $idx=0;
 			for my $new_arg (@{ $state->{'StreamVars'}{$orig_arg}{'List'} }) {								
@@ -449,6 +452,7 @@ sub _rename_array_accesses_to_scalars { (my $stref, my $f) = @_;
 				push @updated_args_list, $orig_arg;	
 			}
 		}
+		++$_arg_idx;
 	}
 	
 	$stref->{'Subroutines'}{$f}{'DeclaredOrigArgs'}{'List'}=[@updated_args_list]; 	

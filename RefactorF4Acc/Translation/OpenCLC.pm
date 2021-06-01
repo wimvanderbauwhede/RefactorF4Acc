@@ -113,15 +113,20 @@ sub add_OpenCL_address_space_qualifiers { (my $stref, my $f, my $ocl) = @_;
 		#		say Dumper($stref->{'Subroutines'}{$f}{'DeletedArgs'});
 				my $skip=0;
 				if (exists $info->{'Signature'} ) {
-						for my $arg (@{ $stref->{'Subroutines'}{$f}{'DeclaredOrigArgs'}{'List'} } ) {
+					for my $arg (@{ $stref->{'Subroutines'}{$f}{'DeclaredOrigArgs'}{'List'} } ) {
+						my $_arg_idx=0;
+						if (not defined $arg) {
+							carp "Undefined arg in position $_arg_idx in DeclaredOrigArgs for $f";
+						}
 #							my $decl = $stref->{'Subroutines'}{$f}{'RefactoredArgs'}{'Set'}{$arg};
-							my $decl = get_var_record_from_set($stref->{'Subroutines'}{$f}{'Vars'},$arg);
+						my $decl = get_var_record_from_set($stref->{'Subroutines'}{$f}{'Vars'},$arg);
 #							say $f.Dumper( $stref->{'Subroutines'}{$f}{'Args'} );
 #							say $arg.Dumper($decl);
-							if ($decl->{'ArrayOrScalar'} eq 'Array') {								
-								$decl->{'OclAddressSpace'} = '__global';
-							} 
-						}
+						if ($decl->{'ArrayOrScalar'} eq 'Array') {								
+							$decl->{'OclAddressSpace'} = '__global';
+						} 
+						++$_arg_idx;
+					}
 				}
 				elsif (exists $info->{'SubroutineCall'} and 
 					not exists $stref->{'ExternalSubroutines'}{ $info->{'SubroutineCall'}{'Name'} }
