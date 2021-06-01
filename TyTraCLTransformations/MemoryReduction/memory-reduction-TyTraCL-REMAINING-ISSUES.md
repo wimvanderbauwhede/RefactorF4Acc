@@ -2,35 +2,7 @@
 
 ## 2021-05-01
 
-Started on ShallowWater2D. Turns out that the argument order in scalarisedArgsList and in the actual arg list of scalarised functions is not the same:
-
-subroutine shapiro_map_24(wet,eps,etan,eta,etan_avg)
-scalarisedArgsList = [
-     ( "shapiro_map_24",[("wet",(1,In,"integer")), ("wet",(2,In,"integer")), ("wet",(3,In,"integer")), ("wet",(4,In,"integer")), ("wet",(5,In,"integer")), ("etan",(1,In,"real")), ("etan",(2,In,"real")), ("etan",(3,In,"real")), ("etan",(4,In,"real")), ("etan",(5,In,"real")), ("eps",(0,In,"real")), ("etan_avg",(0,In,"real")), ("eta",(0,InOut,"real"))])
-  ]
-
-subroutine shapiro_map_24_scal(wet_j_km1,wet_jm1_k,wet_j_k,wet_jp1_k,wet_j_kp1,eps,etan_j_km1, &
-      etan_jm1_k,etan_j_k,etan_jp1_k,etan_j_kp1,eta_j_k,etan_avg)
-
-So eps and eta are in different places. In particular eps is an In so I don't know why. eta is an InOut and might therefore come last I guess; but it would be better if it stayed where it was.
-
-$stref->{'ScalarisedArgs'}{$f}{'List'} = [
-  'wet_j_km1',
-  'wet_jm1_k',
-  'wet_j_k',
-  'wet_jp1_k',
-  'wet_j_kp1',
-
-  'etan_j_km1',
-  'etan_jm1_k',
-  'etan_j_k',
-  'etan_jp1_k',
-  'etan_j_kp1',
-  
-  'eps',
-  'etan_avg',
-  'eta_j_k'
-];
+Started on ShallowWater2D. Turns out that the argument order in scalarisedArgsList and in the actual arg list of scalarised functions was not the same, fixed this.
 
 
 ## 2021-05-31
