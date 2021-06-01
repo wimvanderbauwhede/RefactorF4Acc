@@ -2,7 +2,7 @@ import os
 
 FC=os.environ.get('FC')
 
-fsources = ['test_shapiro_dyn_update_superkernel.f95','module_shapiro_dyn_update_superkernel.f95']
+fsources = ['test_shapiro_dyn_update_superkernel.f95','module_shapiro_dyn_update_superkernel.f95','module_shapiro_dyn_update_superkernel_init.f95']
 
 FFLAGS = ['-Wall','-cpp','-O3','-m64','-ffree-form','-ffree-line-length-0','-fconvert=little-endian','-frecord-marker=4']
 
