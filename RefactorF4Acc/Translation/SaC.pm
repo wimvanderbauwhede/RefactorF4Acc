@@ -7,9 +7,6 @@ use RefactorF4Acc::ExpressionAST::Evaluate qw( eval_expression_with_parameters )
 use RefactorF4Acc::Refactoring::Helpers qw( stateful_pass_inplace pass_wrapper_subs_in_module ); # emit_f95_var_decl);
 use RefactorF4Acc::Refactoring::Fixes qw( 
 	_declare_undeclared_variables
-	_removed_unused_variables
-	_fix_scalar_ptr_args
-	_fix_scalar_ptr_args_subcall
 	);
 use RefactorF4Acc::Parser::Expressions qw(
 	parse_expression
@@ -45,7 +42,10 @@ sub translate_module_to_SaC {  (my $stref, my $module_name) = @_;
 	my $ocl=1;
 	$stref->{'OpenCL'}=$ocl;
 	$stref->{'TranslatedCode'}=[];	
-	
+	# All Fixes are off by default, list them in $Config{'FIXES'} to enable them
+	# $Config{'FIXES'}={
+	# '_declare_undeclared_variables' => 1,
+	# };
 	$stref = pass_wrapper_subs_in_module($stref,$module_name,
 	           # module-specific passes 
             [],

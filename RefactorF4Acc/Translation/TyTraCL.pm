@@ -92,6 +92,7 @@ sub pass_emit_TyTraCL {
         # subroutine-specific passes
         [
 #				[ sub { (my $stref, my $f)=@_;  alias_ordered_set($stref,$f,'DeclaredOrigArgs','DeclaredOrigArgs'); } ],
+            # All Fixes are off by default, list them in $Config{'FIXES'} to enable them                
             [\&remove_redundant_arguments_and_fix_intents],
             [\&identify_array_accesses_in_exprs ], # This returns TyTraCL_AST using _add_TyTraCL_AST_entry
         ]

@@ -184,6 +184,7 @@ sub fold_constants_all {
 
 sub fold_constants_in_decls {
     my ($stref, $f) = @_;
+
     my $Sf = $stref->{'Subroutines'}{$f};
     my $pass_fold_constants_in_decls = sub { (my $annline)=@_;
         (my $line,my $info)=@{$annline};
@@ -214,5 +215,6 @@ sub fold_constants_in_decls {
     };
     my $annlines = $Sf->{'RefactoredCode'};
     $annlines = stateless_pass($annlines,$pass_fold_constants_in_decls,"pass_fold_constants_in_decls($f) " . __LINE__  ) ;
+
     return $stref;
 } # END of fold_constants_in_decls

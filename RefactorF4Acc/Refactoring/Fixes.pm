@@ -1,4 +1,5 @@
 package RefactorF4Acc::Refactoring::Fixes;
+# Fixes must be explicitly enabled in $Config{'FIXES'}
 use v5.10;
 use RefactorF4Acc::Config;
 use RefactorF4Acc::Utils;
@@ -11,7 +12,6 @@ use RefactorF4Acc::Refactoring::Helpers qw(
 	splice_additional_lines_cond_inplace  
 	);
 
-# I'm not sure that this is the best place for this routine as it is only used in this pass    
 use RefactorF4Acc::Refactoring::Subroutines::Emitters qw( emit_subroutine_sig emit_subroutine_call );
 use RefactorF4Acc::Analysis::ArgumentIODirs qw( determine_argument_io_direction_rec );
 use RefactorF4Acc::Parser::Expressions qw(
@@ -53,7 +53,7 @@ our @EXPORT_OK = qw(
 # ================================================================================================================================================
 # This is a FIX
 sub _removed_unused_variables { (my $stref, my $f)=@_;
-
+if (not exists $Config{'FIXES'}{'_removed_unused_variables'}) { return $stref }
 	# If a variable is assigned but is not and arg and does not occur in any RHS or SubroutineCall, it is unused. 
 	# If a variable is declared but not used in any LHS, RHS  or SubroutineCall, it is unused.
 	# So start with all declared variables, put in $state->{'DeclaredVars'}
@@ -254,6 +254,8 @@ sub _removed_unused_variables { (my $stref, my $f)=@_;
 
 # This is a FIX
 sub _declare_undeclared_variables { (my $stref, my $f)=@_;
+if (not exists $Config{'FIXES'}{'_declare_undeclared_variables'}) { return $stref }
+
 	# If a variable is assigned but is not and arg and does not occur in any RHS or SubroutineCall, it is unused. 
 	# If a variable is declared but not used in any LHS, RHS  or SubroutineCall, it is unused.
 	# So start with all declared variables, put in $state->{'DeclaredVars'}
@@ -422,6 +424,7 @@ sub _declare_undeclared_variables { (my $stref, my $f)=@_;
 # ================================================================================================================================================
 # Gavin's code has _ptr arrays to pass scalar pointers. This is necessary for actual Fortran code, not for code that is to be translated to OpenCL
 sub _fix_scalar_ptr_args { (my $stref, my $f)=@_;
+if (not exists $Config{'FIXES'}{'_fix_scalar_ptr_args'}) { return $stref }
 	if ($f ne $Config{'KERNEL'} ) { 
 	# TODO:  I must update the $stref->{Subroutines}{$f} records as well
 	my $pass_fix_scalar_ptr_args = sub { (my $annline, my $state)=@_;		
@@ -511,7 +514,7 @@ sub _fix_scalar_ptr_args { (my $stref, my $f)=@_;
 # -----------------------------------------------------------------------------
 # Clearly a FIX!
 sub _fix_scalar_ptr_args_subcall { (my $stref, my $f)=@_;
-		
+if (not exists $Config{'FIXES'}{'_fix_scalar_ptr_args_subcall'}) { return $stref }		
 		if ($f eq $Config{'KERNEL'} ) {
 	# TODO:  I must update the $stref->{Subroutines}{$f} records as well
 	my $pass_fix_scalar_ptr_args_subcall = sub { (my $annline, my $state)=@_;		
@@ -601,7 +604,7 @@ sub _fix_scalar_ptr_args_subcall { (my $stref, my $f)=@_;
 # ============================================================================================================
 # This is a FIX
 sub _make_dim_vars_scalar_consts_in_sigs { (my $stref, my $f)=@_;
-	
+if (not exists $Config{'FIXES'}{'_make_dim_vars_scalar_consts_in_sigs'}) { return $stref }	
 	# TODO:  I must update the $stref->{Subroutines}{$f} records as well
 	my $pass_make_dim_vars_scalar_consts_in_sigs = sub { (my $annline, my $state)=@_;		
 		(my $line,my $info)=@{$annline};
@@ -691,9 +694,10 @@ In other words,
 # 1. We want to remove redundant arguments
 # 2. Some of the called subroutines have arguments that are InOut but should really be Out (or maybe even In?)
 sub remove_redundant_arguments_and_fix_intents { (my $stref, my $f)=@_;
+if (not exists $Config{'FIXES'}{'remove_redundant_arguments_and_fix_intents'}) { return $stref }	
 
 	if ($f eq $Config{'KERNEL'}) { 
-		
+
 		my @in_args = grep { 
 			$stref->{'Subroutines'}{ $f }{'DeclaredOrigArgs'}{'Set'}{$_}{'IODir'} eq 'in'
 		}  @{$stref->{'Subroutines'}{ $f }{'DeclaredOrigArgs'}{'List'}};
@@ -708,7 +712,8 @@ sub remove_redundant_arguments_and_fix_intents { (my $stref, my $f)=@_;
 			
 				if (exists $info->{'SubroutineCall'} ) { 
 					my $csub = $info->{'SubroutineCall'}{'Name'};
-					push @call_sequence, $csub;
+					push @call_sequence, $info->{'SubroutineCall'};
+					# push @call_sequence, $csub;
 					if ($csub eq $f) {
 						$f_idx=$idx;
 					}
@@ -719,10 +724,15 @@ sub remove_redundant_arguments_and_fix_intents { (my $stref, my $f)=@_;
 		# If an argument of a called subroutine is an input argument of the kernel, we can check if it is actually used as an input
 		# If it was written to before it was read, then it is not an input arg and should become a local. 
 		my $inout_args_to_change_to_out={};
-		my $in_args_to_keep={};
+		my $in_args_to_keep={};		
 		for my $in_arg (@in_args) {
-			for my $csub (@call_sequence) {
+			for my $csub_info (@call_sequence) {
+				croak 'Replace $csub with csub_info and use Name and ArgMap';
+				my $csub = $csub_info->{'Name'};
+				my $csub_argmap = $csub_info->{'ArgMap'};
+				# I must use the ArgMap
 				my $csub_args = $stref->{'Subroutines'}{ $csub }{'DeclaredOrigArgs'}{'Set'};
+				# find_key_for_value($map,$value)
 				if (exists $csub_args->{$in_arg}) {
 					# See if it was written to before it was read. 
 					# If it was read first, we need to keep it, else we don't need it for this subroutine

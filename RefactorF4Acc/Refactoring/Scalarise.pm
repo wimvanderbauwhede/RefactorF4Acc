@@ -80,6 +80,7 @@ sub pass_rename_array_accesses_to_scalars {(my $stref, my $code_unit_name)=@_;
                        
                     } ],
                 # This is mostly to work around bugs in the AutoParallelFortran compiler
+				# All Fixes are off by default, list them in $Config{'FIXES'} to enable them
 	            [\&remove_redundant_arguments_and_fix_intents],
 				# This creates the ConstDim field
 				[\&fold_constants_in_decls],
@@ -618,7 +619,7 @@ sub _rename_array_accesses_to_scalars { (my $stref, my $f) = @_;
 # ================================================================================================================================================
 # After we've renamed all args in the subroutine definitions, we update the calls as well, but ONLY in the kernel 
 sub _rename_array_accesses_to_scalars_in_subcalls { (my $stref, my $f) = @_;
-# croak 'shapiro_map_16: '.Dumper( $stref->{'Subroutines'}{'shapiro_map_16'}{'DeclaredOrigArgs'});
+# carp $f.': '.Dumper( $stref->{'Subroutines'}{$f}{'DeclaredOrigArgs'});
 # carp $f.Dumper $stref->{'Subroutines'}{'f'}{'DeclaredOrigArgs'};
 	if ($f eq $Config{'KERNEL'} ) { 
 	my $pass_action = sub { (my $annline, my $state)=@_;		

@@ -151,7 +151,7 @@ our %Config=(
 'F77PATH' => [],
 'FFLAGS'  => ['-cpp','-O3', '-m64', '-ffree-form', '-ffree-line-length-0','-fconvert=little-endian', '-frecord-marker=4'],
 'F77FLAGS'  => ['-cpp','-O3', '-m64', '-fconvert=little-endian', '-frecord-marker=4'],
-
+'FIXES' => {}, 
 'Macros' => {}
 );
 
@@ -187,6 +187,9 @@ sub read_rf4a_config {
     if (ref($Config{$k}) eq 'ARRAY') {
 		my @vs=split(/\s*,\s*/,$v);
 		$Config{$k}=[@vs];
+    } elsif (ref($Config{$k}) eq 'HASH') {
+		my @vs=split(/\s*,\s*/,$v);
+		$Config{$k}= { map {$_ => 1} @vs};
 	} elsif ($k eq 'TOP') {
 		$Config{$k}=lc($v);
     } else {

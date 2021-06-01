@@ -62,6 +62,8 @@ sub pass_emit_TyTraIR {
 #		'MainFunction' => ''
         'ASTEmitter' => \&_add_TyTraIR_AST_entry
     };
+
+    $Config{'FIXES'}{'remove_redundant_arguments_and_fix_intents'} = 1;
     $stref = pass_wrapper_subs_in_module(
         $stref, $module_name,
 
@@ -71,6 +73,7 @@ sub pass_emit_TyTraIR {
         # subroutine-specific passes
         [
 #				[ sub { (my $stref, my $f)=@_;  alias_ordered_set($stref,$f,'DeclaredOrigArgs','DeclaredOrigArgs'); } ],
+            # All Fixes are off by default, list them in $Config{'FIXES'} to enable them
             [\&remove_redundant_arguments_and_fix_intents],
             [   \&identify_array_accesses_in_exprs,
             ],

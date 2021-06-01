@@ -86,6 +86,7 @@ if ($Config{'TEST'} == 0 ) {
         # subroutine-specific passes
         [
 #				[ sub { (my $stref, my $f)=@_;  alias_ordered_set($stref,$f,'DeclaredOrigArgs','DeclaredOrigArgs'); } ],
+            # All Fixes are off by default, list them in $Config{'FIXES'} to enable them
             [\&remove_redundant_arguments_and_fix_intents],
             [\&identify_array_accesses_in_exprs],
             [\&fold_constants_in_decls],

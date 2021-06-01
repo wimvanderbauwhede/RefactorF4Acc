@@ -428,8 +428,11 @@ sub identify_array_accesses_in_exprs { (my $stref, my $f) = @_;
         $stref->{'Subroutines'}{ $f }{'ArrayAccesses'} = $state->{'Subroutines'}{$f}{'Blocks'};
 	} # if subkernel not superkernel
 	else {
+		croak $f.': '.Dumper( $stref->{'Subroutines'}{$f}{'DeclaredOrigArgs'});
+
 		$stref = _emit_AST_Main($stref, $f);
 	}
+# carp $f.': '.Dumper( $stref->{'Subroutines'}{$f}{'DeclaredOrigArgs'});
    
  	return $stref;
 } # END of identify_array_accesses_in_exprs()
