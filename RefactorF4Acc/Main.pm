@@ -202,7 +202,8 @@ sub main {
     }
     # say "\n MAIN \n";
     # map {say $_} @{pp_annlines($stref->{'Subroutines'}{'test_loop_nature'}{'AnnLines'},1)};
-    # die;
+                # croak Dumper $stref->{Subroutines}{shapiro_map_24}{DeclaredOrigArgs}{List};
+
     if ($V) {
         say "--------------". ('-' x length($code_unit_name)) ;
         say "BLOCKS PROCESSING for $code_unit_name";

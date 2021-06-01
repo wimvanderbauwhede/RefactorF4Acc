@@ -77,7 +77,7 @@ sub pass_rename_array_accesses_to_scalars {(my $stref, my $code_unit_name)=@_;
 				[ sub { (my $stref, my $f)=@_; 
 				
 				 alias_ordered_set($stref,$f,'RefactoredArgs','DeclaredOrigArgs');
-                       
+                    #    carp Dumper $stref->{Subroutines}{$f}{'DeclaredOrigArgs'}{'List'};
                     } ],
                 # This is mostly to work around bugs in the AutoParallelFortran compiler
 				# All Fixes are off by default, list them in $Config{'FIXES'} to enable them
@@ -279,8 +279,8 @@ sub _rename_array_accesses_to_scalars { (my $stref, my $f) = @_;
 		my $accesses = 
 		exists $stref->{'Subroutines'}{ $f }{'ArrayAccesses'}{0}{'Arrays'}{$var}{'Read'} ?
 		 $stref->{'Subroutines'}{ $f }{'ArrayAccesses'}{0}{'Arrays'}{$var}{'Read'}{'Accesses'} :
-		croak "ERROR: StreamVars without Read access make no sense: ".Dumper($stref->{'Subroutines'}{ $f }{'ArrayAccesses'}{0}{'Arrays'}{$var});
-		# $stref->{'Subroutines'}{ $f }{'ArrayAccesses'}{0}{'Arrays'}{$var}{'Write'}{'Accesses'} ;
+		# croak "$f ERROR: StreamVars without Read access make no sense: ".Dumper($stref->{'Subroutines'}{ $f }{'ArrayAccesses'}{0}{'Arrays'}{$var});
+		$stref->{'Subroutines'}{ $f }{'ArrayAccesses'}{0}{'Arrays'}{$var}{'Write'}{'Accesses'} ;
 		
 		my $array_dims = $stref->{'Subroutines'}{ $f }{'ArrayAccesses'}{0}{'Arrays'}{$var}{'Dims'};
 		my ($offsets_for_scalarised_vars,$ordered_stencil_var_tuple) = _link_scalarised_vars_to_linear_offsets($var, $accesses, $array_dims);

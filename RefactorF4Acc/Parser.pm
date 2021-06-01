@@ -2513,8 +2513,8 @@ sub __parse_sub_func_prog_decls {
 		$Sf->{'UndeclaredOrigArgs'}{'Set'} = { map { $_ => 'UndeclaredOrigArgs: ' .$_.' @ '. __PACKAGE__ . ' ' . __LINE__ } @args };   # UGH!
 		}
 		$Sf->{'OrigArgs'}{'List'} = [@args];
-
 		#		$Sf->{'OrigArgs'}{'Set'} = { map { $_ => 1 } @args };
+		# croak Dumper $Sf->{'OrigArgs'};
         if ( $line =~ /(pure|elemental|recursive)\s+/ ) {
         	$info->{'Signature'}{'Characteristic'} = $1;
         }
@@ -2939,12 +2939,16 @@ sub __parse_f95_decl {
 				# croak Dumper($pt),Dumper($decl) if $tvar eq 'catn13';							 
 				# It is possible that at this point the variable had not been declared yet and we use implicit rules
 				# Then we change it to declared.
-				if ( exists $Sf->{'UndeclaredOrigArgs'}{'Set'}{$tvar} ) {								
-					$Sf->{'DeclaredOrigArgs'}{'Set'}{$tvar} = $decl;
-					delete $Sf->{'UndeclaredOrigArgs'}{'Set'}{$tvar};
-					@{ $Sf->{'UndeclaredOrigArgs'}{'List'} } = grep { $_ ne $tvar } @{ $Sf->{'UndeclaredOrigArgs'}{'List'} };
-					$Sf->{'DeclaredOrigArgs'}{'List'} = ordered_union( $Sf->{'DeclaredOrigArgs'}{'List'}, [$tvar] );
-					
+				
+				if ( exists $Sf->{'UndeclaredOrigArgs'}{'Set'}{$tvar} ) {			
+					$Sf = __move_var_from_UndeclaredOrigArgs_to_DeclaredOrigArgs($Sf, $tvar, $decl);					
+				# 	$Sf->{'DeclaredOrigArgs'}{'Set'}{$tvar} = $decl;
+				# 	delete $Sf->{'UndeclaredOrigArgs'}{'Set'}{$tvar};
+				# 	# Here we filter $tvar out of 'UndeclaredOrigArgs'
+				# 	@{ $Sf->{'UndeclaredOrigArgs'}{'List'} } = grep { $_ ne $tvar } @{ $Sf->{'UndeclaredOrigArgs'}{'List'} };
+				# 	# Here we add $tvar to 'DeclaredOrigArgs'
+				# 	# This is wrong because it should be in the original location!
+				# 	$Sf->{'DeclaredOrigArgs'}{'List'} = ordered_union( $Sf->{'DeclaredOrigArgs'}{'List'}, [$tvar] );					
 				} 
 				elsif ( exists $Sf->{'DeclaredOrigArgs'}{'Set'}{$tvar} ) {
 					$Sf->{'DeclaredOrigArgs'}{'Set'}{$tvar} = $decl;					
@@ -3353,11 +3357,13 @@ sub _parse_f77_var_decl {
 		
 # When we encounter UndeclaredOrigArgs we make them DeclaredOrigArgs
 		if ( exists $Sf->{'UndeclaredOrigArgs'}{'Set'}{$tvar} ) {
-			# say "$f: $tvar";
-			$Sf->{'DeclaredOrigArgs'}{'Set'}{$tvar} = $decl;
-			delete $Sf->{'UndeclaredOrigArgs'}{'Set'}{$tvar}; # Regardless of what was there
-			@{ $Sf->{'UndeclaredOrigArgs'}{'List'} } = grep { $_ ne $tvar } @{ $Sf->{'UndeclaredOrigArgs'}{'List'} };
-			$Sf->{'DeclaredOrigArgs'}{'List'} = ordered_union( $Sf->{'DeclaredOrigArgs'}{'List'}, [$tvar] );
+ 			$Sf = __move_var_from_UndeclaredOrigArgs_to_DeclaredOrigArgs($Sf, $tvar, $decl);
+			# # say "$f: $tvar";
+			# $Sf->{'DeclaredOrigArgs'}{'Set'}{$tvar} = $decl;
+			# delete $Sf->{'UndeclaredOrigArgs'}{'Set'}{$tvar}; # Regardless of what was there
+			# @{ $Sf->{'UndeclaredOrigArgs'}{'List'} } = grep { $_ ne $tvar } @{ $Sf->{'UndeclaredOrigArgs'}{'List'} };
+			# $Sf->{'DeclaredOrigArgs'}{'List'} = ordered_union( $Sf->{'DeclaredOrigArgs'}{'List'}, [$tvar] );
+
 			$Sf->{'DeclaredOrigArgs'}{'Set'}{$tvar}{'StmtCount'}=1;
 			$info->{'ArgDecl'}{$tvar}=1;
 			# $info->{'TEST'}=1;
@@ -4791,6 +4797,32 @@ sub __get_params_from_dim { my ($decl, $Sf)=@_;
 	} 	
 	return $decl;
 } # END of __get_params_from_dim
+
+sub __move_var_from_UndeclaredOrigArgs_to_DeclaredOrigArgs { my ($Sf, $tvar, $decl) = @_;
+	# if ( exists $Sf->{'UndeclaredOrigArgs'}{'Set'}{$tvar} ) {								
+		$Sf->{'DeclaredOrigArgs'}{'Set'}{$tvar} = $decl;
+		delete $Sf->{'UndeclaredOrigArgs'}{'Set'}{$tvar};
+		# Here we filter $tvar out of 'UndeclaredOrigArgs'
+		my $idx=0;
+		for my $orig_arg (@{ $Sf->{'OrigArgs'}{'List'} }) {
+			if ($tvar eq $orig_arg ) {
+			$Sf->{'UndeclaredOrigArgs'}{'List'}[$idx]=undef;
+			$Sf->{'DeclaredOrigArgs'}{'List'}[$idx]=$tvar;
+			}
+			++$idx;
+		}
+		# @{ $Sf->{'UndeclaredOrigArgs'}{'List'} } = grep { $_ ne $tvar } @{ $Sf->{'UndeclaredOrigArgs'}{'List'} };
+		# Here we add $tvar to 'DeclaredOrigArgs'
+		# This is wrong because it should be in the original location!
+		# $Sf->{'DeclaredOrigArgs'}{'List'} = ordered_union( $Sf->{'DeclaredOrigArgs'}{'List'}, [$tvar] );					
+	# } 
+	# elsif ( exists $Sf->{'DeclaredOrigArgs'}{'Set'}{$tvar} ) {
+	# 	$Sf->{'DeclaredOrigArgs'}{'Set'}{$tvar} = $decl;					
+	# }	
+	return $Sf;
+}
+
+
 
 1;
 

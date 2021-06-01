@@ -1158,7 +1158,8 @@ and a list $f => [($orig_name, $stencil_index)] with the order for the scalarise
 
 Then for every f we map (orig_name, stencil_index) -> ((origNames ! f) ! orig_name)++(if stencil_index==0 then "" else "("++(show stencil_index++")")))
 =cut
-
+# in the script memory_reduction.pl we set
+# $stref->{'ScalarisedArgs'}{$f}=$stref_init->{'Subroutines'}{$f}{'DeclaredOrigArgs'};
 sub _create_TyTraCL_Haskell_scalarisedArgsList { (my $stref)=@_;
     
     my @scalarisedArgsList = ();
@@ -1226,7 +1227,6 @@ sub _create_TyTraCL_Haskell_origNamesList { (my $orig_names_list)=@_;
 sub __origNamesListEntry { my ($node) = @_;
     my $arg_name_pairs = [];
     my $fname = $node->{'FunctionName'};
-
         if ($node->{'NodeType'} eq 'Map') {
 
             my %out_args = ();
@@ -1322,9 +1322,16 @@ sub __origNamesListEntry { my ($node) = @_;
         
 } # END of __origNamesListEntry
 
-# Only Intent if VI or VO. VS and VT are local.
+# Only Intent if VI, VO or VS. VT is local.
+# VS is a stencil and that is per definition In
 sub __VE_to_Intent { my ($ve) = @_;
-    $ve eq 'VI' ? 'In' : $ve eq 'VO' ? 'Out' : ''
+    $ve eq 'VI' 
+        ? 'In' 
+        : $ve eq 'VO' 
+            ? 'Out'
+            : $ve eq 'VS' 
+                ? 'In' 
+                : ''
 }
 
 sub _create_Haskell_TyTraAST_type { my ($stref,$f,$arg_rec,$idx,$FSig_ctor,$type) = @_;

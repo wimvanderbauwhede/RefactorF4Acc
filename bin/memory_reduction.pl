@@ -137,8 +137,10 @@ if ($gen_main) {
             my $stref_merger=sub{ my ($stref, $stref_init )=@_;
                 $stref->{'ScalarisedArgs'}={};
                 for my $f (sort keys %{$stref_init->{'Subroutines'}}) {
+                    # carp Dumper $stref_init->{'Subroutines'}{$f}{'OrigArgs'};
                         $stref->{'ScalarisedArgs'}{$f}=$stref_init->{'Subroutines'}{$f}{'DeclaredOrigArgs'};
                 }
+                # die;
                 return $stref;
             };
 	        $stref = main($args, $stref_init, $stref_merger);     
