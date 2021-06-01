@@ -27,10 +27,10 @@ stencilDefinitionsList = [("s1" , [1,502,503,504,1005] ), ("s2" , [1,502,503,504
 
 mainArgDeclsList = [
       ("eta_0" , MkFDecl "real"  (Just [252004]) (Just In) ["eta_0"] )
-    , ("etan_0" , MkFDecl "real"  (Just [252004]) (Just In) ["etan_0"] )
-    , ("etan_avg_0" , MkFDecl "real" Nothing (Just In) ["etan_avg_0"] )
     , ("eps_0" , MkFDecl "real" Nothing (Just In) ["eps_0"] )
     , ("wet_0" , MkFDecl "integer"  (Just [252004]) (Just In) ["wet_0"] )
+    , ("etan_0" , MkFDecl "real"  (Just [252004]) (Just In) ["etan_0"] )
+    , ("etan_avg_0" , MkFDecl "real" Nothing (Just In) ["etan_avg_0"] )
     , ("eta_1" , MkFDecl "real"  (Just [252004]) (Just Out) ["eta_1"] )
   ]
 
