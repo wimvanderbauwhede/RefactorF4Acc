@@ -4,6 +4,17 @@
 
 Started on ShallowWater2D. Turns out that the argument order in scalarisedArgsList and in the actual arg list of scalarised functions was not the same, fixed this.
 
+Now debugging a simple fold + stencil map. Problem is that the accumulator is marked as VT in the map and it must be VI to work.
+But it should actually be VT. But when I do that, the arg gets removed as a temp. This would be OK inside a stage but not across stage.
+I am surprised this is broken.
+
+Note that the output of the fold is marked as VO and that is also wrong, that should be fixed in MemoryReduction.pm
+
+To solve the issue with VT in the stages, we need the following analysis:
+
+- if we encounter a VT on the RHS before we encounter one on the LHS, then that VT becomes VI. I don't think it is possible to encounter a VT on the LHS after encountering one on the RHS.
+- if we encounter a VT on the LHS but never on the RHS, then that VT becomes VO
+- if we encounter a VT on the LHS an later on the RHS, then that VT stays VT
 
 ## 2021-05-31
 

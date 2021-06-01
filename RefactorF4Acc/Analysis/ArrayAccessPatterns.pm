@@ -257,10 +257,13 @@ sub identify_array_accesses_in_exprs { (my $stref, my $f) = @_;
 				# We should do that in 
 				if ($Config{'KERNEL'} ne '' and $info->{'Lhs'}{'ArrayOrScalar'} eq 'Scalar' and $info->{'Lhs'}{'VarName'} =~/^(\w+)_range/) {
 					my $loop_iter=$1;
-
-					my $expr_str = emit_expr_from_ast($info->{'Rhs'}{'ExpressionAST'});
+					my $expr_ast = $info->{'Rhs'}{'ExpressionAST'};
+					my $expr_str = emit_expr_from_ast($expr_ast);
+					my $expr_ast2 = replace_param_by_val($stref, $f, 0,$expr_ast, $state);
+    				my $evaled_expr_str=emit_expr_from_ast($expr_ast2);
 					# Can do this as it should all be constants
-					my $loop_range = eval($expr_str);
+					my $loop_range = eval($evaled_expr_str);
+
 					$state->{'Subroutines'}{ $f }{'Blocks'}{$block_id}{'LoopIters'}{$loop_iter}{'Range'} = [1,$loop_range,1];
 				} 
 				# else {
@@ -1522,7 +1525,6 @@ sub _is_stream_var { my ($state, $f, $block_id, $var_name) =@_;
 		  my $ii=0;
 		  for my $iter (sort keys %{$iters}) {
 			  my $range = $iters->{$iter}{'Range'};
-			  
 			  my $range_sz = $range->[1] - $range->[0] +1;
 			  my $dim = $dims->[$ii];++$ii;
 			  my $dim_sz = $dim->[1] - $dim->[0] +1;
