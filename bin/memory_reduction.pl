@@ -16,7 +16,7 @@ use Carp;
 use Data::Dumper;
 
 my %opts = ();
-getopts( 'hvmst:e:w:dc', \%opts );
+getopts( 'hvimst:e:w:dc', \%opts );
 
 if ($opts{'h'}){
     die "
@@ -111,13 +111,13 @@ if ($gen_main) {
     if (scalar @kernel_srcs == 1 or $test) {
         if (!$test) {
             # This is currently unused
-            if (-d './TyTraC' ) {
-                if (-e './TyTraC/kernelTop.ll')  {
-                        unlink('./TyTraC/kernelTop.ll');
-                }
-            } else {
-                mkdir './TyTraC';
-            }
+            # if (-d './TyTraC' ) {
+            #     if (-e './TyTraC/kernelTop.ll')  {
+            #             unlink('./TyTraC/kernelTop.ll');
+            #     }
+            # } else {
+            #     mkdir './TyTraC';
+            # }
             my $kernel_src = shift @kernel_srcs;
             say "KERNEL MODULE SRC: $kernel_src" if $V;
             my ($kernel_sub_name, $kernel_module_name) = get_kernel_and_module_names($kernel_src,'superkernel');

@@ -50,6 +50,8 @@ sub emit_all {
 
     # I build a fresh list here. I should just delete 'F' at the end
     $stref->{'BuildSources'}{$EXT} = {};
+    
+    return $stref unless scalar keys %{ $stref->{'SourceContains'} } >0;
 
     _init_emit_all($stref) unless $DUMMY;
 
@@ -65,39 +67,13 @@ sub emit_all {
 
         my ( $has_subdirs, $subdir_path ) = __get_src_subdirs($src);
 
-        # if ( $src =~ /\w\/\w/ ) {
-        #     # Source resides in subdirectory, create it if required
-        #     my @dirs = split( /\//, $src );
-        #     if (! -d $src) {
-        #         pop @dirs;
-        #     }
 
-        #     my @subdirs = @dirs ;
-        #     if ($subdirs[0] eq '.') {
-        #         shift @subdirs;
-        #     }
-        #     # my @subdirs = @dirs; grep {$_!~/\./} @dirs; # A bit weak, right?
-        #     # for my $srcdir (@{$Config{'SRCDIRS'}}) {
-        #     #     @subdirs = grep {$_!~/$srcdir/} @subdirs;
-        #     # }
-        #     # my $fullpath = join('/',@dirs);
-        #     my $dirpath=join('/',@subdirs);
         if ( not $DUMMY ) {
             if ($has_subdirs) {
                 say "CREATING SUBDIR $targetdir/$subdir_path" if $V;
                 system("mkdir -p $targetdir/$subdir_path");
             }
         }
-
-        # } else {
-        #     pop @subdirs;
-        #     my $dirpath=join('/',@subdirs);
-        #     if (not -d "$targetdir/$dirpath") {
-        #         say "CREATING SUBDIR $targetdir/$dirpath" if $V;
-        #         system("mkdir -p $targetdir/$dirpath");
-        #     }
-        # }
-        # }
 
         if ($I) {
             if ( @{ $stref->{'SourceContains'}{$src}{'List'} } ) {
@@ -221,7 +197,7 @@ sub emit_all {
 # This routine does not generate or manipulate files, it only does copying etc.
 sub _init_emit_all {
     ( my $stref ) = @_;
-
+    # say "Creating NEWSRCPATH $targetdir";
     # if target dir for refactored code does not exist, create it
     # and copy include files into it
     if ( not -e $targetdir ) {
