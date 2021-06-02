@@ -120,6 +120,38 @@ instance Show LHSPrint where
     show (LHSPrint (Function x _)) = show x
     show (LHSPrint x) = show x
 
+ppAST ast = map ppExprTup ast
+ppExprTup (lhs,rhs) = (ppLHSExpr lhs) ++ " = " ++ (ppRHSExpr rhs)
+
+ppLHSExpr  :: Expr -> String
+ppLHSExpr (Scalar _ _ x) = show x
+ppLHSExpr (Vec _ x) = ppLHSExpr x
+ppLHSExpr (Function x _) = show x
+ppLHSExpr x = show x
+
+ppRHSExpr :: Expr -> String
+ppRHSExpr (Scalar _ _ x) = show x
+ppRHSExpr (Vec _ x) = ppRHSExpr x
+ppRHSExpr (Function x _) = show x
+ppRHSExpr
+ppRHSExpr (SVec _ x) -- Name
+ppRHSExpr (ZipT xs) = "("++(intercalate ", " (map ppRHSExpr xs))++")"
+ppRHSExpr (UnzipT x) = "unzipt ("++(ppRHSExpr x)++")"
+ppRHSExpr (Elt idx x) =  "elt "++(show idx)++" "++(ppRHSExpr x)
+ppRHSExpr (PElt idx) = "pelt "++(show idx)++" "
+ppRHSExpr (Map f v) = "map " ++ (ppRHSExpr f) ++ " " ++ (ppRHSExpr v)
+ppRHSExpr (Fold f acc v) = fold f acc v "fold " ++ (ppRHSExpr f)  ++ " " ++ (ppRHSExpr acc) ++ " " ++ (ppRHSExpr v)
+ppRHSExpr (Stencil s v)= "stencil " ++ (ppRHSExpr s)++" "++(ppRHSExpr v)
+ppRHSExpr (Function fname xs) = "("++fname++(unwords (map ppRHSExpr xs))++")" 
+ppRHSExpr (Id Name _) = "id "
+ppRHSExpr (ApplyT xs)  = "applyt ("++(intercalate ", " (map ppRHSExpr xs))++")"
+ppRHSExpr (MapS s f) = "maps "++(ppRHSExpr s)++" "++ (ppRHSExpr f)
+ppRHSExpr (Comp f2 f1) = "comp "++(ppRHSExpr f2) ++" "++(ppRHSExpr f1)
+ppRHSExpr (FComp f2 f1) = "fcomp"++(ppRHSExpr f2) ++" "++(ppRHSExpr f1)
+ppRHSExpr (SComb s1 s2) = "scomb "++ (ppRHSExpr s1) ++" "++(ppRHSExpr s2)
+
+ppRHSExpr x = show x
+
 getDType (Vec _ dt_exp ) = dt_exp
 getDType (ZipT es) = Tuple (map getDType es)
 
