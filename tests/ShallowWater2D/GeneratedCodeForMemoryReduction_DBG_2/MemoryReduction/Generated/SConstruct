@@ -2,7 +2,7 @@ import os
 
 FC=os.environ.get('FC')
 
-fsources = ['gen_shapiro_dyn_update_superkernel.f95', '../Scalarized/dyn_map_39.f95', '../Scalarized/reduce_18.f95', '../Scalarized/shapiro_map_24.f95', '../Scalarized/shapiro_reduce_19.f95']
+fsources = ['gen_shapiro_dyn_update_superkernel.f95', '../Scalarized/dyn_map_39.f95', '../Scalarized/reduce_18.f95', '../Scalarized/shapiro_map_24.f95', '../Scalarized/shapiro_map_25.f95', '../Scalarized/shapiro_reduce_19.f95']
 
 FFLAGS = ['-Wall','-cpp','-O3','-m64','-ffree-form','-ffree-line-length-0','-fconvert=little-endian','-frecord-marker=4']
 

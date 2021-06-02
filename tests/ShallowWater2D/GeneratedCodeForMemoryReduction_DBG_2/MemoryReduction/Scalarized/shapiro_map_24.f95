@@ -3,7 +3,7 @@ module singleton_module_shapiro_map_24
 contains
 
 subroutine shapiro_map_24_scal(wet_j_km1,wet_jm1_k,wet_j_k,wet_jp1_k,wet_j_kp1,eps,etan_j_km1, &
-      etan_jm1_k,etan_j_k,etan_jp1_k,etan_j_kp1,eta_j_k,etan_avg)
+      etan_jm1_k,etan_j_k,etan_jp1_k,etan_j_kp1,eta1_local_j_k,etan_avg)
 !integer, dimension(8), intent(in) :: test_1
     parameter(nx=500)
     parameter(ny=500)
@@ -30,7 +30,7 @@ subroutine shapiro_map_24_scal(wet_j_km1,wet_jm1_k,wet_j_k,wet_jp1_k,wet_j_kp1,e
 ! WRITTEN
     ! real, intent(in) :: test_temp
 ! READ & WRITTEN
-    real, intent(InOut) :: eta_j_k
+    real, intent(InOut) :: eta1_local_j_k
 ! globalIdDeclaration
 ! globalIdInitialisation
 ! ptrAssignments_fseq
@@ -41,11 +41,11 @@ subroutine shapiro_map_24_scal(wet_j_km1,wet_jm1_k,wet_j_k,wet_jp1_k,wet_j_kp1,e
   term1 = (1.0 - 0.25 * eps * (wet_j_kp1 + wet_j_km1 + wet_jp1_k + wet_jm1_k)) * etan_j_k
   term2 = 0.25 * eps * (wet_j_kp1 * etan_j_kp1 + wet_j_km1 * etan_j_km1)
   term3 = 0.25 * eps * (wet_jp1_k * etan_jp1_k + wet_jm1_k * etan_jm1_k)
-  eta_j_k = term1 + term2 + term3
+  eta1_local_j_k = term1 + term2 + term3
 else
-  eta_j_k = etan_j_k
+  eta1_local_j_k = etan_j_k
 end if
-  eta_j_k = (1 - alpha) * eta_j_k + alpha * etan_avg
+  eta1_local_j_k = (1 - alpha) * eta1_local_j_k + alpha * etan_avg
 end subroutine shapiro_map_24_scal
 
 end module singleton_module_shapiro_map_24

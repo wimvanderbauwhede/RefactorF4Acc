@@ -825,6 +825,11 @@ generateStencilAppl :: Expr -> Expr -> FName -> Map.Map Name [Integer]  -> (Stri
 generateStencilAppl s_exp v_exp@(Vec _ dt) sv_name stencilDefinitions =
     let
         Single v_name = getName dt
+        v_decl = mainArgDecls ! v_name 
+        --  MkFDecl "integer"  (Just [252004]) (Just In) ["wet_0"] )
+        v_upper_bound = case dim v_decl of
+            Just vub -> head vub
+            _ -> error $ v_name++" is not a Vector"
         Single lhs_v_name = sv_name
         sv_type = fortranType dt
         extra_in_var_decls
@@ -856,11 +861,18 @@ generateStencilAppl s_exp v_exp@(Vec _ dt) sv_name stencilDefinitions =
         ub :: Integer
         ub = maximum $ nub $ concat s_defs
     in
+        -- FIXME
+        -- WV 2021-06-02 This is a hack really: I don't quite know how to handle the combined stencil accesses
+        -- So when they exceed the array bounds, I replace them by the value at idx instead.
         (unlines $ concat [
             ["! Stencil "++ show (getName s_exp)],
             zipWith (curry (\(sv_sz,ct) -> "    do s_idx_"++(show ct)++" = 1,"++(show sv_sz))) sv_szs [1..],
             [
-             "        "++lhs_v_name++"("++lhs_idx_str++") = "++v_name++"(idx+"++stencil_accesses++")"
+                "        if (idx+"++stencil_accesses++">=1 .and. idx+"++stencil_accesses++"<="++(show v_upper_bound)++") then",
+             "            "++lhs_v_name++"("++lhs_idx_str++") = "++v_name++"(idx+"++stencil_accesses++")",
+             "        else",
+             "            "++lhs_v_name++"("++lhs_idx_str++") = "++v_name++"(idx)",
+             "        end if"
              ],
             replicate (length sv_szs) "    end do"
           ]
