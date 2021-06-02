@@ -60,12 +60,14 @@ main = do
             putStrLn "\n-- Decompose expressions and infer intermediate function signatures"
             putStrLn "-- Original function signatures"
             mapM_ print functionSignaturesList
+            -- mapM_ (putStrLn . ppFSig) functionSignaturesList
             putStrLn "-- Decomposed expressions and infered function signatures"
             mapM_ ( \((x1,x2),ct) -> do
                 if noStencilRewrites  then putStrLn $ "-- stage_kernel_" ++ show ct else return ()
                 putStrLn $ "-- " ++ (show . LHSPrint . fst . head) x1
                 putStrLn "-- Decomposed expressions"
-                mapM_ print x1   
+                -- mapM_ print x1   
+                putStr $ unlines $ ppAST x1
                 putStrLn "-- Infered function signatures"
                 mapM print x2
                 ) (zip (zip ast4 inferedSignatures) [1..])

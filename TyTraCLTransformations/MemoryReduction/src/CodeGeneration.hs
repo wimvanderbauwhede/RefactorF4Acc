@@ -26,7 +26,10 @@ generateFortranCode decomposed_ast functionSignaturesList idSigList =
         generatedFunctionDefs = generateDefs functionSignatures asts_function_defs
         -- generatedStageKernels = map (\(ast,ct) -> (generateStageKernel functionSignatures) ct ast) (zip ast_stages [1..])
         mainProgramStr
-            | genMain = "! AST STAGES:\n"++unlines (map (\st -> "! " ++ (show st)) ast_stages) ++"\n"++ generateMainProgram functionSignatures ast_stages
+            | genMain = "! AST STAGES:\n"++
+                unlines (map (\st -> "! " ++ (show st)) ast_stages) ++"\n"++ 
+                unlines (concatMap  ppAST ast_stages) ++"\n"++ 
+                generateMainProgram functionSignatures ast_stages
             | otherwise = "! Main code not generated"
         generatedOpaqueFunctionDefsStr = unlines generatedOpaqueFunctionDefs
         -- putStrLn "\n! Generate subroutine definitions"
