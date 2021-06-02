@@ -22,7 +22,7 @@ data DType =
 type FSig = [Expr]
 
 
-ppFSig (fname,ftypes) = fname ++" :: "++(intercalate " -> " (map ppFSigArg ftypes) )
+ppFSig (fname,ftypes) = fname ++" :: "++(intercalate " -> " (filter (/="()") (map ppFSigArg ftypes) ) )
 ppFSigArg (Scalar _ dt _) = ppDType dt
 ppFSigArg (Tuple ts) = "("++(intercalate ", " (map ppFSigArg ts))++")"
 ppFSigArg (SVec sz x) = "SVec "++(show sz)++" "++(ppFSigArg x)

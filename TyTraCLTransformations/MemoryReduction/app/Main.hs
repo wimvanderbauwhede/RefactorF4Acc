@@ -3,6 +3,7 @@
 module Main where
 import Control.Monad ( when )
 import System.IO ( openFile, hPutStr, hClose, IOMode(..) )
+import Data.List ((\\))
 import TyTraCLAST 
 import ASTInstance (ast,functionSignaturesList,moduleName)
 import Transforms (splitLhsTuples, substituteVectors, applyRewriteRules, fuseStencils, decomposeExpressions)
@@ -13,8 +14,9 @@ import CodeGeneration (
 
 info 
     | noStencilRewrites = True
-    | otherwise = True
+    | otherwise = False    
 
+    
 data Stage = Original | SplitLhsTuples | SubstituteVectors | ApplyRewriteRules | FuseStencils | DecomposeExpressions deriving (Show, Ord, Eq)
 stage 
     | noStencilRewrites = DecomposeExpressions
@@ -43,9 +45,10 @@ inferedSignatures = map inferSignatures ast4
 
 generatedFortranCode = generateFortranCode asts functionSignaturesList idSigList 
 
+printTyTraCL = True
+
 main = do
-    if info 
-        then
+    if info then
             do
             putStrLn "-- Original AST"
             mapM_ print ast
@@ -57,22 +60,31 @@ main = do
             mapM_ print ast3
             putStrLn "\n-- Fuse stencils"
             mapM_ print ast3'    
-            putStrLn "\n-- Decompose expressions and infer intermediate function signatures"
+        else return ()
+    if printTyTraCL then
+            do        
             putStrLn "-- Original function signatures"
-            mapM_ print functionSignaturesList
-            -- mapM_ (putStrLn . ppFSig) functionSignaturesList
-            putStrLn "-- Decomposed expressions and infered function signatures"
+            -- mapM_ print functionSignaturesList
+            mapM_ (putStrLn . ppFSig) functionSignaturesList
+            putStrLn "\n-- Original TyTraCL code"
+            mapM_ putStrLn $ ppAST ast
+            -- putStrLn "\n-- Decompose expressions and infer intermediate function signatures"
+            putStrLn "\n-- Decomposed expressions and inferred function signatures"
             mapM_ ( \((x1,x2),ct) -> do
                 if noStencilRewrites  then putStrLn $ "-- stage_kernel_" ++ show ct else return ()
-                putStrLn $ "-- " ++ (show . LHSPrint . fst . head) x1
-                putStrLn "-- Decomposed expressions"
+                if not (null (x2 \\ functionSignaturesList)) then
+                    putStrLn $ "-- Inferred function signatures stage "++(show ct)
+                else
+                    return ()
+                -- mapM print x2
+                mapM_ (putStrLn . ppFSig) (x2 \\ functionSignaturesList)
+                -- putStrLn $ "-- " ++ (show . LHSPrint . fst . head) x1
+                putStrLn $ "-- Decomposed expressions stage "++(show ct)
                 -- mapM_ print x1   
                 putStr $ unlines $ ppAST x1
-                putStrLn "-- Infered function signatures"
-                mapM print x2
                 ) (zip (zip ast4 inferedSignatures) [1..])
         else return ()     
-    putStr generatedFortranCode
+    -- putStr generatedFortranCode
     let
         fp = mkSrcFileName moduleName
     fh <- openFile fp WriteMode     

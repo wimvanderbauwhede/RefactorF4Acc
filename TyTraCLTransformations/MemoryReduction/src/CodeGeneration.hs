@@ -28,7 +28,7 @@ generateFortranCode decomposed_ast functionSignaturesList idSigList =
         mainProgramStr
             | genMain = "! AST STAGES:\n"++
                 unlines (map (\st -> "! " ++ (show st)) ast_stages) ++"\n"++ 
-                unlines (concatMap  ppAST ast_stages) ++"\n"++ 
+                -- unlines (concatMap  ppAST ast_stages) ++"\n"++ 
                 generateMainProgram functionSignatures ast_stages
             | otherwise = "! Main code not generated"
         generatedOpaqueFunctionDefsStr = unlines generatedOpaqueFunctionDefs
