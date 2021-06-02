@@ -5,9 +5,9 @@ contains
 subroutine shapiro_map_24_scal(wet_j_km1,wet_jm1_k,wet_j_k,wet_jp1_k,wet_j_kp1,eps,etan_j_km1, &
       etan_jm1_k,etan_j_k,etan_jp1_k,etan_j_kp1,eta_j_k,etan_avg)
 !integer, dimension(8), intent(in) :: test_1
-          parameter(nx=500)
-          parameter(ny=500)
-          parameter(alpha=1e-9)
+    parameter(nx=500)
+    parameter(ny=500)
+    parameter(alpha=1e-9)
     ! local vars: j,k,term1,term2,term3
     real :: term1
     real :: term2
@@ -26,8 +26,9 @@ subroutine shapiro_map_24_scal(wet_j_km1,wet_jm1_k,wet_j_k,wet_jp1_k,wet_j_kp1,e
     real, intent(In) :: etan_jm1_k
     real, intent(In) :: etan_jp1_k
     real, intent(In) :: eps
-    real, intent(In) :: etan_avg
+    real, intent(in) :: etan_avg
 ! WRITTEN
+    ! real, intent(in) :: test_temp
 ! READ & WRITTEN
     real, intent(InOut) :: eta_j_k
 ! globalIdDeclaration

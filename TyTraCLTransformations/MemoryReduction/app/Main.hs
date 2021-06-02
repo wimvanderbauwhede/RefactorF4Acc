@@ -57,7 +57,7 @@ main = do
             mapM_ print ast3
             putStrLn "\n-- Fuse stencils"
             mapM_ print ast3'    
-            putStrLn "\n-- Decompose expressions and Infer intermediate function signatures"
+            putStrLn "\n-- Decompose expressions and infer intermediate function signatures"
             putStrLn "-- Original function signatures"
             mapM_ print functionSignaturesList
             putStrLn "-- Decomposed expressions and infered function signatures"
@@ -72,7 +72,7 @@ main = do
         else return ()     
     putStr generatedFortranCode
     let
-        fp = mkSrcFileName moduleName       
+        fp = mkSrcFileName moduleName
     fh <- openFile fp WriteMode     
     hPutStr fh generatedFortranCode
     hClose fh

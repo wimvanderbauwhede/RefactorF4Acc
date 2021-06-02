@@ -546,3 +546,64 @@ getNonMapFoldArgs' :: Expr -> [Expr]
 getNonMapFoldArgs' (Function _ nms) = nms
 getNonMapFoldArgs' _ = []
 
+-- analyse_stage_exprs_for_args ::  (Map.Map Expr Expr) -> Expr -> Expr -> [(Expr,Expr)]
+-- analyse_stage_exprs_for_args orig_bindings lhs ast = let
+--         (ast',(_,_,_,var_expr_pairs)) = runState (everywhereM (mkM (subsitute_expr lhs)) ast) (0,orig_bindings,Map.empty,[])
+--     in 
+--        var_expr_pairs ++ [ (lhs,ast') ]
+
+{- When the stages have been formed, some VT variables are actually In or Out args of a stage, so they must become VI or VO.
+To solve the issue with VT in the stages, we need the following analysis:
+
+- if we encounter a VT on the RHS before we encounter one on the LHS, then that VT becomes VI. I don't think it is possible to encounter a VT on the LHS after encountering one on the RHS.
+- if we encounter a VT on the LHS but never on the RHS, then that VT becomes VO
+- if we encounter a VT on the LHS an later on the RHS, then that VT stays VT
+So we need to maintain a map from the name to its VE and a bit to say it was LHS or RHS
+e.g. String => Either VT
+
+We need a fold over [(lhs_expr,rhs_expr)] wit a map as accumulator
+
+\acc (lhs_expr,rhs_expr) -> let
+        m_lhs_vts = find_VT_in_expr lhs_expr
+        m_rhs_vts = find_VT_in_expr rhs_expr
+        
+        lhs_vt_name = (name lhs_vt)
+        acc' = if lhs_vt_name `Map.member` acc then 
+            -- update the map, append LHS
+        else 
+            Map.insert lhs_vt_name [LHS] acc
+        acc'' = if rhs_vt_name `Map.member` acc' then 
+            -- update the map, append RHS
+        else 
+            Map.insert rhs_vt_name [RHS] acc'
+
+    in 
+        acc''    
+Maybe the easiest way is to built the LHS/RHS access sequence for every VT var
+[LHS] => VO
+[LHS,RHS,RHS,...] => VT
+[LHS,LHS] => Error!
+
+[RHS] => VI
+[RHS,LHS] => Error
+[RHS,RHS,...] => VI
+The list can't be empty, by construction. So:
+
+pos:r_pos_lst =  pos_lst
+| pos == LHS 
+    | null r_pos_lst 
+            = VO
+    | null (filter (==LHS) r_pos_lst) = VT
+    | otherwise = error "variable assigned to more than once"
+| otherwise -- means it is RHS
+    | null (filter (==LHS) r_pos_lst) = VI
+    | otherwise = error $ "In arg " ++ var_name ++" assigned to"
+
+-}
+
+data Pos = LHS| RHS
+-- analyse_exprs_for_stage_args :: Expr -> Expr -> State (Int,Map.Map Expr Expr,Map.Map Expr Expr,[(Expr,Expr)]) Expr
+-- analyse_exprs_for_stage_args lhs exp = do
+--     let 
+--     return exp'
+

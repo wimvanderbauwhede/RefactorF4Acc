@@ -2,7 +2,7 @@ module singleton_module_shapiro_reduce_19
 
 contains
 
-subroutine shapiro_reduce_19_scal(etan_j_k,etan_avg)
+subroutine shapiro_reduce_19_scal(acc,etan_j_k,etan_avg)
     parameter(nx=500)
     parameter(ny=500)
     parameter(alpha=1e-9)
@@ -18,7 +18,9 @@ subroutine shapiro_reduce_19_scal(etan_j_k,etan_avg)
     real, intent(In) :: etan_j_k
 ! WRITTEN
 ! READ & WRITTEN
-    real, intent(InOut) :: etan_avg
+    real, intent(inout) :: etan_avg
+    real, intent(in) :: acc
+    ! real, intent(out) :: test_temp
     ! globaliddeclaration
     integer :: global_id
 ! globalIdInitialisation
@@ -33,6 +35,8 @@ subroutine shapiro_reduce_19_scal(etan_j_k,etan_avg)
     k = (k_rel + 1)
     ! parallelfortran: original code
     etan_avg = etan_avg + etan_j_k / (nx * ny)
+    etan_avg = etan_avg / acc
+! test_temp = 
 end subroutine shapiro_reduce_19_scal
 
 end module singleton_module_shapiro_reduce_19

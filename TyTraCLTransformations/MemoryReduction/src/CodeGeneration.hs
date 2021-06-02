@@ -427,17 +427,23 @@ generateSubDefOpaque fname functionSignatures =
                         non_map_args = getVarNames nms
                         in_args = getVarNames ms
                         out_args = getVarNames os
-                        use_statements_for_opaques = map (\fname -> "    use singleton_module_"++fname++", only : "++fname++"_scal") (Map.keys scalarisedArgs)
+                        -- use_statements_for_opaques = map (\fname -> "    use singleton_module_"++fname++", only : "++fname++"_scal") (Map.keys scalarisedArgs)
                     in
-                        unlines $ [
-                             "subroutine "++fname++"("  ++mkArgList [non_map_args,in_args,out_args]++")"
-                         ] ++ use_statements_for_opaques ++
-                             [mkDeclLines [non_map_arg_decls,in_arg_decls,out_arg_decls]]
-                         ++
-                        opaque_function_code_strs
-                        ++ [
-                            "end subroutine "++fname
-                        ]
+                        buildSubDef ""
+                            fname 
+                            [non_map_args,in_args,out_args] 
+                            [non_map_arg_decls,in_arg_decls,out_arg_decls] 
+                            opaque_function_code_strs 
+                            True
+                        -- unlines $ [
+                        --      "subroutine "++fname++"("  ++mkArgList [non_map_args,in_args,out_args]++")"
+                        --  ] ++ use_statements_for_opaques ++
+                        --      [mkDeclLines [non_map_arg_decls,in_arg_decls,out_arg_decls]]
+                        --  ++
+                        -- opaque_function_code_strs
+                        -- ++ [
+                        --     "end subroutine "++fname
+                        -- ]
                 [nms,as,ms,os] ->
                     let
                         non_map_arg_decls = map show $ createIODecls (Just In) nms -- tuple becomes list of decls
@@ -449,15 +455,21 @@ generateSubDefOpaque fname functionSignatures =
                         in_args = getVarNames ms
                         out_args = getVarNames os
                     in
-                        -- error $ "TODO:" ++
-                        unlines ( [
-                             "subroutine "++fname++"("  ++mkArgList [non_map_args,acc_args,in_args,out_args]++")"
-                            , mkDeclLines [non_map_arg_decls,acc_arg_decls,in_arg_decls,out_arg_decls]
-                            ] ++
-                            opaque_function_code_strs
-                            ++ [
-                            "end subroutine "++fname
-                            ])
+                        buildSubDef ""
+                            fname 
+                            [non_map_args,acc_args,in_args,out_args] 
+                            [non_map_arg_decls,acc_arg_decls,in_arg_decls,out_arg_decls] 
+                            opaque_function_code_strs 
+                            True
+                        -- -- error $ "TODO:" ++
+                        -- unlines ( [
+                        --      "subroutine "++fname++"("  ++mkArgList [non_map_args,acc_args,in_args,out_args]++")"
+                        --     , mkDeclLines [non_map_arg_decls,acc_arg_decls,in_arg_decls,out_arg_decls]
+                        --     ] ++
+                        --     opaque_function_code_strs
+                        --     ++ [
+                        --     "end subroutine "++fname
+                        --     ])
 
 generateSubDefMapS :: Expr -> Expr -> Name -> Map.Map Name FSig -> String
 generateSubDefMapS sv_exp f_exp maps_fname functionSignatures =
@@ -476,17 +488,32 @@ generateSubDefMapS sv_exp f_exp maps_fname functionSignatures =
         sv_out_iters = createIter out_argtfn
         sv_in_accesses = zipWith (curry (\(x,y)-> x++y)) sv_in sv_in_iters
         sv_out_accesses = zipWith (curry (\(x,y)-> x++y)) sv_out sv_out_iters
-    in unlines [
-        "subroutine "++maps_fname++"("  ++mkArgList [non_map_args,sv_in,sv_out]++")"
-        , mkDeclLines [non_map_arg_decls,sv_in_decl,sv_out_decl]
-        ,"    integer :: i"
-        ,"    do i=1,"++ show sv_sz
-        ,"        call "++fname++"("++
-        mkArgList [non_map_args,sv_in_accesses,sv_out_accesses]
-        ++")"
-        ,"    end do"
-        ,"end subroutine "++maps_fname
-    ]
+    in 
+        buildSubDef ""
+            maps_fname 
+            [non_map_args,sv_in,sv_out] 
+            [non_map_arg_decls,sv_in_decl,sv_out_decl] 
+            [
+                 "    integer :: i"
+                ,"    do i=1,"++ show sv_sz
+                ,"        call "++fname++"("++
+                mkArgList [non_map_args,sv_in_accesses,sv_out_accesses]
+                ++")"
+                ,"    end do"
+            ] 
+            False    
+    
+    -- unlines [
+    --     "subroutine "++maps_fname++"("  ++mkArgList [non_map_args,sv_in,sv_out]++")"
+    --     , mkDeclLines [non_map_arg_decls,sv_in_decl,sv_out_decl]
+    --     ,"    integer :: i"
+    --     ,"    do i=1,"++ show sv_sz
+    --     ,"        call "++fname++"("++
+    --     mkArgList [non_map_args,sv_in_accesses,sv_out_accesses]
+    --     ++")"
+    --     ,"    end do"
+    --     ,"end subroutine "++maps_fname
+    -- ]
 
 generateSubDefApplyT :: [Expr]  -> Name -> Map.Map Name FSig -> String
 generateSubDefApplyT f_exps applyt_fname functionSignatures =
@@ -507,18 +534,28 @@ generateSubDefApplyT f_exps applyt_fname functionSignatures =
 
         fsig_names_tups = zip4 f_exps calls_non_map_args calls_in_args calls_out_args
 -- For Id we must rename the args so that they are different. Wonder if I could already do that in the Transform?
-    in unlines $ concat [
-            -- ["! APPLYT: FLATTENED, NUBBED: \n! " ++(show nmstfn)++"\n! "++(show in_argtfn)++"\n! "++(show out_argtfn)], 
-            [
-            "subroutine "++applyt_fname++"("  ++mkArgList [non_map_args'',in_args'',out_args'']++")"
-            , mkDeclLines [non_map_arg_decls,in_arg_decls,out_arg_decls]
-            ]
-            , map (\(f_expr,nms,ms,os) -> case f_expr of
-                    Function fname _ -> "    call "++fname++"(" ++mkArgList [nms,ms,os] ++")"
-                    Id fname dt -> unlines $ zipWith (curry (\(o,m) -> "    "++o++" = "++m)) os ms
-                    ) fsig_names_tups
-            ,["end subroutine "++applyt_fname]
-        ]
+    in 
+        buildSubDef ""
+            applyt_fname
+            [non_map_args'',in_args'',out_args'']
+            [non_map_arg_decls,in_arg_decls,out_arg_decls]
+            (map (\(f_expr,nms,ms,os) -> case f_expr of
+                Function fname _ -> "    call "++fname++"(" ++mkArgList [nms,ms,os] ++")"
+                Id fname dt -> unlines $ zipWith (curry (\(o,m) -> "    "++o++" = "++m)) os ms
+                ) fsig_names_tups)
+            False
+        -- unlines $ concat [
+        --     -- ["! APPLYT: FLATTENED, NUBBED: \n! " ++(show nmstfn)++"\n! "++(show in_argtfn)++"\n! "++(show out_argtfn)], 
+        --     [
+        --     "subroutine "++applyt_fname++"("  ++mkArgList [non_map_args'',in_args'',out_args'']++")"
+        --     , mkDeclLines [non_map_arg_decls,in_arg_decls,out_arg_decls]
+        --     ]
+        --     , map (\(f_expr,nms,ms,os) -> case f_expr of
+        --             Function fname _ -> "    call "++fname++"(" ++mkArgList [nms,ms,os] ++")"
+        --             Id fname dt -> unlines $ zipWith (curry (\(o,m) -> "    "++o++" = "++m)) os ms
+        --             ) fsig_names_tups
+        --     ,["end subroutine "++applyt_fname]
+        -- ]
 
 -- Comp (Function "f4" []) (Function "f_maps_v_3_0" []))
 -- nms are joint
@@ -543,13 +580,23 @@ generateSubDefComp f1_exp f2_exp comp_fname functionSignatures =
         local_var_decls = createDecls ms1
         tmp_args = getVarNames ms1
 
-    in unlines [
-            "subroutine "++comp_fname++"("  ++mkArgList [non_map_args'',in_args'',out_args'']++")"
-            , mkDeclLines [non_map_arg_decls,in_arg_decls,out_arg_decls,local_var_decls]
-            , "    call "++fname2++"(" ++mkArgList [non_map_args2,in_args'',tmp_args] ++")"
-            , "    call "++fname1++"(" ++mkArgList [non_map_args1,tmp_args,out_args''] ++")"
-            ,"end subroutine "++comp_fname
-        ]
+    in 
+        buildSubDef ""
+            comp_fname
+            [non_map_args'',in_args'',out_args'']
+            [non_map_arg_decls,in_arg_decls,out_arg_decls,local_var_decls]
+            [
+                "    call "++fname2++"(" ++mkArgList [non_map_args2,in_args'',tmp_args] ++")"
+              , "    call "++fname1++"(" ++mkArgList [non_map_args1,tmp_args,out_args''] ++")"
+            ]
+            False
+        -- unlines [
+        --     "subroutine "++comp_fname++"("  ++mkArgList [non_map_args'',in_args'',out_args'']++")"
+        --     , mkDeclLines [non_map_arg_decls,in_arg_decls,out_arg_decls,local_var_decls]
+        --     , "    call "++fname2++"(" ++mkArgList [non_map_args2,in_args'',tmp_args] ++")"
+        --     , "    call "++fname1++"(" ++mkArgList [non_map_args1,tmp_args,out_args''] ++")"
+        --     ,"end subroutine "++comp_fname
+        -- ]
 
 -- (Function "f_fcomp_acc3_1_2" [],FComp (Function "f2" []) (Function "f_comp_acc3_1_1" []))
 -- (b -> a -> b) -> (c->a) -> (b -> c -> b)
@@ -577,14 +624,24 @@ generateSubDefFComp f1_exp f2_exp fcomp_fname functionSignatures =
         local_var_decls = createDecls ms1
         tmp_args = getVarNames ms1
 
-    in unlines [
-            "! TO BE CHECKED!",
-            "subroutine "++fcomp_fname++"("  ++mkArgList [non_map_args'',acc_args'',in_args'',out_args'']++")"
-            , mkDeclLines [non_map_arg_decls,acc_arg_decls,in_arg_decls,out_arg_decls,local_var_decls]
-            , "    call "++fname2++"(" ++mkArgList [non_map_args2,in_args'',tmp_args] ++")"
-            , "    call "++fname1++"(" ++mkArgList [non_map_args1,acc_args'',tmp_args,out_args''] ++")"
-            ,"end subroutine "++fcomp_fname
-        ]
+    in 
+        buildSubDef "! TO BE CHECKED!"
+            fcomp_fname
+            [non_map_args'',acc_args'',in_args'',out_args'']
+            [non_map_arg_decls,acc_arg_decls,in_arg_decls,out_arg_decls,local_var_decls]
+            [
+                "    call "++fname2++"(" ++mkArgList [non_map_args2,in_args'',tmp_args] ++")"
+              , "    call "++fname1++"(" ++mkArgList [non_map_args1,acc_args'',tmp_args,out_args''] ++")"
+            ]
+            False        
+    -- unlines [
+    --         "! TO BE CHECKED!",
+    --         "subroutine "++fcomp_fname++"("  ++mkArgList [non_map_args'',acc_args'',in_args'',out_args'']++")"
+    --         , mkDeclLines [non_map_arg_decls,acc_arg_decls,in_arg_decls,out_arg_decls,local_var_decls]
+    --         , "    call "++fname2++"(" ++mkArgList [non_map_args2,in_args'',tmp_args] ++")"
+    --         , "    call "++fname1++"(" ++mkArgList [non_map_args1,acc_args'',tmp_args,out_args''] ++")"
+    --         ,"end subroutine "++fcomp_fname
+    --     ]
 
 -- essentially, select the idx of the tuple as the output of this sub
 -- but this seems a bit silly as it means I have the same function n times
@@ -598,13 +655,21 @@ generateSubDefElt idx f_exp felt_name functionSignatures =
 
         sel_out_arg = out_args !! idx
     in
-        unlines [
-            -- ("! ELT: FLATTENED, NUBBED: \n! " ++(show nms)++"\n! "++(show in_arg)++"\n! "++(show out_arg)) ,
-            "subroutine "++felt_name++"("  ++mkArgList [non_map_args,in_args,[sel_out_arg]]++")"
-            , mkDeclLines [non_map_arg_decls,in_args_decl,out_args_decl]
-            , "    call "++fname++"(" ++mkArgList [non_map_args,in_args,out_args] ++")"
-            ,"end subroutine "++felt_name
-        ]
+        buildSubDef ""
+            felt_name
+            [non_map_args,in_args,[sel_out_arg]]
+            [non_map_arg_decls,in_args_decl,out_args_decl]
+            [
+                "    call "++fname++"(" ++mkArgList [non_map_args,in_args,out_args] ++")"
+            ]
+            False
+        -- unlines [
+        --     -- ("! ELT: FLATTENED, NUBBED: \n! " ++(show nms)++"\n! "++(show in_arg)++"\n! "++(show out_arg)) ,
+        --     "subroutine "++felt_name++"("  ++mkArgList [non_map_args,in_args,[sel_out_arg]]++")"
+        --     , mkDeclLines [non_map_arg_decls,in_args_decl,out_args_decl]
+        --     , "    call "++fname++"(" ++mkArgList [non_map_args,in_args,out_args] ++")"
+        --     ,"end subroutine "++felt_name
+        -- ]
 
 createArgDeclsAndNames argts = let
         argts_fn = map mkFinalArgSigList argts
@@ -1094,11 +1159,14 @@ generateFold functionSignatures f_exp acc_exp v_exp t =
 
 getInputArgs = everything (++) (mkQ [] getInputArgs')
 
+-- WV this is not quite correct because VT can be an input but it depends on the enture AST
+-- So I must do a rewrite of the AST before I call getInputArgs
 getInputArgs' :: Expr -> [Name]
 getInputArgs' node = case node of
                             Vec VI dt -> [(\(Single vn) -> vn) $ getName dt]
                             Vec VT dt -> [(\(Single vn) -> vn) $ getName dt | noStencilRewrites]
                             Scalar VI _ sn -> [sn]
+                            Scalar VT _ sn -> [sn] -- WV 2021-06-02 This is a "quick fix" rather than the correct solution which is to rewrite
                             _ -> []
 
 getOutputArgs = everything (++) (mkQ [] getOutputArgs')
@@ -1201,6 +1269,8 @@ generateMainProgram functionSignatures ast_stages  =
                 -- uniqueGeneratedDeclLines = generatedDeclLines
                 -- now I need to extract all VI and VO from non_func_exprs
                 -- best way to do that is with `everything` I think
+                -- WV 2021-06-01 VT can be In or Out as well!
+                -- So rewrite stage_ast so that VT becomes VI or VO as required
                 in_args = nub $ concatMap (\(lhs,rhs) -> getInputArgs rhs) stage_ast
                 out_args = nub $ concatMap (\(lhs,rhs) -> getOutputArgs lhs) stage_ast
                 -- and I need the declarations for these, so I guess I need to get the Exprs and then the names and decls from there
@@ -1296,10 +1366,10 @@ generateMainProgram functionSignatures ast_stages  =
             "end do"
             ]
             ) (zip stage_kernel_calls boundPairs)
-        use_statements_for_opaques = map (\fname -> "use singleton_module_"++fname++", only : "++fname++"_scal") (Map.keys scalarisedArgs)
+        -- use_statements_for_opaques = map (\fname -> "use singleton_module_"++fname++", only : "++fname++"_scal") (Map.keys scalarisedArgs)
     in unlines $ [
         "program main",
-        unlines use_statements_for_opaques,
+        -- unlines use_statements_for_opaques,
         "integer :: global_id",
         "common /ocl/ global_id",
         "! Declarations"
@@ -1385,3 +1455,26 @@ getRhsExpr (Map _ rhs_v_exp) = rhs_v_exp
 getRhsExpr (Fold _ _ rhs_v_exp) = rhs_v_exp
 getRhsExpr (UnzipT exp) = getRhsExpr exp
 getRhsExpr exp = error $ show exp
+
+
+buildSubDef :: String -> String -> [[String]] -> [[String]] -> [String]-> Bool -> String
+buildSubDef comment fname list_of_arg_lsts list_of_arg_decl_lsts body_lines isOpaque = 
+    let
+        maybeUseDecl :: String
+        maybeUseDecl
+            | isOpaque = "    use singleton_module_"++fname++", only : "++fname++"_scal"
+            | otherwise = ""
+    in
+        unlines $ concat 
+            [
+                [
+                    comment,
+                    "subroutine "++fname++"("  ++(mkArgList list_of_arg_lsts)++")"
+                    , maybeUseDecl
+                    , mkDeclLines list_of_arg_decl_lsts
+                ], 
+                body_lines,
+                [
+                    "end subroutine "++fname
+                ]
+            ]

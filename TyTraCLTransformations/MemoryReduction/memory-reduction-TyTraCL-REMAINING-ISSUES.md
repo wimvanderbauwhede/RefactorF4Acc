@@ -1,5 +1,13 @@
 # REMAINING ISSUES : Memory (Bandwidth) Reduction for Scientific Computing on GPUs
 
+## 2021-05-02
+
+Minor bug to fix: the use declarations must be in the _scal wrappers, not in the main program!
+
+A small problem is that currently, the call args for subs called in the superkernel must have the same name as the sig args of the subs. 
+
+Regarding the VT, I think for now I will simply treat all VT as Input arguments. If that breaks, I can do the right thing.
+
 ## 2021-05-01
 
 Started on ShallowWater2D. Turns out that the argument order in scalarisedArgsList and in the actual arg list of scalarised functions was not the same, fixed this.
@@ -8,13 +16,27 @@ Now debugging a simple fold + stencil map. Problem is that the accumulator is ma
 But it should actually be VT. But when I do that, the arg gets removed as a temp. This would be OK inside a stage but not across stage.
 I am surprised this is broken.
 
-Note that the output of the fold is marked as VO and that is also wrong, that should be fixed in MemoryReduction.pm
+Note that the output of the fold is marked as VO and that is also wrong (it is not an Out for Main), that should be fixed in MemoryReduction.pm
 
 To solve the issue with VT in the stages, we need the following analysis:
 
 - if we encounter a VT on the RHS before we encounter one on the LHS, then that VT becomes VI. I don't think it is possible to encounter a VT on the LHS after encountering one on the RHS.
 - if we encounter a VT on the LHS but never on the RHS, then that VT becomes VO
 - if we encounter a VT on the LHS an later on the RHS, then that VT stays VT
+
+This is somewhere in generateStageKernel'
+
+This is the wrong approach. Essentially, every stage but the last one is a Fold, so the acc must be VO; the last stage is a Map, and the only reason to have the previous stages is if it uses one or more of those accs. 
+
+So I must make a list of all accumulators in the preceding stages, make all of them VO. This is easy, it is simply the LHS
+
+So we do 
+fold_ast_stages = init ast_stages
+fold_ast_stages' = map make_acc_VT_VO fold_ast_stages
+map_ast_stage = last ast_stages
+ast_stages' =  fold_ast_stages' ++ [map_ast_stage']
+
+ and make all these VI in the Map and any Fold that uses them
 
 ## 2021-05-31
 

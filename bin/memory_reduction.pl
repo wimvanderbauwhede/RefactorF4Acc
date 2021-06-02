@@ -11,12 +11,14 @@ use strict;
 use vars qw( $VERSION );
 $VERSION = "1.2.0";
 use Getopt::Std;
+use File::Copy;
+use Cwd;
 use RefactorF4Acc::Main qw( main usage );
 use Carp;
 use Data::Dumper;
 
 my %opts = ();
-getopts( 'hvimst:e:w:dc', \%opts );
+getopts( 'hvimst:e:w:dcC', \%opts );
 
 if ($opts{'h'}){
     die "
@@ -30,6 +32,7 @@ if ($opts{'h'}){
     -d : debug messages
     -i : info messages 
     -c : copy the generated ASTInstance.hs to the Haskell source tree
+    -C : like -c but also build and run the Haskell code and copy the generated code
     \n";
 }
 our $V=0;
@@ -37,8 +40,13 @@ our $W=0;
 our $I=0;
 our $DBG=0;
 our $copy_generated_file=0;
+our $gen_final = 0;
 if ($opts{'c'}) {
     $copy_generated_file=1;
+}
+if ($opts{'C'}) {
+    $copy_generated_file = 1;
+    $gen_final = 1;
 }
 
 if ($opts{'v'}) {
@@ -78,6 +86,8 @@ if ($test) {
     #die "The -s and -t options can't be combined.\n";
 }
 
+our $kernel_sub_name='';
+our $kernel_module_name='';
 # First scalarise
 if (!$test && $scalarise) {
     say "SCALARISE" if $V;
@@ -89,7 +99,7 @@ if (!$test && $scalarise) {
         }
         my $kernel_src = shift @kernel_srcs;
         say "KERNEL MODULE SRC: $kernel_src" if $V;
-        my ($kernel_sub_name, $kernel_module_name) = get_kernel_and_module_names($kernel_src,'superkernel');
+        ($kernel_sub_name, $kernel_module_name) = get_kernel_and_module_names($kernel_src,'superkernel');
         if ($kernel_sub_name ne '') {
             my $rf4a_scalarize_cfg =  create_rf4a_cfg_scalarise($kernel_src,$kernel_sub_name, $kernel_module_name);  
             say "CFG: ".Dumper($rf4a_scalarize_cfg) if $V;
@@ -120,7 +130,7 @@ if ($gen_main) {
             # }
             my $kernel_src = shift @kernel_srcs;
             say "KERNEL MODULE SRC: $kernel_src" if $V;
-            my ($kernel_sub_name, $kernel_module_name) = get_kernel_and_module_names($kernel_src,'superkernel');
+            ($kernel_sub_name, $kernel_module_name) = get_kernel_and_module_names($kernel_src,'superkernel');
             if ($kernel_sub_name ne '') {
                 my $rf4a_tytra_hs_cfg =  create_rf4a_cfg_tytra_cl($kernel_src,$kernel_sub_name, $kernel_module_name);  
                 say "CFG: ".Dumper($rf4a_tytra_hs_cfg) if $V;
@@ -165,7 +175,9 @@ if ($gen_main) {
     }
 }
 
-
+if ($gen_final) {
+    generate_final_F95_code($kernel_module_name,$kernel_sub_name);
+}
 
 # ==================================== AUX ====================================
 
@@ -182,7 +194,7 @@ sub create_rf4a_cfg_scalarise {
 # 'SOURCEFILES' => [],
 'SRCDIRS' => ['.'],
 'NEWSRCPATH' => './Scalarized',
-'EXCL_SRCS' => ['(?:^(?:sub|init|param|module_\\w+_superkernel_init|\\w+_host)|\\.[^f]+$)'],
+'EXCL_SRCS' => ['(?:^(?:sub|init|param|gen_|module_\\w+_superkernel_init|\\w+_host)|\\.[^f]+$)'],
 'EXCL_DIRS' => [ qw(./PostCPP ./Scalarized ./TyTraC ./MemoryReduction)],
 'MACRO_SRC' => 'macros.h',
 'EXT' => '.f95',
@@ -205,7 +217,7 @@ sub create_rf4a_cfg_tytra_cl {
 'SRCDIRS' => ['.'],
 # 'SOURCEFILES' => [],
 'NEWSRCPATH' => './Temp',
-'EXCL_SRCS' => ['(?:^(?:module_\\w+_superkernel_init|\\w+_host)|\\.[^f]+$)'],
+'EXCL_SRCS' => ['(?:^(?:module_\\w+_superkernel_init|gen_|\\w+_host)|\\.[^f]+$)'],
 'EXCL_DIRS' => [ qw( ./PostCPP ./Temp ./MemoryReduction ./Scalarized ./TyTraC ) ],
 'MACRO_SRC' => 'macros.h',
 'EXT' => '.f95'
@@ -234,6 +246,72 @@ sub get_kernel_and_module_names {
     return ($kernel_sub_name, $kernel_module_name);
 } # END of get_kernel_and_module_names
 
+sub generate_final_F95_code { my ($kernel_module_name,$kernel_sub_name) = @_;
+    my $hs_src_path = $ENV{RF4A_DIR}.'/TyTraCLTransformations/MemoryReduction';
+    my $wd = cwd();
+    chdir $hs_src_path;
+    my $build_cmd_str = 'stack build' . ($V ? '' : ' --verbosity error'). ' 2>&1';
+    my $build_res = `$build_cmd_str`;
+    say $build_res if $V;
+    die $build_res if $build_res =~/ExitFailure/s;
+    my $run_cmd_str = 'stack exec' . ($V ? '' : ' --verbosity error' ). ' MemoryReduction-exe'. ' 2>&1';
+    my $run_res = `$run_cmd_str`;
+    say $run_res if $V;
+    die $run_res if $run_res=~/MemoryReduction-exe\:/s;
+    my $gen_prog_name = "gen_". substr($kernel_module_name,length( "module_"));
+    my $gen_src_file_name =  "$gen_prog_name.f95";
+    say $gen_src_file_name if $V;
+    chdir $wd;
+    if (not -d 'MemoryReduction') {
+        mkdir 'MemoryReduction';
+        mkdir 'MemoryReduction/Generated';
+        mkdir 'MemoryReduction/Scalarized';
+    }
+    my @scalarised_files = glob('Scalarized/*.f95');
+    my @srcs = ($gen_src_file_name);
+    for my $scalarised_file (@scalarised_files){
+        if (not 
+            (
+             $scalarised_file=~/Scalarized\/$kernel_sub_name/
+             or 
+                $scalarised_file=~/Scalarized\/$kernel_module_name/
+            )
+        ) {
+            push @srcs, '../'.$scalarised_file;
+            copy($scalarised_file,'MemoryReduction/Scalarized') or die "Copy of $scalarised_file failed: $!";
+        }
+    }
+
+    copy( "$hs_src_path/$gen_src_file_name", 'MemoryReduction/Generated/'.$gen_src_file_name ) or die "Copy of $gen_src_file_name failed: $!";
+
+    gen_SConstruct('./MemoryReduction/Generated/SConstruct',$gen_prog_name,\@srcs);
+
+} # END of generate_final_F95_code
+
+sub gen_SConstruct { my ($sconstruct_path,$prog_name,$srcs) = @_;
+
+my $srcs_str = join(', ', map {"'".$_."'"} @{$srcs});
+
+open my $SC,'>', $sconstruct_path or die $!;
+my $sconstruct_strs = <<"ENDSC";
+import os
+
+FC=os.environ.get('FC')
+
+fsources = [$srcs_str]
+
+FFLAGS = ['-Wall','-cpp','-O3','-m64','-ffree-form','-ffree-line-length-0','-fconvert=little-endian','-frecord-marker=4']
+
+envF=Environment(F95=FC,LINK=FC,F95FLAGS=FFLAGS,F95PATH=['.' ,'../Scalarized','/usr/local/include'])
+
+envF.Program('$prog_name',fsources,LIBS=['m'],LIBPATH=['.' ,'/usr/lib','/usr/local/lib'])
+
+ENDSC
+
+print $SC $sconstruct_strs;
+
+close $SC;
+}
 
 
 
