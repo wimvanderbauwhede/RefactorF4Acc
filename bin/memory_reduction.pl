@@ -90,10 +90,10 @@ our $kernel_sub_name='';
 our $kernel_module_name='';
 # First scalarise
 if (!$test && $scalarise) {
-    say "SCALARISE" if $V;
     my @kernel_srcs = glob("module_*_superkernel.f95"); 
 
     if (scalar @kernel_srcs == 1) {
+    say "SCALARISE" if $V;
         if (-d './Scalarized') {
             system ('rm -f ./Scalarized/*.f95');
         }
@@ -108,17 +108,17 @@ if (!$test && $scalarise) {
 	        $stref = main($args);
         }
     } else {
-        die "No kernel sources found";
+        die "No kernel sources found\nThe directory should contain a module_*_superkernel.f95 source file\n";
     }
 }
 
 
 # Generate TyTraIR main routine
 if ($gen_main) {
-    say "GENERATING TyTraCL AST Instance for main routine" if $V;
     my @kernel_srcs = glob("module_*_superkernel.f95"); 
 
     if (scalar @kernel_srcs == 1 or $test) {
+    say "GENERATING TyTraCL AST Instance for main routine" if $V;
         if (!$test) {
             # This is currently unused
             # if (-d './TyTraC' ) {
@@ -171,7 +171,7 @@ if ($gen_main) {
             $stref = main($args);
         }
     } else {
-        die "No kernel sources found";
+        die "No kernel sources found.\nThe directory should contain a module_*_superkernel.f95 source file\n";
     }
 }
 

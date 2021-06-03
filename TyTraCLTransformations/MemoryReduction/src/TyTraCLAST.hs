@@ -24,7 +24,7 @@ type FSig = [Expr]
 
 ppFSig (fname,ftypes) = fname ++" :: "++(intercalate " -> " (filter (/="()") (map ppFSigArg ftypes) ) )
 ppFSigArg (Scalar _ dt _) = ppDType dt
-ppFSigArg (Tuple ts) = "("++(intercalate ", " (map ppFSigArg ts))++")"
+ppFSigArg (Tuple ts) = "("++(intercalate ", " (filter (/="()") $ map ppFSigArg ts))++")"
 ppFSigArg (SVec sz x) = "SVec "++(show sz)++" "++(ppFSigArg x)
 
 ppDType DInteger = "Int"
@@ -145,6 +145,7 @@ ppLHSExpr (Scalar _ _ x) = x
 ppLHSExpr (Vec _ x) = ppLHSExpr x
 ppLHSExpr (SVec _ x) = ppLHSExpr x
 ppLHSExpr (Function x _) = x
+ppLHSExpr (Tuple xs) = "("++(intercalate ", " (map ppLHSExpr xs))++")"
 ppLHSExpr x = "<TODO:"++(show x)++">"
 
 ppRHSExpr :: Expr -> String

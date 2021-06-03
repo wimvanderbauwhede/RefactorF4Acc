@@ -1,8 +1,9 @@
-module Transforms (splitLhsTuples, substituteVectors, applyRewriteRules, fuseStencils, decomposeExpressions) where
+module Transforms (splitLhsTuples, substituteVectors, applyRewriteRules, fuseStencils, regroupTuples, decomposeExpressions) where
 
 import Data.Generics (Data, Typeable, mkQ, mkT, mkM, gmapQ, gmapT, everything, everywhere, everywhere', everywhereM)
 import Control.Monad.State
 import qualified Data.Map.Strict as Map
+import Data.List (intercalate)
 
 import TyTraCLAST
 -- import Warning ( warning )
@@ -314,6 +315,34 @@ fuseStencils ast
                 (nm+m, ast_acc++[(lhs,rhs')])
             ) (0,[]) ast
 
+regroupTuples ast = let            
+        regrouped_tuples_map = foldl (
+            \acc (lhs,rhs) -> case rhs of
+                Elt n expr -> if Map.member expr acc 
+                    then 
+                        let
+                            lst = acc ! expr
+                        in
+                            Map.adjust (\lst -> lst++[(lhs,n)]) expr acc
+                        else 
+                            Map.insert expr [(lhs,n)] acc
+                _ -> acc    
+            ) Map.empty ast
+        non_elt_ast = filter (\(lhs,rhs) -> case rhs of
+                    Elt _ _ -> False
+                    _ -> True
+                ) ast
+        tuples_ast = map (\rhs_expr -> 
+            let
+                val_tups = regrouped_tuples_map ! rhs_expr
+                lhs_exprs = map fst val_tups
+            in 
+                (Tuple lhs_exprs,rhs_expr)
+            ) (Map.keys regrouped_tuples_map)
+    in            
+        tuples_ast ++ non_elt_ast
+
+
 -- What we do is fuse stencils and make sure stencils are applied to input vectors, not zips
 rewrite_ast_expr_fuse expr = case expr of   
     Map f_expr v_expr -> let
@@ -446,6 +475,15 @@ subsitute_expr lhs exp = do
                 (vec_name, decomposeMap,dt) = case lhs of
                     Vec VO  (Scalar _ dt vname) -> (vname, False,dt)
                     Vec VT  (Scalar _ dt vname) -> (vname, False,dt) -- only for noStencilRewrites
+                    Tuple exprs -> let
+                            vname = intercalate "_" (map (\(Vec _ (Scalar _ _ vname)) -> vname) exprs)
+                            expr1 = head exprs
+                            (Vec _ (Scalar _ dt _)) = expr1
+                        in
+                            -- case exp of
+                            --     UnzipT _ -> error $ (show lhs) ++ " => " ++ (show exp) -- (vname,False,dt)
+                            --     _ -> 
+                            (vname,False,dt)
                     Scalar _ dt sname -> (sname, True,dt)                    
             (ct,orig_bindings,added_bindings,var_expr_pairs) <- get
             let ((ct',orig_bindings', added_bindings',var_expr_pairs'),exp') = case exp of
@@ -500,6 +538,7 @@ subsitute_expr lhs exp = do
                             var = Vec VS (setName  (Single ("svec_"++vec_name++"_"++(show ct))) dt_exp)
                         in
                             maybeAddBinding var exp (ct,orig_bindings, added_bindings, var_expr_pairs)
+                      UnzipT map_exp -> ((ct,orig_bindings, added_bindings,var_expr_pairs),exp)  -- error $ show map_exp  
                       _ -> let
                               var = Vec VT (Scalar VT dt ("vec_"++vec_name++"_"++(show ct)))
                            in

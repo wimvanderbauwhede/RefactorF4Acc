@@ -1,12 +1,219 @@
 # REMAINING ISSUES : Memory (Bandwidth) Reduction for Scientific Computing on GPUs
 
-## 2021-05-02
 
-Minor bug to fix: the use declarations must be in the _scal wrappers, not in the main program!
+## 2021-05-03
+
+### Major issue: output tuple code generation is entirely wrong!
+
+* The "quick fix" for VT is not good and in fact the whole getInputArgs is not good because it can't distinguish between real scalars and scalars in vectors.
+A possible solution is to do an everywhere that changes any Vec VT (Scalar VT  ...) into Vec VT (Scalar VDC  ...), then it is likely OK
+* But the biggest problem is that the TyTraCL code is
+
+      vec_h_1_0 = unzipt (map update_map_24 zipt (hzero_0, un_0))
+      vec_h_1_1 = elt 0 vec_h_1_0
+      h_1 = vec_h_1_1
+      vec_u_1_0 = unzipt (map update_map_24 zipt (hzero_0, un_0))
+      vec_u_1_1 = elt 1 vec_u_1_0
+      u_1 = vec_u_1_1
+
+which is already sub-optimal as is should simply be
+
+      vec_h_1_0_u_1_0 = unzipt (map update_map_24 zipt (hzero_0, un_0))
+      vec_h_1_1 = elt 0 vec_h_1_0_u_1_0
+      h_1 = vec_h_1_1
+      vec_u_1_1 = elt 1 vec_h_1_0_u_1_0
+      u_1 = vec_u_1_1
+
+But what is generated is
+
+      ! Map
+      call update_map_24(hzero_0(idx), un_0(idx), vec_h_1_0)
+      vec_h_1_1 = vec_h_1_0
+      h_1(idx) = vec_h_1_1
+      ! Map
+      call update_map_24(hzero_0(idx), un_0(idx), vec_u_1_0)
+      vec_u_1_1 = vec_u_1_0
+      u_1(idx) = vec_u_1_1
+
+What this should be is       
+      ! Map
+      call update_map_24(hzero_0(idx), un_0(idx), vec_h_1_0, vec_u_1_0)
+      vec_h_1_1 = vec_h_1_0
+      h_1(idx) = vec_h_1_1
+      vec_u_1_1 = vec_u_1_0
+      u_1(idx) = vec_u_1_1
+
+The likely reason is that the LHS is (Vec VT ...) but the RHS is Unzipt, this is wrong: Either the RHS should have Elt applied or the LHS should be a Tuple 
+
+
+-- Fuse stencils
+(Vec VO (Scalar VDC DFloat "h_1"),Elt 0 (UnzipT (Map (Function "update_map_24" []) (ZipT [Vec VI (Scalar VDC DFloat "hzero_0"),Vec VI (Scalar VDC DFloat "un_0")]))))
+(Vec VO (Scalar VDC DFloat "u_1"),Elt 1 (UnzipT (Map (Function "update_map_24" []) (ZipT [Vec VI (Scalar VDC DFloat "hzero_0"),Vec VI (Scalar VDC DFloat "un_0")]))))
+
+We want to check the AST for tuples that have Elt n expr and maybe we simply build a map
+
+      expr => [(lhs1,n1),(lhs2,n2)]
+
+Then we built new AST tuples that look like (Tuple [lhs1,lhs2],expr)
+
+foldl (\acc (lhs,rhs) -> case rhs of
+      Elt n expr -> if Map.member expr acc 
+            then 
+                  let
+                        lst = acc ! expr
+                  in
+                        Map.update expr (lst++[(lhs,n)]) acc
+            else 
+            Map.insert expr [(lhs,n)] acc
+      _ -> acc
+
+
+) Map.empty ast
+
+
+
+-- Decompose expressions 
+(Vec VT (Scalar VT DFloat "vec_h_1_0"),UnzipT (Map (Function "update_map_24" []) (ZipT [Vec VI (Scalar VDC DFloat "hzero_0"),Vec VI (Scalar VDC DFloat "un_0")])))
+(Vec VT (Scalar VT DFloat "vec_h_1_1"),Elt 0 (Vec VT (Scalar VT DFloat "vec_h_1_0")))
+(Vec VO (Scalar VDC DFloat "h_1"),Vec VT (Scalar VT DFloat "vec_h_1_1"))
+
+Getting closer, we have the tuples restored but the decomposition is wrong (should not happen)
+
+### Local Arrays, iteration ranges
+
+- The code I added to reduce the bounds in the calls to the stages should be removed
+
+- Local arrays should be marked as such in the superkernel code. My idea would be to let the scientist mark the In and Out arrays as such:
+
+      real, dimension(...) :: v !$RF4A Purpose(In|Out)
+
+and make sure this gets passed on to the generated code      
+
+- The NDRange from the host code should also be present in the kernel code as an annotation:
+
+      !$RF4A NDRange($nd_range)
+
+This will be in particular important for GPU-style folds, see next.      
+
+### GPU fold
+
+We need to generate code for a GPU-style fold. Contrary to what the AutoParallelFortran compiler does, I think it is OK to assume that get_global_id() starts from 1 for Fortran 
+
+
+subroutine reduce(ARRAY,global_ACC_array)
+
+
+    integer :: chunk_size
+    integer :: local_id
+    integer :: group_id
+    integer :: r_iter
+    integer :: idx
+    integer :: ndrange
+    integer :: ndrange_padded
+    integer :: nthreads
+    integer :: local_chunk_size
+    integer :: start_position
+
+    real, dimension(1:NUNITS), intent(Out) :: global_ACC_array
+
+#if NTH > 1
+    ! Arrays prefixed with 'local_' should be declared using the '__local' modifier in C kernel version
+    real, dimension(1:NTH) :: local_ACC_array  !$ACC MemSpace local
+#endif
+    real :: local_ACC
+
+    call get_group_id(group_id,0)
+#if NTH > 1
+    call get_local_id(local_id,0)
+#endif
+    nthreads = NUNITS*NTH
+    ndrange = (500 * 500)
+    ndrange_padded = ndrange    
+    if (mod(ndrange_padded, (NUNITS*NTH) ) > 0) then
+        ndrange_padded = ( (ndrange_padded/ (NUNITS*NTH) ) +1)* (NUNITS*NTH)
+    end if
+    chunk_size = ndrange_padded / NUNITS
+#if NTH > 1
+    local_chunk_size = chunk_size / NTH
+#else
+    local_chunk_size = chunk_size
+#endif
+    start_position = chunk_size * group_id
+    local_ACC = 0
+
+    do idx=0, (local_chunk_size - 1)
+        r_iter = (start_position + (local_id + (NTH * idx)))
+        if ((r_iter < ndrange)) then
+            ! 
+            j_range = ((500 - 1) + 1)
+            k_range = ((500 - 1) + 1)
+            j_rel = (r_iter / k_range)
+            j = (j_rel + 1)
+            k_rel = (r_iter - (j_rel * k_range))
+            k = (k_rel + 1)
+
+            call reduce_scal(ARRAY(j,k),local_ACC)
+        end if
+    end do
+
+#if NTH > 1
+    local_ACC_array(local_id) = local_ACC
+
+#ifdef BARRIER_OK
+    call barrier(CLK_LOCAL_MEM_FENCE)
+#endif
+
+    local_ACC = 0
+    do r_iter=1, NTH
+        local_ACC = (local_ACC + local_ACC_array(r_iter))
+    end do
+#endif
+    global_ACC_array(group_id) = local_ACC
+
+end subroutine 
+
+### Combined stencils and boundary conditions
+
+p1(i) = f(p0(i-1),p0(i+1))
+p1(i-1) = f(p0(i-2),p0(i))
+p1(i+1) = f(p0(i),p0(i+2))
+
+p2(i) = f(p1(i-1),p1(i+1))
+= f(
+    f(p0(i-2),p0(i)),
+    f(p0(i),p0(i+2))
+    )
+    
+So at this point we have already p0(i-2)
+
+But if we consider the edge case, p2(1):
+
+p1(1) = f(p0(0),p0(1))
+p1(0) = p0(0)
+p1(2) = f(p0(1),p0(3))
+
+p2(1) = f(p1(0),p1(2))
+= f(
+    p0(0),
+    f(p0(1),p0(3))
+    )
+So because of the boundary condition, there is no issue, because p0(i-2) is never accessed.
+
+## 2021-05-02
 
 A small problem is that currently, the call args for subs called in the superkernel must have the same name as the sig args of the subs. 
 
 Regarding the VT, I think for now I will simply treat all VT as Input arguments. If that breaks, I can do the right thing.
+
+The main program that is currently generated had better be a superkernel with a case statement etc.
+As for OpenCL C translation the INTENT does not matter anyway, we can leave it as InOut
+What I don't know is if the scalars need to be arrays of 1 elt and turned into pointers
+
+The other issue is that I must translate the scalarised functions as well. 
+
+See also "OpenCLC: Passing array slices and returning scalars into array elements" below  
+
+
 
 ## 2021-05-01
 

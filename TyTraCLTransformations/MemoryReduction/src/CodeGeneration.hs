@@ -1,5 +1,6 @@
 module CodeGeneration (
         inferSignatures,
+        createStages,
         generateFortranCode
     ) where
 
@@ -28,7 +29,6 @@ generateFortranCode decomposed_ast functionSignaturesList idSigList =
         mainProgramStr
             | genMain = "! AST STAGES:\n"++
                 unlines (map (\st -> "! " ++ (show st)) ast_stages) ++"\n"++ 
-                -- unlines (concatMap  ppAST ast_stages) ++"\n"++ 
                 generateMainProgram functionSignatures ast_stages
             | otherwise = "! Main code not generated"
         generatedOpaqueFunctionDefsStr = unlines generatedOpaqueFunctionDefs
@@ -1179,9 +1179,11 @@ getInputArgs = everything (++) (mkQ [] getInputArgs')
 getInputArgs' :: Expr -> [Name]
 getInputArgs' node = case node of
                             Vec VI dt -> [(\(Single vn) -> vn) $ getName dt]
+                            -- Vec VT (Scalar VT _ sn) -> []
                             Vec VT dt -> [(\(Single vn) -> vn) $ getName dt | noStencilRewrites]
                             Scalar VI _ sn -> [sn]
-                            Scalar VT _ sn -> [sn] -- WV 2021-06-02 This is a "quick fix" rather than the correct solution which is to rewrite
+                            -- The problem here is that (Vec VT (Scalar VT)) leads to VT being picked
+                            Scalar VT _ sn -> [sn] -- WV 2021-06-02 This is a "quick fix" rather than the correct solution which is to rewrite the AST
                             _ -> []
 
 getOutputArgs = everything (++) (mkQ [] getOutputArgs')
@@ -1315,24 +1317,10 @@ generateMainProgram functionSignatures ast_stages  =
                 unique_extra_arg_decls = filter (\decl -> clearIntent decl `notElem` map clearIntent arg_decls ) extra_arg_decls
                 main_arg_decls = arg_decls ++ unique_extra_arg_decls ++ maybe_acc_arg_decl
                 accs' = nub $ accs++maybe_acc_arg
-                -- accs'' = warning accs' (show accs')
-                -- used_accs' = filter (\acc_name -> not $ null $ 
-                --             filter (\(lhs,rhs) -> case rhs of
-                --                 Fold (Function fname non_map_args) _ _ -> Map.member fname functionSignatures  && acc_name `elem` (unwrapName $ flattenNames $ getName $ Tuple non_map_args)
-                --                 Map (Function fname non_map_args) _ -> Map.member fname functionSignatures  && acc_name `elem` (unwrapName $ flattenNames $ getName $ Tuple non_map_args)
-                --                 _ -> False
-                --             ) stage_ast
-                --         ) accs' 
-                -- used_accs :: [Expr]
-                -- used_accs = nub $ concatMap (\acc_name -> concatMap (\(lhs,rhs) -> getAccExprs acc_name rhs ) stage_ast) accs' 
-                -- used_acc_names :: [Name]
-                -- used_acc_names = concatMap (unwrapName . getName ) used_accs
-                -- used_acc_decl_lines = map (\exp@(Scalar _ _ acc_name) -> (fortranType exp)++", intent(In) :: "++acc_name) used_accs
-                -- used_acc_decls = map (\exp@(Scalar _ _ acc_name) -> MkFDecl (fortranType exp) Nothing (Just In) [acc_name]) used_accs                        
                 generatedStageKernelsStr
                     | genStages = unlines $ concat [
                                 [
-                                    "subroutine stage_kernel_"++show ct++"("++mkArgList [ in_args, out_args]++")" -- used_acc_names, ,maybe_acc_arg
+                                    "subroutine stage_kernel_"++show ct++"("++mkArgList [ in_args,out_args]++")" 
                                 ]
                                 -- ,(map ("    "++) $ nub $ (used_acc_decl_lines++arg_decl_lines++maybe_acc_arg_decl_str++uniqueGeneratedDeclLines))
                                 ,["! arg_decls"]
@@ -1343,7 +1331,7 @@ generateMainProgram functionSignatures ast_stages  =
                                 -- ,map ( ("!    "++) . show ) uniqueGeneratedDecls
                                 ,[
                                     "    integer :: idx",
-                                    "    call get_global_id(idx)"
+                                    "    call get_global_id(idx,0)"
                                  ]
                                 ,generatedStmts
                                 ,[
@@ -1397,8 +1385,9 @@ generateMainProgram functionSignatures ast_stages  =
         ] ++
         [
         "",
-        "subroutine get_global_id(idx)",
+        "subroutine get_global_id(idx,dim)",
         "    "++"integer, intent(out) :: idx",
+        "    "++"integer, intent(in) :: dim",
         "    "++"integer :: global_id",
         "    "++"common /ocl/ global_id",
         "    "++"idx = global_id",
