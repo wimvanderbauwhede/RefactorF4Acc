@@ -3,7 +3,14 @@
 
 ## 2021-05-03
 
+### TODO
+- Do the full 2-D Shallow Water
+- Create a SOR based on LES, with 1/2/3/4 unrolss
+- Get both to work on GPU
+
 ### Major issue: output tuple code generation is entirely wrong!
+
+=> I think this is now fixed!
 
 * The "quick fix" for VT is not good and in fact the whole getInputArgs is not good because it can't distinguish between real scalars and scalars in vectors.
 A possible solution is to do an everywhere that changes any Vec VT (Scalar VT  ...) into Vec VT (Scalar VDC  ...), then it is likely OK
