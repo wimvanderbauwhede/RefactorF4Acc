@@ -5,12 +5,12 @@ module ASTInstance ( ast
         , mainArgDeclsList 
         , scalarisedArgsList
         , origNamesList
-        , moduleName
+        , superkernelName
         ) where
 import TyTraCLAST
 
-moduleName :: String
-moduleName = "module_shapiro_dyn_update_superkernel"
+superkernelName :: String
+superkernelName = "shapiro_dyn_update_superkernel"
 
 ast :: TyTraCLAST
 ast = [

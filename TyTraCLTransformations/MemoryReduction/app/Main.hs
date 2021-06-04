@@ -5,7 +5,7 @@ import Control.Monad ( when )
 import System.IO ( openFile, hPutStr, hClose, IOMode(..) )
 import Data.List ((\\))
 import TyTraCLAST 
-import ASTInstance (ast,functionSignaturesList,moduleName)
+import ASTInstance (ast,functionSignaturesList,superkernelName)
 import Transforms (splitLhsTuples, substituteVectors, applyRewriteRules, fuseStencils, regroupTuples, decomposeExpressions)
 import CodeGeneration (
     inferSignatures, 
@@ -48,6 +48,7 @@ inferedSignatures :: [[(Name,FSig)]]
 inferedSignatures = map inferSignatures ast4
 
 generatedFortranCode = generateFortranCode asts functionSignaturesList idSigList 
+(generatedMainProgramCode,generatedModuleCode) = generatedFortranCode
 
 printTyTraCL = True
 
@@ -112,9 +113,19 @@ main = do
         else return ()     
     -- putStr generatedFortranCode
     let
-        fp = mkSrcFileName moduleName
+        fp = mkSrcFileName superkernelName
     fh <- openFile fp WriteMode     
-    hPutStr fh generatedFortranCode
+    hPutStr fh generatedMainProgramCode
     hClose fh
+    if not (null generatedModuleCode) then
+        do
+            let
+                fp' = mkModuleSrcFileName superkernelName
+            fh' <- openFile fp' WriteMode     
+            hPutStr fh' generatedModuleCode
+            hClose fh'
+    else
+        return ()
 
-mkSrcFileName str = "gen_"++(drop (length "module_") str) ++ ".f95"
+mkSrcFileName str = "gen_"++ str ++ ".f95"
+mkModuleSrcFileName str = "module_gen_"++ str ++ ".f95"

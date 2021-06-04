@@ -1208,11 +1208,14 @@ sub top_src_is_module {( my $stref, my $s) = @_;
 # This is a wrapper to get the subroutines out of a module and then call other passes on these subroutines
 # It does this for all sources but in practice it assumes a single source, so it might be better to pass this source name in as an arg instead 
 sub pass_wrapper_subs_in_module { (my $stref,my $module_name, my $module_pass_sequences, my $sub_pass_sequences, my @rest) = @_;
-	if ($module_name eq '') {
+
+	if ($module_name eq ''
+    or not exists $stref->{'Modules'}{$module_name}
+    ) {
         
 		my %is_existing_module = ();
 	    my %existing_module_name = ();
-		# croak Dumper keys %{ $stref->{'SourceContains'} };
+		# croak 'H'.Dumper keys %{ $stref->{'SourceContains'} };
 		for my $src (keys %{ $stref->{'SourceContains'} } ) {		
 			
 			if (exists $stref->{'SourceContains'}{$src}{'Path'}

@@ -58,9 +58,9 @@ use Exporter;
 
 
 sub pass_memory_reduction {
-    (my $stref, my $module_name) = @_;
+    (my $stref, my $superkernel_name) = @_;
     
-    my $comment =  $module_name;
+    my $comment =  $superkernel_name;
     
     # WV: I think Selects and Inserts should be in Lines but I'm not sure
     $stref->{'EmitAST'}     = 'TyTraCL_AST';
@@ -78,7 +78,7 @@ sub pass_memory_reduction {
 
 if ($Config{'TEST'} == 0 ) { 
     $stref = pass_wrapper_subs_in_module(
-        $stref, $module_name,
+        $stref, $superkernel_name,
 
         # module-specific passes
         [],
@@ -439,11 +439,11 @@ sub _emit_TyTraCL_Haskell_AST_Code {
     my $tytracl_hs_ast_code_str = join("\n", @indented_tytracl_hs_ast_strs);
 
     my $comment = $stref->{'TyTraCL_AST'}{'Comment'};
-    my $module_name = $comment;
-    if ($module_name=~/\W/) {
-        $module_name=~s/\W+/_/g;
+    my $superkernel_name = $comment;
+    if ($superkernel_name=~/\W/) {
+        $superkernel_name=~s/\W+/_/g;
 
-        $module_name = 'module_'.lc($module_name);
+        # $superkernel_name = 'module_'.lc($superkernel_name);
     }
     my $header =
     "-- $comment\n" .
@@ -453,12 +453,12 @@ sub _emit_TyTraCL_Haskell_AST_Code {
         , mainArgDeclsList 
         , scalarisedArgsList
         , origNamesList
-        , moduleName
+        , superkernelName
         ) where
 import TyTraCLAST
 
-moduleName :: String
-moduleName = "'.$module_name.'"
+superkernelName :: String
+superkernelName = "'.$superkernel_name.'"
 
 ast :: TyTraCLAST
 ast = [

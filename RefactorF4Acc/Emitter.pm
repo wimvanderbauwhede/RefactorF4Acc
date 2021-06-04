@@ -50,7 +50,7 @@ sub emit_all {
 
     # I build a fresh list here. I should just delete 'F' at the end
     $stref->{'BuildSources'}{$EXT} = {};
-    
+
     return $stref unless scalar keys %{ $stref->{'SourceContains'} } >0;
 
     _init_emit_all($stref) unless $DUMMY;

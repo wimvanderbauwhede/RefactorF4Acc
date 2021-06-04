@@ -1,4 +1,4 @@
-! gfortran-mp-10 -L/usr/lib test_return_to_array_elt.f90
+! gfortran test_return_to_array_elt.f90
 program testReturnToArrayElt
     integer, dimension(16) :: v
     integer i, n

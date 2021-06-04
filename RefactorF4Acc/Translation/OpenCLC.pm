@@ -49,6 +49,7 @@ use Exporter;
 #### #### #### #### BEGIN OF C TRANSLATION CODE #### #### #### ####
 # $ocl: 0 = C, 1 = CPU/GPU OpenCL, 2 = C for TyTraIR aka TyTraC, 3 = pipe-based OpenCL for FPGAs 
 sub translate_module_to_C {  (my $stref, my $module_name, my $ocl) = @_;
+
 	if (not defined $ocl) {$ocl=0;}
 	my $generate_TyTraLlvmIR = 0;
 	# So if $ocl is 4, we change it to 2 and set the extra flag
@@ -401,13 +402,21 @@ sub _write_headers { (my $stref, my $ocl)=@_;
 
 sub _emit_C_code { (my $stref, my $module_name, my $ocl)=@_;
  	map {say $_ } @{$stref->{'TranslatedCode'}} if $V;
+	#  die Dumper $stref->{SourceContains};
  	my $ext = ($ocl and $ocl!=2) ? 'cl' : 'c';
  	my $module_src = $stref->{'Modules'}{$module_name}{'Source'};
 	if (not defined $module_src) {
 		$module_src=$Config{'MODULE_SRC'};
 	} 
+
  	my $fsrc = $module_src;#$Config{'MODULE_SRC'}; 
-# 	croak $fsrc;
+	if ($module_src eq '') { # Try to treat is as a program
+	if ($module_name eq  $stref->{'Top'}) {
+		$fsrc= $stref->{'Program'};
+		$fsrc=~s/^.+\///;
+	}
+	}	 
+	# croak "$targetdir/$fsrc";
  	my $csrc = $fsrc;$csrc=~s/\.\w+$//;
     if (not -d $targetdir) {
         mkdir $targetdir;
@@ -907,7 +916,10 @@ sub __all_bounds_numeric { (my $dims)=@_;
 
 sub _gen_array_index_f2c1d_h {
 	# open RefactorF4Acc::Translation::OpenCLC::DATA or die $!;
-	open my $fh, '>', $targetdir.'/array_index_f2c1d.h' or die $!;
+	if (not -d $targetdir) {
+		mkdir $targetdir;
+	}
+	open my $fh, '>', $targetdir.'/array_index_f2c1d.h' or die "$! : $targetdir";
 	while(my $line = <RefactorF4Acc::Translation::OpenCLC::DATA>) {
 		print $fh $line;
 	}
