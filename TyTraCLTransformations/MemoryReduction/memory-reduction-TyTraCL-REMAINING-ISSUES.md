@@ -5,8 +5,84 @@
 
 ### TODO
 - Do the full 2-D Shallow Water
-- Create a SOR based on LES, with 1/2/3/4 unrolss
-- Get both to work on GPU
+- Create a SOR based on LES, with 1/2/3/4 unrolls
+- Get both to work on GPU => Fix/Check OpenCL code generation. Currently there are a few issues.
+The key one is that the conversion from Fortran types to pointers is quite wrong. And this is because the "return into array" is wrong:
+
+program main
+integer, dimension(1:252004) :: wet_1
+do global_id=1,252004
+  call stage_kernel_1(wet_1)
+end do
+end program main  
+
+subroutine stage_kernel_1(wet_1)
+    integer, dimension(1:252004), intent(Out) :: wet_1
+    integer :: idx
+    call get_global_id(idx,0)
+    call update_map_24( wet_1(idx))
+end subroutine stage_kernel_1
+
+subroutine update_map_24( wet_1)
+    integer, intent(Out) :: wet_1
+    call update_map_24_scal( wet_1)
+end subroutine update_map_24
+
+subroutine update_map_24_scal(wet_j_k)
+    integer, intent(Out) :: wet_j_k
+  wet_j_k = 1
+end subroutine update_map_24_scal
+
+Should be
+
+void  main () {
+      int* wet_1;
+      for (...) {
+            stage_kernel_1(wet_1)
+      }
+}
+void stage_kernel_1(int * wet_1) { // Out
+    int idx = get_global_id(0);
+    update_map_24( &wet_1[idx]); 
+}
+
+void update_map_24(int* wet_1) { // Out
+    update_map_24_scal( wet_1);
+}
+
+void update_map_24_scal(int* wet_j_k) { // Out
+  *wet_j_k = 1;
+}
+
+But it currently is
+
+void main() {
+    int *wet_1;
+    // Loops over stage calls
+    for (int global_id = 1;global_id <= 252004;global_id += 1) {
+        // WRONG!   
+        stage_kernel_1(*wet_1);
+    }
+}
+
+void stage_kernel_1(int *wet_1) {
+    int idx; 
+    global_id = get_global_id(0); // WRONG! should be idx => FIXED
+    // WRONG, should have &
+    update_map_24(wet_1[F1D2C(1 , idx)]);
+}
+
+void update_map_24(int *wet_1) {
+
+    update_map_24_scal(*wet_1);
+}
+
+void update_map_24_scal(int *wet_j_k) {
+      // WRONG, should be *
+    wet_j_k = 1;
+}
+ 
+
 
 ### Major issue: output tuple code generation is entirely wrong!
 
@@ -207,6 +283,8 @@ p2(1) = f(p1(0),p1(2))
 So because of the boundary condition, there is no issue, because p0(i-2) is never accessed.
 
 ## 2021-05-02
+
+TODO!
 
 A small problem is that currently, the call args for subs called in the superkernel must have the same name as the sig args of the subs. 
 

@@ -175,7 +175,6 @@ sub translate_sub_to_C {  (my $stref, my $f, my $ocl) = @_;
 		 		
 =cut
 
-
 	my $pass_translate_to_C = sub { (my $annline, my $state)=@_;
 		(my $line,my $info)=@{$annline};
 		my $c_line=$line;
@@ -294,8 +293,11 @@ sub translate_sub_to_C {  (my $stref, my $f, my $ocl) = @_;
                 $c_line = $info->{'Indent'} . $subcall_ast->[1] .'_block'.'('.$subcall_ast->[2][1][1].','.'&'.$subcall_ast->[2][2][1].');'; # TODO: make configurable, this is Xilinx-specific!
             }			
 			elsif ($subcall_ast->[1]=~/get_(local|global|group)_id/) {
+				my $ocl_id_var = $info->{'SubroutineCall'}{'Args'}{'List'}[0];
+				my $ocl_dimidx = $info->{'SubroutineCall'}{'Args'}{'List'}[1];
 				my $qual = $1;
-				$c_line = $info->{'Indent'}."${qual}_id = get_${qual}_id(0);";
+				# $c_line = $info->{'Indent'}."${qual}_id = get_${qual}_id(0);";
+				$c_line = $info->{'Indent'}."$ocl_id_var = get_${qual}_id($ocl_dimidx);";
 			} else {				
 				$c_line = $info->{'Indent'}._emit_expression_C($subcall_ast,$stref,$f).';';
             }
@@ -309,7 +311,12 @@ sub translate_sub_to_C {  (my $stref, my $f, my $ocl) = @_;
 		elsif (exists $info->{'Else'} ) {		
 			$c_line = ' } else {';
 		}
-		elsif (exists $info->{'EndDo'} or exists $info->{'EndIf'}  or exists $info->{'EndSubroutine'} ) {
+		elsif (
+				exists $info->{'EndDo'} 
+			or exists $info->{'EndIf'} 
+			or exists $info->{'EndSubroutine'} 
+			or exists $info->{'EndProgram'} 
+			) {
 			if ($ocl==3 and  exists $info->{'EndSubroutine'} and  $info->{'EndSubroutine'}{'Name'} eq 'pipe_initialisation') {
 				     $c_line = '' ;
 #			} elsif ($ocl==2 and  exists $info->{'EndSubroutine'} and  $info->{'EndSubroutine'}{'Name'} eq $Config{'TOP'}) {
@@ -409,13 +416,13 @@ sub _emit_C_code { (my $stref, my $module_name, my $ocl)=@_;
 		$module_src=$Config{'MODULE_SRC'};
 	} 
 
- 	my $fsrc = $module_src;#$Config{'MODULE_SRC'}; 
-	if ($module_src eq '') { # Try to treat is as a program
-	if ($module_name eq  $stref->{'Top'}) {
-		$fsrc= $stref->{'Program'};
-		$fsrc=~s/^.+\///;
-	}
-	}	 
+ 	my $fsrc = $module_src;
+    if ($module_src eq '') { # No module? Try to treat it as a program
+        if ($module_name eq  $stref->{'Top'}) {
+            $fsrc= $stref->{'Program'};
+            $fsrc=~s/^.+\///;
+        }
+    }	 
 	# croak "$targetdir/$fsrc";
  	my $csrc = $fsrc;$csrc=~s/\.\w+$//;
     if (not -d $targetdir) {
@@ -511,7 +518,7 @@ sub _emit_var_decl_C { (my $stref,my $f,my $var)=@_;
 sub _emit_assignment_C { (my $stref, my $f, my $info)=@_;
 	my $lhs_ast =  $info->{'Lhs'}{'ExpressionAST'};
 	my $lhs = _emit_expression_C($lhs_ast,$stref,$f);
-	   
+	
 	my $indent='';
 	$lhs=~/^(\s+)/ && do {
 		$indent=$1;
@@ -522,8 +529,9 @@ sub _emit_assignment_C { (my $stref, my $f, my $info)=@_;
 
 	my $rhs_ast =  $info->{'Rhs'}{'ExpressionAST'};	
 #	carp Dumper($rhs_ast) if $lhs=~/k_range/;
-    
+   
 	my $rhs = _emit_expression_C($rhs_ast,$stref,$f);
+	 croak 'WRONG RHS '.$rhs if $rhs=~/hzero_j_k/;   
 #	say "RHS:$rhs" if$rhs=~/abs/;
 	my $rhs_stripped = $rhs;
 	$rhs_stripped=~s/^\(([^\(\)]+)\)$/$1/;
@@ -545,6 +553,7 @@ sub _emit_assignment_C { (my $stref, my $f, my $info)=@_;
 		my $if_str = _emit_ifthen_C($stref,$f,$info);
 		$rline =$if_str.' '.$rline; 
 	}	
+	# carp "$f $rline";
 	return $rline;
 }
 
@@ -563,7 +572,7 @@ sub _emit_ifthen_C { (my $stref, my $f, my $info)=@_;
 sub _emit_expression_C { my ($ast, $stref, $f)=@_;
 	my $Sf = $stref->{'Subroutines'}{$f};
 # croak 'FIXME: port differences from _emit_expression_C_OLD(), LINE 588';
-#	say Dumper($ast);
+	# say Dumper($ast);
     if (ref($ast) eq 'ARRAY') {
         if (scalar @{$ast}==3) {
 			if ($ast->[0] == 8) { #eq '^'			
@@ -582,7 +591,7 @@ sub _emit_expression_C { my ($ast, $stref, $f)=@_;
 					# croak Dumper $ast;
 			}
 
-            if ($ast->[0] ==1 or $ast->[0] ==10) { #  array access 10=='@' or function call 1=='&'
+            if ($ast->[0] == 1 or $ast->[0] ==10) { #  array access 10=='@' or function call 1=='&'
                 (my $sigil, my $name, my $args) =@{$ast};
 				# if (in_nested_set($Sf,'Vars',$name)) {
 				# 	say "NAME $name is an ARRAY (".$ast->[0].')';
@@ -590,7 +599,7 @@ sub _emit_expression_C { my ($ast, $stref, $f)=@_;
 				# } else {
 				# 	say "NAME $name is a FUNCTION (".$ast->[0].')';
 				# }
-				if ($ast->[0] ==1) {
+				if ($ast->[0] == 1) {
 					my $mvar = $name;
 					# AD-HOC, replacing abs/min/max to fabs/fmin/fmax without any type checking ... FIXME!!!
 					# The (float) cast is necessary because otherwise I get an "ambiguous" error
@@ -711,9 +720,12 @@ sub _emit_expression_C { my ($ast, $stref, $f)=@_;
 					# Meaning that $mvar is a pointer in $f
 					# Now we need to check if it is also a pointer in $subname
 					my $ptr = $stref->{'Subroutines'}{$f}{'Pointers'}{$mvar};
-					if ($called_sub_name ne '' and exists  $stref->{'Subroutines'}{$called_sub_name} 
+					carp "$f <$ptr>" ."<$called_sub_name>".'<', exists  $stref->{'Subroutines'}{$called_sub_name} ,'><', exists $stref->{'Subroutines'}{$called_sub_name}{'Pointers'}{$mvar},'>' if $mvar eq 'wet_j_k';
+					if ($called_sub_name ne '' and $called_sub_name ne $f and 
+					exists  $stref->{'Subroutines'}{$called_sub_name} 
 					and exists $stref->{'Subroutines'}{$called_sub_name}{'Pointers'}{$mvar} ) {
 						my $sig_ptr = $stref->{'Subroutines'}{$called_sub_name}{'Pointers'}{$mvar};
+						warn "SIG PTR: $sig_ptr <> $ptr";
 						if ($sig_ptr eq '' and $ptr eq '*') {
 							$ptr = '*'	
 						} elsif ($sig_ptr eq '*' and $ptr eq '') {
@@ -721,7 +733,15 @@ sub _emit_expression_C { my ($ast, $stref, $f)=@_;
 						} else {
 							$ptr='';
 						}
-					} 
+					} else {
+						if ( $called_sub_name eq $f) {
+							carp "FIXME: we should parse the entire assigment expr so that we know we are dealing with an assignment!";
+							$ptr = '*';
+						}
+						# If the variable in question is 'Out' or 'InOut' we should use the pointer
+
+					}
+					warn "PTR: $ptr";
                     if ($ptr eq '') {
                         return $exp;
                     } else {
