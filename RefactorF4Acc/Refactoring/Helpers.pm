@@ -1250,6 +1250,8 @@ sub pass_wrapper_subs_in_module { (my $stref,my $module_name, my $module_pass_se
 					for my $pass_sub_ref (@{$pass_sequence}) {	
                     # warn Dumper sort keys %{$stref->{'Subroutines'}{$f}} if $f=~/_scal/;
                     # warn "NOT IN MODULE: $src $pass_ctr $f $pass_sub_ctr ";
+                    say "SUB PASS ".coderef_to_subname($pass_sub_ref)."($f)";
+
 						$stref=$pass_sub_ref->($stref, $f, @rest);
                     #   ++$pass_sub_ctr; 
 					}			
@@ -1261,18 +1263,39 @@ sub pass_wrapper_subs_in_module { (my $stref,my $module_name, my $module_pass_se
 	} else { 
         
 		for my $pass_sequence (@{$module_pass_sequences}) {    	
-            for my $pass_sub_ref (@{$pass_sequence}) {                	         
+            for my $pass_sub_ref (@{$pass_sequence}) {          
+                say "MODULE PASS ".coderef_to_subname($pass_sub_ref)."($module_name)";
                 $stref=$pass_sub_ref->($stref, $module_name, @rest);
             }           
-		}		
-		
+		}				
         my $has_contains = exists $stref->{'Modules'}{$module_name}{'Contains'}  ? 1 : 0;
-        my @subs=  $has_contains ? @{ $stref->{'Modules'}{$module_name}{'Contains'} } : ()  ;
+        my @subs =  $has_contains ? @{ $stref->{'Modules'}{$module_name}{'Contains'} } : ()  ;
+        # But we must also check any subs that are in a separate module, via use
+        my @subs_from_modules=();
+        for my $sub (@subs) {
+            if (exists $stref->{'Subroutines'}{$sub}{'Uses'}) {
+                for my $used_module (sort keys %{$stref->{'Subroutines'}{$sub}{'Uses'}}) {
+                    my $subs_from_module=
+                        scalar @{$stref->{'Subroutines'}{$sub}{'Uses'}{$used_module}}>0 
+                        ? $stref->{'Subroutines'}{$sub}{'Uses'}{$used_module}
+                        : (exists $stref->{'Modules'}{$used_module}{'Contains'} and 
+                        scalar @{$stref->{'Modules'}{$used_module}{'Contains'}} > 0)
+                        ? $stref->{'Modules'}{$used_module}{'Contains'}
+                        : [];
+                    for my $sub_from_module (@{$subs_from_module}) {
+                        push @subs_from_modules, $sub_from_module;
+                    }
+                }
+            }
+        }
+    
+        # croak 'update_map_24_scal'.Dumper $stref->{'Modules'}{'singleton_module_update_map_24'}{'Contains'};
         # my $pass_ctr = 1;
         for my $pass_sequence (@{$sub_pass_sequences}) {    
-            for my $f ( @subs ) {
+            for my $f ( @subs,  @subs_from_modules) {
                 # say "IN MODULE: $module_name $pass_ctr $f";
                 for my $pass_sub_ref (@{$pass_sequence}) {          
+                    say "SUB PASS ".coderef_to_subname($pass_sub_ref)."($f)";
                     $stref=$pass_sub_ref->($stref, $f, @rest);
                 }           
             }
@@ -1336,5 +1359,12 @@ sub _substitute_placeholders_per_source { (my $stref,my $f) =@_;
  	$stref = stateless_pass_inplace($stref,$f,$pass_action, '_substitute_placeholders_per_source() ' . __LINE__  ) ;
 	return $stref
 } # END of _substitute_placeholders_per_source
+
+sub coderef_to_subname { my ($coderef) = @_;
+    use B qw(svref_2object);
+    my $cv = svref_2object ( $coderef );
+    my $gv = $cv->GV;
+    return $gv->NAME;
+}
 
 1;

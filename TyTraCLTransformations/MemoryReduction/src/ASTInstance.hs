@@ -1,4 +1,4 @@
--- module_shapiro_dyn_update_superkernel
+-- shapiro_dyn_update_superkernel
 module ASTInstance ( ast
         , functionSignaturesList
         , stencilDefinitionsList
@@ -25,13 +25,13 @@ stencilDefinitionsList = []
 
 mainArgDeclsList = [
       ("un_0" , MkFDecl "real"  (Just [252004]) (Just In) ["un_0"] )
-    , ("vn_0" , MkFDecl "real"  (Just [252004]) (Just In) ["vn_0"] )
     , ("eta_0" , MkFDecl "real"  (Just [252004]) (Just In) ["eta_0"] )
+    , ("vn_0" , MkFDecl "real"  (Just [252004]) (Just In) ["vn_0"] )
     , ("hzero_0" , MkFDecl "real"  (Just [252004]) (Just In) ["hzero_0"] )
-    , ("v_1" , MkFDecl "real"  (Just [252004]) (Just Out) ["v_1"] )
-    , ("u_1" , MkFDecl "real"  (Just [252004]) (Just Out) ["u_1"] )
     , ("h_1" , MkFDecl "real"  (Just [252004]) (Just Out) ["h_1"] )
     , ("wet_1" , MkFDecl "integer"  (Just [252004]) (Just Out) ["wet_1"] )
+    , ("u_1" , MkFDecl "real"  (Just [252004]) (Just Out) ["u_1"] )
+    , ("v_1" , MkFDecl "real"  (Just [252004]) (Just Out) ["v_1"] )
   ]
 
 scalarisedArgsList = [

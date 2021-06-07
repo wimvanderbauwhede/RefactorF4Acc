@@ -86,6 +86,7 @@ sub _inline_subroutines_main { my ( $stref, $f ) = @_;
     my $Sf = $stref->{'Subroutines'}{$f};
     if (exists $Sf->{'SubsToInline'} ) {    
         for my $sub ( @{$Sf->{'SubsToInline'}} ) {
+            say "INLINING $sub in $f" if $V;
             $stref = _inline_subroutine($stref,$f,$sub,0);
         }
     } 
@@ -442,6 +443,7 @@ sub __merge_specification_computation_parts_into_caller { (my $stref, my $f, my 
 
     my $state = [ $use_part, $specification_part, 0, 1, 0];
     ( $stref, $state ) = stateful_pass_inplace( $stref, $f, $pass__merge_specification_computation_parts_into_caller, $state, 'pass__merge_specification_computation_parts_into_caller() ' . __LINE__ );
+
     $stref = __update_caller_inlined_vardecls($stref,$f,$sub,$specification_part);
     
     return $stref;
@@ -677,8 +679,16 @@ sub __update_caller_inlined_vardecls { my ($stref,$f,$sub,$specification_part) =
     for my $annline (@{$specification_part}) {        
         my ($line,$info) = @{$annline};
         next if exists $info->{'Comments'};
-        # say Dumper $info;
-        my $qvar = $info->{'VarDecl'}{'Name'};
+        # say "$sub in $f:". Dumper $info;
+        my $qvar = exists $info->{'VarDecl'} 
+            ? $info->{'VarDecl'}{'Name'}
+            : exists $info->{'ParamDecl'} 
+            ? exists $info->{'ParamDecl'}{'Var'}
+                ? $info->{'ParamDecl'}{'Var'}
+                : exists $info->{'ParamDecl'}{'Name'}
+                    ? $info->{'ParamDecl'}{'Name'}[0]
+                    : croak "Specification line is not a variable declaration: ". Dumper($annline)
+            : croak "Specification line is not a variable declaration: ". Dumper($annline);
         my $subset = in_nested_set($stref->{'Subroutines'}{$sub},'Vars',$qvar);
         my $decl = $stref->{'Subroutines'}{$sub}{$subset}{'Set'}{$qvar};
         # say Dumper($decl);

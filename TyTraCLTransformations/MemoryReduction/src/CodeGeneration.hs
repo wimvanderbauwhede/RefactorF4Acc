@@ -1528,7 +1528,7 @@ buildMainProgramForSuperkernelDef unique_stage_kernel_decls stage_kernel_calls =
             )  [1.. length stage_kernel_calls]    
         loops_over_calls = map (\ct -> unlines [
             "    state_ptr(1) = ST_STAGE_KERNEL_"++(show ct),
-            "    do global_id = 1, vSz",
+            "    do global_id = 1, "++(show vSz),
             "      call "++superkernelName++"("++superkernel_args_str++",state_ptr)",
             "    end do"
             ]
@@ -1549,7 +1549,7 @@ buildMainProgramForSuperkernelDef unique_stage_kernel_decls stage_kernel_calls =
         loops_over_calls ++
         [
         "end program main  "
-        ] 
+        ]         
 
 buildSuperkernelDef unique_stage_kernel_decls stage_kernel_calls subdef_lines_strs = let
         superkernel_decl_strs = map (\decl -> "    "++(show decl)) unique_stage_kernel_decls
@@ -1588,8 +1588,10 @@ buildSuperkernelDef unique_stage_kernel_decls stage_kernel_calls subdef_lines_st
             "end subroutine "++superkernelName
             ] ++ [""] ++
             subdef_lines_strs
+            ++
+            getGlobalIdDefStrs            
             ,
-                "end module module_"++superkernelName
+                "end module module_"++superkernelName                
             )
         
 getGlobalIdDefStrs =        

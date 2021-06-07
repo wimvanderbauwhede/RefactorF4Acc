@@ -361,9 +361,14 @@ sub _add_implicit_none {
 	my $Sf            = $stref->{'Subroutines'}{$f};
 	my $first_vardecl = 1;
 	my $rlines        = [];
+	my $prev_line_id=0;
 	for my $annline ( @{$annlines} ) {
 		( my $line, my $info ) = @{$annline};
-
+		if (exists $info->{'LineID'}) {
+			$prev_line_id=$info->{'LineID'};
+		} else {
+			warn "LINE '$line' has no LineID in $f" if $DBG;
+		}
 		if ( ( exists $info->{'VarDecl'} or exists $info->{'ParamDecl'} or exists $info->{'Equivalence'} )
 			and $first_vardecl )
 		{
@@ -375,7 +380,7 @@ sub _add_implicit_none {
 				  if $V;
 				my $r_info = {};
 				my $indent = ' ' x 6;
-				$r_info->{'LineID'}       = $info->{'LineID'} - 1; # ad hoc! 
+				$r_info->{'LineID'}       = $prev_line_id - 1; # ad hoc! 
 				$r_info->{'Indent'}       = $indent;
 				$r_info->{'ImplicitNone'} = 1;
 				$r_info->{'Ann'}          = [ annotate( $f, __LINE__ ) ];

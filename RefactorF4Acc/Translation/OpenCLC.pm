@@ -509,9 +509,11 @@ sub _emit_C_code { (my $stref, my $module_name, my $ocl)=@_;
     }	 
 	# croak "$targetdir/$fsrc";
  	my $csrc = $fsrc;$csrc=~s/\.\w+$//;
+	 $csrc=~s/.+\///;
     if (not -d $targetdir) {
         mkdir $targetdir;
     }
+	# croak "$targetdir/$csrc.$ext";
  	open my $OUT, '>', "$targetdir/$csrc.$ext";
  	map {say $OUT $_ } @{$stref->{'TranslatedCode'}};
  	close $OUT;

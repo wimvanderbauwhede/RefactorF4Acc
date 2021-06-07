@@ -32,7 +32,7 @@ if ($opts{'h'}){
     -d : debug messages
     -i : info messages 
     -c : copy the generated ASTInstance.hs to the Haskell source tree
-    -C : like -c but also build and run the Haskell code and copy the generated code
+    -C : like -c but also build and run the Haskell code and copy the generated Fortran code
     \n";
 }
 our $V=0;
@@ -258,8 +258,9 @@ sub generate_final_F95_code { my ($kernel_module_name,$kernel_sub_name) = @_;
     my $run_res = `$run_cmd_str`;
     say $run_res if $V;
     die $run_res if $run_res=~/MemoryReduction-exe\:/s;
-    my $gen_prog_name = "gen_". substr($kernel_module_name,length( "module_"));
+    my $gen_prog_name = "gen_". $kernel_sub_name;
     my $gen_src_file_name =  "$gen_prog_name.f95";
+    my $gen_module_src_file_name = 'module_'.$gen_src_file_name;
     say $gen_src_file_name if $V;
     chdir $wd;
     if (not -d 'MemoryReduction') {
@@ -268,7 +269,7 @@ sub generate_final_F95_code { my ($kernel_module_name,$kernel_sub_name) = @_;
         mkdir 'MemoryReduction/Scalarized';
     }
     my @scalarised_files = glob('Scalarized/*.f95');
-    my @srcs = ($gen_src_file_name);
+    my @srcs = ($gen_src_file_name, $gen_module_src_file_name);
     for my $scalarised_file (@scalarised_files){
         if (not 
             (
@@ -283,6 +284,7 @@ sub generate_final_F95_code { my ($kernel_module_name,$kernel_sub_name) = @_;
     }
 
     copy( "$hs_src_path/$gen_src_file_name", 'MemoryReduction/Generated/'.$gen_src_file_name ) or die "Copy of $gen_src_file_name failed: $!";
+    copy( "$hs_src_path/$gen_module_src_file_name", 'MemoryReduction/Generated/'.$gen_module_src_file_name ) or die "Copy of $gen_module_src_file_name failed: $!";
 
     gen_SConstruct('./MemoryReduction/Generated/SConstruct',$gen_prog_name,\@srcs);
 

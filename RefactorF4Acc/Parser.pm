@@ -1626,8 +1626,14 @@ sub _parse_use {
 
 			if ( $line =~ /^\s*use\s+(\w+)/ ) { # if exists $info->{'Includes'}
 				my $name = $1;
-				print "FOUND module $name in $f\n" if $V;
-				$Sf->{'Uses'}{$name} = $index;
+				say "FOUND module $name in $f" if $V;
+				my $only_str='';
+				if ($line=~/,\s*only\s*:\s*([\w\s,]+)$/) {
+					$only_str = $1;
+				}
+				say "Module $name in $f has ONLY: $only_str" if $V;
+				my $only_list = [split(/\s*,\s*/,$only_str)];
+				$Sf->{'Uses'}{$name} = $only_list;
 
 				if (    exists $Sf->{'Translate'}
 					and exists $stref->{'Modules'}{$name}
@@ -1771,7 +1777,7 @@ sub _parse_subroutine_and_function_calls {
 		# Subroutine calls to be offloaded must be enclosed in a KernelWrapper region 
 		# TODO: We currently only allow ONE KernelWrapper region in a code unit (or in fact in a program).
 		my $in_kernel_wrapper_region = 0;
-		# Each subroutine in that region should be enclodsed in a KernelSub region		
+		# Each subroutine call in that region should be enclodsed in a KernelSub region
 		my $in_kernel_sub_region     = 0;
 		my $kernel_wrapper_name      = '';
 		my $current_sub_name         = '';
@@ -2647,15 +2653,16 @@ sub __handle_acc_pragma {
 		}
 		$info->{'Pragmas'}{ $pragma_name_prefix . ucfirst( lc($pragma_name) ) } = [@pragma_args];
 		
-		# WV20170517 I think the following is OBSOLETE
-		if (    $pragma_name =~ /KernelWrapper/i
-			and $pragma_name_prefix eq 'Begin' )
-		{
-			$stref->{'KernelWrappers'}{ $pragma_args[0] }
-			{ $pragma_name_prefix . ucfirst( lc($pragma_name) ) } =
-			[ $f, $index ];
-			$stref = outer_loop_start_detect( $pragma_args[0], $stref );
-		}
+		# WV20170517 This is not used, KernelWrappers is meant for LoopDetect but that was never finished.
+
+		# if (    $pragma_name =~ /Subroutine|KernelWrapper/i
+		# 	and $pragma_name_prefix eq 'Begin' )
+		# {
+		# 	$stref->{'KernelWrappers'}{ $pragma_args[0] }
+		# 	{ $pragma_name_prefix . ucfirst( lc($pragma_name) ) } =
+		# 	[ $f, $index ];
+		# 	$stref = outer_loop_start_detect( $pragma_args[0], $stref );
+		# }
 	}
 	return ( $stref, $info );
 	

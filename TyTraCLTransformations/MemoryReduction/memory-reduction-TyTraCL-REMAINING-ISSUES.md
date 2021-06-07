@@ -1,5 +1,50 @@
 # REMAINING ISSUES : Memory (Bandwidth) Reduction for Scientific Computing on GPUs
 
+## 2021-05-07
+
+- The pointer analysis needed more sophistication. Should be OK now. Also subs in used modules are now emitted as C code.
+- I want to have a single kernel driver subroutine in an iterative loop. What this means is that I should use the 
+
+      !$RF4A Subroutine $sub_name
+      ...
+      !$ACC End Subroutine $sub_name
+
+but any subroutine called in this region should be inlined.
+
+In other words, the !$RF4A Subroutine region should work exactly as the 
+
+    !$RF4A Begin Inline
+    ...
+    !$RF4A End Inline 
+
+region
+
+* We have `{Begin|End}KernelWrapper` which seems to be a synonym for `Subroutine`, so that is OK.
+* We also have `HasKernelRegion` and `{Begin|End}Kernel`: 
+
+            if (exists $info->{'Pragmas'}{'BeginKernel'}) {
+                  $Sf->{'HasKernelRegion'}=1;
+            }
+
+      This is used as follows:
+      - If in `analyse_lines()` we encounter
+
+            !$RF4A Begin Kernel 
+
+      we set `HasKernelRegion` on that subroutine. 
+      - Then in `mark_blocks_between_calls`, we look for a  `{Begin|End}Kernel` block. If this is not enclosing a subroutine call, we mark it with 
+
+            !$RF4A Subroutine 
+      
+      - All these subroutines are added to `$stref->{'KernelSubs'}` but that is unused. All marked blocks it will be extracted in the next pass, `refactor_marked_blocks_into_subroutines()`. 
+
+      - So this is simply a way to mark anything not a subroutine call so that it will become a subroutine call.
+
+* We also have `{Begin|End}KernelSub`. Each subroutine call intended for offloading in the `KernelWrapper` region should be enclosed in a `KernelSub` region. Then it is added to `$stref->{'KernelWrappers'}{$kernel_wrapper_name}{'KernelSubs'}`, otherwise it goes into `OtherCalls`. This was intended for Analysis::LoopDetect and Analysis::KernelArgs, but these were never finished. So I can ignore this for the moment.
+
+What I want is that there is a single subroutine which will be offloaded. So if I mark a region with `Inline` that should do what I want.
+
+
 
 ## 2021-05-03
 

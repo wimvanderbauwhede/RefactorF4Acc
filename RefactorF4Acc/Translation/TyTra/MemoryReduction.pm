@@ -58,10 +58,11 @@ use Exporter;
 
 
 sub pass_memory_reduction {
-    (my $stref, my $superkernel_name) = @_;
+    (my $stref, my $superkernel_module_name) = @_;
     
+    my $superkernel_name = $Config{'KERNEL'};
     my $comment =  $superkernel_name;
-    
+
     # WV: I think Selects and Inserts should be in Lines but I'm not sure
     $stref->{'EmitAST'}     = 'TyTraCL_AST';
     $stref->{'TyTraCL_AST'} = {
