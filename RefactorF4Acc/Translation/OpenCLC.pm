@@ -4,7 +4,7 @@ use v5.10;
 use RefactorF4Acc::Config;
 use RefactorF4Acc::Utils;
 use RefactorF4Acc::Analysis::ArgumentIODirs qw( determine_argument_io_direction_rec );
-use RefactorF4Acc::Refactoring::Helpers qw( stateful_pass_inplace pass_wrapper_subs_in_module update_arg_var_decl_sourcelines);
+use RefactorF4Acc::Refactoring::Helpers qw( stateful_pass stateful_pass_inplace pass_wrapper_subs_in_module update_arg_var_decl_sourcelines get_annotated_sourcelines);
 use RefactorF4Acc::Refactoring::Fixes qw( 
 	_declare_undeclared_variables 
 	_removed_unused_variables 
@@ -91,6 +91,15 @@ sub translate_module_to_C {  (my $stref, my $module_name, my $ocl) = @_;
     $stref->{'SourceContains'}={};
 } # END of translate_module_to_C
 
+our @F95_OpenCL_API_list = qw(
+	get_global_id
+	get_local_id
+	get_group_id
+	barrier
+);
+our %F95_OpenCL_API = map {$_=>1} @F95_OpenCL_API_list;
+
+
 sub add_OpenCL_address_space_qualifiers { (my $stref, my $f, my $ocl) = @_;
 	
 	if ($ocl>=1) { 
@@ -173,8 +182,80 @@ sub translate_sub_to_C {  (my $stref, my $f, my $ocl) = @_;
 	- If we find a select/case, we need to mark the *first* case to indicate that it should *not* be prefixed with  "}\n break;"
 	- so maybe we actually don't need a separate pass after all ...
 		 		
-=cut
+WV 2021-06-07
 
+Instead of the nice but cumbersome approach we had until now, from now on it is simple:
+- All args are pointers
+- If a call arg is an expression, I will need to generate a temp, TODO
+- Arguments to calls are therefore always either bare or &arg_var[...]
+- Accesses in subroutine bodies are always *lhs_vars = expr(*rhs_vars)
+- Scalar local vars are only pointers if they are args to a subroutine
+- The latter is weak because it means that if I have a parameter used as arg, 
+
+=cut
+	my $Sf = $stref->{'Subroutines'}{$f};
+	my $annlines = get_annotated_sourcelines( $stref, $f );
+
+	my $pass_pointer_analysis = sub { my ($annline,$state) = @_;
+		my ($line, $info) = @{$annline};
+
+		if (exists $info->{'Signature'} ) {
+			$state->{'Args'} = { map { $_=>1 } @{$info->{'Signature'}{'Args'}{'List'}}};
+		}
+		elsif (exists $info->{'VarDecl'} ) {
+			my $var = $info->{'VarDecl'}{'Name'};
+			# carp "$var";
+			if (exists $state->{'Args'}{$var} and not exists $F95_OpenCL_API{$f}) {
+				$state->{'Pointers'}{$var}='*';
+			} else {				
+				$state->{'Pointers'}{$var}='';
+				$state->{'LocalVars'}{$var}=1;
+			}
+			
+
+		}
+		elsif ( exists $info->{'ParamDecl'} ) {
+				my $var = $info->{'VarDecl'}{'Name'};
+				$state->{'Pointers'}{$var}='';
+				$state->{'Parameters'}{$var}=1;
+		}
+		elsif (exists $info->{'SubroutineCall'} ) {
+			my $fname =  $info->{'SubroutineCall'}{'Name'};
+			if (not exists $F95_intrinsic_functions{$fname} and not exists $F95_OpenCL_API{$fname}) {
+			for my $arg_expr_str (@{$info->{'SubroutineCall'}{'Args'}{'List'}}) {
+				my $arg = $info->{'SubroutineCall'}{'Args'}{'Set'}{$arg_expr_str}{'Type'} eq 'Scalar' 
+				? $info->{'SubroutineCall'}{'Args'}{'Set'}{$arg_expr_str}{'Expr'} 
+				: $info->{'SubroutineCall'}{'Args'}{'Set'}{$arg_expr_str}{'Arg'};
+				if (exists $state->{'LocalVars'}{$arg}) {
+					$state->{'Pointers'}{$arg}='*';
+				}
+				elsif (exists $state->{'Parameters'}{$arg}) {
+					$state->{'Pointers'}{$arg}='&';
+					carp 'TODO: a const scalar passed as arg';
+				}
+			}
+			}
+		}
+		elsif ( exists $info->{'FunctionCalls'} ) {
+			for my $entry (@{$info->{'FunctionCalls'}}) {
+				my $fname =  $entry->{'Name'};
+				if (not exists $F95_intrinsic_functions{$fname} and not exists $F95_OpenCL_API{$fname}) {
+					# We assume intrinsics take values not pointers
+					for my $arg (sort keys %{$entry->{'Args'}}) {
+						if (exists $state->{'LocalVars'}{$arg}) {
+							$state->{'Pointers'}{$arg}='*';
+						}
+					}
+				}
+			}
+		}
+
+		return ([[$line,$info]],$state)
+	};
+
+	my $pass_state = {'Pointers'=>{},'Args' =>{},'LocalVars' =>{}, 'Parameters'=>{}};
+	(my $new_annlines_,$pass_state) = stateful_pass($annlines,$pass_pointer_analysis,$pass_state,"pass_pointer_analysis($f)");
+	$Sf->{'Pointers'} = $pass_state->{'Pointers'};
 	my $pass_translate_to_C = sub { (my $annline, my $state)=@_;
 		(my $line,my $info)=@{$annline};
 		my $c_line=$line;
@@ -182,16 +263,18 @@ sub translate_sub_to_C {  (my $stref, my $f, my $ocl) = @_;
 #		say Dumper($stref->{'Subroutines'}{$f}{'DeletedArgs'});
 		my $skip=0;
 		if (exists $info->{'Signature'} ) {
-			$pass_state->{'Args'}=$info->{'Signature'}{'Args'}{'List'};
-			# WV20190823 I think this is OBSOLETE			
+			$pass_state->{'Args'}=$info->{'Signature'}{'Args'}{'List'};						
 			if($ocl==3 and $info->{'Signature'}{'Name'} eq 'pipe_initialisation') {
+				# WV20190823 I think this is OBSOLETE
 				$c_line='';	
 			} else {
-			$c_line = _emit_subroutine_sig_C( $stref, $f, $annline);
-			if ($ocl==3 or ($ocl==1 and $f eq $Config{'KERNEL'})) {
-				$c_line = '__kernel __attribute__((reqd_work_group_size(1,1,1))) '.$c_line;
-			}
-			}
+				my $sig_line = _emit_subroutine_sig_C( $stref, $f, $annline);
+				$c_line = $sig_line." {\n";
+				$pass_state->{'ForwardDecl'} = $sig_line.';' unless $sig_line=~/int\s+main/;
+				if ($ocl==3 or ($ocl==1 and $f eq $Config{'KERNEL'})) {
+					$c_line = '__kernel __attribute__((reqd_work_group_size(1,1,1))) '.$c_line;
+				}
+			}			
 		}
 		elsif (exists $info->{'VarDecl'} ) {
 			
@@ -231,7 +314,7 @@ sub translate_sub_to_C {  (my $stref, my $f, my $ocl) = @_;
 		}
 		elsif (exists $info->{'Select'} ) {				
             #my $switch_expr = _emit_expression_C(['$',$info->{'CaseVar'}],'',$stref,$f);
-			my $switch_expr = _emit_expression_C([2,$info->{'CaseVar'}],$stref,$f); # FIXME
+			my $switch_expr = _emit_expression_C([2,$info->{'CaseVar'}],$stref,$f,$info); # FIXME
 			$c_line ="switch ( $switch_expr ) {";
 		}
 		elsif (exists $info->{'Case'} ) {
@@ -244,15 +327,7 @@ sub translate_sub_to_C {  (my $stref, my $f, my $ocl) = @_;
 		elsif (exists $info->{'CaseDefault'}) {
 			$c_line = $info->{'Indent'}."} break;\n".$info->{'Indent'}.'default : {';
 		}
-		elsif (exists $info->{'Do'} ) { #say $line.Dumper($info->{Expressions});
-		# bit ad-hoc but we need to check this for macros too.
-#			for my $macro (keys %{ $Config{'Macros'} } ) {
-#				my $lc_macro=lc($macro);
-#				for my $i (0 ..2) {
-#					$info->{'Do'}{'Range'}{'Expressions'}[$i]=~s/\b$lc_macro\b/$macro/g;
-#				}				
-#			}
-			# do r_iter=start_position, ((start_position + local_chunk_size) - 1)
+		elsif (exists $info->{'Do'} ) { 
 				$c_line='for ('. 
 				$info->{'Do'}{'Iterator'}.' = '.$info->{'Do'}{'Range'}{'Expressions'}[0] .';'. 
 				$info->{'Do'}{'Iterator'}.' <= '.$info->{'Do'}{'Range'}{'Expressions'}[1] .';'.
@@ -267,7 +342,7 @@ sub translate_sub_to_C {  (my $stref, my $f, my $ocl) = @_;
 		elsif (exists $info->{'SubroutineCall'} ) {
 			# 
 			my $subcall_ast = [ 1, $info->{'SubroutineCall'}{'Name'},$info->{'SubroutineCall'}{'ExpressionAST'} ];
-			# say Dumper($subcall_ast);
+			
 			# $subcall_ast->[0] = 1; # FIXME '&';
 
 			# There is an issue here:
@@ -279,7 +354,7 @@ sub translate_sub_to_C {  (my $stref, my $f, my $ocl) = @_;
 			if ($subcall_ast->[1] eq 'barrier') {
 				$subcall_ast->[2][1]=uc($subcall_ast->[2][1]);
 #				push @{$pass_state->{'TranslatedCode'}},'#ifdef BARRIER_OK';
-				$c_line = $info->{'Indent'}._emit_expression_C($subcall_ast,$stref,$f).';';
+				$c_line = $info->{'Indent'}._emit_expression_C($subcall_ast,$stref,$f,$info).';';
 				push @{$pass_state->{'TranslatedCode'}},$c_line ;
 #				push @{$pass_state->{'TranslatedCode'}},'#endif // BARRIER_OK';
 				$skip=1;
@@ -299,10 +374,12 @@ sub translate_sub_to_C {  (my $stref, my $f, my $ocl) = @_;
 				# $c_line = $info->{'Indent'}."${qual}_id = get_${qual}_id(0);";
 				$c_line = $info->{'Indent'}."$ocl_id_var = get_${qual}_id($ocl_dimidx);";
 			} else {				
-				$c_line = $info->{'Indent'}._emit_expression_C($subcall_ast,$stref,$f).';';
+				$c_line = $info->{'Indent'}._emit_subroutine_call_expr_C($stref,$f,$info).';';
+				# croak Dumper $info if $info->{'SubroutineCall'}{'Name'} eq 'update_map_24';
+				# $c_line = $info->{'Indent'}._emit_expression_C($subcall_ast,$stref,$f,$info).';';
             }
 		}			 
-		elsif (exists $info->{'If'} ) {				
+		elsif (exists $info->{'If'} ) {							
 			$c_line = _emit_ifthen_C($stref, $f, $info);
 		}
 		elsif (exists $info->{'ElseIf'} ) {		
@@ -318,11 +395,10 @@ sub translate_sub_to_C {  (my $stref, my $f, my $ocl) = @_;
 			or exists $info->{'EndProgram'} 
 			) {
 			if ($ocl==3 and  exists $info->{'EndSubroutine'} and  $info->{'EndSubroutine'}{'Name'} eq 'pipe_initialisation') {
-				     $c_line = '' ;
-#			} elsif ($ocl==2 and  exists $info->{'EndSubroutine'} and  $info->{'EndSubroutine'}{'Name'} eq $Config{'TOP'}) {
-#				     $c_line = '*/' ;
+				$c_line = '' ;
 			} else {
-				 $c_line = '}' ;
+				$info->{'Indent'} = '' if exists $info->{'EndSubroutine'} or exists $info->{'EndProgram'} ;
+				$c_line = '}' ;
 			}
 		}
 		elsif (exists $info->{'EndSelect'} ) {
@@ -350,8 +426,8 @@ sub translate_sub_to_C {  (my $stref, my $f, my $ocl) = @_;
 			}			
 		}
 		elsif (
-		exists $info->{'ImplicitNone'} or
-		exists $info->{'Implicit'}		
+			exists $info->{'ImplicitNone'} or
+			exists $info->{'Implicit'}		
 		) {
 			$c_line = '//'.$line; $skip=1;
 		}	
@@ -365,6 +441,9 @@ sub translate_sub_to_C {  (my $stref, my $f, my $ocl) = @_;
 		elsif (exists $info->{'Continue'}) {
 			$c_line='';
 		}
+		elsif (exists $info->{'Common'}) {
+			$c_line='';
+		}		
 		if (exists $info->{'Label'} ) {
 			$c_line = $info->{'Label'}. ' : '."\n".$info->{'Indent'}.$c_line;
 		}
@@ -374,11 +453,11 @@ sub translate_sub_to_C {  (my $stref, my $f, my $ocl) = @_;
 		return ([$annline],[$stref,$f,$pass_state]);
 	};
 
-	my $state = [$stref,$f, {'TranslatedCode'=>[], 'Args'=>[]}];
+	my $state = [$stref,$f, {'TranslatedCode'=>[], 'Args'=>[],'ForwardDecl'=>''}];
  	($stref,$state) = stateful_pass_inplace($stref,$f,$pass_translate_to_C, $state,'C_translation_collect_info() ' . __LINE__  ) ;
 
  	$stref->{'Subroutines'}{$f}{'TranslatedCode'}=$state->[2]{'TranslatedCode'};
- 	$stref->{'TranslatedCode'}=[@{$stref->{'TranslatedCode'}},@{$state->[2]{'TranslatedCode'}}];	
+ 	$stref->{'TranslatedCode'}=[$state->[2]{'ForwardDecl'},@{$stref->{'TranslatedCode'}},'',@{$state->[2]{'TranslatedCode'}}] unless exists $F95_OpenCL_API{$f};	
 	# For fixing LLVM IR
 	$stref->{'SubroutineArgs'}=$state->[2]{'Args'};
 	$stref->{'SubroutineName'}=$f;
@@ -390,16 +469,21 @@ sub translate_sub_to_C {  (my $stref, my $f, my $ocl) = @_;
 # $ocl: 0 = C, 1 = CPU/GPU OpenCL, 2 = C for TyTraIR aka TyTraC, 3 = pipe-based OpenCL for FPGAs 
 sub _write_headers { (my $stref, my $ocl)=@_;
 	
-	my @headers= grep { $_ ne '' } (
+	my @headers = grep { $_ ne '' } (
 		# 0 means C, needs the header; 
 		( $ocl>0 ? '' : '#include <stdlib.h>'),
 		( $ocl>0 and $ocl!=2 ? '' : '#include <math.h>'),
-		( $ocl>0 ? '' : 'inline unsigned int get_global_id(unsigned int n) { return 0; }'),
+		( $ocl>0 ? '' : 'unsigned int get_global_id(unsigned int n);'),
 		# ($ocl != 2 ? '#include "array_index_f2c1d.h"' : ''), # WV 2019-11-20 this is incorrect as non-map/fold args can be arrays
 		'#include "array_index_f2c1d.h"' , 
 		''
 		);
-		$stref->{'TranslatedCode'}=[@headers,@{$stref->{'TranslatedCode'}}];		
+
+	my @footers = grep { $_ ne '' } (
+		# 0 means C, needs the header; 
+		( $ocl>0 ? '' : 'inline unsigned int get_global_id(unsigned int n) { return 0; }'),
+		);
+		$stref->{'TranslatedCode'}=[@headers,@{$stref->{'TranslatedCode'}},@footers];		
 		
 		if (not -e $targetdir.'/array_index_f2c1d.h') {			
 			_gen_array_index_f2c1d_h();
@@ -435,40 +519,46 @@ sub _emit_C_code { (my $stref, my $module_name, my $ocl)=@_;
 } # END of _emit_C_code
 
 sub _emit_subroutine_sig_C { (my $stref, my $f, my $annline)=@_;
-#	say "//SUB $f";
 	    (my $line, my $info) = @{ $annline };
 	    my $Sf        = $stref->{'Subroutines'}{$f};
 	    
 	    my $name = $info->{'Signature'}{'Name'};
-#	    say "NAME $name";
 		my $args_ref = $info->{'Signature'}{'Args'}{'List'};
+		# carp Dumper $info;
 		my $c_args_ref=[];	    			
 		for my $arg (@{ $args_ref }) {
 			($stref,my $c_arg_decl) = _emit_arg_decl_C($stref,$f,$arg);
 			push @{$c_args_ref},$c_arg_decl;
 		}
 	    my $args_str = join( ',', @{$c_args_ref} );	    
-	    my $rline = "void $name($args_str) {\n";
+		my $rline = "void $name($args_str)";
+		if (exists $stref->{'Subroutines'}{$f}{'Program'} and $stref->{'Subroutines'}{$f}{'Program'}==1
+		) { 
+			$rline = "int main($args_str)";
+		}	    
 		return  $rline;
-}
+} # END of _emit_subroutine_sig_C
 
 sub _emit_arg_decl_C { (my $stref,my $f,my $arg)=@_;
     
 	my $decl_for_iodir =	$stref->{'Subroutines'}{$f}{'RefactoredArgs'}{'Set'}{$arg};
 	my $decl =  get_var_record_from_set($stref->{'Subroutines'}{$f}{'Vars'},$arg) ;
 	    
-#	croak Dumper($decl2) if $f eq 'dyn_0' and $arg eq 'dx';
-	my $array = $decl->{'ArrayOrScalar'} eq 'Array' ? 1 : 0;
-	my $const = 1;
-	if (not defined $decl_for_iodir->{'IODir'}) {
-		$const = 0;
-	} else { 
-		$const =    lc($decl_for_iodir->{'IODir'}) eq 'in' ? 1 : 0;
-	}
-	my $is_ptr =$array || ($const==0);
-	my $ptr = $is_ptr ? '*' : '';
-    #die "$ptr $arg" if $f =~/shapiro_map/ && $arg eq 'eta_j_k';
-	$stref->{'Subroutines'}{$f}{'Pointers'}{$arg}=$ptr;	
+	# my $array = $decl->{'ArrayOrScalar'} eq 'Array' ? 1 : 0;
+	# my $const = 1;
+	# if (not defined $decl_for_iodir->{'IODir'}) {
+	# 	$const = 0;
+	# } else { 
+	# 	$const = lc($decl_for_iodir->{'IODir'}) eq 'in' ? 1 : 0;
+	# }
+	# my $is_ptr = $array || ($const==0);
+	# # WV 2021-06-07 All args are always pointers!
+	# $is_ptr=1;
+	# my $ptr = $is_ptr ? '*' : '';
+    # #die "$ptr $arg" if $f =~/shapiro_map/ && $arg eq 'eta_j_k';
+	# $stref->{'Subroutines'}{$f}{'Pointers'}{$arg}=$ptr;	
+	my $ptr = $stref->{'Subroutines'}{$f}{'Pointers'}{$arg};
+	my $is_ptr = $ptr eq '*' ? 1 : 0;
 	my $ftype = $decl->{'Type'};
 	my $fkind = $decl->{'Attr'};
 	$fkind=~s/\(kind=//;
@@ -493,10 +583,11 @@ sub _emit_var_decl_C { (my $stref,my $f,my $var)=@_;
 		$val = ' = '.$decl->{'Val'};
 	}
 	my $ocl = $stref->{'OpenCL'};
-	my $ptr = ($array && $ocl<3) ? '*' : '';
-   	
+	# my $ptr = ($array && $ocl<3) ? '*' : '';
+   	# $ptr = $const eq '' ? '*' : '';
 	my $dim= ($array && $ocl==3 ) ? '['.__C_array_size($decl->{'Dim'}).']' : '';
-	$stref->{'Subroutines'}{$f}{'Pointers'}{$var}=$ptr;
+	my $ptr =  $stref->{'Subroutines'}{$f}{'Pointers'}{$var} ;
+
 	my $ftype = $decl->{'Type'};
 	my $fkind = $decl->{'Attr'};
 #	carp Dumper($fkind);
@@ -517,7 +608,7 @@ sub _emit_var_decl_C { (my $stref,my $f,my $var)=@_;
 
 sub _emit_assignment_C { (my $stref, my $f, my $info)=@_;
 	my $lhs_ast =  $info->{'Lhs'}{'ExpressionAST'};
-	my $lhs = _emit_expression_C($lhs_ast,$stref,$f);
+	my $lhs = _emit_expression_C($lhs_ast,$stref,$f,$info);
 	
 	my $indent='';
 	$lhs=~/^(\s+)/ && do {
@@ -530,8 +621,8 @@ sub _emit_assignment_C { (my $stref, my $f, my $info)=@_;
 	my $rhs_ast =  $info->{'Rhs'}{'ExpressionAST'};	
 #	carp Dumper($rhs_ast) if $lhs=~/k_range/;
    
-	my $rhs = _emit_expression_C($rhs_ast,$stref,$f);
-	 croak 'WRONG RHS '.$rhs if $rhs=~/hzero_j_k/;   
+	my $rhs = _emit_expression_C($rhs_ast,$stref,$f,$info);
+	#  croak 'WRONG RHS '.$rhs if $rhs=~/hzero_j_k/;   
 #	say "RHS:$rhs" if$rhs=~/abs/;
 	my $rhs_stripped = $rhs;
 	$rhs_stripped=~s/^\(([^\(\)]+)\)$/$1/;
@@ -551,7 +642,7 @@ sub _emit_assignment_C { (my $stref, my $f, my $info)=@_;
 	my $rline = $info->{'Indent'}.$lhs.' = '.$rhs_stripped;
 	if (exists $info->{'If'}) {
 		my $if_str = _emit_ifthen_C($stref,$f,$info);
-		$rline =$if_str.' '.$rline; 
+		$rline =$indent.$if_str.' '.$rline; 
 	}	
 	# carp "$f $rline";
 	return $rline;
@@ -561,15 +652,15 @@ sub _emit_assignment_C { (my $stref, my $f, my $info)=@_;
 
 sub _emit_ifthen_C { (my $stref, my $f, my $info)=@_;	
 	my $cond_expr_ast=$info->{'Cond'}{'AST'};	
-	my $cond_expr = _emit_expression_C($cond_expr_ast,$stref,$f);
+	my $cond_expr = _emit_expression_C($cond_expr_ast,$stref,$f,$info);
 	$cond_expr=_change_operators_to_C($cond_expr);
 	# FIXME! fix for stray '+'
 	$cond_expr=~s/\+\>/>/g;
 	my $rline = 'if ('.$cond_expr.') '. (exists $info->{'IfThen'} ? '{' : '');		
 	return $rline;
 }
-
-sub _emit_expression_C { my ($ast, $stref, $f)=@_;
+# I wonder if for call args it might be better to have a separate function which checks if the arg is scalar, array, array access, const
+sub _emit_expression_C { my ($ast, $stref, $f, $info)=@_;
 	my $Sf = $stref->{'Subroutines'}{$f};
 # croak 'FIXME: port differences from _emit_expression_C_OLD(), LINE 588';
 	# say Dumper($ast);
@@ -619,12 +710,12 @@ sub _emit_expression_C { my ($ast, $stref, $f)=@_;
 							for my $idx (1 .. scalar @{$args}-1) {
 								my $arg = $args->[$idx];							
 								my $is_slice = $arg->[0] == 12;
-								push @args_lst, _emit_expression_C($arg, $stref, $f) unless $is_slice;
+								push @args_lst, _emit_expression_C($arg, $stref, $f,$info) unless $is_slice;
 								$has_slices ||= $is_slice;
 							}
 						} else {
 							# only one arg
-							$args_lst[0] = _emit_expression_C($args, $stref, $f);
+							$args_lst[0] = _emit_expression_C($args, $stref, $f,$info);
 							# return "$name("._emit_expression_C($args, $stref, $f).')';
 						}
 
@@ -666,18 +757,18 @@ sub _emit_expression_C { my ($ast, $stref, $f)=@_;
 							my @args_lst1=();
 							for my $idx (1 .. scalar @{$args1}-1) {
 								my $arg = $args1->[$idx];
-								push @args_lst1, _emit_expression_C($arg, $stref, $f);
+								push @args_lst1, _emit_expression_C($arg, $stref, $f,$info);
 							}
 							$args_str1=join(',',@args_lst1);
 
 						} else {
-							$args_str1= _emit_expression_C($args1, $stref, $f);
+							$args_str1= _emit_expression_C($args1, $stref, $f,$info);
 						}
 						if($args2->[0] == 27) { #eq ','
 							my @args_lst2=();
 							for my $idx (1 .. scalar @{$args2}-1) {
 								my $arg = $args2->[$idx];
-								push @args_lst2, _emit_expression_C($arg, $stref, $f);
+								push @args_lst2, _emit_expression_C($arg, $stref, $f,$info);
 							}
 
 							#                for my $arg (@{$args2->[1]}) {
@@ -685,7 +776,7 @@ sub _emit_expression_C { my ($ast, $stref, $f)=@_;
 							#}
 							$args_str2=join(',',@args_lst2);
 						} else {
-							$args_str2=_emit_expression_C($args2, $stref, $f);
+							$args_str2=_emit_expression_C($args2, $stref, $f,$info);
 						}
 						return "$name(".$args_str1.')('.$args_str2.')';
 					}
@@ -696,8 +787,8 @@ sub _emit_expression_C { my ($ast, $stref, $f)=@_;
 				
                 (my $opcode, my $lexp, my $rexp) =@{$ast};
 				
-                my $lv = (ref($lexp) eq 'ARRAY') ? _emit_expression_C($lexp, $stref, $f) : $lexp;
-                my $rv = (ref($rexp) eq 'ARRAY') ? _emit_expression_C($rexp, $stref, $f) : $rexp;
+                my $lv = (ref($lexp) eq 'ARRAY') ? _emit_expression_C($lexp, $stref, $f,$info) : $lexp;
+                my $rv = (ref($rexp) eq 'ARRAY') ? _emit_expression_C($rexp, $stref, $f,$info) : $rexp;
 				
                 return $lv.$sigils[$opcode].$rv;
             }
@@ -705,10 +796,10 @@ sub _emit_expression_C { my ($ast, $stref, $f)=@_;
 		
             (my $opcode, my $exp) =@{$ast};
             if ($opcode==0 ) {#eq '('
-                my $v = (ref($exp) eq 'ARRAY') ? _emit_expression_C($exp, $stref, $f) : $exp;
+                my $v = (ref($exp) eq 'ARRAY') ? _emit_expression_C($exp, $stref, $f,$info) : $exp;
                 return "($v)";
             } elsif ($opcode==28 ) {#eq '(/'
-                my $v = (ref($exp) eq 'ARRAY') ? _emit_expression_C($exp, $stref, $f) : $exp;
+                my $v = (ref($exp) eq 'ARRAY') ? _emit_expression_C($exp, $stref, $f,$info) : $exp;
                 return "{ $v }";
             } elsif ($opcode==2 or $opcode>28) {# eq '$' or constants
 				if ($opcode == 34) {
@@ -720,7 +811,7 @@ sub _emit_expression_C { my ($ast, $stref, $f)=@_;
 					# Meaning that $mvar is a pointer in $f
 					# Now we need to check if it is also a pointer in $subname
 					my $ptr = $stref->{'Subroutines'}{$f}{'Pointers'}{$mvar};
-					carp "$f <$ptr>" ."<$called_sub_name>".'<', exists  $stref->{'Subroutines'}{$called_sub_name} ,'><', exists $stref->{'Subroutines'}{$called_sub_name}{'Pointers'}{$mvar},'>' if $mvar eq 'wet_j_k';
+					# carp "$f <$ptr>" ."<$called_sub_name>".'<', exists  $stref->{'Subroutines'}{$called_sub_name} ,'><', exists $stref->{'Subroutines'}{$called_sub_name}{'Pointers'}{$mvar},'>' if $mvar eq 'wet_j_k';
 					if ($called_sub_name ne '' and $called_sub_name ne $f and 
 					exists  $stref->{'Subroutines'}{$called_sub_name} 
 					and exists $stref->{'Subroutines'}{$called_sub_name}{'Pointers'}{$mvar} ) {
@@ -741,7 +832,7 @@ sub _emit_expression_C { my ($ast, $stref, $f)=@_;
 						# If the variable in question is 'Out' or 'InOut' we should use the pointer
 
 					}
-					warn "PTR: $ptr";
+					# warn "PTR: $ptr";
                     if ($ptr eq '') {
                         return $exp;
                     } else {
@@ -752,13 +843,13 @@ sub _emit_expression_C { my ($ast, $stref, $f)=@_;
 				}
                 # return ($opcode == 34) ?  "*$exp" : $exp;   # Fortran LABEL, does not exist in C         
             } elsif ($opcode == 21 or $opcode == 4 or $opcode == 3) {# eq '.not.' '-'
-                my $v = (ref($exp) eq 'ARRAY') ? _emit_expression_C($exp, $stref, $f) : $exp;
+                my $v = (ref($exp) eq 'ARRAY') ? _emit_expression_C($exp, $stref, $f,$info) : $exp;
                 return $sigils[$opcode]. $v;
             } elsif ($opcode == 27) { # ',' 
                 croak Dumper($ast) if $DBG; # WHY is this here?
                 my @args_lst=();
                 for my $arg (@{$exp}) {
-                    push @args_lst, _emit_expression_C($arg, $stref, $f);
+                    push @args_lst, _emit_expression_C($arg, $stref, $f,$info);
                 }
                 return join(',',@args_lst);        
             } else {
@@ -770,7 +861,7 @@ sub _emit_expression_C { my ($ast, $stref, $f)=@_;
                 my @args_lst=();
                 for my $idx (1 .. scalar @{$ast}-1) {
                     my $arg = $ast->[$idx];
-                    push @args_lst, _emit_expression_C($arg, $stref, $f);
+                    push @args_lst, _emit_expression_C($arg, $stref, $f,$info);
                 }
                 return join(',',@args_lst); 
             } else {
@@ -866,6 +957,94 @@ if ($stref->{'OpenCL'}==3) {
     return $stref; 	
  } # _emit_OpenCL_pipe_declarations
 # -----------------------------------------------------------------------------
+
+
+
+sub _emit_subroutine_call_expr_C { my ($stref,$f,$info) = @_;
+	my @call_arg_expr_strs_C=();
+	my $subname = $info->{'SubroutineCall'}{'Name'};
+
+	my $mvar = $subname;
+	# AD-HOC, replacing abs/min/max to fabs/fmin/fmax without any type checking ... FIXME!!!
+	# The (float) cast is necessary because otherwise I get an "ambiguous" error
+	$mvar=~s/^(abs|min|max)$/(float)f$1/;
+	$mvar=~s/^am(ax|in)1$/(float)fm$1/;				
+	$mvar=~s/^alog$/(float)log/;				
+	my $subname_C = $mvar;			
+
+	for my $call_arg_expr_str (@{$info->{'SubroutineCall'}{'Args'}{'List'}}) {
+		my $arg_type = $info->{'SubroutineCall'}{'Args'}{'Set'}{$call_arg_expr_str}{'Type'};
+			if ( $arg_type eq 'Scalar') {
+				my $ptr = '';
+				# If it is a parameter, it will get an '&'.
+				if (exists $stref->{'Subroutines'}{$f}{'Pointers'}{$call_arg_expr_str}) {
+					$ptr = $stref->{'Subroutines'}{$f}{'Pointers'}{$call_arg_expr_str};
+					$ptr = $ptr ne '&' ? '' : $ptr;
+				}
+				push @call_arg_expr_strs_C, "$ptr$call_arg_expr_str";
+			}
+			elsif ( $arg_type eq 'Array') {
+				# This is an array access.
+				my $call_arg_expr_str_C='';
+				my $name = $info->{'SubroutineCall'}{'Args'}{'Set'}{$call_arg_expr_str}{'Arg'};
+				my $args = $info->{'SubroutineCall'}{'Args'}{'Set'}{$call_arg_expr_str}{'AST'}[2];
+# croak Dumper $args if $info->{'SubroutineCall'}{'Name'} eq 'update_map_24';
+				my @args_lst=();
+				my $has_slices=0;
+				if($args->[0] == 27) { # ','
+				# more than one arg
+					for my $idx (1 .. scalar @{$args}-1) {
+						my $arg = $args->[$idx];							
+						my $is_slice = $arg->[0] == 12;
+						push @args_lst, _emit_expression_C($arg, $stref, $f,$info) unless $is_slice;
+						$has_slices ||= $is_slice;
+					}
+				} else {
+					# only one arg					
+					$args_lst[0] = _emit_expression_C($args, $stref, $f,$info);
+				}
+
+				if( $args->[0]==29 and $args->[1] eq '1') { # if we have v(1)
+					push @call_arg_expr_strs_C, '(*'.$name.')';
+				} else {
+					my $decl = get_var_record_from_set($stref->{'Subroutines'}{$f}{'Vars'},$name);
+					my $dims =  $decl->{'Dim'};
+					my $ndims = scalar @{$dims};
+						
+					my @ranges=();
+					my @lower_bounds=();
+					for my $boundspair (@{$dims}) {
+						(my $lb, my $hb)=@{$boundspair };
+						push @ranges, "(($hb - $lb )+1)";
+						push @lower_bounds, $lb; 
+					} 				
+					if ($ndims==1) {
+						my $offset_expr = '-'.$lower_bounds[0];
+						if ($lower_bounds[0]<0) {
+								$offset_expr = '+'.($lower_bounds[0]*-1);
+						} elsif ($lower_bounds[0]==0) {
+							$offset_expr = '';
+						}
+						push @call_arg_expr_strs_C, '&'.$name.'['.$args_lst[0].''.$offset_expr.']'; #F1D2C('.$lower_bounds[0]. ', '.
+					} else {
+						push @call_arg_expr_strs_C, '&'.$name.'[F'.$ndims.'D2C('.join(',',@ranges[0.. ($ndims-2)]).' , '.join(',',@lower_bounds). ' , '.join(',',@args_lst).')]';
+					}
+				}				
+				# push @call_arg_expr_strs_C, $call_arg_expr_str_C;
+			}
+			elsif ( $arg_type eq 'Expr') {
+				croak "TODO: Can't handle arguments of type $arg_type yet.";
+			}
+			else {
+				# Probably a Label, give up
+				croak "Can't handle arguments of type $arg_type yet.";
+			}
+
+	}
+	# croak Dumper join(", ", @call_arg_expr_strs_C) if  eq 'update_map_24';
+	return $subname_C.'('.join(", ", @call_arg_expr_strs_C).')';
+} # END of _emit_subroutine_call_expr_C
+
 
 # -----------------------------------------------------------------------------
 sub toCType {

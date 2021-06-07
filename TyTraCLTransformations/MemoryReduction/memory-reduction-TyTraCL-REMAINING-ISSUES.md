@@ -82,7 +82,9 @@ void update_map_24_scal(int *wet_j_k) {
     wet_j_k = 1;
 }
  
-
+Scalar Pointers should be derefed unless they are pointer args or in the case of a ptr = ptr assignment
+(although even then one might wonder if *ptr1 = *ptr2 is not safer)
+=> Solution: make all args pointers and deal with expressions as call args
 
 ### Major issue: output tuple code generation is entirely wrong!
 
