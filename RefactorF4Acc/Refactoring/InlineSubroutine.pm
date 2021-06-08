@@ -90,6 +90,7 @@ sub _inline_subroutines_main { my ( $stref, $f ) = @_;
             $stref = _inline_subroutine($stref,$f,$sub,0);
         }
     } 
+    # I definitely need a step to fuse the declarations of all inlined subs 
     
     return $stref;
 } # END of _inline_subroutines_main
@@ -266,7 +267,7 @@ sub __split_out_computation_part { (my $stref, my $f) =@_;
 
 =cut
 
-sub __merge_specification_computation_parts_into_caller { (my $stref, my $f, my $sub,my $use_part, my $specification_part, my $is_child) =@_;
+sub __merge_specification_computation_parts_into_caller { (my $stref, my $f, my $sub, my $use_part, my $specification_part, my $is_child) =@_;
 
 	my $Sf = $stref->{'Subroutines'}{$f};
 
@@ -296,7 +297,6 @@ sub __merge_specification_computation_parts_into_caller { (my $stref, my $f, my 
                 $stref = __substitute_args($stref, $f, $sub, $line_id); 
                 ($stref, my $computation_part) = __split_out_computation_part($stref, $sub);
                 my $Ssub = $stref->{'Subroutines'}{$sub};       
-                # my $sub_annlines = dclone($Ssub->{'RefactoredCode'});
                 $Ssub->{'RefactoredCode'}=$Ssub->{'AnnLines'};
 
                 $Sf->{'InlinedCalls'}{'Set'}{$sub}++;
@@ -400,7 +400,7 @@ sub __merge_specification_computation_parts_into_caller { (my $stref, my $f, my 
             and $found_use and not exists $info->{'Use'} 
             and not exists $info->{'Comments'}
             and not exists $info->{'Blank'}
-            and not exists $info->{'Deleted'}
+            and not exists $info->{'Deleted'}            
         ) {
             return ( [comment("$indent BEGIN ex-sub use statement $sub"),@{$use_part},comment("$indent END ex-sub use statement $sub"),$annline], 
             [
@@ -408,8 +408,6 @@ sub __merge_specification_computation_parts_into_caller { (my $stref, my $f, my 
                 $in_inline_region, 
                 $first_vardecl, $found_use
                 ] );
-            # return the remaining lines from
-# sub _insert_specification_part { my ($info, $first_vardecl, $stref, $f, $rlines) = @_; # return ($rlines,$first_vardecl);
         } elsif (    
             not exists $Sf->{'InlinedCalls'}{'Set'}{$sub} 
             and not exists $info->{'Signature'}
@@ -484,6 +482,31 @@ sub __rename_vars {
 
             $info->{'VarDecl'}{'OrigName'}=$var;
             $info->{'VarDecl'}{'Name'}=$qvar;
+            # carp $line.Dumper $info if $line=~/du/;
+        }
+        # WV 2021-06-08 If I would want to rename parameters.
+        # Currently I don't, which means that there could be conflicts.
+        # So I think I'll need a flag INLINE_RENAME_PARS in case this breaks
+        elsif ($Config{'INLINE_RENAME_PARS'}==1 and exists $info->{'ParamDecl'}) {
+            # warn Dumper $info;
+            if (exists  $info->{'ParamDecl'}{'Var'}) {
+                my $par = $info->{'ParamDecl'}{'Var'}; 
+                my $qpar = $par . '_' . $f;
+                $line =~ s/\b$par\b/$qpar/g;
+                $renamed_vars->{$par}=$qpar;
+
+                $info->{'ParamDecl'}{'OrigName'}=$par;
+                $info->{'ParamDecl'}{'Name'}=$qpar;
+            } else {
+                my $par = $info->{'ParamDecl'}{'Name'}[0]; 
+                my $qpar = $par . '_' . $f;
+                $line =~ s/\b$par\b/$qpar/g;
+                $renamed_vars->{$par}=$qpar;
+
+                $info->{'ParamDecl'}{'OrigName'}=$par;
+                $info->{'ParamDecl'}{'Name'}[0]=$qpar;
+
+            }
         }
         elsif (
                 not exists $info->{'Use'}
@@ -495,22 +518,23 @@ sub __rename_vars {
          ) {
             my $Sf = $stref->{'Subroutines'}{$f};
             my $vars = get_vars_from_set( $Sf->{'Vars'} );
+            # croak Dumper get_vars_from_set( $Sf->{'Parameters'} ) if $f eq 'dyn';
             for my $var (keys %{$vars} ) {
-                # say "$f $line $var";
+                # say "$f $line $var" if $line=~/do/ and $f eq 'dyn' and $var eq 'nx';
                 # croak "$f $line $var ".Dumper($info) if $var eq 'v_inout' and $line=~/InOut/;
                 my $subset1 = in_nested_set($Sf,'Args', $var);
                 my $subset2 = in_nested_set($Sf,'UsedParameters', $var);
                 my $subset3 = in_nested_set($Sf,'IncludedParameters', $var);
-                if (not $subset1 and not $subset2 and not $subset3) { 
+                if (not $subset1 ) {
+                    if (($Config{'INLINE_RENAME_PARS'} == 0 and
+                not $subset2 and not $subset3)
+                or $Config{'INLINE_RENAME_PARS'} == 1
+                ) {                 
                     # The actual renaming
                     my $qvar = $var . '_' . $f;
                     $line =~ s/\b$var\b/$qvar/g;
                     $renamed_vars->{$var}=$qvar;
-                    # if (exists $info->{'VarDecl'}) {
-                        
-                    #     $info->{'VarDecl'}{'OrigName'}=$var;
-                    #     $info->{'VarDecl'}{'Name'}=$qvar;
-                    # }
+                }
                 }				
             }
         }
@@ -667,7 +691,7 @@ sub find_subs_to_inline { (my $stref, my $f)=@_;
 
 sub __update_renamed_vardecl { my ($Sf, $var, $qvar) = @_;
     my $orig_set = in_nested_set($Sf,'Vars', $var);
-    my $decl = $Sf->{$orig_set}{'Set'}{$var};
+    my $decl = get_var_record_from_set($Sf->{$orig_set},$var);
     $decl->{'OrigName'}=$var;
     $decl->{'Name'}=$qvar;
     $Sf->{$orig_set}{'Set'}{$qvar}=$decl;
@@ -680,21 +704,24 @@ sub __update_caller_inlined_vardecls { my ($stref,$f,$sub,$specification_part) =
         my ($line,$info) = @{$annline};
         next if exists $info->{'Comments'};
         # say "$sub in $f:". Dumper $info;
-        my $qvar = exists $info->{'VarDecl'} 
-            ? $info->{'VarDecl'}{'Name'}
+        my ($qvar, $is_param) = exists $info->{'VarDecl'} 
+            ? ($info->{'VarDecl'}{'Name'},0)
             : exists $info->{'ParamDecl'} 
             ? exists $info->{'ParamDecl'}{'Var'}
-                ? $info->{'ParamDecl'}{'Var'}
+                ? ($info->{'ParamDecl'}{'Var'},1)
                 : exists $info->{'ParamDecl'}{'Name'}
-                    ? $info->{'ParamDecl'}{'Name'}[0]
+                    ? ($info->{'ParamDecl'}{'Name'}[0],1)
                     : croak "Specification line is not a variable declaration: ". Dumper($annline)
             : croak "Specification line is not a variable declaration: ". Dumper($annline);
         my $subset = in_nested_set($stref->{'Subroutines'}{$sub},'Vars',$qvar);
-        my $decl = $stref->{'Subroutines'}{$sub}{$subset}{'Set'}{$qvar};
-        # say Dumper($decl);
+        my $decl = get_var_record_from_set($stref->{'Subroutines'}{$sub}{$subset},$qvar);
         # croak;
         # say "Adding $qvar to DeclaredOrigLocalVars in $f";
+        if (not $is_param) {
         $stref->{'Subroutines'}{$f}{'DeclaredOrigLocalVars'}{'Set'}{$qvar}=dclone($decl);
+        } else {
+        $stref->{'Subroutines'}{$f}{'LocalParameters'}{'Set'}{$qvar}=dclone($decl);
+        }
     }
     return $stref;
 }

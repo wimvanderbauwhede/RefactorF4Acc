@@ -2,7 +2,9 @@
 
 ## 2021-05-07
 
-- The pointer analysis needed more sophistication. Should be OK now. Also subs in used modules are now emitted as C code.
+- The pointer analysis needed more sophistication. Should be OK now. Also subs in used modules are now emitted as C code. 
+- I can now also generate OpenCL C from the generated kernel code. The main program is not OpenCL, but it is probably not a big task to do that.
+
 - I want to have a single kernel driver subroutine in an iterative loop. What this means is that I should use the 
 
       !$RF4A Subroutine $sub_name
@@ -42,8 +44,15 @@ region
 
 * We also have `{Begin|End}KernelSub`. Each subroutine call intended for offloading in the `KernelWrapper` region should be enclosed in a `KernelSub` region. Then it is added to `$stref->{'KernelWrappers'}{$kernel_wrapper_name}{'KernelSubs'}`, otherwise it goes into `OtherCalls`. This was intended for Analysis::LoopDetect and Analysis::KernelArgs, but these were never finished. So I can ignore this for the moment.
 
-What I want is that there is a single subroutine which will be offloaded. So if I mark a region with `Inline` that should do what I want.
+What I want is that there is a single subroutine which will be offloaded. So if I mark a region with `Inline` that should do what I want. So what we do is:
 
+      !$ACC Subroutine dyn_shapiro_update
+      !$ACC Begin Inline 
+      ...
+      !$ACC End Inline
+      !$ACC End Subroutine dyn_shapiro_update
+
+and that seems to work but needs to be tested.
 
 
 ## 2021-05-03

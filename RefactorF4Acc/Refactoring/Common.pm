@@ -42,10 +42,12 @@ use Exporter;
 our @ISA = qw(Exporter);
 
 our @EXPORT_OK = qw(
-  refactor_COMMON_blocks
+  refactor_COMMON_blocks_and_CONTAINed_subs
 );
 
 # -----------------------------------------------------------------------------
+
+# WV 2021-06-08 This is a misnomer because it also inlines parameter decls from modules in which subs are contained
 
 # WV20201106 I could put this in a separate module CommonBlocks or Globals
 
@@ -57,7 +59,7 @@ our @EXPORT_OK = qw(
 #- skips Common include statements, so it only keeps Parameter (I hope)
 #- creates ex-glob arg declarations, basically we have to look at ExInclArgs, UndeclaredOrigArgs and ExGlobArgs.
 #- create_refactored_subroutine_call, I hope we can keep this
-sub refactor_COMMON_blocks {  # 218 lines Was _refactor_globals_new
+sub refactor_COMMON_blocks_and_CONTAINed_subs {  # 218 lines Was _refactor_globals_new
 	( my $stref, my $f, my $annlines ) = @_;
 
 	my $Sf = $stref->{'Subroutines'}{$f};
@@ -75,11 +77,21 @@ sub refactor_COMMON_blocks {  # 218 lines Was _refactor_globals_new
 	if ( exists $Sf->{'Container'} ) {
 		my $container = $Sf->{'Container'};
 		if ( exists $stref->{'Subroutines'}{$container}{'Parameters'} ) {
-			$Sf->{'ParametersFromContainer'} = $stref->{'Subroutines'}{$container}{'Parameters'};    # Note this is a nested set
+			# $Sf->{'ParametersFromContainer'} = $stref->{'Subroutines'}{$container}{'Parameters'};    # Note this is a nested set
+			my ($set,$list) = merge_subsets($stref->{'Modules'}{$container}{'Parameters'}{'Subsets'});    # Note this is a nested set
+			$Sf->{'ParametersFromContainer'}{'Set'}=$set;
+			$Sf->{'ParametersFromContainer'}{'List'}=$list;			
 			my $all_pars_in_container = get_vars_from_set( $stref->{'Subroutines'}{$container}{'Parameters'} );
 			for my $par ( keys %{$all_pars_in_container} ) {
 				my $par_decl      = $all_pars_in_container->{$par};
-				my $par_decl_line = [ '      ' . emit_f95_var_decl($par_decl), { 'ParamDecl' => $par_decl, 'Ref' => 1 } ];
+				my $par_decl_line = [ 
+					'      ' . emit_f95_var_decl($par_decl), 
+					{ 
+						'ParamDecl' => $par_decl, 
+						'Ann'       => [ annotate( $f, __LINE__ ) ],
+						'SpecificationStatement' => 1,						
+						'Ref' => 1 
+						} ];
 				push @par_decl_lines_from_container, $par_decl_line;
 			}
 		}
@@ -90,12 +102,15 @@ sub refactor_COMMON_blocks {  # 218 lines Was _refactor_globals_new
 	if ( exists $Sf->{'InModule'} ) {
 		my $mod = $Sf->{'InModule'};
 		if ( exists $stref->{'Modules'}{$mod}{'Parameters'} ) {
-			$Sf->{'ParametersFromModule'} = $stref->{'Modules'}{$mod}{'Parameters'};    # Note this is a nested set
+			# croak Dumper $stref->{'Modules'}{$mod}{'Parameters'}  if $f eq 'dyn';
+			my ($set,$list) = merge_subsets($stref->{'Modules'}{$mod}{'Parameters'}{'Subsets'});    # Note this is a nested set
+			$Sf->{'ParametersFromContainer'}{'Set'}=$set;
+			$Sf->{'ParametersFromContainer'}{'List'}=$list;
 			my $all_pars_in_module =
 			  get_vars_from_set( $stref->{'Modules'}{$mod}{'Parameters'} );
 			for my $par ( keys %{$all_pars_in_module} ) {
 				my $par_decl      = $all_pars_in_module->{$par};
-				my $par_decl_line = [
+				my $par_decl_line = [					
 					'      ' . emit_f95_var_decl($par_decl),
 					{
 						'ParamDecl' => $par_decl,
@@ -106,8 +121,10 @@ sub refactor_COMMON_blocks {  # 218 lines Was _refactor_globals_new
 				];
 				push @par_decl_lines_from_module, $par_decl_line;
 			}
+			# croak Dumper $Sf->{'Parameters'}
 		}
 	}
+
 
 	print "REFACTORING GLOBALS in $f\n" if $V;
 	my $rlines = [];
@@ -232,7 +249,7 @@ sub refactor_COMMON_blocks {  # 218 lines Was _refactor_globals_new
 		push @{$rlines}, $annline unless $skip;
 
 	}    # loop over all lines
-	# carp 'TODO: CAST VAR DECLS';
+
 	# I think it is best to create the additional decls for casts in a separate loop.
 	# We can store them in $Sf->{'CastReshapeVarDecls'}, for convenience we would just create them and emit them
 	# To have the full picture I suppose the decls should go into DeclaredLocalVars
@@ -285,9 +302,9 @@ sub refactor_COMMON_blocks {  # 218 lines Was _refactor_globals_new
 #- Find the hook based on a condition on the $annline (i.e. $insert_cond_subref->($annline) )
 #- splice the new lines before/after the hook depending on $insert_before
 #- if $once is 0, do this whenever the condition is met. Otherwise do it once
-
-	return $rlines;
-}    # END of refactor_COMMON_blocks()
+# croak Dumper $Sf->{'Parameters'} if $f eq 'dyn';
+	return ($stref,$rlines);
+}    # END of refactor_COMMON_blocks_and_CONTAINed_subs()
 
 
 # ExInclArgs, UndeclaredOrigArgs and ExGlobArgs

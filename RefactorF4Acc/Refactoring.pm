@@ -90,8 +90,11 @@ sub refactor_all {
 	# Testing with LES
     # my $f='les';
     # my $sub='boundsm';
+    # croak Dumper($stref->{'Subroutines'}{'dyn_shapiro_update'}{'RefactoredCode'});
 
     $stref = inline_subroutines($stref) ;
+
+    # croak Dumper($stref->{'Subroutines'}{'dyn_shapiro_update'}{'RefactoredCode'});
 	# Test array access and constant folding here
 
 	# $stref = analyse_loop_nature_all($stref) ;

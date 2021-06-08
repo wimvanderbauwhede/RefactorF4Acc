@@ -244,6 +244,16 @@ if ( not exists $info->{'Inlined'} ) {
 
         if ( exists $info->{'VarDecl'} ) {
         	my $var =  $info->{'VarDecl'}{'Name'};
+            if (not exists $info->{'ParamDecl'}) {
+                if ( in_nested_set($Sf, 'Parameters', $var) ) { 
+                    # croak "$f: $line" . Dumper $info if $var =~/alpha/;
+	                # Remove this line, because this param should have been declared above
+	                $line = '!! Original line VAR !! ' . $line;
+	                $info->{'Deleted'} = 1;
+	                $info->{'Ann'}=[ annotate($f, __LINE__ .' Removed VarDecl for Param '.$var ) ];
+	            } 
+            }
+
 			my $stmt_count = $info->{'StmtCount'}{$var};
 			if (not defined $stmt_count) {$stmt_count=1; };
             if (exists  $info->{'ParsedVarDecl'} ) {
@@ -255,16 +265,16 @@ if ( not exists $info->{'Inlined'} ) {
                     	push @{$info->{'Ann'}}, annotate($f, __LINE__ .': Dimension, '.($stmt_count == 1 ? '' : 'SKIP'));
                     }
                 } else {
-
                     $line = emit_f95_parsed_var_decl($pvd);
                     push @{$info->{'Ann'}}, annotate($f, __LINE__ .': ParsedVarDecl, '.($stmt_count == 1 ? '' : 'SKIP'));                    
                 }
             } else { 
 	            if ( in_nested_set($Sf, 'Parameters', $var) ) { 
-                    
+                    # croak "$f: $line" . $stmt_count. Dumper $info if $var =~/alpha/;
+                    # WV 2021-06-08 Although we come here, the action is not done and not reported in Ann ???
 	                # Remove this line, because this param should have been declared above
 	                $line = '!! Original line PAR:2 !! ' . $line;
-	                $info->{'Deleted'} = 1;
+	                # $info->{'Deleted'} = 1;
 	                $info->{'Ann'}=[ annotate($f, __LINE__ .' Removed ParamDecl' ) ];
 	            } elsif (not exists $info->{'Ref'} or $info->{'Ref'} == 0 ){
 	                my $var_decl = get_var_record_from_set( $Sf->{'Vars'},$var);
@@ -330,20 +340,12 @@ if ( not exists $info->{'Inlined'} ) {
                                 $par_decl =  format_f95_par_decl( $stref, $f, $var ) ;
                     } elsif (exists $info->{'ParamDecl'}{'Names'} ) { 
                         croak 'PROBLEM: multiple parameter decls on a single line!';
-                        # my $var_val = $info->{'ParamDecl'}{'Names'}[0];
-                        # $par_decls = [];
-                        # for my $var_val (@{  $info->{'ParamDecl'}{'Names'} }) {
-                        #         ( my $var, my $val ) = @{$var_val};                
-                        #         push @{$par_decls}, format_f95_par_decl( $stref, $f, $var );
-                        # }
                     }
-                # for my $par_decl (@{ $par_decls }) {
                 	# We must check for string placeholders in parameter decls!
                 	if ($par_decl->{'Name'}[1]=~/(__PH\d+__)/) {
                 		my $ph=$1;
                 		$par_decl->{'Name'}[1]=$info->{'PlaceHolders'}{$ph};
                 	}
-#                	croak Dumper($par_decl) if $line=~/cpn002/;
 	                my $new_line =emit_f95_var_decl($par_decl) ;
 	                # Here the declaration is complete
 	                push @extra_lines,
@@ -363,7 +365,6 @@ if ( not exists $info->{'Inlined'} ) {
 		            $line = '!! ' . $line;
 		            $info->{'Ann'}=[ annotate($f, __LINE__ .' Original ParamDecl' ) ];
 		            $info->{'Deleted'} = 1;
-                # }
         }
 
 # ------------------------------------------------------------------------------
@@ -434,19 +435,14 @@ if ( not exists $info->{'Inlined'} ) {
             push @include_use_stack, [ $line, $info ];    # if $line ne '';
             next;
         } # exists $info->{'Include'} )
-         
-        push @{ $Sf->{'RefactoredCode'} }, [ $line, $info ];   # if $line ne '';
+        push @{ $Sf->{'RefactoredCode'} }, [ $line, $info ];   
         if (@extra_lines) {
             for my $extra_line (@extra_lines) {
                 push @{ $Sf->{'RefactoredCode'} }, $extra_line;
             }
             @extra_lines = ();
-
         }
-
-
     }    # LOOP over AnnLines
-
 
     # now splice the include stack just below the signature
     if (@include_use_stack) {
@@ -558,9 +554,7 @@ if ( not exists $info->{'Inlined'} ) {
                 last;
             }        
         }      
-#        croak $f;
     }
-
     if ($die_if_one) { croak Dumper( $Sf->{'RefactoredCode'} ); }
     return $stref;
 }    # END of context_free_refactorings()

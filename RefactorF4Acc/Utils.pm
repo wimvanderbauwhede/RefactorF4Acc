@@ -40,6 +40,7 @@ use Exporter;
     &show_status
     &in_nested_set
     &get_vars_from_set
+    &merge_subsets
     &get_var_record_from_set
     &add_var_decl_to_set
     &remove_var_decl_from_set
@@ -56,6 +57,7 @@ use Exporter;
     &get_block_id
     &is_array_decl
     &warning
+    &coderef_to_subname
 );
 
 
@@ -462,6 +464,16 @@ sub get_vars_from_set { (my $set)=@_;
     } 
         return $vars;
 }
+# $stref->{'Modules'}{$mod}{'Parameters'}{'Subsets'}
+sub merge_subsets { my ($subsets) = @_;
+my $merged_set = {};
+
+for my $subset (sort keys %{$subsets}) {
+    $merged_set = {%{$merged_set}, %{$subsets->{$subset}{'Set'}}}
+}
+my $merged_list = [sort keys %{$merged_set}];
+return ($merged_set, $merged_list);
+}
 
 # set is by name here
 sub add_var_decl_to_set { (my $Sf, my $set, my $var, my $decl)=@_;
@@ -484,24 +496,19 @@ sub remove_var_decl_from_set { (my $Sf, my $set, my $var)=@_;
 } # END of add_var_decl_to_set
 
 
+# Returns undef if the var rec is not there
 sub get_var_record_from_set { (my $set, my $var)=@_;
-# carp  "VAR $var => SET: ".Dumper($set);
     my %vars=();
      if (exists $set->{'Subsets'} ) {
-        #  say "SUBSET ".Dumper($set->{'Subsets'});
         for my $subset (keys %{  $set->{'Subsets'} } ) {            
-            # say "SUBSET $subset";
             my $vars_ref= get_vars_from_set($set->{'Subsets'}{$subset});
-#            say '<'.Dumper($vars_ref).'>';
-#			if (defined $vars_ref) {
             %vars = ( %vars, %{$vars_ref} );
-#			}
         }
     } elsif (exists $set->{'Set'}) {
         
         return $set->{'Set'}{$var} ;        
     } 
-        return $vars{$var};
+    return $vars{$var};
 }
 
 # For every key in a hash $set, get the hash that is its value, and in that has kind the kv pair for the key $k
@@ -1017,5 +1024,11 @@ sub is_array_decl { (my $info)=@_;
 	&& $info->{'ParsedVarDecl'}{'Attributes'}{'Dim'}[0].'' ne '0';
 }
 
+sub coderef_to_subname { my ($coderef) = @_;
+    use B qw(svref_2object);
+    my $cv = svref_2object ( $coderef );
+    my $gv = $cv->GV;
+    return $gv->NAME;
+}
 
 1;

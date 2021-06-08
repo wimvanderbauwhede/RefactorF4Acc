@@ -518,10 +518,6 @@ sub emit_RefactoredCode {
             my $var_decl_str =
               emit_f95_parsed_var_decl( $info->{'ParsedVarDecl'} );
 
-            # my $varname = $info->{'VarDecl'}{'Name'};
-            # my $subset = in_nested_set( $Sf, 'Vars', $varname );
-            # my $decl = get_var_record_from_set($Sf->{$subset},$varname);
-            # my $var_decl_str = emit_f95_var_decl($decl) ;
             $rline = $indent . $var_decl_str;
         }
         elsif ( exists $info->{'ParamDecl'} ) {
@@ -530,10 +526,6 @@ sub emit_RefactoredCode {
             my $par_decl_str =
               emit_f95_parsed_par_decl( $info->{'ParsedParDecl'} );
 
-            # my $parname = $info->{'ParamDecl'}{'Name'}[0];
-            # my $subset = in_nested_set( $Sf, 'Parameters', $parname );
-            # my $decl = get_var_record_from_set($Sf->{$subset},$parname);
-            # my $par_decl_str = emit_f95_var_decl($decl) ;
             $rline = $indent . $par_decl_str;
         }
 #== WHILE        

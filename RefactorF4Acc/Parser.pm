@@ -19,7 +19,7 @@ use RefactorF4Acc::Utils;
 use RefactorF4Acc::Utils::Functional qw( ordered_union );
 use RefactorF4Acc::State qw( initialise_per_code_unit_tables );
 use RefactorF4Acc::CallTree qw( add_to_call_tree );
-use RefactorF4Acc::Refactoring::Helpers qw( emit_f95_var_decl get_f95_var_decl stateful_pass_inplace ); 
+use RefactorF4Acc::Refactoring::Helpers qw( get_f95_var_decl stateful_pass_inplace ); 
 use RefactorF4Acc::Parser::SrcReader qw( read_fortran_src );
 use RefactorF4Acc::Parser::Expressions qw( 
     get_vars_from_expression 
@@ -295,7 +295,6 @@ sub analyse_lines {
 			# BLOCK identification code
 			# --------------------------------------------------------------------------------
 			# START of BLOCK
-			# croak $line if $line=~/parameter.+alpha/;
 			$line=~/^(map|structure|union|select)\s+/ && do {
 				my $block_type=$1;
 				++$block_nest_counter;
@@ -3055,7 +3054,7 @@ sub _parse_f77_par_decl {
 		my $val = $var_val_pairs->{'Set'}{$var}{'Expr'};
 		my $val_ast = $var_val_pairs->{'Set'}{$var}{'AST'};
 		my $maybe_var = in_nested_set( $Sf, 'LocalVars', $var);
-		# say "$f $maybe_var $var";
+
 		if ( $maybe_var ) { 
 			my $var_rec = get_var_record_from_set( $Sf->{'LocalVars'}, $var );
 			$type=$var_rec->{'Type'} if $type eq 'Unknown';
@@ -3063,6 +3062,7 @@ sub _parse_f77_par_decl {
 			$typed=1;
 			delete $Sf->{'DeclaredOrigLocalVars'}{'Set'}{$var}; 
 			@{ $Sf->{'DeclaredOrigLocalVars'}{'List'} } = grep { $_ ne $var } @{ $Sf->{'DeclaredOrigLocalVars'}{'List'} };
+			# $info->{'Deleted'} = 1;
 		} 
 		
 		# else {

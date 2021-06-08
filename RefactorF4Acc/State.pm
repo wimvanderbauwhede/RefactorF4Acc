@@ -142,7 +142,10 @@ sub initialise_per_code_unit_tables {
 		$Sf->{'IncludedParameters'} = { 'Set' => {}, 'List' => [] };
 		$Sf->{'UsedParameters'} = { 'Set' => {}, 'List' => [] }; # 
 		$Sf->{'InheritedParameters'} = { 'Set' => {}, 'List' => [] }; 
-		$Sf->{'ParametersFromContainer'} = { 'Set' => {}, 'List' => [] };
+		$Sf->{'ParametersFromContainer'} = { 
+				'Set' => {}, 
+				'List' => [] 			
+		};
 
 		# Var decls via a 'use' declaration
 		$Sf->{'UsedLocalVars'} = { 'Set' => {}, 'List' => [] };
@@ -226,6 +229,7 @@ sub initialise_per_code_unit_tables {
 					  $Sf->{'ParametersFromContainer'}
 				}
 			};
+
 			$Sf->{'Vars'} = {
 				'Subsets' => {
 					'Args'       => $Sf->{'Args'},

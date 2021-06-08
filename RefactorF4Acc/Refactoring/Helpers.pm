@@ -611,30 +611,31 @@ sub emit_f95_var_decl {
       # We seem to have three ways of encoding the (var,val) pairs
       my ($var,$val);
       if ($is_par) {
-      if (exists $var_decl_rec->{'Name'}) {
-      	if (ref(  $var_decl_rec->{'Name'} ) eq 'ARRAY'  and scalar @{ $var_decl_rec->{'Name'} } == 2 ) {
-      	    ($var,$val) = @{	$var_decl_rec->{'Name'} };
-      	} elsif (ref(  $var_decl_rec->{'Name'} ) ne 'ARRAY'  and exists $var_decl_rec->{'Val'} ) { 
-            $var = $var_decl_rec->{'Name'};
-            $val = $var_decl_rec->{'Val'};
-      	}
-      }
-      elsif (exists $var_decl_rec->{'Var'}) {
-      	if (ref(  $var_decl_rec->{'Var'} ) eq 'ARRAY'  and scalar @{ $var_decl_rec->{'Var'} } == 2 ) {
-      	    ($var,$val) = @{	$var_decl_rec->{'Var'} };
-              croak 'SHOULD NEVER HAPPEN!' if $DBG;
-      	} elsif (ref(  $var_decl_rec->{'Var'} ) ne 'ARRAY'  and exists $var_decl_rec->{'Val'} ) { 
-            $var = $var_decl_rec->{'Var'};
-            $val = $var_decl_rec->{'Val'};
-      	}          
-      } elsif(exists $var_decl_rec->{'Names'}) {
-      	if (scalar @{ $var_decl_rec->{'Names'} } == 1 and ref($var_decl_rec->{'Names'}[0]) eq 'ARRAY') {
-      		($var,$val) = @{ $var_decl_rec->{'Names'}[0] };
-      	} else {
-      		croak 'Parameter declaration record is incorrect: '.Dumper($var_decl_rec) if $DBG;
-      	}
-      	
-      }
+          
+        if (exists $var_decl_rec->{'Name'}) {
+            if (ref(  $var_decl_rec->{'Name'} ) eq 'ARRAY'  and scalar @{ $var_decl_rec->{'Name'} } == 2 ) {
+                ($var,$val) = @{	$var_decl_rec->{'Name'} };
+            } elsif (ref(  $var_decl_rec->{'Name'} ) ne 'ARRAY'  and exists $var_decl_rec->{'Val'} ) { 
+                $var = $var_decl_rec->{'Name'};
+                $val = $var_decl_rec->{'Val'};
+            }
+        }
+        elsif (exists $var_decl_rec->{'Var'}) {
+            if (ref(  $var_decl_rec->{'Var'} ) eq 'ARRAY'  and scalar @{ $var_decl_rec->{'Var'} } == 2 ) {
+                ($var,$val) = @{	$var_decl_rec->{'Var'} };
+                croak 'SHOULD NEVER HAPPEN!' if $DBG;
+            } elsif (ref(  $var_decl_rec->{'Var'} ) ne 'ARRAY'  and exists $var_decl_rec->{'Val'} ) { 
+                $var = $var_decl_rec->{'Var'};
+                $val = $var_decl_rec->{'Val'};
+            }          
+        } elsif(exists $var_decl_rec->{'Names'}) {
+            if (scalar @{ $var_decl_rec->{'Names'} } == 1 and ref($var_decl_rec->{'Names'}[0]) eq 'ARRAY') {
+                ($var,$val) = @{ $var_decl_rec->{'Names'}[0] };
+            } else {
+                croak 'Parameter declaration record is incorrect: '.Dumper($var_decl_rec) if $DBG;
+            }
+            
+        }
       } else {
       	$var = $var_decl_rec->{'Name'};
       }
@@ -1250,7 +1251,7 @@ sub pass_wrapper_subs_in_module { (my $stref,my $module_name, my $module_pass_se
 					for my $pass_sub_ref (@{$pass_sequence}) {	
                     # warn Dumper sort keys %{$stref->{'Subroutines'}{$f}} if $f=~/_scal/;
                     # warn "NOT IN MODULE: $src $pass_ctr $f $pass_sub_ctr ";
-                    say "SUB PASS ".coderef_to_subname($pass_sub_ref)."($f)";
+                    say "SUB PASS ".coderef_to_subname($pass_sub_ref)."($f)" if $V;
 
 						$stref=$pass_sub_ref->($stref, $f, @rest);
                     #   ++$pass_sub_ctr; 
@@ -1264,7 +1265,7 @@ sub pass_wrapper_subs_in_module { (my $stref,my $module_name, my $module_pass_se
         
 		for my $pass_sequence (@{$module_pass_sequences}) {    	
             for my $pass_sub_ref (@{$pass_sequence}) {          
-                say "MODULE PASS ".coderef_to_subname($pass_sub_ref)."($module_name)";
+                say "MODULE PASS ".coderef_to_subname($pass_sub_ref)."($module_name)" if $V;
                 $stref=$pass_sub_ref->($stref, $module_name, @rest);
             }           
 		}				
@@ -1295,7 +1296,7 @@ sub pass_wrapper_subs_in_module { (my $stref,my $module_name, my $module_pass_se
             for my $f ( @subs,  @subs_from_modules) {
                 # say "IN MODULE: $module_name $pass_ctr $f";
                 for my $pass_sub_ref (@{$pass_sequence}) {          
-                    say "SUB PASS ".coderef_to_subname($pass_sub_ref)."($f)";
+                    say "SUB PASS ".coderef_to_subname($pass_sub_ref)."($f)" if $V;
                     $stref=$pass_sub_ref->($stref, $f, @rest);
                 }           
             }
@@ -1360,11 +1361,6 @@ sub _substitute_placeholders_per_source { (my $stref,my $f) =@_;
 	return $stref
 } # END of _substitute_placeholders_per_source
 
-sub coderef_to_subname { my ($coderef) = @_;
-    use B qw(svref_2object);
-    my $cv = svref_2object ( $coderef );
-    my $gv = $cv->GV;
-    return $gv->NAME;
-}
+
 
 1;

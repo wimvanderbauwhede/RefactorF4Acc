@@ -20,7 +20,7 @@ use RefactorF4Acc::Refactoring::Helpers qw(
 	);
 use RefactorF4Acc::Refactoring::ContextFree qw( context_free_refactorings );	
 use RefactorF4Acc::Refactoring::Subroutines::Emitters qw( emit_subroutine_sig );
-use RefactorF4Acc::Refactoring::Common qw( refactor_COMMON_blocks );
+use RefactorF4Acc::Refactoring::Common qw( refactor_COMMON_blocks_and_CONTAINed_subs );
 use RefactorF4Acc::Refactoring::Equivalence qw( change_EQUIVALENCE_to_assignment_lines );
 use RefactorF4Acc::Refactoring::StatementFunctions qw( move_StatementFunctions_after_SpecificationStatements );
 
@@ -146,7 +146,7 @@ sub _refactor_subroutine_main {
 
 		if ( $Sf->{'RefactorGlobals'} == 1 ) {
 
-			$annlines = refactor_COMMON_blocks( $stref, $f, $annlines );
+			($stref,$annlines) = refactor_COMMON_blocks_and_CONTAINed_subs( $stref, $f, $annlines );
 
 		} elsif ( $DBG and $Sf->{'RefactorGlobals'} == 2 ) {
 			croak 'SHOULD BE OBSOLETE!';
