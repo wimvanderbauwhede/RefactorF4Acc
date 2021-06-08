@@ -223,6 +223,7 @@ Instead of the nice but cumbersome approach we had until now, from now on it is 
 			my $fname =  $info->{'SubroutineCall'}{'Name'};
 			if (not exists $F95_intrinsic_functions{$fname} and not exists $F95_OpenCL_API{$fname}) {
 			for my $arg_expr_str (@{$info->{'SubroutineCall'}{'Args'}{'List'}}) {
+				# say "$fname $arg_expr_str";
 				my $arg = $info->{'SubroutineCall'}{'Args'}{'Set'}{$arg_expr_str}{'Type'} eq 'Scalar' 
 				? $info->{'SubroutineCall'}{'Args'}{'Set'}{$arg_expr_str}{'Expr'} 
 				: $info->{'SubroutineCall'}{'Args'}{'Set'}{$arg_expr_str}{'Arg'};

@@ -209,7 +209,7 @@ sub __split_out_specification_parts { (my $stref, my $f) =@_;
             exists $info->{'SpecificationStatement'} and 
             not exists $info->{'ImplicitNone'}
         ) {            
-            say "$f $line ".Dumper($info) if $line=~/v_inout/;
+            # say "$f $line ".Dumper($info) if $line=~/v_inout/;
             $specification_part = [ @{$specification_part}, @{$preceding_comments}, $annline ];
             $preceding_comments = [];
         } 

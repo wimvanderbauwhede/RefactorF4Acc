@@ -1284,7 +1284,10 @@ sub pass_wrapper_subs_in_module { (my $stref,my $module_name, my $module_pass_se
                         ? $stref->{'Modules'}{$used_module}{'Contains'}
                         : [];
                     for my $sub_from_module (@{$subs_from_module}) {
-                        push @subs_from_modules, $sub_from_module;
+                        # If this sub is called in the parent module, then we need it
+                        if (exists $stref->{'Subroutines'}{$sub}{'CalledSubs'}{'Set'}{$sub_from_module}) {
+                            push @subs_from_modules, $sub_from_module;
+                        }
                     }
                 }
             }
