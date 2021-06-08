@@ -74,7 +74,7 @@ sub run_custom_passes {
 	if ($pass =~/memory_reduction/) {
 		$stref = pass_memory_reduction($stref,$code_unit_name);
 	}
-	if ($pass =~/translate_to_C/) {
+	if ($pass =~/translate_to_C/) { 
 		$stref = translate_module_to_C($stref,$code_unit_name,0);
 	} elsif ( $pass =~/translate_to_TyTraC/) {              
         $stref = translate_module_to_C($stref,$code_unit_name,2);

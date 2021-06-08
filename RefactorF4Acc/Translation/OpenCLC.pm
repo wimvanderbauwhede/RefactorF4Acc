@@ -469,11 +469,10 @@ Instead of the nice but cumbersome approach we had until now, from now on it is 
 # FIXME: only include if they are actually used in the code!
 # $ocl: 0 = C, 1 = CPU/GPU OpenCL, 2 = C for TyTraIR aka TyTraC, 3 = pipe-based OpenCL for FPGAs 
 sub _write_headers { (my $stref, my $ocl)=@_;
-	
 	my @headers = grep { $_ ne '' } (
 		# 0 means C, needs the header; 
 		( $ocl>0 ? '' : '#include <stdlib.h>'),
-		( $ocl>0 and $ocl!=2 ? '' : '#include <math.h>'),
+		( ($ocl>0 and $ocl!=2) ? '' : '#include <math.h>'),
 		( $ocl>0 ? '' : 'unsigned int get_global_id(unsigned int n);'),
 		# ($ocl != 2 ? '#include "array_index_f2c1d.h"' : ''), # WV 2019-11-20 this is incorrect as non-map/fold args can be arrays
 		'#include "array_index_f2c1d.h"' , 
@@ -494,8 +493,10 @@ sub _write_headers { (my $stref, my $ocl)=@_;
 
 sub _emit_C_code { (my $stref, my $module_name, my $ocl)=@_;
  	map {say $_ } @{$stref->{'TranslatedCode'}} if $V;
-	#  die Dumper $stref->{SourceContains};
- 	my $ext = ($ocl and $ocl!=2) ? 'cl' : 'c';
+	# WV 2021-06-08 I use .cc so that this is ostensibly C++ code. 
+	# This is because in pure C, the switch/case does not work with const int (!)
+	# I don't want to replace the const int by #define in an ad-hoc way so C++ it is.
+ 	my $ext = ($ocl and $ocl!=2) ? 'cl' : 'cc';
  	my $module_src = $stref->{'Modules'}{$module_name}{'Source'};
 	if (not defined $module_src) {
 		$module_src=$Config{'MODULE_SRC'};
