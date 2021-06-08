@@ -18,6 +18,7 @@ use RefactorF4Acc::Utils;
 use RefactorF4Acc::Utils::Functional;
 use RefactorF4Acc::Refactoring::FoldConstants qw( fold_constants );
 use RefactorF4Acc::Analysis::VarAccessAnalysis qw( analyseAllVarAccesses );
+use RefactorF4Acc::Parser::Expressions qw( _traverse_ast_with_stateful_action );
 use Carp;
 use Data::Dumper;
 use Storable qw( dclone );
@@ -2005,7 +2006,7 @@ sub isAssociativeExpr {
             # But in the case of a function we have [1,'f',[27,@args]] so we need to check for 27 and pop again
         }
     };
-    ($rhs_ast,$acc) = _traverse_ast_with_action($rhs_ast, $acc, $f);
+    ($rhs_ast,$acc) = _traverse_ast_with_stateful_action($rhs_ast, $acc, $f);
     return $acc->{'IsAssoc'};
 } # END of isAssociativeExpr
 

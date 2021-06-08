@@ -119,7 +119,9 @@ sub _separate_blocks {
     # The lines with the pragmas occur both in OUTER and the block
 
     $blocksref  = __separate_into_blocks( $stref, $blocksref, $f );
-    
+
+    	
+
 
     # 2. For all non-OUTER blocks, create an entry for the new subroutine in 'Subroutines'
     # Based on the content of $blocksref
@@ -216,12 +218,14 @@ sub __separate_into_blocks {
            # to be replaced by function signature
            $block_rec->{'AnnLines'}=[];
            $block_rec->{'Name'}=$block;
+           # WV 2021-06-08 Somehow the info gets wiped later on!
            push @{ $block_rec->{'AnnLines'} },
               [
                 "! === Original code from $f starts here ===",
-                { 'RefactoredSubroutineCall' => { 'Name' => $block } }
-              ];
-
+                { 'RefactoredSubroutineCall' => { 'Name' => $block },
+                'Comments' =>1 
+                }
+              ];         
             $block_rec->{'BeginBlockIdx'} = $index;
             next;
         } elsif ( exists $info->{'Pragmas'}{'EndSubroutine'} ) {
@@ -250,9 +254,10 @@ sub __separate_into_blocks {
         $srcref->[$index] = [ $line, $info ];
     }    # loop over annlines
     $block_rec->{'EndBlockIdx'} = scalar( @{$srcref} ) ; 
+    
     push @{ $blocksref }, $block_rec;
-        
     return $blocksref;
+    
 }    # END of __separate_into_blocks()
 
 
@@ -332,7 +337,7 @@ sub __construct_new_subroutine_signatures {
         my $Sblock = $stref->{'Subroutines'}{$block};
 
         $Sblock = initialise_per_code_unit_tables( $Sblock, $stref, $block, 0 );
-
+    
         # Collect args for new subroutine
         ($Sblock, $args, $localvars) = __collect_args_for_new_sub($Sf,$Sblock,$block,$occsref,$varsref,$args,$localvars);
 
@@ -343,7 +348,8 @@ sub __construct_new_subroutine_signatures {
         $Sblock = __add_vardecls_and_info_to_AnnLines($stref,$f,$Sf,$Sblock,$block,$itersref,$varsref,$paramsref,$localvars,$args);
 
         # Now also add include statements and the actual sig to the line
-        $Sblock = __add_include_statements_and_sig_to_AnnLine($stref, $Sf,$Sblock, $sig, $sigrec);
+        $Sblock = __add_include_statements_and_sig_to_AnnLine($stref, $Sf,$Sblock, $sig, $sigrec, $block);
+
         
         # And finally, in the original source, replace the blocks by calls to the new subs
         $Sf = __replace_blocks_by_calls_to_new_subs($Sf,$f,$Sblock,$block_rec,$sig,$sigrec);
@@ -653,20 +659,21 @@ sub __add_vardecls_and_info_to_AnnLines { my ($stref,$f,$Sf,$Sblock,$block,$iter
         my $param_annlines = __emit_param_lines($Sblock, $varsref, \%params, {}, [], $block, $f);         
         $Sblock->{'AnnLines'} = [ @{$param_annlines},  @{ $Sblock->{'AnnLines'} }];
         }
- 
         unshift @{ $Sblock->{'AnnLines'} }, $sigline;
         return $Sblock;
 } # END of __add_vardecls_and_info_to_AnnLines
 
 
 # Now also add include statements and the actual sig to the line
-sub __add_include_statements_and_sig_to_AnnLine { my ($stref, $Sf,$Sblock, $sig, $sigrec)=@_; # return $Sblock;
-        $Sblock->{'AnnLines'}[0][1] = {};
-        
+sub __add_include_statements_and_sig_to_AnnLine { my ($stref, $Sf,$Sblock, $sig, $sigrec, $block)=@_; # return $Sblock;
+        # WRONG!
+        # $Sblock->{'AnnLines'}[0][1] = {};
+        my $idx=0;
         for my $inc ( keys %{ $Sf->{'Includes'} } ) { 
             $Sblock->{'Includes'}{$inc} = { 'LineID' => 2 };
             unshift @{ $Sblock->{'AnnLines'} },
               [ "      include '$inc'", { 'Include' => { 'Name' => $inc } } ];              
+              ++$idx;
         }
         
         for my $mod ( keys %{ $Sf->{'Uses'} } ) {
@@ -676,9 +683,12 @@ sub __add_include_statements_and_sig_to_AnnLine { my ($stref, $Sf,$Sblock, $sig,
             my $line = "      use $mod";
             my $info = { 'Use' => { 'Name' => $mod, 'Inlineable' => {} }  };                        
             unshift @{ $Sblock->{'AnnLines'} }, [$line , $info ];  
+            ++$idx;
         }           
         }
         unshift @{ $Sblock->{'AnnLines'} }, [ $sig, { 'Signature' => $sigrec } ];     
+        $Sblock->{'AnnLines'}[$idx][1]{'LineID'} = $idx;
+        
         return $Sblock;
 } # END of __add_include_statements_and_sig_to_AnnLine
 

@@ -23,7 +23,7 @@ use Exporter;
 use File::Find;
 use Cwd qw( cwd );
 use RefactorF4Acc::Config;
-use RefactorF4Acc::Utils qw(module_has_only);
+use RefactorF4Acc::Utils qw(module_has_only module_has_also);
 
 # Find all source files in the current directory
 # The files are parsed to determine the following information:
@@ -643,17 +643,13 @@ sub _test_can_be_inlined_all_modules { (my $stref) = @_;
 
 
 sub _can_be_inlined { (my $stref, my $mod_name, my $inline_ok) = @_;
-#    if ($mod_name =~/velfg/) { die Dumper($stref->{'Modules'}{$mod_name}) };
     if ( module_has_only($stref, $mod_name,['Parameters','TypeDecls','ImplicitRules','Uses'] ) ) {
-#        print "Module $mod_name candidate for INLINE\n";# if $V;
         for my $used_mods (keys %{  $stref->{'Modules'}{$mod_name}{'Uses'} } ) {
-#            print "USED MODULE $used_mods\n";
             $inline_ok*=_can_be_inlined($stref,$used_mods, $inline_ok);
         }
-#        if ($inline_ok) {
-#            print "Module $mod_name is INLINEABLE\n";# if $V;
-#        }
     } else {
+        
+        say "INFO: Module $mod_name can't be inlined because it has ".module_has_also($stref, $mod_name,['Parameters','TypeDecls','ImplicitRules','Uses'] ) if $I;
         return 0;
     }
     return $inline_ok;

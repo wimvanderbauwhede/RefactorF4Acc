@@ -36,6 +36,7 @@ use Exporter;
     &type_via_implicits
     &module_has
     &module_has_only
+    &module_has_also
     &generate_docs    
     &show_status
     &in_nested_set
@@ -320,6 +321,20 @@ for my $k ( keys %{ $stref->{'Modules'}{$mod_name} } ) {
 #        print 'MAYBE INLINEABLE MOD: '.$mod_name."\n";
         return 1; }
 }
+
+sub module_has_also { (my $stref, my $mod_name, my $mod_only) = @_;
+    my %mod_has=();
+    for my $k ( keys %{ $stref->{'Modules'}{$mod_name} } ) {    
+        $mod_has{$k}=$stref->{'Modules'}{$mod_name}{$k};
+    }
+    for my $k (@{$mod_only},'Status','Source','FStyle','FreeForm','HasBlocks','Inlineable','InlineableSubs','TabFormat', 'ModType' ) {
+        if (exists $mod_has{$k}) {
+            delete $mod_has{$k};
+        }
+    }
+    return join(', ',sort keys( %mod_has )) 
+} # END of module_has_also
+
 
 # -----------------------------------------------------------------------------
 

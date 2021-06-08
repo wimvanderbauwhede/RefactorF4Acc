@@ -7,7 +7,7 @@ use v5.10;
 use RefactorF4Acc::Config;
 use RefactorF4Acc::Utils;
 use RefactorF4Acc::Refactoring::Helpers qw( stateful_pass_inplace stateless_pass_inplace );
-use RefactorF4Acc::Parser::Expressions qw( emit_expr_from_ast );
+use RefactorF4Acc::Parser::Expressions qw( emit_expr_from_ast parse_expression_no_context _traverse_ast_with_action);
 # use RefactorF4Acc::Parser qw( analyse_lines );
 
 use Storable qw( dclone );
@@ -162,6 +162,8 @@ sub _inline_call { my ($stref, $f, $sub, $is_child) = @_;
     #    croak;               
         
     ($stref, my $use_part, my $specification_part) = __split_out_specification_parts($stref, $sub);
+    # say "$f $sub";
+    # map {say "SPEC $sub: $_"} @{pp_annlines($specification_part)};
     $Ssub->{'RefactoredCode'}=$Ssub->{'AnnLines'};
 
     # WV20201207 Up to here it seems to be OK
@@ -169,9 +171,10 @@ sub _inline_call { my ($stref, $f, $sub, $is_child) = @_;
     my $Sf = $stref->{'Subroutines'}{$f};       
 
     # say $Sf->{'AnnLines'} , $Sf->{'RefactoredCode'};
-    #    say Dumper(pp_annlines($Sf->{'AnnLines'},0));
+    # say "$f $sub \n". Dumper(pp_annlines($Sf->{'AnnLines'},0));
     #    say '========';
-    #    say Dumper(pp_annlines($Sf->{'RefactoredCode'} ));
+    # map {say $_} @{pp_annlines($Sf->{'RefactoredCode'} )};
+    #    say '========';
     #    croak;       	
     return $stref;
 } # END of _inline_call
@@ -278,7 +281,29 @@ sub __merge_specification_computation_parts_into_caller { (my $stref, my $f, my 
             $in_inline_region,
             $first_vardecl, $found_use
             )     = @{$state};
-        # say "$line $in_inline_region $first_call $sub" if $line=~/call/;        
+        # say "$sub LINE $line in_inline_region: $in_inline_region, first_vardecl: $first_vardecl, found_use:$found_use <".
+        #  (grep {$_==1} map {$_?1:0} ( exists $Sf->{'InlinedCalls'}{'Set'}{$sub}
+        #     ,  exists $info->{'Signature'}
+        #     # ,  exists $info->{'VarDecl'}
+        #     ,  exists $info->{'ImplicitNone'}
+        #     ,  exists $info->{'SpecificationStatement'}
+        #     ,  exists $info->{'Comments'}
+        #     ,  exists $info->{'Blank'}
+        #     ,  exists $info->{'Deleted'}
+        #     )).'>';
+            my $test = (    
+            not exists $Sf->{'InlinedCalls'}{'Set'}{$sub}
+            and not exists $info->{'Signature'}
+            and not exists $info->{'ParamDecl'}
+            and not exists $info->{'ImplicitNone'}
+            # and not exists $info->{'SpecificationStatement'}
+            and not exists $info->{'Comments'}
+            and not exists $info->{'Blank'}
+            and not exists $info->{'Deleted'}
+            and exists $info->{'VarDecl'}
+            and $first_vardecl == 1 );
+            # say "TEST: <$test>";
+
         my $indent = $info->{'Indent'} // '      ';
         if (exists $info->{'Pragmas'}{'BeginInline'} ) {
             $line=~s/\$//;
@@ -401,7 +426,7 @@ sub __merge_specification_computation_parts_into_caller { (my $stref, my $f, my 
             and not exists $info->{'Comments'}
             and not exists $info->{'Blank'}
             and not exists $info->{'Deleted'}            
-        ) {
+        ) {  
             return ( [comment("$indent BEGIN ex-sub use statement $sub"),@{$use_part},comment("$indent END ex-sub use statement $sub"),$annline], 
             [
                 [], $specification_part, 
@@ -409,16 +434,19 @@ sub __merge_specification_computation_parts_into_caller { (my $stref, my $f, my 
                 $first_vardecl, $found_use
                 ] );
         } elsif (    
-            not exists $Sf->{'InlinedCalls'}{'Set'}{$sub} 
-            and not exists $info->{'Signature'}
-            and not exists $info->{'VarDecl'}
-            and not exists $info->{'ImplicitNone'}
-            and not exists $info->{'SpecificationStatement'}
-            and not exists $info->{'Comments'}
-            and not exists $info->{'Blank'}
-            and not exists $info->{'Deleted'}
-            and $first_vardecl == 1 )
+            $test 
+            # not exists $Sf->{'InlinedCalls'}{'Set'}{$sub}
+            # and not exists $info->{'Signature'}
+            # # and not exists $info->{'VarDecl'}
+            # and not exists $info->{'ImplicitNone'}
+            # and not exists $info->{'SpecificationStatement'}
+            # and not exists $info->{'Comments'}
+            # and not exists $info->{'Blank'}
+            # and not exists $info->{'Deleted'}
+            # and $first_vardecl == 1 
+            )
         {
+            # croak Dumper $annline;
             $first_vardecl = 0;
             return ( [comment("$indent BEGIN ex-sub decls $sub"),@{$specification_part},comment("$indent END ex-sub decls $sub"),$annline], 
                     [
@@ -428,7 +456,8 @@ sub __merge_specification_computation_parts_into_caller { (my $stref, my $f, my 
                 ] 
             );
             
-        }
+        } 
+
         return ( [[$line,$info]],
             [
                 $use_part, $specification_part, 
@@ -482,7 +511,32 @@ sub __rename_vars {
 
             $info->{'VarDecl'}{'OrigName'}=$var;
             $info->{'VarDecl'}{'Name'}=$qvar;
-            # carp $line.Dumper $info if $line=~/du/;
+            # Renaming the parameters in the array dimension
+            if ($Config{'INLINE_RENAME_PARS'} == 1 and exists $info->{'ParsedVarDecl'}{'Attributes'}{'Dim'}) {
+                my $dim_str = join(',',  @{$info->{'ParsedVarDecl'}{'Attributes'}{'Dim'}});
+                my ($ast,$str,$error,$has_funcs) = parse_expression_no_context($dim_str);
+                my $renamed_ast = _traverse_ast_with_action($ast,
+                    sub {
+                        my ($ast) = @_;
+                        if ($ast->[0] == 2) {
+                            $ast->[1] .=  '_' . $f;
+                        }
+                        return $ast;
+                    }
+                );
+                my $type = $info->{'ParsedVarDecl'}{'TypeTup'}{'Type'};
+                my $kind =$info->{'ParsedVarDecl'}{'TypeTup'}{'Kind'}  ;
+                if (defined $kind) {
+                    $kind = "(kind=$kind)";
+                } else {
+                    $kind = '';
+                }
+                my $renamed_dim_str = emit_expr_from_ast( $renamed_ast);
+                my $renamed_decl = "$type$kind, dimension($renamed_dim_str) :: $qvar";
+                $line = $info->{'Indent'}.$renamed_decl;
+                $info->{'ParsedVarDecl'}{'Attributes'}{'Dim'}= [split(/\s*,\s*/,$renamed_dim_str)];
+                $info->{'ParsedVarDecl'}{'Vars'} = [$qvar];
+            }
         }
         # WV 2021-06-08 If I would want to rename parameters.
         # Currently I don't, which means that there could be conflicts.
@@ -718,9 +772,9 @@ sub __update_caller_inlined_vardecls { my ($stref,$f,$sub,$specification_part) =
         # croak;
         # say "Adding $qvar to DeclaredOrigLocalVars in $f";
         if (not $is_param) {
-        $stref->{'Subroutines'}{$f}{'DeclaredOrigLocalVars'}{'Set'}{$qvar}=dclone($decl);
+            $stref->{'Subroutines'}{$f}{'DeclaredOrigLocalVars'}{'Set'}{$qvar}=dclone($decl);
         } else {
-        $stref->{'Subroutines'}{$f}{'LocalParameters'}{'Set'}{$qvar}=dclone($decl);
+            $stref->{'Subroutines'}{$f}{'LocalParameters'}{'Set'}{$qvar}=dclone($decl);
         }
     }
     return $stref;

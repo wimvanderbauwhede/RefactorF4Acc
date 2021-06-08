@@ -72,6 +72,10 @@ SUBROUTINE dyn
 
 ! local parameters
 REAL :: du(0:ny+1,0:nx+1), dv(0:ny+1,0:nx+1)
+real, dimension(0:ny+1,0:nx+1) :: du_f95 
+real dv_f77
+dimension dv_f77(0:ny+1,0:nx+1)
+
 REAL :: uu, vv, duu, dvv
 REAL :: hue, huw, hwp, hwn, hen, hep
 REAL :: hvn, hvs, hsp, hsn, hnn, hnp

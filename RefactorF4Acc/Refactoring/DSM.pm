@@ -149,7 +149,7 @@ use v5.10;
 use RefactorF4Acc::Config;
 use RefactorF4Acc::Utils;
 use RefactorF4Acc::Utils::Functional qw( elem );
-use RefactorF4Acc::Parser::Expressions qw( get_vars_from_expression _traverse_ast_with_action get_args_vars_from_subcall);
+use RefactorF4Acc::Parser::Expressions qw( get_vars_from_expression _traverse_ast_with_stateful_action get_args_vars_from_subcall);
 use RefactorF4Acc::Refactoring::Helpers qw( stateless_pass stateful_pass splice_additional_lines_cond);
 use RefactorF4Acc::Analysis::VarAccessAnalysis qw( analyseAllVarAccesses );
 use RefactorF4Acc::Analysis::LoopNature qw( resolve_loop_nests );
@@ -683,7 +683,7 @@ sub _rewrite_ast_dsm_read_nodes { my ($ast,$dsm_vars )=@_;
         return ($ast,$acc);
     };
 
-    ($rhs_dsm_ast,$dsm_vars) = _traverse_ast_with_action($rhs_dsm_ast, $dsm_vars, $f);
+    ($rhs_dsm_ast,$dsm_vars) = _traverse_ast_with_stateful_action($rhs_dsm_ast, $dsm_vars, $f);
     # croak Dumper $rhs_dsm_ast;
     return $rhs_dsm_ast;
 } # END of _rewrite_ast_dsm_read_nodes
@@ -1671,7 +1671,7 @@ sub _rewrite_ast_dsm_acc_rhs { my ($ast,$dsm_vars )=@_;
         return ($ast,$acc);
     };
 
-    ($rhs_dsm_ast,$dsm_vars) = _traverse_ast_with_action($rhs_dsm_ast, $dsm_vars, $f);
+    ($rhs_dsm_ast,$dsm_vars) = _traverse_ast_with_stateful_action($rhs_dsm_ast, $dsm_vars, $f);
     # croak Dumper $rhs_dsm_ast;
     return $rhs_dsm_ast;
 } # END of _rewrite_ast_dsm_acc_rhs

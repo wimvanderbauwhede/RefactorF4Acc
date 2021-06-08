@@ -39,6 +39,7 @@ use Exporter;
   &find_assignments_to_scalars_in_ast
   &find_implied_do_in_ast
   &_traverse_ast_with_action
+  &_traverse_ast_with_stateful_action
   @sigils
   %sigil_codes
   $defaultToArrays
@@ -571,7 +572,7 @@ sub parse_expression_no_context { (my $str)=@_;
     croak if $DBG and not defined $str;
     while (length($str)>0) {
         $error=0;
-#		say "STR before prefix: $str";
+		# say "STR before prefix: $str";
         # Remove whitespace
         if ($str=~/^\s/) {
             $str=~s/^\s+//;
@@ -1336,7 +1337,35 @@ sub find_args_vars_in_ast {(my $ast)=@_;
     return [$args,$all_vars];
 } # END of find_args_vars_in_ast
 
-sub _traverse_ast_with_action { (my $ast, my $acc, my $f) = @_;
+sub _traverse_ast_with_action { (my $ast, my $f) = @_;
+
+  if(scalar @{$ast}==0) {
+      return $ast;
+  }
+
+  if ( ($ast->[0] & 0xFF) == 1 or
+       ($ast->[0] & 0xFF) == 10 ) { # array var or function/subroutine call
+		$ast=$f->($ast);
+		my $entry = _traverse_ast_with_action($ast->[2], $f);
+		$ast->[2] = $entry;
+
+  } elsif (($ast->[0] & 0xFF) == 2) { # scalar variable
+	$ast=$f->($ast);
+  } elsif (($ast->[0] & 0xFF) > 28) { # constants
+	$ast=$f->($ast);
+  } else { # other operators
+	$ast=$f->($ast);
+	for my $idx (1 .. scalar @{$ast}-1) {
+		my $entry = _traverse_ast_with_action($ast->[$idx], $f);
+		$ast->[$idx] = $entry;
+	}
+  }
+
+  return $ast;
+
+} # END of _traverse_ast_with_action
+
+sub _traverse_ast_with_stateful_action { (my $ast, my $acc, my $f) = @_;
 
   if(scalar @{$ast}==0) {
       return ($ast,$acc);
@@ -1345,7 +1374,7 @@ sub _traverse_ast_with_action { (my $ast, my $acc, my $f) = @_;
   if ( ($ast->[0] & 0xFF) == 1 or
        ($ast->[0] & 0xFF) == 10 ) { # array var or function/subroutine call
 		($ast,$acc)=$f->($ast,$acc);
-		(my $entry, $acc) = _traverse_ast_with_action($ast->[2],$acc, $f);
+		(my $entry, $acc) = _traverse_ast_with_stateful_action($ast->[2],$acc, $f);
 		$ast->[2] = $entry;
 
   } elsif (($ast->[0] & 0xFF) == 2) { # scalar variable
@@ -1355,14 +1384,14 @@ sub _traverse_ast_with_action { (my $ast, my $acc, my $f) = @_;
   } else { # other operators
 	($ast,$acc)=$f->($ast,$acc);
 	for my $idx (1 .. scalar @{$ast}-1) {
-		(my $entry, $acc) = _traverse_ast_with_action($ast->[$idx],$acc, $f);
+		(my $entry, $acc) = _traverse_ast_with_stateful_action($ast->[$idx],$acc, $f);
 		$ast->[$idx] = $entry;
 	}
   }
 
   return ($ast, $acc);
 
-} # END of _traverse_ast_with_action
+} # END of _traverse_ast_with_stateful_action
 
 # returns a hash of the var names
 # $vars->{$var_name}={
