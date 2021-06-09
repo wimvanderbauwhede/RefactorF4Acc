@@ -643,6 +643,7 @@ sub _split_multivar_decls {
                 and exists $info->{'VarDecl'}{'Names'})
             {
                 my @nvars = @{$info->{'VarDecl'}{'Names'}};
+                # add_ann_to_info($info,$f, __LINE__);
                 push @{$info->{'Ann'}}, annotate($f, __LINE__);
                 for my $var (@{$info->{'VarDecl'}{'Names'}}) {
 

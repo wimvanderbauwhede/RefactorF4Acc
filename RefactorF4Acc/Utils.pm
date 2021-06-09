@@ -51,6 +51,7 @@ use Exporter;
     &numeric
     $BLANK_LINE
     &annotate
+    &add_ann_to_info
     &alias_ordered_set
     &remove_vars_from_ordered_set
     &get_module_name_from_source
@@ -118,6 +119,14 @@ sub annotate { (my $f, my $ann, my $nframes)=@_;
     (my $package, my $filename, my $line, my $subroutine, my @rest) = caller($n);
     $subroutine=~s/RefactorF4Acc:://;
     return $subroutine.'('.$f.') '.(defined $nframes? $line.' ' : '').$ann; 
+}
+
+sub add_ann_to_info { my ($info, $f, $ann, $nframes)=@_;	
+    my $n = defined $nframes ? $nframes : 1;
+    (my $package, my $filename, my $line, my $subroutine, my @rest) = caller($n);
+    $subroutine=~s/RefactorF4Acc:://;
+    push @{$info->{'Ann'}}, $subroutine.'('.$f.') '.(defined $nframes? $line.' ' : '').$ann; 
+    return $info;
 }
 
 sub comment { (my $comment)=@_;

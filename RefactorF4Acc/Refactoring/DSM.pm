@@ -153,7 +153,7 @@ use RefactorF4Acc::Parser::Expressions qw( get_vars_from_expression _traverse_as
 use RefactorF4Acc::Refactoring::Helpers qw( stateless_pass stateful_pass splice_additional_lines_cond);
 use RefactorF4Acc::Analysis::VarAccessAnalysis qw( analyseAllVarAccesses );
 use RefactorF4Acc::Analysis::LoopNature qw( resolve_loop_nests );
-use RefactorF4Acc::Emitter qw( emit_RefactoredCode );
+use RefactorF4Acc::Emitter qw( emit_AnnLines );
 
 use Carp;
 use Data::Dumper;
@@ -196,7 +196,7 @@ sub refactor_dsm_all {
 		$stref = refactor_dsm( $stref, $f );
         $stref = insert_init_alloc_dealloc_statements($stref,$f);
 
-        emit_RefactoredCode($stref,$f,$Sf->{'RefactoredCode'}) if $f=~/sor/;
+        emit_AnnLines($stref,$f,$Sf->{'RefactoredCode'}) if $f=~/sor/;
 	}
     
 	return $stref;
@@ -442,7 +442,7 @@ sub refactor_dsm { my ( $stref, $f ) = @_;
     #  map {say $_} @{pp_annlines($updated_loop_annlines,1)};
     if ($V==1) {
     say "\nRefactored code for $f\n";
-    emit_RefactoredCode($stref,$f,$updated_loop_annlines); 
+    emit_AnnLines($stref,$f,$updated_loop_annlines); 
     }
     return  $stref ;
 } # END of refactor_dsm
@@ -522,7 +522,7 @@ sub propagate_dsm_declaration { my ( $stref, $f ) = @_;
     my $loop_annlines_ = stateless_pass($annlines,$pass_propagate_dsm_declaration,"pass_propagate_dsm_declaration($f)");
     # die if $f =~/loop/;
     #  map {say $_} @{pp_annlines($updated_loop_annlines,1)};
-    # emit_RefactoredCode($stref,$f,$updated_loop_annlines) if $f=~/test_loop/;
+    # emit_AnnLines($stref,$f,$updated_loop_annlines) if $f=~/test_loop/;
     return  $stref ;
 } # END of propagate_dsm_declaration
 
@@ -956,7 +956,7 @@ sub rewrite_loop_bounds { my ( $stref, $f ) = @_;
     $stref = rewrite_fold_loops($stref,$f,$state);
     #  map {say $_} @{pp_annlines($updated_loop_annlines,1)};
     # say "\nRefactored code for $f\n";
-    # emit_RefactoredCode($stref,$f,$rewritten_loop_annlines); 
+    # emit_AnnLines($stref,$f,$rewritten_loop_annlines); 
     return  $stref ;
 } # END of rewrite_loop_bounds
 

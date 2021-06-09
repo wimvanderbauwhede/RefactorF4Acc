@@ -27,7 +27,7 @@ use RefactorF4Acc::Preconditioning qw( precondition_includes precondition_decls 
 use RefactorF4Acc::Analysis qw( analyse_all );
 use RefactorF4Acc::Refactoring qw( refactor_all );
 use RefactorF4Acc::CustomPasses qw( run_custom_passes );
-use RefactorF4Acc::Emitter qw( emit_all );
+use RefactorF4Acc::Emitter qw( emit_all emit_AnnLines );
 use RefactorF4Acc::Builder qw( create_build_script build_executable );
 use RefactorF4Acc::Analysis::LoopDetect qw( outer_loop_variable_analysis );
 

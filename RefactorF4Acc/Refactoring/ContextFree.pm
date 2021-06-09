@@ -79,14 +79,11 @@ sub context_free_refactorings {
 
             next;
         }
-if ( not exists $info->{'Inlined'} ) {
-        if ( exists $info->{'Deleted'} ) {
-            next;
+        if ( not exists $info->{'Inlined'} ) {
+            if ( exists $info->{'Deleted'} ) {
+                next;
+            }
         }
-}
-#         if ( exists $info->{'ImplicitNone'} ) {
-# #            next;
-#         }
         if ( exists $info->{'Save'} ) {
         	if ( $Config{'NO_SAVE'} == 1 or
                 exists  $Sf->{'Program'} and $Sf->{'Program'} == 1             
@@ -243,7 +240,9 @@ if ( not exists $info->{'Inlined'} ) {
 # ------------------------------------------------------------------------------
 
         if ( exists $info->{'VarDecl'} ) {
+            
         	my $var =  $info->{'VarDecl'}{'Name'};
+            
             if (not exists $info->{'ParamDecl'}) {
                 if ( in_nested_set($Sf, 'Parameters', $var) ) { 
                     # croak "$f: $line" . Dumper $info if $var =~/alpha/;
@@ -257,17 +256,21 @@ if ( not exists $info->{'Inlined'} ) {
 			my $stmt_count = $info->{'StmtCount'}{$var};
 			if (not defined $stmt_count) {$stmt_count=1; };
             if (exists  $info->{'ParsedVarDecl'} ) {
+
                 my $pvd = $info->{'ParsedVarDecl'}; 
                 if (scalar @{ $info->{'ParsedVarDecl'}{'Vars'} } == 1) {
+                    my $var_decl = get_var_record_from_set( $Sf->{'Vars'},$var);
+                    $line = emit_f95_var_decl($var_decl);
                     if (exists $info->{'Dimension'}) {
-                    	my $var_decl = get_var_record_from_set( $Sf->{'Vars'},$var);
-                    	$line = emit_f95_var_decl($var_decl);
                     	push @{$info->{'Ann'}}, annotate($f, __LINE__ .': Dimension, '.($stmt_count == 1 ? '' : 'SKIP'));
+                    } else {
+                        add_ann_to_info($info,$f,__LINE__);
                     }
                 } else {
-                    $line = emit_f95_parsed_var_decl($pvd);
+                    $line = emit_f95_parsed_var_decl($pvd);                    
                     push @{$info->{'Ann'}}, annotate($f, __LINE__ .': ParsedVarDecl, '.($stmt_count == 1 ? '' : 'SKIP'));                    
-                }
+                }                
+
             } else { 
 	            if ( in_nested_set($Sf, 'Parameters', $var) ) { 
                     # croak "$f: $line" . $stmt_count. Dumper $info if $var =~/alpha/;

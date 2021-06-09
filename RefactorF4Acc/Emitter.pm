@@ -36,7 +36,7 @@ use Exporter;
 @RefactorF4Acc::Emitter::ISA       = qw(Exporter);
 @RefactorF4Acc::Emitter::EXPORT_OK = qw(
   &emit_all
-  &emit_RefactoredCode
+  &emit_AnnLines
 );
 
 sub emit_all {
@@ -369,7 +369,8 @@ sub __get_src_subdirs {
     }
 }    # END of __get_src_subdirs
 
-sub emit_RefactoredCode {
+# This is a proper emitter using the AST (if it is present)
+sub emit_AnnLines {
     my ( $stref, $f, $annlines ) = @_;
     
     my $code_unit = sub_func_incl_mod( $f, $stref );
@@ -412,9 +413,9 @@ sub emit_RefactoredCode {
                 next if $k eq 'InBlock';
                 my $v = $info->{'Block'}{$k};
                 my $v_str = ref($v) eq 'HASH' ? '<'.join(',',(sort keys %{$v})).'>' : ref($v) eq 'ARRAY' ? join(',',@{$v}) : $v;
-                $block_info .= $k.':'.$v_str.' ';
+                $block_info .= $k.':'.$v_str.' ' if $ANN;
             }
-            $block_info = "\t! ".$block_id.' '.$block_info;
+            $block_info = "\t! ".$block_id.' '.$block_info if $ANN;
         }
         if ( exists $info->{'If'} and not exists $info->{'IfThen'} ) {
             my $ast           = $info->{'Cond'}{'AST'};
@@ -634,8 +635,9 @@ sub emit_RefactoredCode {
 #== RETURN, STOP and PAUSE statements
         }
         elsif ( exists $info->{'Return'} ) {
+            # carp "$f:". Dumper ($line,$info);
             my $expr_ast = $info->{'ReturnExprAST'};
-            my $expr_str = emit_expr_from_ast($expr_ast);
+            my $expr_str = emit_expr_from_ast($expr_ast) // ''; # ReturnExprAST may not be present
             $rline = $indent . $maybe_cond . 'return ' . $expr_str;
         }
         elsif ( exists $info->{'Stop'} ) {
@@ -691,7 +693,7 @@ sub emit_RefactoredCode {
 
           )
         {
-            $rline .= ' !!! ORIG !!!';
+            $rline .= ' !!! ORIG !!!' if $ANN;
         } else {
             $block_info='';
         }
@@ -701,7 +703,7 @@ sub emit_RefactoredCode {
         #     [ $rline, $info ] 
         # ];
         # } else {
-        say $rline;
+        # say $rline;
         return [             
             [ $rline.$block_info, $info ] 
         ];
@@ -714,12 +716,12 @@ sub emit_RefactoredCode {
         "pass_emit_RefactoredCode($f) " . __LINE__ );
 
     # if ($f=~/test_loop/) {
-    # map { say $_} @{ pp_annlines( $new_annlines ) };
+    map { say $_} @{ pp_annlines( $new_annlines ) };
 
     # die;
     # }
     return $stref;
 
-}    # END of emit_RefactoredCode
+} # END of emit_AnnLines
 
 

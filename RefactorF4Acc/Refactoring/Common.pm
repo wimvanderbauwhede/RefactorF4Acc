@@ -69,7 +69,7 @@ sub refactor_COMMON_blocks_and_CONTAINed_subs {  # 218 lines Was _refactor_globa
 	}
 	if (not exists $Sf->{'HasCommons'} or not $Sf->{'HasCommons'} ) {
 		say "INFO: no COMMON blocks in $f" if $I;
-		return $annlines;
+		return ($stref,$annlines);
 	}
 
 	# For the case of Contained subroutines
@@ -131,20 +131,21 @@ sub refactor_COMMON_blocks_and_CONTAINed_subs {  # 218 lines Was _refactor_globa
 	my $s      = $Sf->{'Source'};
 
 	# Create hook
-	my $hook_after_last_incl = 0;
-	if ( $Sf->{'ExGlobVarDeclHook'} == 0 ) {
+	# my $hook_after_last_incl = 0;
+	# if ( $Sf->{'ExGlobVarDeclHook'} == 0 ) {
 
-		# If ExGlobVarDeclHook was not defined, we define it on the line *after* the last include or 'implicit none'
-		$hook_after_last_incl = 1;
-	}
+	# 	# If ExGlobVarDeclHook was not defined, we define it on the line *after* the last include or 'implicit none'
+	# 	$hook_after_last_incl = 1;
+	# }
 	my $inc_counter = scalar keys %{ $Sf->{'Includes'} };
-
+	my $first_non_spec_stmt=1;
+	my $first_vardecl = 1;
 	# Loop over all lines in $f
 	for my $annline ( @{$annlines} ) {
 		( my $line, my $info ) = @{$annline};
 
 		my $skip = 0;
-
+		
 		# Create the refactored subroutine signature
 		if ( exists $info->{'Signature'} ) {
 			if ( not exists $Sf->{'HasRefactoredArgs'}
@@ -165,7 +166,7 @@ sub refactor_COMMON_blocks_and_CONTAINed_subs {  # 218 lines Was _refactor_globa
 			 #}
 
 		# There should be no need to do this: all /common/ blocks should have been removed anyway!
-		if ( exists $info->{'Include'} ) {
+		elsif ( exists $info->{'Include'} ) {
 
 			# TODO: test if this is obsolete
 			--$inc_counter;
@@ -191,7 +192,7 @@ sub refactor_COMMON_blocks_and_CONTAINed_subs {  # 218 lines Was _refactor_globa
 		# We should either inline everything from the module or rewrite the module. I go for the former
 		# In principle that is only possible if it's Inlineable
 		#
-		if ( exists $info->{'Use'} ) {
+		elsif ( exists $info->{'Use'} ) {
 			if ( exists $info->{'Use'}{'Inlineable'}
 				and $info->{'Use'}{'Inlineable'} == 1 )
 			{
@@ -202,29 +203,49 @@ sub refactor_COMMON_blocks_and_CONTAINed_subs {  # 218 lines Was _refactor_globa
 			}
 		}
 		# say  $inc_counter , exists $info->{'Include'}, exists $info->{'ImplicitNone'},$hook_after_last_incl ;
-		if (    $inc_counter == 0
-			and not exists $info->{'Include'}
-			and not exists $info->{'ImplicitNone'}
-			and $hook_after_last_incl == 1 )
-		{
+		# if (    $inc_counter == 0
+		# 	and not exists $info->{'Include'}
+		# 	and not exists $info->{'ImplicitNone'}
+		# 	and $hook_after_last_incl == 1 )
+		# {
 
-			$info->{'ExGlobVarDeclHook'} = 'AFTER LAST Include via _refactor_globals_new() line ' . __LINE__;
-			$hook_after_last_incl = 0;
-		}
-		if ( exists $info->{'ImplicitNone'} and $info->{'ExGlobVarDeclHook'} eq 'ImplicitNone' ) {
+		# 	$info->{'ExGlobVarDeclHook'} = 'AFTER LAST Include via _refactor_globals_new() line ' . __LINE__;
+		# 	$hook_after_last_incl = 0;
+		# }
+		# if ( exists $info->{'ImplicitNone'} and $info->{'ExGlobVarDeclHook'} eq 'ImplicitNone' ) {
 
-			push @{$rlines}, $annline;
-			$skip = 1;
-		}
+		# 	push @{$rlines}, $annline;
+		# 	$skip = 1;
+		# }
 
-		if ( exists $info->{'ExGlobVarDeclHook'} ) {
+		# if ( exists $info->{'ExGlobVarDeclHook'} ) {
+		# 	carp $f.' : ExGlobVarDeclHook => '.$info->{'ExGlobVarDeclHook'};
+		# 	# FIXME: I don't like this, because in the case of a program there should simply be no globals etc.
+		# 	# Then generate declarations for ex-globals
+		# 	say "HOOK for $f: " . $info->{'ExGlobVarDeclHook'} if $V;
 
-			# FIXME: I don't like this, because in the case of a program there should simply be no globals etc.
-			# Then generate declarations for ex-globals
-			say "HOOK for $f: " . $info->{'ExGlobVarDeclHook'} if $V;
+		# 	say "EX-GLOBS for $f" if $V;
+		# 	$rlines = _create_extra_arg_and_var_decls( $stref, $f, $annline, $rlines );
+		# }
 
+		elsif (
+			(exists $info->{'VarDecl'} and not exists $info->{'ParamDecl'} and $first_vardecl==1)
+			or (exists $info->{'NonSpecificationStatement'} and $first_non_spec_stmt == 1)
+			# or (not exists $info->{'SpecificationStatement'}
+			# and not exists $info->{'Deleted'}
+			# and not exists $info->{'Comments'}
+			# and not exists $info->{'Blank'}
+			# )
+			) {
+			$first_vardecl=0;
+			$first_non_spec_stmt = 0;
 			say "EX-GLOBS for $f" if $V;
-			$rlines = _create_extra_arg_and_var_decls( $stref, $f, $annline, $rlines );
+			$info->{'ExGlobVarDeclHook'}='Before';
+			$rlines = [				
+				@{_create_extra_arg_and_var_decls( $stref, $f, $annline, $rlines )},
+			['! END new declarations',{'Comments'=>1}],
+			['',{'Blank'=>1}],
+			];
 		}
 
 		if ( exists $info->{'SubroutineCall'} 
@@ -316,7 +337,7 @@ sub _create_extra_arg_and_var_decls { #272 lines
 
 	my $Sf         = $stref->{'Subroutines'}{$f};
 	my $nextLineID = scalar @{$rlines} + 1;
-
+	push @{$rlines}, ['! BEGIN new declarations',{'Comments'=>1}];
 	if ( exists $Sf->{'InheritedParameters'}{'List'}
 		and scalar @{ $Sf->{'InheritedParameters'}{'List'} } > 0 )
 	{
@@ -418,10 +439,12 @@ sub _create_extra_arg_and_var_decls { #272 lines
 	print "INFO: UndeclaredOrigArgs in $f\n" if $I;
 	
 	my %unique_ex_impl = ();
+	if (scalar keys %{ $Sf->{'UndeclaredOrigArgs'}{'Set'} } > 0) {
 	for my $var ( @{ $Sf->{'UndeclaredOrigArgs'}{'List'} } ) {
 		my $_arg_idx=0;
 		if (not defined $var) {
 			carp "Undefined arg in position $_arg_idx in DeclaredOrigArgs for $f";
+			carp Dumper $Sf->{'UndeclaredOrigArgs'};
 		}		
 		if (    not exists $Sf->{'UsedGlobalVars'}{'Set'}{$var}
 			and not exists $Sf->{'CalledSubs'}{'Set'}{$var} )
@@ -462,7 +485,7 @@ sub _create_extra_arg_and_var_decls { #272 lines
 		}
 		++$_arg_idx;
 	}    # for
-
+	} # if Set is not empty, to avoid iterating over a list full of undefs
 	print "INFO: ExInclLocalVars in $f\n" if $I;
 	for my $var ( @{ $Sf->{'ExInclLocalVars'}{'List'} } ) {
 		say "INFO VAR: $var" if $I;

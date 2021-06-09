@@ -2,8 +2,15 @@ package RefactorF4Acc::Analysis::ArgumentIODirs;
 use v5.10;
 
 use RefactorF4Acc::Config;
-use RefactorF4Acc::Utils
-  qw( pp_annlines get_maybe_args_globs type_via_implicits in_nested_set get_var_record_from_set %F95_intrinsic_functions warning);
+use RefactorF4Acc::Utils qw( 
+    pp_annlines 
+    add_ann_to_info
+    get_maybe_args_globs 
+    type_via_implicits 
+    in_nested_set 
+    get_var_record_from_set 
+    %F95_intrinsic_functions warning
+    );
 use RefactorF4Acc::Refactoring::Helpers qw( get_annotated_sourcelines stateful_pass_inplace emit_f95_var_decl get_f95_var_decl );
 
 #use RefactorF4Acc::Refactoring::Subroutines::Signatures qw( refactor_subroutine_signature );
@@ -936,7 +943,7 @@ sub update_argument_io_direction_all_subs {
         $stref = _update_argument_io_direction($stref, $f);
     }
     return $stref;
-}
+} # END of update_argument_io_direction_all_subs
 
 sub _update_argument_io_direction {
     (my $stref, my $f) = @_;
@@ -999,16 +1006,15 @@ sub _update_argument_io_direction {
                     $decl->{'IODir'} = 'In';
                 }
                 if (exists $stref->{'Subroutines'}{$f}{'BlockData'} and $stref->{'Subroutines'}{$f}{'BlockData'} == 1) {
-
-#						warn "BLOCK DATA $f";
                     $decl->{'IODir'} = 'InOut';
                 }
-					
+                # Add INTENT to the generated declaration. I think we should do this elsewhere!
+                # $info->{'Intent'} = $decl->{'IODir'};
                 my $rline = emit_f95_var_decl($decl);
-                push @{$info->{'Ann'}}, '_update_argument_io_direction';
+                add_ann_to_info($info, $f, '_update_argument_io_direction() '.__LINE__);
                 if (exists $info->{'Deleted'}) {
                     $rline = '! ' . $rline;
-                    push @{$info->{'Ann'}}, 'Deleted';
+                    add_ann_to_info($info, $f, __LINE__ .' Deleted');
                 }
                 $annline = [$rline, $info];
 
@@ -1023,8 +1029,6 @@ sub _update_argument_io_direction {
     my $state = [$stref, $f, {}];
     ($stref, $state) = stateful_pass_inplace($stref, $f, $__update_decl, $state, '_update_argument_io_direction() ' . __LINE__);
 
-#	say "SUB: $f"  if $f eq 'sn705';
-#croak Dumper($Sf->{'RefactoredArgs'}{'Set'}{'ivd005'}) if $f eq 'sn705';
     return $stref;
-}    # _update_argument_io_direction
+} # END of _update_argument_io_direction
 1;

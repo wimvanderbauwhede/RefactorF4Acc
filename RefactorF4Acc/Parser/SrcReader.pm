@@ -1532,6 +1532,7 @@ sub _procLine {
             }
             elsif ( $keyword eq 'module' ) {
                 $info->{'Module'} = $name;
+                $info->{'NonSpecificationStatement'} = 1;
             }
             elsif ( $keyword eq 'entry' ) {
                 $info->{'EntrySig'} = $name;

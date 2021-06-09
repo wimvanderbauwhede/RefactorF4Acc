@@ -1,4 +1,39 @@
 # F77 parser
+# Statements Currently not handled at all
+# ♦ means not part of the F77 specification
+
+# Fortran 77 
+
+# MAP/END MAP♦
+# STRUCTURE/END STRUCTURE♦
+# UNION/END UNION♦
+# +RECORD♦
+
+# OPTIONS♦
+# PRAGMA♦
+
+# Fortran 90/95
+# • Specification Statements
+# +ALLOCATABLE
+# +INTENT
+# +OPTIONAL
+# +POINTER
+# +PRIVATE
+# +PUBLIC
+# +TARGET
+# +MODULE PROCEDURE
+# +SEQUENCE
+# +TYPE
+# • Control Statements: 
+# CYCLE
+# EXIT
+# WHERE/ELSEWHERE/END WHERE
+# • Assignment and Storage Statements
+# ALLOCATE
+# DEALLOCATE
+# NULLIFY
+# • Program Structure Statements
+# INTERFACE
 package RefactorF4Acc::Parser;
 # 
 #   (c) 2010-now Wim Vanderbauwhede <Wim.Vanderbauwhede@Glasgow.ac.uk>
@@ -426,7 +461,7 @@ sub analyse_lines {
 #						say "\t" x $block_nest_counter,"END for block #$block_counter, NEST:".$block->{'Nest'}.' CONTINUE'." LABEL: ".$do_label;
 						$info->{'Block'}= $block;
 						$current_block=$block;
-						$info->{'EndControl'}= 1;				 
+						$info->{'EndControl'}= 1;
 						--$block_nest_counter;
 					} else {
 						push @blocks_stack, $block;
@@ -455,7 +490,7 @@ Statements with * are currently ignored
 Statements with ** are currently not even recognised, i.e. they are copied as-is
 
 +AUTOMATIC*
-+EQUIVALENCE*+ => WARNING
++EQUIVALENCE* => WARNING
 +EXTERNAL*
 +INTRINSIC*
 +STATIC*
@@ -492,6 +527,140 @@ PROGRAM
 SUBROUTINE
 +VIRTUAL
 
+From the F77 spec, & means executable statement; > means I/O; $ means program structure
+&ACCEPT
+&ASSIGN
++AUTOMATIC♦
+&BACKSPACE
+$BLOCK DATA
++BYTE♦
+&CALL
++CHARACTER
+&CLOSE
++COMMON
++COMPLEX
+&CONTINUE
+$DATA => A DATA statement is nonexecutable and may appear in a program unit
+anywhere after the specification statements, if any.
+&DECODE
++DIMENSION
+&DO
+&DO WHILE
++DOUBLE COMPLEX
++DOUBLE PRECISION
+&ELSE
+&ELSE IF
+&ENCODE
+&END
+&END DO
+&END FILE
+&END IF
+END MAP
+END STRUCTURE
+END UNION
+$ENTRY
++EQUIVALENCE
++EXTERNAL
+>FORMAT
+$FUNCTION
+&GOTO
+&GOTO (Assigned)
+&GOTO (Unconditional)
+&IF (Arithmetic)
+&IF (Block)
+&IF (Logical)
++IMPLICIT
++INCLUDE (not in the spec!)
+&INQUIRE
++INTEGER
++INTRINSIC
++LOGICAL
+MAP
++NAMELIST♦
+&OPEN
+OPTIONS♦
++PARAMETER
+&PAUSE
+&PRINT
+PRAGMA
+$PROGRAM
++REAL
++RECORD♦
+&RETURN
+&REWIND
++SAVE
+Statement Function
++STATIC♦
+&STOP
+STRUCTURE♦
+$SUBROUTINE
+TYPE♦
+UNION♦
++VIRTUAL♦
++VOLATILE♦
+&WRITE
+
+Non-specification Statements are:
+• Control Statements: 
+CONTINUE
+DO
+IF/IF-THEN
+ELSE
+ENTRY
+EXIT
+IF-THEN
+PAUSE (Obsolescent)
+RETURN
+SELECT CASE
+STOP
+• Input/Output Statements
+BACKSPACE
+CLOSE
+ENDFILE
+FORMAT
+INQUIRE
+OPEN
+PRINT
+READ
+REWIND
+WRITE
+• Assignment and Storage Statements
+ASSIGN (obsolescent)
+• Program Structure Statements
+BLOCK DATA
+END
+FUNCTION
+PROGRAM
+SUBROUTINE
+
+Fortran 90/95
+• Specification Statements
++USE
++ALLOCATABLE
++INTENT
++MODULE PROCEDURE
++OPTIONAL
++POINTER
++PRIVATE
++PUBLIC
++SEQUENCE
++TARGET
++TYPE
++USE
+• Control Statements: 
+CYCLE
+ELSEWHERE
+EXIT
+WHERE
+• Assignment and Storage Statements
+ALLOCATE
+DEALLOCATE
+NULLIFY
+• Program Structure Statements
+CONTAINS
+INTERFACE
+MODULE
+
 =cut
 						
 #== IMPLICIT NONE						
@@ -527,7 +696,8 @@ SUBROUTINE
 				next;
 #== CONTAINS				
 			} elsif ( $line =~ /^contains/ ) {
-				$info->{'Contains'} = 1;			
+				$info->{'Contains'} = 1;
+				$info->{'NonSpecificationStatement'} = 1;	
 #== IMPLICIT (not none)				
 			} elsif ( $line =~ /implicit\s+/ ) {
 				$info->{'Implicit'} = 1;
@@ -543,6 +713,7 @@ SUBROUTINE
 				my $kw      = ucfirst($keyword);				
 				$info->{ 'End' . $kw } = {};
 				$info->{ 'EndControl' } = 1;
+				$info->{'NonSpecificationStatement'} = 1;
 				if ( $kw eq 'Do' ) {
 					$do_counter--;
 					my $corresponding_do_info = pop @do_stack;
@@ -814,6 +985,7 @@ SUBROUTINE
 			$info->{'Format'}=1;
 			$info->{'IOCall'}{'Args'} = { 'Set' => {}, 'List' => [ ] };
 			$prev_stmt_was_spec=0;
+			$info->{'NonSpecificationStatement'} = 1;
 		}
 #== SAVE
 # The SAVE statement prevents items in a subprogram from becoming undefined
@@ -842,7 +1014,8 @@ SUBROUTINE
 		elsif ($line=~/^data\b/ and $line!~/=/) { 
 		 	# DATA
 		 	$info->{'Data'} = 1;
-		 	$info->{'SpecificationStatement'} = 1;
+			$info->{'NonSpecificationStatement'} = 1; 
+		 	# $info->{'SpecificationStatement'} = 1;
                 $info->{'HasVars'} = 1; 
 		 		$line.=' ! Parser line '.__LINE__.' : removed spaces from data' if $DBG;
 			 	my @chunks = split(/\//,$line);
@@ -859,7 +1032,9 @@ SUBROUTINE
 		    	# and there is a match on ')/'
 		    	# we can split between the ')' and '/'
 		    	# However, how about we do just nothing?
-		    	$info->{'SpecificationStatement'} = 1;
+				$info->{'NonSpecificationStatement'} = 1;
+		    	# $info->{'SpecificationStatement'} = 1;
+				$info->{'Data'} = 1;
                 $info->{'HasVars'} = 1; 
 		    	say "DATA declaration with IMPLIED DO at $line" if $V;
 		}
@@ -1037,6 +1212,7 @@ or $line=~/^character\s*\(\s*len\s*=\s*[\w\*]+\s*\)/
 			 ) and $line !~ /^end\s+/) {
 				( $Sf, $line, $info ) =
 				  __parse_sub_func_prog_decls( $Sf, $line, $info );
+				  $info->{'NonSpecificationStatement'} = 1;
 			}
 #== END of CODE UNIT
 			elsif (
@@ -1049,6 +1225,7 @@ or $line=~/^character\s*\(\s*len\s*=\s*[\w\*]+\s*\)/
 				my $name = $2;
 				$info->{ 'End'} = $kw;
 				$info->{ 'End' . ucfirst($kw) } = { 'Name' => $name };
+				$info->{'NonSpecificationStatement'} = 1;
 			}
 			elsif (  # incorrect end of block, handle it anyway via the info from the start of the block
 				$line =~ /^end/ 
@@ -1064,7 +1241,8 @@ or $line=~/^character\s*\(\s*len\s*=\s*[\w\*]+\s*\)/
 				# croak "$f $line ".Dumper($info) unless defined $name;
 				$line = "end $kw $name";
 				$info->{ 'End'} = $kw;
-				$info->{ 'End' . ucfirst($kw) } = { 'Name' => $name };				
+				$info->{ 'End' . ucfirst($kw) } = { 'Name' => $name };	
+				$info->{'NonSpecificationStatement'} = 1;			
 				# die $f,$line, Dumper $info;
 			}
 #== DO statement			
@@ -1145,6 +1323,7 @@ or $line=~/^character\s*\(\s*len\s*=\s*[\w\*]+\s*\)/
 					}
 				}
 				$info->{ 'Control' } = 1;
+				$info->{'NonSpecificationStatement'} = 1;
                 $info->{'HasVars'} = 1; 
 				$do_counter++;
 				push @do_stack, $info;
@@ -1166,12 +1345,14 @@ or $line=~/^character\s*\(\s*len\s*=\s*[\w\*]+\s*\)/
 					$info->{ 'Case' } = ++$case_counter;				
 				} elsif ($line=~/case\s+\default/) {
 					$info->{'CaseDefault'} = 1;
-					$info->{ 'Control' } = 1;								
+					$info->{ 'Control' } = 1;		
+					$info->{'NonSpecificationStatement'} = 1;						
 			}			
 #== ELSE			 
 			elsif ( $line =~ /^else\s*$/ ) {			 	
 					$info->{'Else'} = 1;			
 					$info->{ 'Control' } = 1;
+					$info->{'NonSpecificationStatement'} = 1;
 					$info->{ 'EndControl' } = 1;		
 	
 			} else {
@@ -1193,10 +1374,11 @@ or $line=~/^character\s*\(\s*len\s*=\s*[\w\*]+\s*\)/
 				if ( $line =~ /^(else\s*if)/ ) {
 					$info->{'ElseIf'} = 1;					
 					$info->{'EndControl'} = 1;
+					
 				} else {
 					$info->{'If'} = 1; 
 				}
-				
+				$info->{'NonSpecificationStatement'} = 1;
 			# The following part should be in a separate condition block I think			
 			# What I should do is:
 			# Detect an IF. If so, detect if it is a THEN or an expression. 
@@ -1222,7 +1404,7 @@ or $line=~/^character\s*\(\s*len\s*=\s*[\w\*]+\s*\)/
 				
 				$info->{'Cond'}{'AST'}= $ast;
 				my $vars_in_cond_expr =  get_vars_from_expression( $ast,{});
-				
+				# croak Dumper $vars_in_cond_expr if exists $vars_in_cond_expr->{'mod'};
 				my $vars_and_index_vars_in_cond_expr={};
 				for my $var (sort keys %{$vars_in_cond_expr}) {
 					if ($vars_in_cond_expr->{$var}{'Type'} eq 'Array'
@@ -1325,7 +1507,7 @@ END IF
 				
 				$info = _parse_read_write_print( $mline, $info, $stref, $f );
                 $info->{'HasVars'} = 1; 
-				
+				$info->{'NonSpecificationStatement'} = 1;
 			}
 #== OPEN,
 #== REWIND,  
@@ -1401,6 +1583,7 @@ END IF
 						$info = _parse_read_write_print( $mline, $info, $stref, $f );
 #						croak Dumper($info->{'Vars'});
 				}			
+				$info->{'NonSpecificationStatement'} = 1;
 #== BACKSPACE, ENDFILE statements			
 			} elsif ($mline=~/(backspace|endfile)/) {
 				my $keyword = $1;
@@ -1409,6 +1592,7 @@ END IF
 				$info->{'IOCall'}{'Args'} = { 'Set' => {}, 'List' => [ ] };
 				warn uc($keyword)." is ignored!" if $DBG;
 				warning(uc($keyword)." is ignored",3); 
+				$info->{'NonSpecificationStatement'} = 1;
 #== RETURN, STOP and PAUSE statements		
 			} elsif ($mline=~/^(return|stop|pause)/) {	
 				my $keyword = $1;
@@ -1424,6 +1608,7 @@ END IF
     				$info->{'Vars'}{'Read'}{'Set'}=$vars;
                     $info->{'Vars'}{'Read'}{'List'} = [sort keys %{$vars}];
                 }
+				$info->{'NonSpecificationStatement'} = 1;
 			}
 #== ASSIGN ... TO ...			
 #@ Assign
@@ -1436,10 +1621,12 @@ END IF
                 $info->{'HasVars'} = 1; 
 				$Sf->{'ReferencedLabels'}{$label}=$label;
 				warning('ASSIGN is ignored',3);
+				$info->{'NonSpecificationStatement'} = 1;
 			 }													
 #== CONTINUE statement. 			
 			elsif ($line=~/continue/) {				
-				$info->{'Continue'}={};				
+				$info->{'Continue'}={};			
+				$info->{'NonSpecificationStatement'} = 1;	
 			}
 #== DECODE/ENCODE statement. 			
 			elsif ($line=~/(decode|encode)/) {		
@@ -1447,7 +1634,8 @@ END IF
 				$info->{ ucfirst($keyword) } = 1;
 				$info->{'IO'}=$keyword;
                 $info->{'HasVars'} = 1; 
-				warning(uc($keyword).' is ignored',3);					
+				warning(uc($keyword).' is ignored',3);		
+				$info->{'NonSpecificationStatement'} = 1;			
 			}							
 #== ASSIGNMENT
 # This is an ASSIGNMENT and so can come after IF (...)		
@@ -1468,6 +1656,7 @@ END IF
 			elsif ( $mline =~ /[\w\)]\s*=\s*[^=]/ ) {
 				
 					$info->{'Assignment'} = 1;
+					$info->{'NonSpecificationStatement'} = 1;
                     $info->{'HasVars'} = 1; 
 					my $free_form =  $Sf->{'FreeForm'};							
 					$mline = __remove_blanks($mline,$free_form);
@@ -1487,6 +1676,7 @@ END IF
 				my $label_eq=$2;
 				my $label_gt=$3;
 				$info->{'ArithmeticIf'}=[$label_lt, $label_eq, $label_gt];
+				$info->{'NonSpecificationStatement'} = 1;
 #				say Dumper($info);
 			}
 			# else {
@@ -2007,6 +2197,7 @@ sub _parse_subroutine_and_function_calls {
 						$Sf->{'ReferencedLabels'}{$arg}=$arg;
 					}  
 				}
+				$info->{'NonSpecificationStatement'}=1;
 			}
 
 			# Maybe Function calls
@@ -2092,6 +2283,15 @@ sub _parse_subroutine_and_function_calls {
 							} 
 					}
 			}
+			if (
+				not exists $info->{'SpecificationStatement'} and 
+				not exists $info->{'NonSpecificationStatement'} and
+				not exists $info->{'Blank'} and
+				not exists $info->{'Comments'} and
+				not exists $info->{'Macro'} 
+				){
+			warn "UNCATEGORISED STATEMENT: $line";
+			 }
 			$srcref->[$index] = [ $line, $info ];
 		}    # loop over all annlines
 		$stref->{$sub_or_func_or_mod}{$f}{'AnnLines'} = [ @{$srcref} ];
@@ -3892,7 +4092,6 @@ sub _parse_read_write_print {
 			
             if (%{$impl_do_pairs}) {    
 				for my $idv (sort keys %{$impl_do_pairs}) {
-					say $idv;
 					if (exists $vars->{$idv}) {
 						delete $vars->{$idv};
 						@{$vars->{'List'}} =  sort keys %{$vars}; 
@@ -4908,5 +5107,28 @@ if (not in_nested_set( $Sf, 'Vars', $varname ) ) {
 }
 
 =cut
+=pod
+STRUCTURE /PRODUCT/
+	INTEGER*4 ID
+	CHARACTER*16 NAME
+	CHARACTER*8 MODEL
+	REAL*4 COST
+	REAL*4 PRICE
+END STRUCTURE
 
+RECORD /PRODUCT/ CURRENT, PRIOR, NEXT, LINE(10)
 
+STRUCTURE /STUDENT/
+	CHARACTER*32 NAME
+	INTEGER*2 CLASS
+	UNION
+		MAP
+			CHARACTER*16 MAJOR
+		END MAP
+		MAP
+			INTEGER*2 CREDITS
+			CHARACTER*8 GRAD_DATE
+		END MAP
+	END UNION
+END STRUCTURE
+=cut 

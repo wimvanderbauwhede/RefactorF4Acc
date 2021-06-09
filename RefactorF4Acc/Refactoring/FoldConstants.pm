@@ -18,7 +18,7 @@ use RefactorF4Acc::Utils;
 use RefactorF4Acc::Refactoring::Helpers qw( get_annotated_sourcelines stateless_pass );
 use RefactorF4Acc::Analysis::ArrayAccessPatterns qw( identify_array_accesses_in_exprs );
 use RefactorF4Acc::ExpressionAST::Evaluate qw( fold_constants_in_expr eval_expression_with_parameters );
-use RefactorF4Acc::Emitter qw( emit_RefactoredCode );
+use RefactorF4Acc::Emitter qw( emit_AnnLines );
 use Carp;
 use Data::Dumper;
 use Storable qw( dclone );
@@ -148,7 +148,7 @@ sub fold_constants {
     my $annlines = $Sf->{'RefactoredCode'};
     my $new_annlines = stateless_pass($annlines,$pass_fold_constants,"pass_fold_constants($f) " . __LINE__  ) ;
     # $stref = identify_var_accesses_in_exprs($stref,$f,$new_annlines);
-    #  emit_RefactoredCode($stref,$f,$new_annlines) ;
+    #  emit_AnnLines($stref,$f,$new_annlines) ;
     return ($stref,$new_annlines);
 } # END of fold_constants
 
@@ -175,7 +175,7 @@ sub fold_constants_all {
 
         # warn $f;
         # Dumper($Sf->{'RefactoredCode'});
-        # emit_RefactoredCode($stref,$f,$new_annlines) ;
+        # emit_AnnLines($stref,$f,$new_annlines) ;
         # croak Dumper $Sf->{'ArrayAccesses'} ;
 	}
     

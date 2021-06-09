@@ -107,7 +107,7 @@ our $targetdir = '../RefactoredSources';
 
 our %Config=(
 'INLINE_INCLUDES' => 0,
-'INLINE_RENAME_PARS' => 0,
+'RENAME_PARS_IN_INLINED_SUBS' => 0,
 'SPLIT_LONG_LINES' => $SPLIT_LONG_LINES,
 'MAX_LINE_LENGTH' =>  $MAX_LINE_LENGTH,
 'NO_ONLY' => $NO_ONLY,
@@ -118,7 +118,7 @@ our %Config=(
 'HAS_F77_SOURCES' => 0,
 'LIBS' => [], 
 'LIBPATHS' => [], 
-
+'EXE' => '',
 
 'TOP' => '',
 'PREFIX' => '.',

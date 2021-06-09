@@ -512,7 +512,7 @@ sub __rename_vars {
             $info->{'VarDecl'}{'OrigName'}=$var;
             $info->{'VarDecl'}{'Name'}=$qvar;
             # Renaming the parameters in the array dimension
-            if ($Config{'INLINE_RENAME_PARS'} == 1 and exists $info->{'ParsedVarDecl'}{'Attributes'}{'Dim'}) {
+            if ($Config{'RENAME_PARS_IN_INLINED_SUBS'} == 1 and exists $info->{'ParsedVarDecl'}{'Attributes'}{'Dim'}) {
                 my $dim_str = join(',',  @{$info->{'ParsedVarDecl'}{'Attributes'}{'Dim'}});
                 my ($ast,$str,$error,$has_funcs) = parse_expression_no_context($dim_str);
                 my $renamed_ast = _traverse_ast_with_action($ast,
@@ -540,8 +540,8 @@ sub __rename_vars {
         }
         # WV 2021-06-08 If I would want to rename parameters.
         # Currently I don't, which means that there could be conflicts.
-        # So I think I'll need a flag INLINE_RENAME_PARS in case this breaks
-        elsif ($Config{'INLINE_RENAME_PARS'}==1 and exists $info->{'ParamDecl'}) {
+        # So I think I'll need a flag RENAME_PARS_IN_INLINED_SUBS in case this breaks
+        elsif ($Config{'RENAME_PARS_IN_INLINED_SUBS'}==1 and exists $info->{'ParamDecl'}) {
             # warn Dumper $info;
             if (exists  $info->{'ParamDecl'}{'Var'}) {
                 my $par = $info->{'ParamDecl'}{'Var'}; 
@@ -580,9 +580,9 @@ sub __rename_vars {
                 my $subset2 = in_nested_set($Sf,'UsedParameters', $var);
                 my $subset3 = in_nested_set($Sf,'IncludedParameters', $var);
                 if (not $subset1 ) {
-                    if (($Config{'INLINE_RENAME_PARS'} == 0 and
+                    if (($Config{'RENAME_PARS_IN_INLINED_SUBS'} == 0 and
                 not $subset2 and not $subset3)
-                or $Config{'INLINE_RENAME_PARS'} == 1
+                or $Config{'RENAME_PARS_IN_INLINED_SUBS'} == 1
                 ) {                 
                     # The actual renaming
                     my $qvar = $var . '_' . $f;

@@ -45,23 +45,21 @@ use Exporter;
 
 sub refactor_all {
 	( my $stref, my $code_unit_name, my $is_source_file_path) = @_;
+
 	my $sub_or_func_or_mod = sub_func_incl_mod( $code_unit_name, $stref );
     if ($sub_or_func_or_mod eq 'Modules' and $is_source_file_path) {
        $code_unit_name = get_module_name_from_source($stref,$code_unit_name);
     }
-	# Already here the type in RefactoredArgs is wrong
-# carp Dumper($stref->{'Subroutines'}{'mult_chk'}{ExGlobArgs}{Set}{w4}{Type});
-# croak Dumper($stref->{'Subroutines'}{'mult_chk'}{RefactoredArgs}{Set}{w4}{Type});    
-    
+   
     $stref = refactor_include_files($stref) unless $Config{'INLINE_INCLUDES'} == 1;
+
 # FIXME: this should be treated just like subs, but of course that requires full parsing of expressions that contain function calls
     $stref = refactor_called_functions($stref); # Context-free only 
-    
-	# say "BEFORE refactor_all_subroutines";    
+ 	# say "BEFORE refactor_all_subroutines";    
     # Refactor the source, but don't split long lines and keep annotations
     $stref = refactor_all_subroutines($stref);    
 #    say "AFTER refactor_all_subroutines";
-#	die;
+#  croak Dumper pp_annlines($stref->{'Subroutines'}{'adam'}{'AnnLines'});
     # This can't go into refactor_all_subroutines() because it is recursive
     # Also, this is actually analysis
     # And this is only for Subroutines of course, not for Modules
@@ -71,11 +69,9 @@ sub refactor_all {
     	$stref = determine_argument_io_direction_rec( $stref,$code_unit_name );    	
     	say "DONE determine_argument_io_direction_rec()" if $V;
 
-	# croak Dumper($stref->{'Subroutines'}{'chcopy'}{DeclaredOrigArgs});	
     	$stref = update_argument_io_direction_all_subs( $stref );
     }
 
-    # croak Dumper($stref->{'Subroutines'}{'mult_chk'}{RefactoredCode});
     # So at this point we know everything there is to know about the argument declarations, we can now update them
     say "remove_vars_masking_functions" if $V;    
     $stref = remove_vars_masking_functions($stref);    
@@ -83,15 +79,7 @@ sub refactor_all {
     	say "eval_param_expressions_all" if $V;    
 		$stref = eval_param_expressions_all($stref);
 	}
-    # Test inlining here
-    # We need to decide what to inline.
-    # I would say any call inside a subroutine marked for offloading.
-    # This needs to be recursive!
-	# Testing with LES
-    # my $f='les';
-    # my $sub='boundsm';
-    # croak Dumper($stref->{'Subroutines'}{'dyn_shapiro_update'}{'RefactoredCode'});
-
+    # Inlining 
     $stref = inline_subroutines($stref) ;
 
     # croak Dumper($stref->{'Subroutines'}{'dyn_shapiro_update'}{'RefactoredCode'});
@@ -101,7 +89,7 @@ sub refactor_all {
 
 	# $stref = fold_constants_all($stref) ;
 	# $stref = refactor_dsm_all($stref) ;
-
+    # croak Dumper pp_annlines($stref->{'Subroutines'}{'press'}{'AnnLines'});
     # Custom refactoring, must be done before creating final modules
     say "add_module_decls" if $V;
     $stref=add_module_decls($stref);

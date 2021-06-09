@@ -144,7 +144,7 @@ sub _refactor_subroutine_main {
 	{
 		print "REFACTORING COMMONS for SUBROUTINE $f\n" if $V; 
 
-		if ( $Sf->{'RefactorGlobals'} == 1 ) {
+		if ( $Sf->{'RefactorGlobals'} == 1 ) { 
 
 			($stref,$annlines) = refactor_COMMON_blocks_and_CONTAINed_subs( $stref, $f, $annlines );
 
@@ -194,7 +194,6 @@ sub _refactor_subroutine_main {
 # For some reason this is BROKEN elsewhere so FIXME!
 sub _fix_end_lines {
 	my ( $stref, $f, $rlines ) = @_;
-
 	my $Sf                 = $stref->{'Subroutines'}{$f};
 	my $is_block_data      = ( exists $Sf->{'BlockData'} and $Sf->{'BlockData'} == 1 ) ? 1 : 0;
 	my $what_is_block_data = 'subroutine';                                                        #'block data'
@@ -205,6 +204,7 @@ sub _fix_end_lines {
 	  :                                                             'subroutine';
 	say 'fix end ' . $f if $V;
 	my $done_fix_end = 0;
+	my $fixed_end_annlines=[];
 
 	while ( !$done_fix_end and @{$rlines} ) {
 		my $annline = pop @{$rlines};
@@ -212,59 +212,108 @@ sub _fix_end_lines {
 		( my $line, my $info ) = @{$annline};
 
 		#		say "$f REV LINE: $line" if $f eq 'cphs';
-		next if ( exists $info->{'Comments'} );    # Skip comments
+		next if ( $line =~ /^\s*$/ );    # Skip comments
+		if (   $line =~ /^\s*end\s+$sub_or_prog/
+			or $line =~ /^\s*\d+\s+end\s+$sub_or_prog/ )
+		{
+			push @{$rlines}, $annline;
+			$done_fix_end = 1;
+			last;
+		}
 
-		if  ( exists $info->{'EndSubroutine'}
-		or exists $info->{'EndFunction'}
-		or exists $info->{'EndProgram'}
-		# or exists $info->{'EndBlockData'}
-		 ) {
+		if (   $line =~ /^\s*end\s*$/
+			or $line =~ /^\s*\d+\s+end\s*$/ )
+		{
+			$line =~ s/\s+$//;
 			if ($is_block_data) {
 				$info->{'EndBlockData'} = 1;
-			}			 
+			}
 			my $indent = $info->{'Indent'} // '      ';
-			my $end_sub_line = $indent.'end '.$sub_or_prog.' '.$info->{'End'.ucfirst($sub_or_prog)}{'Name'};
+			my $end_sub_line = $indent.'end '.$sub_or_prog.' '.$f;
 			if (exists $info->{'Label'} ) {
 				my $label = $info->{'Label'};
 				if ( exists $Sf->{'ReferencedLabels'}{$label} ) {				
-					$end_sub_line = $indent.$label.' end '.$sub_or_prog.' '.$info->{'End'.ucfirst($sub_or_prog)}{'Name'};
+					$end_sub_line = $indent.$label.' end '.$sub_or_prog.' '.$f;
 				}
 		 	}
 
 			push @{$rlines}, [$end_sub_line,$info];
+
+			# push @{$rlines}, [ $line . " $sub_or_prog $f", $info ];
 			$done_fix_end = 1;
-			last;
 		}
-	
-		# if (   $line =~ /^\s*end\s+$sub_or_prog/
-		# 	or $line =~ /^\s*\d+\s+end\s+$sub_or_prog/ )
-		# {
-		# 	push @{$rlines}, $annline;
-		# 	$done_fix_end = 1;
-		# 	last;
-		# }
 
-		# if (   $line =~ /^\s*end\s*$/
-		# 	or $line =~ /^\s*\d+\s+end\s*$/ )
-		# {
-		# 	$line =~ s/\s+$//;
-		# 	if ($is_block_data) {
-		# 		$info->{'EndBlockData'} = 1;
-		# 	}
-
-		# 	push @{$rlines}, [ $line . " $sub_or_prog $f", $info ];
-		# 	$done_fix_end = 1;
-		# }
-		# TODO make this $info->{'Contains'}
 		if ( $line =~ /^\s*contains\s*$/ ) {
 			$line =~ s/\s+$//;
-			$annline->[1]{'Contains'}=1;
+			$annline->[1]{'Contains'}=1;			
 			push @{$rlines}, $annline;
 			push @{$rlines}, [ "end $sub_or_prog $f", $info ];
 			$done_fix_end = 1;
 		}
 	}
 
+=pod 
+Info bug to be fixed
+The code below fails because for structures like
+
+      subroutine adam
+
+      do 100 k=1,km
+      do 100 j=1,jm
+      do 100 i=1,im
+        Fd=F(i,j,k)
+        Gd=G(i,j,k)
+        Hd=H(i,j,k)
+        F(i,j,k)=1.5*F(i,j,k)-0.5*Fold(i,j,k)
+        G(i,j,k)=1.5*G(i,j,k)-0.5*Gold(i,j,k)
+        H(i,j,k)=1.5*H(i,j,k)-0.5*Hold(i,j,k)
+        Fold(i,j,k)=Fd
+        Gold(i,j,k)=Gd
+        Hold(i,j,k)=Hd
+  100 continue
+
+      end
+
+the block detection is incorrect and so the final `end` is identified as EndDo
+=cut
+
+# 	while ( !$done_fix_end and @{$rlines} ) {
+# 		my $annline = pop @{$rlines};
+#
+# 		( my $line, my $info ) = @{$annline};
+# 		next if ( exists $info->{'Comments'} );    # Skip comments
+#
+# 		if  ( exists $info->{'EndSubroutine'}
+# 		or exists $info->{'EndFunction'}
+# 		or exists $info->{'EndProgram'}
+# 		 ) { 
+# 			 warn 'HERE';
+# 			if ($is_block_data) {
+# 				$info->{'EndBlockData'} = 1;
+# 			}			 
+# 			my $indent = $info->{'Indent'} // '      ';
+# 			my $end_sub_line = $indent.'end '.$sub_or_prog.' '.$info->{'End'.ucfirst($sub_or_prog)}{'Name'};
+# 			if (exists $info->{'Label'} ) {
+# 				my $label = $info->{'Label'};
+# 				if ( exists $Sf->{'ReferencedLabels'}{$label} ) {				
+# 					$end_sub_line = $indent.$label.' end '.$sub_or_prog.' '.$info->{'End'.ucfirst($sub_or_prog)}{'Name'};
+# 				}
+# 		 	}
+#
+# 			push @{$rlines}, [$end_sub_line,$info];
+# 			$done_fix_end = 1;
+# 			last;
+# 		}	
+#
+# 		# TODO make this $info->{'Contains'}
+# 		elsif ( $line =~ /^\s*contains\s*$/ ) {
+# 			$line =~ s/\s+$//;
+# 			$annline->[1]{'Contains'}=1;
+# 			push @{$rlines}, $annline;
+# 			push @{$rlines}, [ "end $sub_or_prog $f", $info ];
+# 			$done_fix_end = 1;
+# 		}
+# 	}
 	return $rlines;
 }    # END of _fix_end_lines()
 
@@ -477,10 +526,9 @@ sub _group_local_param_decls_at_top { my ( $stref, $f ) = @_;
 		(my $annline, my $state)=@_;
 		(my $line,my $info)=@{$annline};
 		my $new_annlines = [$annline];
-		if (exists $info->{'ParamDecl'}) {	
-			
+		if (exists $info->{'ParamDecl'}) {				
 					$new_annlines =[ 
-					["! Moved param decl for  ".
+					["! Moved param decl for ".
 					(ref($info->{'ParamDecl'}{'Name'}) eq 'ARRAY' ? 
 					$info->{'ParamDecl'}{'Name'} [0] :
 					$info->{'ParamDecl'}{'Name'}
@@ -495,8 +543,8 @@ sub _group_local_param_decls_at_top { my ( $stref, $f ) = @_;
 	};
 	my $param_decl_annlines = [['! Grouped Parameter Declarations',{'Comments' => 1}]];
  	($stref,$param_decl_annlines) = stateful_pass_inplace($stref,$f,$pass_split_out_ParamDecls, $param_decl_annlines,'_split_out_ParamDecls ' . __LINE__  ) ;	
-
 	 if (scalar @{ $param_decl_annlines } > 1) {
+		 # This does not work if there are no VarDecls so in that case put them before the first NonSpecificationStatement
 		my $merged_annlines = splice_additional_lines_cond_inplace(
 			$stref, $f,
 			sub {
@@ -504,6 +552,8 @@ sub _group_local_param_decls_at_top { my ( $stref, $f ) = @_;
 				(my $line,my $info)=@{$annline};
 				return (
 					exists $info->{'VarDecl'}
+					or
+					(exists $info->{'NonSpecificationStatement'} and not exists $info->{'Signature'})
 				) ? 1 : 0;
 			},
 			[],
@@ -514,6 +564,7 @@ sub _group_local_param_decls_at_top { my ( $stref, $f ) = @_;
 		);
 		# say "SUBROUTINE $f";
 		# say Dumper(pp_annlines($merged_annlines));
+		# croak if $f eq 'press';
 		return $merged_annlines;
 	 } else {
 		return $Sf->{'RefactoredCode'};

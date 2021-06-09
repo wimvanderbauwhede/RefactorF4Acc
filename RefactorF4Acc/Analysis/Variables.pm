@@ -239,7 +239,6 @@ sub analyse_variables {
 					}
 					
 					if ( not $in_incl ) {
-#say "$f VAR3 $mvar";
 						# Now check if this variable might be accessed via the containing program or module
 						$identified_vars->{$mvar} = 0;
 						if ( exists $stref->{'Subroutines'}{$f}{'Container'} ) { 
