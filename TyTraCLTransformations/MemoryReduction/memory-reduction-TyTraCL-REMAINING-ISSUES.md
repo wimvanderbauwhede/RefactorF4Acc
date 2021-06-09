@@ -1,5 +1,11 @@
 # REMAINING ISSUES : Memory (Bandwidth) Reduction for Scientific Computing on GPUs
 
+## 2021-05-08
+
+Fixing the inliner and the Fortran-to-C/OpenCL translator
+
+Fortran 77 -Perl-> pure Fortran 95 -Haskell-> OpenCL Fortran 95 -Perl-> TyTraCL with Fortran 95 kernels -Haskell-> OpenCL Fortran 95 -Perl-> OpenCL C
+
 ## 2021-05-07
 
 - The pointer analysis needed more sophistication. Should be OK now. Also subs in used modules are now emitted as C code. 

@@ -76,7 +76,7 @@ sub analyse_variables {
 
 			# -------------------------------------------------------------------------------------------------------------------
 			
-			for my $mvar (@chunks) {
+			for my $mvar (@chunks) { 
 				# say "<$mvar>";
                 next if exists $stref->{'Subroutines'}{$f}{'CalledSubs'}{'Set'}{$mvar};    # Means it's a function
 				next if $mvar =~ /^\d+$/;
@@ -407,7 +407,6 @@ sub identify_vars_on_line {
 			if ( exists $info->{'If'} or exists $info->{'ElseIf'} ) {
 				@chunks = @{ $info->{'Cond'}{'Vars'}{'List'} };
 			}
-
 			if (   exists $info->{'PrintCall'}
 				or exists $info->{'WriteCall'}
 				or exists $info->{'ReadCall'}
@@ -415,15 +414,14 @@ sub identify_vars_on_line {
 				or exists $info->{'RewindCall'} 
 				or exists $info->{'Return'} 
 				) {
+					# croak Dumper $info if $line=~/write\(\d+\)/;
 				@chunks = ( @chunks, @{ $info->{'Vars'}{'Written'}{'List'} }, @{ $info->{'Vars'}{'Read'}{'List'} } );
-
 				if (exists $info->{'ImpliedDoVars'}) {
 				    @chunks = ( @chunks, @{ $info->{'ImpliedDoVars'}{'List'} } );
 				}
                 if (exists $info->{'ImpliedDoRangeVars'}) {
                     @chunks = ( @chunks, @{ $info->{'ImpliedDoRangeVars'}{'List'} } );
                 }
-#                croak Dumper(@chunks,$info->{'Vars'}) if $line=~/read.*time/;
 			} elsif ( exists $info->{'SubroutineCall'} ) {
 				for my $var_expr ( @{ $info->{'SubroutineCall'}{'Args'}{'List'} } ) {
 					# carp Dumper( $info->{'SubroutineCall'}{'Args'}{'Set'});

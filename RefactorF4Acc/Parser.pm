@@ -1060,7 +1060,8 @@ or $line=~/^character\s*\(\s*len\s*=\s*[\w\*]+\s*\)/
 					$kw='subroutine';
 				}
 
-				my $name = $info->{'Block'}{'Name'};
+				my $name = $info->{'Block'}{'Name'} // '! MISSING NAME';
+				# croak "$f $line ".Dumper($info) unless defined $name;
 				$line = "end $kw $name";
 				$info->{ 'End'} = $kw;
 				$info->{ 'End' . ucfirst($kw) } = { 'Name' => $name };				
@@ -3675,7 +3676,7 @@ We have 3 different cases:
 
 sub _parse_read_write_print {
 	
-    ( my $line, my $info, my $stref, my $f ) = @_;
+    ( my $line, my $info, my $stref, my $f ) = @_; 
     
     my $sub_or_func = sub_func_incl_mod( $f, $stref );
     my $Sf          = $stref->{$sub_or_func}{$f};
@@ -3761,7 +3762,6 @@ sub _parse_read_write_print {
     
     $info->{'Vars'}{'Written'}={'List'=>[],'Set'=>{}};
     $info->{'Vars'}{'Read'}={'List'=>[],'Set'=>{}};
-    
     if ( exists $info->{'AcceptCall'} ) {
 #    ACCEPT
 		#- case 3
@@ -3868,6 +3868,7 @@ sub _parse_read_write_print {
          return $info;
 	
 	} elsif ( exists $info->{'WriteCall'} ) {
+		
 	#WRITE
 	#case 1 and 2 
 	if ($case==1) {
@@ -3876,6 +3877,7 @@ sub _parse_read_write_print {
             $info->{'Vars'}{'Read'}{'List'} = $Sf->{'Namelist'}{$attrs_ast->[1]};
             $info->{'Vars'}{'Read'}{'Set'} = { map {$_=>1} @{ $info->{'Vars'}{'Read'}{'List'} } };
         }
+		
 	}
 	elsif ($case==2) {
     #case 2, iolist, Read from
@@ -3887,22 +3889,26 @@ sub _parse_read_write_print {
 		
             # This must be the iolist case. First check for implied do; then call args_vars. All args are Written, the rest is Read
             my $vars = find_vars_in_ast($exprs_ast, {}  );
+			
             if (%{$impl_do_pairs}) {    
-            for my $idv (sort keys %{$impl_do_pairs}) {
-                if (exists $vars->{'Set'}{$idv}) {
-                    delete $vars->{'Set'}{$idv};
-                    @{$vars->{'List'}} =  sort keys %{$vars->{'Set'}}; 
-                }
-            }
+				for my $idv (sort keys %{$impl_do_pairs}) {
+					say $idv;
+					if (exists $vars->{$idv}) {
+						delete $vars->{$idv};
+						@{$vars->{'List'}} =  sort keys %{$vars}; 
+					}
+				}
             }
             $info->{'Vars'}{'Read'}{'Set'}=$vars;
-                                   
+                            	             
 	}	
 	#If case 1 or 2, add IOSTAT var to Written to
 	   if (exists $attr_pairs->{'iostat'}) {
                 my $ios = $attr_pairs->{'iostat'}[1];
                 $info->{'Vars'}{'Written'}{'Set'}{$ios}=1;
        }
+
+
 	} elsif ( exists $info->{'InquireCall'} ) {
     	#INQUIRE    	
     	#Other args are all Written to except the ERR Label
