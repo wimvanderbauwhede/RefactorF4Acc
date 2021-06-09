@@ -1,16 +1,18 @@
 # F77 parser
-# Statements Currently not handled at all
+#
+# Statements currently not supported
 # ♦ means not part of the F77 specification
 
 # Fortran 77 
 
+# As these are not in the spec, they will be very low priority.
 # MAP/END MAP♦
 # STRUCTURE/END STRUCTURE♦
 # UNION/END UNION♦
 # +RECORD♦
 
 # OPTIONS♦
-# PRAGMA♦
+# PRAGMA♦ => we support $RF4A, not $PRAGMA
 
 # Fortran 90/95
 # • Specification Statements
@@ -34,6 +36,7 @@
 # NULLIFY
 # • Program Structure Statements
 # INTERFACE
+
 package RefactorF4Acc::Parser;
 # 
 #   (c) 2010-now Wim Vanderbauwhede <Wim.Vanderbauwhede@Glasgow.ac.uk>
@@ -284,7 +287,15 @@ sub analyse_lines {
 			$info->{'Indent'}=$indent;						
 			$info->{'LineID'} = $index;
 			
-
+			# Unsupported features that result in error
+			#fortran 77 extensions
+			if ($lline=~/^(map|structure|union|record|options)/) {
+				die die 'Sorry, the '.uc($1).' statement is not part of the F77 specification and currently not supported.'."\n";
+			}
+			#fortran 90/95
+			if ($lline=~/^(interface|module\s*procedure|sequence|where|elsewhere)/) {
+				die 'Sorry, the '.uc($1).' statement is currently not supported.'."\n";
+			}
 
 			# Skip comments (we already marked them in SrcReader)
 			if ( $lline =~ /^\s*\!/ && $lline !~ /^\!\s*\$(?:ACC|RF4A)\s/i ) {				
@@ -1054,6 +1065,20 @@ MODULE
                 $info->{'HasVars'} = 1; 
                 }
 		 	}
+
+#• specification statements
+			elsif ($line=~/^(allocatable|intent|optional|pointer|private|public|target)\s*::\s*([\w,\s]+)/) {
+		 		my $qualifier = $1;
+		 		my $args_str = $2;
+		 		$args_str=~s/\s//g;
+		 		my @external_procs = split(/\s*,\s*/,$args_str);
+
+		 		$info->{ucfirst($qualifier)} = { map {$_=>1} @external_procs};
+		 		$info->{'SpecificationStatement'} = 1;
+				$info->{'HasVars'} = 1; 
+				warning( uc($qualifier).' is ignored in analysis.',3);
+			}
+			 
 #== EQUIVALENCE 		 	 
 #EQUIVALENCE ( nlist ) [, ( nlist ) ] …
 #nlist List of variable names, array element names,array names, and character
@@ -1636,7 +1661,25 @@ END IF
                 $info->{'HasVars'} = 1; 
 				warning(uc($keyword).' is ignored',3);		
 				$info->{'NonSpecificationStatement'} = 1;			
-			}							
+			}	
+#== Placeholders for unsupported statements			
+# • control statements: 
+			elsif ($line=~/(cycle|exit)/) {
+				my $keyword = $1;
+				$info->{ ucfirst($keyword) } = 1;
+				warning(uc($keyword).' is ignored in analysis',3);		
+				$info->{'NonSpecificationStatement'} = 1;			
+			}
+# • assignment and storage statements
+			elsif ($line=~/^(allocate|deallocate|nullify)/) {
+				my $keyword = $1;
+				$info->{ ucfirst($keyword) } = 1;
+				$info->{'IO'}=$keyword;
+                $info->{'HasVars'} = 1; 
+				warning(uc($keyword).' is ignored in analysis',3);		
+				$info->{'NonSpecificationStatement'} = 1;	
+			}
+
 #== ASSIGNMENT
 # This is an ASSIGNMENT and so can come after IF (...)		
 #@ Lhs => 
@@ -5132,3 +5175,7 @@ STRUCTURE /STUDENT/
 	END UNION
 END STRUCTURE
 =cut 
+
+
+
+
