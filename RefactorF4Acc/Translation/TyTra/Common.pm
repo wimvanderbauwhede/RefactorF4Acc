@@ -128,10 +128,11 @@ sub __isMainOutArg {
     my $tytracl_ast = $stref->{$stref->{'EmitAST'}};
     my $orig_args   = $tytracl_ast->{'OrigArgs'};
 
-
-# say "TEST OUT: $var_name $ctr ";# <> ".$tytracl_ast->{'UniqueVarCounters'}{$var_name}." <$ext> <".(exists
-# say $orig_args->{$var_name};# ) .">";
-# carp $var_name,Dumper $orig_args->{$var_name};
+# say "TEST OUT: $var_name $ctr <> ".$tytracl_ast->{'UniqueVarCounters'}{$var_name}."; EXT:'$ext' <> ''"; # <".(exists
+# say "VAR $var_name : ".($orig_args->{$var_name} // 'NOT orig arg ');# ) .">";
+# if (exists $orig_args->{$var_name}) {
+# carp $var_name, Dumper $orig_args->{$var_name};
+# }
     return (
              $ctr == $tytracl_ast->{'UniqueVarCounters'}{$var_name}
           && $ext eq ''

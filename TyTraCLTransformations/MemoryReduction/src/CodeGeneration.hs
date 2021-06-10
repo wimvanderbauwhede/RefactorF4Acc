@@ -32,12 +32,12 @@ generateFortranCode decomposed_ast functionSignaturesList idSigList =
         -- generatedStageKernels = map (\(ast,ct) -> (generateStageKernel functionSignatures) ct ast) (zip ast_stages [1..])
         (mainProgramStr,(maybeMainModuleStr,maybeEndModuleStr))
             | genMain = 
-                -- "! AST STAGES:\n"++
-                -- unlines (map (\st -> "! " ++ (show st)) ast_stages) ++"\n"++ 
                 let
                     (mp,(mm,mme)) = generateMainProgramOrSuperkernel genModule functionSignatures ast_stages 
                 in
-                    (mp,("! AST STAGES:\n"++unlines (map (\st -> "! " ++ (show st)) ast_stages) ++"\n"++mm,mme))
+                    (mp,(
+                        -- "! AST STAGES:\n"++unlines (map (\st -> "! " ++ (show st)) ast_stages) ++"\n"++
+                        mm,mme))
             | otherwise = ("! Main code not generated",("",""))
             
         generatedOpaqueFunctionDefsStr = unlines generatedOpaqueFunctionDefs
@@ -1527,7 +1527,7 @@ buildMainProgramForSuperkernelDef unique_stage_kernel_decls stage_kernel_calls =
             "    integer, parameter :: ST_STAGE_KERNEL_"++(show ct)++" = "++(show ct)++" ! stage_kernel_"++(show ct)
             )  [1.. length stage_kernel_calls]    
         loops_over_calls = map (\ct -> unlines [
-            "    state_ptr(1) = ST_STAGE_KERNEL_"++(show ct),
+            "    state_ptr = ST_STAGE_KERNEL_"++(show ct),
             "    do global_id = 1, "++(show vSz),
             "      call "++superkernelName++"("++superkernel_args_str++",state_ptr)",
             "    end do"
@@ -1544,7 +1544,7 @@ buildMainProgramForSuperkernelDef unique_stage_kernel_decls stage_kernel_calls =
         main_program_decl_strs ++
         case_param_decl_strs ++
         [
-            "    integer, dimension(1) :: state_ptr",
+            "    integer :: state_ptr",
         "    ! Loops over stage calls"] ++
         loops_over_calls ++
         [
@@ -1577,8 +1577,8 @@ buildSuperkernelDef unique_stage_kernel_decls stage_kernel_calls subdef_lines_st
             case_param_decl_strs ++
             [
                 "    integer :: state",
-                "    integer, dimension(1) :: state_ptr",
-            "    state = state_ptr(1) ! state", 
+                "    integer :: state_ptr",
+            "    state = state_ptr ! state", 
             "! SUPERKERNEL BODY",
             "    select case(state)"    
             ] ++        
@@ -1601,6 +1601,7 @@ getGlobalIdDefStrs =
         "    "++"integer, intent(in) :: dim",
         "    "++"integer :: global_id",
         "    "++"common /ocl/ global_id",
+        "    "++"idx = dim ! dummy",
         "    "++"idx = global_id",
         "end subroutine get_global_id"
         ]

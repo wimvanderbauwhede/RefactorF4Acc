@@ -1847,11 +1847,10 @@ sub __add_include_hooks {
 sub _parse_use {
 	( my $f, my $stref ) = @_;
 
-	#	local $V=1;
-
 	my $sub_or_func_or_mod_or_inc_or_mod = sub_func_incl_mod( $f, $stref );
 	my $Sf = $stref->{$sub_or_func_or_mod_or_inc_or_mod}{$f};
 	print "PARSING USE for $f ($sub_or_func_or_mod_or_inc_or_mod)\n" if $V;
+	
 	my $srcref       = $Sf->{'AnnLines'};
 	my $last_inc_idx = 0;
 	if ( defined $srcref ) {
@@ -1862,7 +1861,7 @@ sub _parse_use {
 				next;
 			}
 
-			if ( $line =~ /^\s*use\s+(\w+)/ ) { # if exists $info->{'Includes'}
+			if ( $line =~ /^\s*use\s+(\w+)/ ) {
 				my $name = $1;
 				say "FOUND module $name in $f" if $V;
 				my $only_str='';
@@ -1894,50 +1893,55 @@ sub _parse_use {
 
 				$info->{'Use'} = {};
 				$info->{'Use'}{'Name'} = $name;
+				# carp Dumper $stref->{'Modules'}; 
 				if (exists $stref->{'Modules'}{$name}{'ModType'} and
 				$stref->{'Modules'}{$name}{'ModType'} ne 'External') {
-				if ( not exists $stref->{'Modules'}{$name}{'Status'}
-					or $stref->{'Modules'}{$name}{'Status'} < $READ )
-				{
-					print $line, "\n" if $V;
+					if ( not exists $stref->{'Modules'}{$name}{'Status'}
+						or $stref->{'Modules'}{$name}{'Status'} < $READ )
+					{
+						print $line, "\n" if $V;
 
-					$stref = parse_fortran_src( $name, $stref );
-				} else {
-					print $line, " already processed\n" if $V;
-				}
-				if ( exists $stref->{'Modules'}{$name}{'Inlineable'} and $stref->{'Modules'}{$name}{'Inlineable'} ==1) {
-					$info->{'Use'}{'Inlineable'} = 1;
-				} else {
-					$info->{'Use'}{'Inlineable'} = 0;
-				}
-				if (    exists $stref->{'Implicits'}
-					and exists $stref->{'Implicits'}{$name} )
-				{
-					print "INFO: inheriting IMPLICITS from $name in $f\n" if $I;
-					if ( not exists $stref->{'Implicits'}{$f} ) {
-						$stref->{'Implicits'}{$f} =
-						  $stref->{'Implicits'}{$name};
+						$stref = parse_fortran_src( $name, $stref );
 					} else {
-						for my $k ( keys %{ $stref->{'Implicits'}{$name} } ) {
-							if ( not exists $stref->{'Implicits'}{$f}{$k} ) {
-								$stref->{'Implicits'}{$f}{$k} =
-								  $stref->{'Implicits'}{$name}{$k};
-							} else {
-								die "ERROR: $f and $name have different type for $k";
+						print $line, " already processed\n" if $V;
+					}
+					if ( exists $stref->{'Modules'}{$name}{'Inlineable'} and $stref->{'Modules'}{$name}{'Inlineable'} ==1) {
+						$info->{'Use'}{'Inlineable'} = 1;
+					} else {
+						$info->{'Use'}{'Inlineable'} = 0;
+					}
+					if (    exists $stref->{'Implicits'}
+						and exists $stref->{'Implicits'}{$name} )
+					{
+						print "INFO: inheriting IMPLICITS from $name in $f\n" if $I;
+						if ( not exists $stref->{'Implicits'}{$f} ) {
+							$stref->{'Implicits'}{$f} =
+							$stref->{'Implicits'}{$name};
+						} else {
+							for my $k ( keys %{ $stref->{'Implicits'}{$name} } ) {
+								if ( not exists $stref->{'Implicits'}{$f}{$k} ) {
+									$stref->{'Implicits'}{$f}{$k} =
+									$stref->{'Implicits'}{$name}{$k};
+								} else {
+									die "ERROR: $f and $name have different type for $k";
+								}
 							}
 						}
 					}
-				}
-				
-				# the used module has been parsed
-				if ( exists $stref->{'Modules'}{$name} ) {    # Otherwise it means it is an external module
-					 # 'Parameters' here is OK because the include might contain other includes
 					
-					# say "Adding UsedParameters to $sub_or_func_or_mod_or_inc_or_mod $f from module $name ". __FILE__. ' ' . __LINE__;
-					$Sf->{'UsedParameters'} = &append_to_set( $Sf->{'UsedParameters'}, $stref->{'Modules'}{$name}{'Parameters'} );
-					# I think here I should 'inherit' UsedLocalVars from this module, i.e. any LocalVars in $name
-					$Sf->{'UndeclaredCommonVars'} = append_to_set( $Sf->{'UndeclaredCommonVars'}, $stref->{'Modules'}{$name}{'DeclaredCommonVars'} );
-				}
+					# the used module has been parsed
+					if ( exists $stref->{'Modules'}{$name} ) {    # Otherwise it means it is an external module
+						# 'Parameters' here is OK because the include might contain other includes
+						
+						# say "Adding UsedParameters to $sub_or_func_or_mod_or_inc_or_mod $f from module $name ". __FILE__. ' ' . __LINE__;
+						$Sf->{'UsedParameters'} = &append_to_set( $Sf->{'UsedParameters'}, $stref->{'Modules'}{$name}{'Parameters'} );
+						# I think here I should 'inherit' UsedLocalVars from this module, i.e. any LocalVars in $name
+						$Sf->{'UndeclaredCommonVars'} = append_to_set( $Sf->{'UndeclaredCommonVars'}, $stref->{'Modules'}{$name}{'DeclaredCommonVars'} );
+					} 
+					# else {
+					# 	croak $name;
+					# }
+				
 				} else {
 					warning("module $name is EXTERNAL", 2);
 				}
@@ -2937,7 +2941,7 @@ sub __handle_trailing_pragmas { my (
 		# croak Dumper $halos;
 		$pragmas->{'Halos'} = $halos;
 	}
-	# The format for Paritions is Partitions(NPX, NPY, NPZ)
+	# The format for Partitions is Partitions(NPX, NPY, NPZ)
 	if ($pragma_comment =~/[Pp]artitions\s*\((.+)\s*\)\s*/) {
 		my $partitions_str=$1;
 		# split on ,
@@ -2951,6 +2955,18 @@ sub __handle_trailing_pragmas { my (
 	if ($pragma_comment =~/[Mm]em[Ss]pace\s*\(+(.+?)\s*\)+\s*/) {
 		$memspace=$1;
 		$pragmas->{'MemSpace'}=$memspace;
+	}	
+	# The format for Purpose is Purpose(In|Out|InOut|Temp|Local)
+	# The Purpose should I think be stored in $stref->{'Top'} 
+	# Or maybe in $stref->{'Subroutines'}{ $stref->{'Top'} }
+	# It will be used only in the kernel subroutine but Top is handy
+	# We could make it part of the declarations, or simply have
+	# $stref->{'Subroutines'}{ $stref->{'Top'} }{'Purpose'} =
+	# { $var => $pragmas->{'Purpose'}}
+
+	if ($pragma_comment =~/[Pp]urpose\s*\(+(.+?)\s*\)+\s*/) {
+		my $purpose=$1;
+		$pragmas->{'Purpose'}=$purpose;
 	}	
 
 	# The format is $RF4A LoopNature(...)

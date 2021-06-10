@@ -103,7 +103,7 @@ if (!$test && $scalarise) {
         if ($kernel_sub_name ne '') {
             my $rf4a_scalarize_cfg =  create_rf4a_cfg_scalarise($kernel_src,$kernel_sub_name, $kernel_module_name);  
             say "CFG: ".Dumper($rf4a_scalarize_cfg) if $V;
-            my $args = {'P' => 'rename_array_accesses_to_scalars','c' => $rf4a_scalarize_cfg,
+            my $args = {'P' => 'rename_array_accesses_to_scalars','c' => $rf4a_scalarize_cfg, 'v'=>$V,
             'w'=>$W,'i'=>$I,'d'=>$DBG };
 	        $stref = main($args);
         }
@@ -167,7 +167,7 @@ if ($gen_main) {
                 die "Make sure the src subdirectory exists!\n";
             }
             my $args = {'P' => 'memory_reduction', 'c' => {'TEST'=>$test}, 'o'  => './src/ASTInstance.hs'
-            ,'w'=>$W,'i'=>$I,'d'=>$DBG};
+            ,'v'=>$V,'w'=>$W,'i'=>$I,'d'=>$DBG};
             $stref = main($args);
         }
     } else {

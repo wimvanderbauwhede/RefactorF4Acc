@@ -704,13 +704,17 @@ In other words,
 # There are two changes we want to make. 
 # 1. We want to remove redundant arguments
 # 2. Some of the called subroutines have arguments that are InOut but should really be Out (or maybe even In?)
+
 sub remove_redundant_arguments_and_fix_intents { (my $stref, my $f)=@_;
 	if (not exists $Config{'FIXES'}{'remove_redundant_arguments_and_fix_intents'}) { return $stref }	
 
 	if ($f eq $Config{'KERNEL'}) { 
-
 		my @in_args = grep { 
+			if (not exists $stref->{'Subroutines'}{ $f }{'DeclaredOrigArgs'}{'Set'}{$_}{'IODir'}) {
+				die "The argument $_ of $f does not have a declaration.\n";
+			} else {
 			$stref->{'Subroutines'}{ $f }{'DeclaredOrigArgs'}{'Set'}{$_}{'IODir'} eq 'in'
+			}
 		}  @{$stref->{'Subroutines'}{ $f }{'DeclaredOrigArgs'}{'List'}};
 
 		my @call_sequence=();
@@ -748,11 +752,11 @@ sub remove_redundant_arguments_and_fix_intents { (my $stref, my $f)=@_;
 					# if (exists $csub_args->{$sig_arg}) {
 						# See if $sig_arg was written to before it was read. 
 						# If it was read first, we need to keep it, else we don't need it for this subroutine
-						my $written_before_read = __check_written_before_read($sig_arg, $stref, $csub);
+						my $written_before_read = __check_written_before_read($sig_arg, $stref, $csub);						
 						if (not $written_before_read) {
 							$in_args_to_keep->{$in_arg}=1;
 							last;
-						}
+						} 
 						# As soon as we need to keep it for one subroutine, we can stop as we can't remove it.
 						# However, if the csub arg is inout, and we have a write-before-read, then any subsequent sub call can be ignored
 						# This is not the case if the csub arg is just in -- but I think we can't write to an in argument
@@ -812,10 +816,10 @@ sub remove_redundant_arguments_and_fix_intents { (my $stref, my $f)=@_;
 		
  		$stref = stateless_pass_inplace($stref,$f,$pass_remove_redundant_args_in_superkernel,'pass_remove_redundant_args_in_superkernel' . __LINE__  ) ;
 
-# say "Removed redundant args from superkernel";
+	# say "Removed redundant args from superkernel";
 
-		# To remove the redundant args from the called subroutines, all we need to do is
-	#  - In every called sub for my $csub (@call_sequence) {}
+	# To remove the redundant args from the called subroutines, all we need to do is
+	#   - In every called sub for my $csub (@call_sequence) {}
 	#  	- from the  argument list of each kernel : $annlines, but also from Args to DeclaredOrigLocalVars
 	#  	- remove the intents from the declarations : $annlines, but also from DeclaredOrigLocalVars
 		for my $csub_info (@call_sequence) {
@@ -924,7 +928,6 @@ sub remove_redundant_arguments_and_fix_intents { (my $stref, my $f)=@_;
 					) {
 						say "$csub: CHANGED INTENT for $arg: ",$stref->{'Subroutines'}{ $csub }{'DeclaredOrigArgs'}{'Set'}{$arg}{'IODir'},' to ', $iodir_for_arg_in_called_sub->{$csub}{$arg} if $DBG;
 						$changed_iodirs->{$csub}{$arg} = $iodir_for_arg_in_called_sub->{$csub}{$arg};
-						# carp "FIXED 2: $csub $arg ". $iodir_for_arg_in_called_sub->{$csub}{$arg} if $csub=~/reduce/;
 						$stref->{'Subroutines'}{ $csub }{'DeclaredOrigArgs'}{'Set'}{$arg}{'IODir'} = $iodir_for_arg_in_called_sub->{$csub}{$arg};
 					}
 				}

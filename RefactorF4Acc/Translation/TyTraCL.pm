@@ -306,7 +306,10 @@ sub emit_TyTraCL {
     my $main_in_args_str =
       scalar @{$main_rec->{'InArgs'}} > 1 ? '(' . join(',', @{$main_rec->{'InArgs'}}) . ')' : $main_rec->{'InArgs'}->[0];
     my $main_out_args_str =
-      scalar @{$main_rec->{'OutArgs'}} > 1 ? '(' . join(',', @{$main_rec->{'OutArgs'}}) . ')' : $main_rec->{'OutArgs'}->[0];
+      scalar @{$main_rec->{'OutArgs'}} > 1 ? '(' . join(',', @{$main_rec->{'OutArgs'}}) . ')' : 
+      scalar @{$main_rec->{'OutArgs'}} ==1 
+      ? $main_rec->{'OutArgs'}->[0]
+      : '()';
 
     unshift @tytracl_strs_indent, '  let';
     unshift @tytracl_strs_indent, "main $main_in_args_str =";

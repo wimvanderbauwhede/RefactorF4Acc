@@ -12,11 +12,106 @@ Ideally I would have 4 values for Purpose: In, Out, Temp and Local:
 - Local are arrays that are only used inside a subkernel
 
 I still struggle with arrays that are actually InOut, such as `wet`. As it is modified, it needs to be returned. And as I don't have InOut, I make it Out
-In are arrays not returned. So any array returned becomes Out? Need to test what happens if I make them InOut
+In are arrays not returned. So any array returned becomes Out? Need to test what happens if I make them InOut.
+I tried this and it makes no difference: Out or InOut have the same result. So I can keep InOut.
 
 It looks like I had better run an aggressive argument detection analysis first, before I generate the Haskell AST. At the very least that would remove lots of args that ought to be local scalar vars, like `duu`.
 => OK, I did that.
-Also fixed a small bug in the removeIntent function in AutoParallel-Fortran, it did not take leading spaces into account
+Also fixed a small bug in the removeIntent function in AutoParallel-Fortran, it did not take leading spaces into account.
+
+If I want some reduction in memory I need to exclude the updates to h and wet:
+
+   h(j,k) = hzero(j,k) + eta(j,k)
+   wet(j,k) = 1
+   if (h(j,k)<hmin) wet(j,k) = 0
+
+These will be done on the host so that we don't have to use memory for hzero or for the output of wet on the device
+
+By doing so, the kernel uses the following 8 arrays:
+
+    real, dimension(1:252004) :: eta_0
+    integer, dimension(1:252004) :: wet_0
+    real, dimension(1:252004) :: u_0
+    real, dimension(1:252004) :: v_0
+    real, dimension(1:252004) :: h_0
+    real, dimension(1:252004) :: un_1
+    real, dimension(1:252004) :: vn_1
+    real, dimension(1:252004) :: eta_1
+
+The original CPU code has 9 global arrays
+
+      REAL :: hzero(0:ny+1,0:nx+1)
+      REAL :: h(0:ny+1,0:nx+1)
+      REAL :: eta(0:ny+1,0:nx+1)
+      REAL :: etan(0:ny+1,0:nx+1)
+      REAL :: u(0:ny+1,0:nx+1)
+      REAL :: un(0:ny+1,0:nx+1)
+      REAL :: v(0:ny+1,0:nx+1)
+      REAL :: vn(0:ny+1,0:nx+1)
+      INTEGER :: wet(0:ny+1,0:nx+1)
+
+and two local arrays in `dyn`
+
+      REAL :: du(0:ny+1,0:nx+1)
+      REAL :: dv(0:ny+1,0:nx+1) 
+
+and the generated GPU code has the same 11 arrays, all `__global`
+
+      real, dimension(0:(ny + 1),0:(nx + 1)) :: eta
+      real, dimension(0:(ny + 1),0:(nx + 1)) :: u
+      real, dimension(0:(ny_dyn + 1),0:(nx_dyn + 1)) :: du_dyn
+      integer, dimension(0:(ny + 1),0:(nx + 1)) :: wet
+      real, dimension(0:(ny + 1),0:(nx + 1)) :: v
+      real, dimension(0:(ny_dyn + 1),0:(nx_dyn + 1)) :: dv_dyn
+      real, dimension(0:(ny + 1),0:(nx + 1)) :: un
+      real, dimension(0:(ny + 1),0:(nx + 1)) :: h
+      real, dimension(0:(ny + 1),0:(nx + 1)) :: vn
+      real, dimension(0:(ny + 1),0:(nx + 1)) :: etan
+      real, dimension(0:(ny + 1),0:(nx + 1)) :: hzero
+  
+So from a device perspective we save 3 arrays out of 11, or 27% of the array memory on the device.
+
+The "Purpose" pragma is really essential as currently I make following manual change:
+
+ORIGINAL
+
+  real, dimension(0:(ny + 1),0:(nx + 1)), intent(InOut) :: eta                Purpose(Out)
+  real, dimension(0:(ny + 1),0:(nx + 1)), intent(InOut) :: u                  Purpose(In)
+  real, dimension(0:(ny_dyn + 1),0:(nx_dyn + 1)), intent(InOut) :: du_dyn     Purpose(Local)
+  integer, dimension(0:(ny + 1),0:(nx + 1)), intent(InOut) :: wet             Purpose(In)
+  real, dimension(0:(ny + 1),0:(nx + 1)), intent(InOut) :: v                  Purpose(In)
+  real, dimension(0:(ny_dyn + 1),0:(nx_dyn + 1)), intent(InOut) :: dv_dyn     Purpose(Local)
+  real, dimension(0:(ny + 1),0:(nx + 1)), intent(InOut) :: un                 Purpose(Out)
+  real, dimension(0:(ny + 1),0:(nx + 1)), intent(InOut) :: h                  Purpose(In)
+  real, dimension(0:(ny + 1),0:(nx + 1)), intent(InOut) :: vn                 Purpose(Out)
+  real, dimension(0:(ny + 1),0:(nx + 1)), intent(InOut) :: etan               Purpose(Temp)
+  real, dimension(0:(ny + 1),0:(nx + 1)), intent(In) :: hzero                 Purpose(In)
+
+MANUAL CHANGES
+
+  real, dimension(0:(ny + 1),0:(nx + 1)), intent(InOut) :: eta
+  real, dimension(0:(ny + 1),0:(nx + 1)), intent(In) :: u
+  real, dimension(0:(ny + 1),0:(nx + 1)) :: du_dyn
+  integer, dimension(0:(ny + 1),0:(nx + 1)), intent(In) :: wet
+  real, dimension(0:(ny + 1),0:(nx + 1)), intent(In) :: v
+  real, dimension(0:(ny + 1),0:(nx + 1)) :: dv_dyn
+  real, dimension(0:(ny + 1),0:(nx + 1)), intent(Out) :: un
+  real, dimension(0:(ny + 1),0:(nx + 1)), intent(In) :: h
+  real, dimension(0:(ny + 1),0:(nx + 1)), intent(Out) :: vn
+  real, dimension(0:(ny + 1),0:(nx + 1)) :: etan
+  real, dimension(0:(ny + 1),0:(nx + 1)), intent(In) :: hzero
+
+I now have the parser for the Purpose pragma in place. I think I will store it in 
+
+	$stref->{'Subroutines'}{ $stref->{'Top'} }{'Purpose'} =
+	{ 
+            $info->{'VarDecl'}{'Name} => $info->{'Pragmas'}{'Purpose'},
+            ...
+      }
+
+I think what we might want to do is emit a file with that information, simply with Data::Dumper I suppose.
+Then we can always read it back in. We could in fact generalise this for other pragmas, but of course only if the does not depend on the location in the source file. So this is OK for pragmas that apply to declarations only, i.e. Halo, MemSpace, Purpose. 
+
 
 ## 2021-05-09
 

@@ -974,7 +974,7 @@ sub slice_annlines_cond {
 sub stateless_pass_inplace {
     (my $stref, my $f, my $pass_actions, my $pass_info, my $keep_deleted) = @_;
     
-    say "STATELESS PASS INPLACE ".Dumper($pass_info)." for $f" if $DBG;
+    # say "STATELESS PASS INPLACE ".Dumper($pass_info)." for $f" if $DBG;
     my $sub_or_func_or_mod = sub_func_incl_mod( $f, $stref );
     my $Sf                 = $stref->{$sub_or_func_or_mod}{$f};
     # croak Dumper $f if ref($f) eq 'HASH';
@@ -1001,7 +1001,7 @@ sub stateless_pass_inplace {
 sub stateless_pass {
     my ($annlines, $pass_actions, $pass_info, $keep_deleted) = @_;
     
-    say "STATELESS PASS ".Dumper($pass_info) if $DBG;
+    # say "STATELESS PASS ".Dumper($pass_info) if $DBG;
     my $new_annlines=[];
     for my $annline ( @{$annlines} ) {    
     	if (not exists $annline->[1]{'Deleted'}) {
@@ -1025,7 +1025,7 @@ sub stateful_pass_inplace { my ( $stref, $f, $pass_actions, $state, $pass_info, 
     # return ($stref,$state);
 #    local $Data::Dumper::Indent =0;
 #    local $Data::Dumper::Terse=1;
-    say "STATEFUL PASS INPLACE ".Dumper($pass_info)." for $f" if $DBG; 
+    # say "STATEFUL PASS INPLACE ".Dumper($pass_info)." for $f" if $DBG; 
     my $sub_or_func_or_mod = sub_func_incl_mod( $f, $stref );
      
     my $Sf                 = $stref->{$sub_or_func_or_mod}{$f};    
@@ -1052,7 +1052,7 @@ sub stateful_pass_inplace { my ( $stref, $f, $pass_actions, $state, $pass_info, 
 
 # This version of the stateful pass takes $annlines as argument and returns $new_annlines 
 sub stateful_pass { my ( $annlines, $pass_actions, $state, $pass_info, $keep_deleted ) = @_; # return ($new_annlines,$state);
-    say "STATEFUL PASS ".Dumper($pass_info) if $DBG;      
+    # say "STATEFUL PASS ".Dumper($pass_info) if $DBG;      
     
     my $nextLineID         = scalar @{$annlines} + 1;
     my $new_annlines=[];
