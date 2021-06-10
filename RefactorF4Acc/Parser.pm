@@ -312,7 +312,7 @@ sub analyse_lines {
 			if (exists $info->{'Pragmas'}{'BeginKernel'}) {
 				$Sf->{'HasKernelRegion'}=1;
 			}
-			if (exists $info->{'Pragmas'}{'BeginInline'}) {
+			if (exists $info->{'Pragmas'}{'BeginInline'}) { 
 				if (scalar @{$info->{'Pragmas'}{'BeginInline'}} > 0 ) { 
  					if (exists $Sf->{'SubsToInline'}) {
 						push @{$Sf->{'SubsToInline'}}, $info->{'Pragmas'}{'BeginInline'}[0];
@@ -1360,14 +1360,17 @@ or $line=~/^character\s*\(\s*len\s*=\s*[\w\*]+\s*\)/
 			} elsif ($line=~/select\s+case\s*\((\w+)\)/) {
 					$info->{'CaseVar'} = $1; # FIXME, this can be an entire expression! Should be treated identical to the IF cond!
 					$info->{ 'Control' } = 1;
-                $info->{'HasVars'} = 1; 
+                	$info->{'HasVars'} = 1; 
+					$info->{'NonSpecificationStatement'} = 1;
 				} elsif ($line=~/case\s*\((.+)\)\s*$/) {
 					my $case_vals_str = $1;
 					my @case_vals = _parse_comma_sep_expr_list($case_vals_str);
 					$info->{'CaseVals'} = [@case_vals];
 					$info->{ 'Control' } = 1;
+					$info->{'NonSpecificationStatement'} = 1;
                 $info->{'HasVars'} = 1; 
 					$info->{ 'Case' } = ++$case_counter;				
+					$info->{'NonSpecificationStatement'} = 1;
 				} elsif ($line=~/case\s+\default/) {
 					$info->{'CaseDefault'} = 1;
 					$info->{ 'Control' } = 1;		

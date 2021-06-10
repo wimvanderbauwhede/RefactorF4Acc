@@ -46,6 +46,17 @@ sub find_subroutines_functions_and_includes {
     
     my %src_files = ();
     my %excluded_dirs = $Config{'EXCL_DIRS'} ? map { $_ => 1 } @{ $Config{'EXCL_DIRS'} } : ();
+    if ($Config{'EXCLUDE_ALL_SUBDIRS'}==1) {
+        my @sub_dirs=();
+        my @srcdirs= scalar @{$Config{'SRCDIRS'}} > 0 ?  @{ $Config{'SRCDIRS'} } : ('.'); 
+        for my $srcdir (@srcdirs) {
+            opendir my $dh, $srcdir or die "$0: opendir: $!"; 
+            @sub_dirs = (@sub_dirs, grep {-d "$srcdir/$_" && ! /^\.{1,2}$/} readdir($dh));
+        }
+        %excluded_dirs = map { $_ => 1 } @sub_dirs;
+    }
+    $Config{'EXCL_DIRS'} = [sort keys %excluded_dirs];
+    croak Dumper %excluded_dirs;
     # The NEWSRCPATH should always be excluded
      if ($Config{'NEWSRCPATH'} ne '.') {
             $excluded_dirs{ $Config{'NEWSRCPATH'} } = 1;

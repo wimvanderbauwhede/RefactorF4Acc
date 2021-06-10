@@ -35,7 +35,7 @@ use Exporter;
 
 $Sf->{'SubsToInline'} is either populated in the Parser if the inline pragma names the subroutines:
 
-    !$RF4A Begin Inline f1 f2 (current syntax is like this, FIXME)
+    !$RF4A Begin Inline f1 f2 ('Begin' is optional; current syntax is like this, FIXME)
     ...
     !$RF4A End Inline 
 

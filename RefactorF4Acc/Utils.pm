@@ -47,6 +47,7 @@ use Exporter;
     &remove_var_decl_from_set
     &get_kv_for_all_elts_in_set
     &append_to_set
+    &find_keys_for_value
     &comment
     &numeric
     $BLANK_LINE
@@ -559,6 +560,18 @@ sub append_to_set { (my $set1, my $set2) = @_;
 	return $set1;
 }
 
+sub find_keys_for_value { my ($map,$value) = @_;
+# Minimal case: the value can match more than one key
+# {s1=>c1,s2=>c1}
+    my $keys=[];
+    for my $key (sort keys %{$map}) {
+        if ($map->{$key} eq "$value") {
+            push @{$keys},$key;
+        }
+    }
+
+    return $keys;
+}
 # From the gfortran manual
 our @F95_intrinsic_functions_list = qw(
 abort

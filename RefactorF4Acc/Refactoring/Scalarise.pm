@@ -68,6 +68,7 @@ use Exporter;
 
 sub pass_rename_array_accesses_to_scalars {(my $stref, my $code_unit_name)=@_;
 # croak $code_unit_name;
+	# $Config{'FIXES'}{'remove_redundant_arguments_and_fix_intents'}=1;
 	$stref = pass_wrapper_subs_in_module($stref,
 	'',
 	# module-specific passes
@@ -636,14 +637,17 @@ sub _rename_array_accesses_to_scalars_in_subcalls { (my $stref, my $f) = @_;
 			){
 				my $subname = $info->{'SubroutineCall'}{'Name'};
 		
-		
+				# carp "TOP $f: SUB:<$subname>". Dumper( sort keys %{ $stref->{'Subroutines'}{$subname}});
 	#  croak $subname.': '.Dumper( $stref->{'Subroutines'}{$subname}{'DeclaredOrigArgs'}); # 
 	
 				# Collect stream and index var declarations for all called subs 
+				
 				$stref->{'Subroutines'}{$f}{'LiftedVarDecls'}{'Set'} = {
 					%{ $stref->{'Subroutines'}{$f}{'LiftedVarDecls'}{'Set'} },
-					%{ $stref->{'Subroutines'}{$subname}{'LiftedIndexVarDecls'}{'Set'} },
-					%{ $stref->{'Subroutines'}{$subname}{'LiftedStreamVarDecls'}{'Set'} },
+					(exists $stref->{'Subroutines'}{$subname}{'LiftedIndexVarDecls'} 
+					? %{ $stref->{'Subroutines'}{$subname}{'LiftedIndexVarDecls'}{'Set'} } : ()),
+					(exists $stref->{'Subroutines'}{$subname}{'LiftedStreamVarDecls'} 
+					? %{ $stref->{'Subroutines'}{$subname}{'LiftedStreamVarDecls'}{'Set'}} : ())					
 				};	
 				for my $lifted_var ( sort keys %{ $stref->{'Subroutines'}{$f}{'LiftedVarDecls'}{'Set'} } ) {		
 					# warn 		"$f =>	$subname => $lifted_var "; 

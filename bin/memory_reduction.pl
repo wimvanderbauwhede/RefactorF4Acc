@@ -195,7 +195,8 @@ sub create_rf4a_cfg_scalarise {
 'SRCDIRS' => ['.'],
 'NEWSRCPATH' => './Scalarized',
 'EXCL_SRCS' => ['(?:^(?:sub|init|param|gen_|module_\\w+_superkernel_init|\\w+_host)|\\.[^f]+$)'],
-'EXCL_DIRS' => [ qw(./PostCPP ./Scalarized ./TyTraC ./MemoryReduction)],
+'EXCLUDE_ALL_SUBDIRS' => 1,
+# 'EXCL_DIRS' => [ qw(./PostCPP ./Scalarized ./TyTraC ./MemoryReduction ./MemoryReduction_no_fixes)],
 'MACRO_SRC' => 'macros.h',
 'EXT' => '.f95',
 'SUB_SUFFIX' => '_scal'
@@ -218,7 +219,8 @@ sub create_rf4a_cfg_tytra_cl {
 # 'SOURCEFILES' => [],
 'NEWSRCPATH' => './Temp',
 'EXCL_SRCS' => ['(?:^(?:module_\\w+_superkernel_init|gen_|\\w+_host)|\\.[^f]+$)'],
-'EXCL_DIRS' => [ qw( ./PostCPP ./Temp ./MemoryReduction ./Scalarized ./TyTraC ) ],
+'EXCLUDE_ALL_SUBDIRS' => 1,
+# 'EXCL_DIRS' => [ qw( ./PostCPP ./Temp ./MemoryReduction ./MemoryReduction_no_fixes ./Scalarized ./TyTraC ) ],
 'MACRO_SRC' => 'macros.h',
 'EXT' => '.f95'
 };

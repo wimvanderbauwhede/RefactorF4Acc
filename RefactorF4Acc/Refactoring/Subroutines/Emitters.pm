@@ -131,7 +131,7 @@ sub emit_subroutine_call {
     my $maybe_label =
       (exists $info->{'Label'} and exists $Sf->{'ReferencedLabels'}{$info->{'Label'}}) ? $info->{'Label'} . ' ' : '';
 	my @call_args = @{$info->{'SubroutineCall'}{'Args'}{'List'}};
-	carp " $f LINE: $line => call $name: ".Dumper $info->{'SubroutineCall'}{'Args'};
+	# carp " $f LINE: $line => call $name: ".Dumper $info->{'SubroutineCall'}{'Args'};
     my @call_exprs   = map { 
 		# WV 2021-06-09 This is a HACK, an element in List MUST be in Set, FIXME!
 		if (exists $info->{'SubroutineCall'}{'Args'}{'Set'}{$_} ) {

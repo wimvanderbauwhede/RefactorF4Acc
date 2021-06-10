@@ -1,5 +1,25 @@
 # REMAINING ISSUES : Memory (Bandwidth) Reduction for Scientific Computing on GPUs
 
+## 2021-05-10
+
+Full 2-D shallow water, needs some changes:
+
+1/ remove dimension(1) as this is now obsolete
+2/ remove local arrays from args, manually. Later we'll use the "Purpose" pragma for this.
+Ideally I would have 4 values for Purpose: In, Out, Temp and Local:
+- In and Out are proper args of the superkernel
+- Temp are arrays at topleve in the superkernel
+- Local are arrays that are only used inside a subkernel
+
+I still struggle with arrays that are actually InOut, such as `wet`. As it is modified, it needs to be returned. And as I don't have InOut, I make it Out
+In are arrays not returned. So any array returned becomes Out? Need to test what happens if I make them InOut
+
+It looks like I had better run an aggressive argument detection analysis first, before I generate the Haskell AST. At the very least that would remove lots of args that ought to be local scalar vars, like `duu`.
+
+## 2021-05-09
+
+Regression testing using LES. Main reason for breakages was the 'Hook' approach, removed it. Also the fix_end_lines, had to revert it to the release version.
+
 ## 2021-05-08
 
 Fixing the inliner and the Fortran-to-C/OpenCL translator

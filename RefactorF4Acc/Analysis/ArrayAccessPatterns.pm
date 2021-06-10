@@ -702,10 +702,11 @@ sub _link_writes_to_reads {(my $stref, my $f, my $state)=@_;
 } # END of _link_writes_to_reads()
 
 sub _link_writes_to_reads_rec {my ($stref, $f, $block_id, $some_var, $assignments, $links, $state)=@_;
-# carp "$f VAR: $some_var" . Dumper($stref->{'Subroutines'}{$f}{'Vars'});
+# carp "$f VAR: $some_var";# . Dumper($stref->{'Subroutines'}{$f}{'Vars'});
 
  		my $decl = get_var_record_from_set( $stref->{'Subroutines'}{$f}{'Vars'},$some_var);
-		#  carp Dumper ($f, $block_id, $some_var, $assignments, $links, $state);
+		#  croak Dumper ($f, $block_id, $some_var, $assignments, $links, $state) if not defined $decl;
+		# carp "DECL:<".Dumper( $decl->{'Dim'}).'>';
 		my $lhs_dim = scalar @{ $decl->{'Dim'} };
 		if (exists $assignments->{$some_var} ) {
 			my $rhs_array = $assignments->{$some_var};

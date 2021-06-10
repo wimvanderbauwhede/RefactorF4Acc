@@ -1213,7 +1213,7 @@ sub pass_wrapper_subs_in_module { (my $stref,my $module_name, my $module_pass_se
 	if ($module_name eq ''
     or not exists $stref->{'Modules'}{$module_name}
     ) {
-        
+       
 		my %is_existing_module = ();
 	    my %existing_module_name = ();
 		# croak $module_name.Dumper [ $stref->{'SourceContains'},$stref->{'Top'}, $stref->{'Program'}] ;
@@ -1262,7 +1262,7 @@ sub pass_wrapper_subs_in_module { (my $stref,my $module_name, my $module_pass_se
 		} 
         
 	} else { 
-        
+        # Proper modules
 		for my $pass_sequence (@{$module_pass_sequences}) {    	
             for my $pass_sub_ref (@{$pass_sequence}) {          
                 say "MODULE PASS ".coderef_to_subname($pass_sub_ref)."($module_name)" if $V;

@@ -694,7 +694,7 @@ In other words,
 # 1. We want to remove redundant arguments
 # 2. Some of the called subroutines have arguments that are InOut but should really be Out (or maybe even In?)
 sub remove_redundant_arguments_and_fix_intents { (my $stref, my $f)=@_;
-if (not exists $Config{'FIXES'}{'remove_redundant_arguments_and_fix_intents'}) { return $stref }	
+	if (not exists $Config{'FIXES'}{'remove_redundant_arguments_and_fix_intents'}) { return $stref }	
 
 	if ($f eq $Config{'KERNEL'}) { 
 
@@ -727,24 +727,26 @@ if (not exists $Config{'FIXES'}{'remove_redundant_arguments_and_fix_intents'}) {
 		my $in_args_to_keep={};		
 		for my $in_arg (@in_args) {
 			for my $csub_info (@call_sequence) {
-				croak 'Replace $csub with csub_info and use Name and ArgMap';
 				my $csub = $csub_info->{'Name'};
 				my $csub_argmap = $csub_info->{'ArgMap'};
-				# I must use the ArgMap
-				my $csub_args = $stref->{'Subroutines'}{ $csub }{'DeclaredOrigArgs'}{'Set'};
-				# find_key_for_value($map,$value)
-				if (exists $csub_args->{$in_arg}) {
-					# See if it was written to before it was read. 
-					# If it was read first, we need to keep it, else we don't need it for this subroutine
-					my $written_before_read = __check_written_before_read($in_arg, $stref, $csub);
-					if (not $written_before_read) {
-						$in_args_to_keep->{$in_arg}=1;
-						last;
-					}
-					# As soon as we need to keep it for one subroutine, we can stop as we can't remove it.
-					# However, if the csub arg is inout, and we have a write-before-read, then any subsequent sub call can be ignored
-					# This is not the case if the csub arg is just in -- but I think we can't write to an in argument
-				} 
+				# I use the ArgMap, which is SigArg => CallArg
+				# So for a given CallArg, I must find the corresponding SigArg(s); in principle there can me more than one.
+				# my $csub_args = $stref->{'Subroutines'}{ $csub }{'DeclaredOrigArgs'}{'Set'};
+				my $sig_args = find_keys_for_value($csub_argmap,$in_arg);
+				for my $sig_arg (@{$sig_args}) {
+					# if (exists $csub_args->{$sig_arg}) {
+						# See if $sig_arg was written to before it was read. 
+						# If it was read first, we need to keep it, else we don't need it for this subroutine
+						my $written_before_read = __check_written_before_read($sig_arg, $stref, $csub);
+						if (not $written_before_read) {
+							$in_args_to_keep->{$in_arg}=1;
+							last;
+						}
+						# As soon as we need to keep it for one subroutine, we can stop as we can't remove it.
+						# However, if the csub arg is inout, and we have a write-before-read, then any subsequent sub call can be ignored
+						# This is not the case if the csub arg is just in -- but I think we can't write to an in argument
+					# } 
+				}
 			}
 		}
 		# so at this point we should know which input args to keep.
@@ -946,6 +948,9 @@ if (not exists $Config{'FIXES'}{'remove_redundant_arguments_and_fix_intents'}) {
 		}
 
 	} # if $f is the superkernel
+	else {
+
+	}
 	
 	return $stref;
 } # END of remove_redundant_arguments_and_fix_intents
@@ -1018,25 +1023,27 @@ my $pass_check_reads_writes = sub { (my $annline, my $reads_writes)=@_;
 			}
 		}	
 		elsif (exists $info->{'If'} ) { 			
-				 if (exists $info->{'Cond'}{'Vars'}{'Set'}{$arg
-				}) {
-					 # $arg is Read  
-					 push @{$reads_writes},'r';
-				 }
+			if (exists $info->{'Cond'}{'Vars'}{'Set'}{$arg
+		}) {
+				# $arg is Read  
+				push @{$reads_writes},'r';
+			}
 		}			
 		elsif (exists $info->{'CaseVar'} ) { 			
-				 if ($info->{'CaseVar'} eq $arg
-				) {					 
-					 # $arg is Read  
-					 push @{$reads_writes},'r';
-				 }
+			if ($info->{'CaseVar'} eq $arg) {					 
+				# $arg is Read  
+				push @{$reads_writes},'r';
+			}
 		}			
 		elsif (exists $info->{'Do'} ) { 			
-				 if (exists $info->{'Do'}{'Range'}{'Vars'}{$arg
-				}) {					 
-					 # $arg is Read  
-					 push @{$reads_writes},'r';
-				 }
+			if (scalar @{$info->{'Do'}{'Range'}{'Vars'}}>0 ) {
+				for my $var (@{$info->{'Do'}{'Range'}{'Vars'}}) {
+					if ($arg eq $var) {
+						# $arg is Read  
+						push @{$reads_writes},'r';
+					}
+				}
+			}
 		}			
 
 		return ([$annline],$reads_writes);
