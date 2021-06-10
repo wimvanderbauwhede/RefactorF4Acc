@@ -68,7 +68,8 @@ use Exporter;
 
 sub pass_rename_array_accesses_to_scalars {(my $stref, my $code_unit_name)=@_;
 # croak $code_unit_name;
-	# $Config{'FIXES'}{'remove_redundant_arguments_and_fix_intents'}=1;
+	$Config{'FIXES'}{'remove_redundant_arguments_and_fix_intents'}=1;
+	$Config{'FIXES'}{'_removed_unused_variables'}=1;
 	$stref = pass_wrapper_subs_in_module($stref,
 	'',
 	# module-specific passes

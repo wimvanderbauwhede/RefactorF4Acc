@@ -288,38 +288,39 @@ sub split_long_line {
 # -----------------------------------------------------------------------------
 sub get_annotated_sourcelines {
     ( my $stref, my $f ) = @_;
-        my $sub_or_func_or_inc = sub_func_incl_mod( $f, $stref );
+    my $sub_or_func_or_inc = sub_func_incl_mod( $f, $stref );
+    # croak if ref($f) eq 'HASH';
     my $Sf = $stref->{$sub_or_func_or_inc}{$f};
 #die Dumper $stref->{Subroutines}{'global'}{Source};
 
     my $annlines = [];
 #	croak "$sub_or_func_or_inc $f:".Dumper ($Sf) if not exists $Sf->{Status};
-if (exists  $Sf->{'Status'} ) {
-    if ($Sf->{'Status'} == $PARSED ) {
-        if ( not exists $Sf->{'RefactoredCode'} ) {
-            $Sf->{'RefactoredCode'} = [];
-            if ( defined $Sf->{'AnnLines'} ) {
-                $annlines = [ @{ $Sf->{'AnnLines'} } ];    # We want a copy!
-            } else {
-                die 'get_annotated_sourcelines: no AnnLines for ' . $f;
+    if (exists  $Sf->{'Status'} ) {
+        if ($Sf->{'Status'} == $PARSED ) {
+            if ( not exists $Sf->{'RefactoredCode'} ) {
+                $Sf->{'RefactoredCode'} = [];
+                if ( defined $Sf->{'AnnLines'} ) {
+                    $annlines = [ @{ $Sf->{'AnnLines'} } ];    # We want a copy!
+                } else {
+                    die 'get_annotated_sourcelines: no AnnLines for ' . $f;
+                }
+            } else {        	
+                $annlines = $Sf->{'RefactoredCode'};           # Here a ref is OK
             }
-        } else {        	
-            $annlines = $Sf->{'RefactoredCode'};           # Here a ref is OK
+        } else {    	
+            print "WARNING: get_annotated_sourcelines($f) STATUS: "
+            . show_status( $Sf->{'Status'} ). shortmess()
+            if $DBG;
+            if ( $Sf->{'Status'} > $INVENTORIED )
+            {    # Means it was READ, and INVENTORIED but not PARSED
+                print ", NOT PARSED\n" if $DBG;
+            } else {
+                print "\n" if $DBG;
+            }
         }
-    } else {    	
-        print "WARNING: get_annotated_sourcelines($f) STATUS: "
-          . show_status( $Sf->{'Status'} ). shortmess()
-          if $DBG;
-        if ( $Sf->{'Status'} > $INVENTORIED )
-        {    # Means it was READ, and INVENTORIED but not PARSED
-            print ", NOT PARSED\n" if $DBG;
-        } else {
-            print "\n" if $DBG;
-        }
+    } else {
+        warning(  "$sub_or_func_or_inc $f has no Status");
     }
-} else {
-	warning(  "$sub_or_func_or_inc $f has no Status");
-}
     return $annlines;
 }    # END of get_annotated_sourcelines()
 
@@ -976,6 +977,7 @@ sub stateless_pass_inplace {
     say "STATELESS PASS INPLACE ".Dumper($pass_info)." for $f" if $DBG;
     my $sub_or_func_or_mod = sub_func_incl_mod( $f, $stref );
     my $Sf                 = $stref->{$sub_or_func_or_mod}{$f};
+    # croak Dumper $f if ref($f) eq 'HASH';
     my $annlines           = get_annotated_sourcelines( $stref, $f );
     my $nextLineID         = scalar @{$annlines} + 1;
     my $new_annlines=[];

@@ -65,9 +65,10 @@ if (not exists $Config{'FIXES'}{'_removed_unused_variables'}) { return $stref }
 		my $rline=$line;
 		my $rlines=[];
 		my $skip_if=0;
-		
+		my $done=0;
  		if ( exists $info->{'Signature'} ) {			 
  			$state->{'Args'} = $info->{'Signature'}{'Args'}{'Set'}; 
+			 $done=1;
  		}
  		elsif (exists $info->{'Select'})  {
  			my $select_expr_str = $info->{'CaseVar'}; 
@@ -76,6 +77,7 @@ if (not exists $Config{'FIXES'}{'_removed_unused_variables'}) { return $stref }
  			for my $var (keys %{ $vars } ) {
  				$state->{'ExprVars'}{$var}++;	
  			}
+			 $done=1;
  		} 		
 		elsif (exists $info->{'CaseVals'})  {
 			for my $val (@{ $info->{'CaseVals'} }) {
@@ -89,9 +91,11 @@ if (not exists $Config{'FIXES'}{'_removed_unused_variables'}) { return $stref }
  					}
  				}		
 			}
+			$done=1;
 		}
 		elsif ( exists $info->{'VarDecl'} ) {
 			$state->{'DeclaredVars'}{ $info->{'VarDecl'}{'Name'}}=1;
+			$done=1;
 		}
 		elsif ( exists $info->{'Assignment'}  ) {
 			my $var = $info->{'Lhs'}{'VarName'};
@@ -138,12 +142,14 @@ if (not exists $Config{'FIXES'}{'_removed_unused_variables'}) { return $stref }
 					}			
 				}
 			}
+			$done=1;
 		}
 		elsif ( exists $info->{'SubroutineCall'} ) {
 #			$state->{'ExprVars'} ={%{$state->{'ExprVars'}},%{ } };
 			for my $var (keys %{ $info->{'SubroutineCall'}{'Args'}{'Set'} }) {
  				$state->{'ExprVars'}{$var}++;	
 			}			
+			$done=1;
 		}		
 		if (exists $info->{'If'} and not $skip_if) {						
 				my $cond_expr_ast=$info->{'Cond'}{'AST'};#= $ast;parse_expression($info->{'Cond'}{'Expr'}, $info,$stref, $f);
@@ -153,15 +159,20 @@ if (not exists $Config{'FIXES'}{'_removed_unused_variables'}) { return $stref }
  				$state->{'ExprVars'}{$var}++;
  					
 			}						
-				for my $var ( @{ $info->{'Cond'}{'Vars'}{'List'} } ) {					
-					if (exists  $info->{'Cond'}{'Vars'}{'Set'}{$var}{'IndexVars'} ) {								
+			for my $var ( @{ $info->{'Cond'}{'Vars'}{'List'} } ) {					
+				if (exists  $info->{'Cond'}{'Vars'}{'Set'}{$var}{'IndexVars'} ) {								
 #						$state->{'ExprVars'} ={%{$state->{'ExprVars'}},%{  } };
-						for my $var (keys %{ $info->{'Cond'}{'Vars'}{'Set'}{$var}{'IndexVars'} }) {
- 							$state->{'ExprVars'}{$var}++;	
-						}
-					}				
-				}
+					for my $var (keys %{ $info->{'Cond'}{'Vars'}{'Set'}{$var}{'IndexVars'} }) {
+						$state->{'ExprVars'}{$var}++;	
+					}
+				}				
+			}
+			$done=1;
 		}
+		if (exists $info->{'HasVars'} and $info->{'HasVars'} == 1 and $done==0) {
+			croak "Line <$line> NOT ANALYSED!";
+		}
+
 		
 		return ([$annline],$state);
 	};
@@ -807,7 +818,8 @@ sub remove_redundant_arguments_and_fix_intents { (my $stref, my $f)=@_;
 	#  - In every called sub for my $csub (@call_sequence) {}
 	#  	- from the  argument list of each kernel : $annlines, but also from Args to DeclaredOrigLocalVars
 	#  	- remove the intents from the declarations : $annlines, but also from DeclaredOrigLocalVars
-		for my $csub (@call_sequence) {
+		for my $csub_info (@call_sequence) {
+			my $csub = $csub_info->{'Name'};
 			# The DeclaredOrigArgs need to be DeclaredOrigLocalVars
 			for my $arg (@{$in_args_to_remove->{'List'}}) {
 				if (exists $stref->{'Subroutines'}{$csub}{'DeclaredOrigArgs'}{'Set'}{$arg}) {
@@ -863,7 +875,9 @@ sub remove_redundant_arguments_and_fix_intents { (my $stref, my $f)=@_;
 # For every argument and every called subroutine, let's see what we can learn
 		my $iodir_for_arg_in_called_sub={};
 		# First determine the context-free IODir for all arguments in every called subroutine
-		for my $csub (@call_sequence) {
+		for my $csub_info (@call_sequence) {
+			my $csub = $csub_info->{'Name'};
+
 			for my $arg ( @{$stref->{'Subroutines'}{ $csub }{'DeclaredOrigArgs'}{'List'}}) {
 				my $_arg_idx=0;
 				if (not defined $arg) {
@@ -887,7 +901,9 @@ sub remove_redundant_arguments_and_fix_intents { (my $stref, my $f)=@_;
 			# First determine the context-free IODir for all arguments in every called subroutine
 			my $idx=0;
 			my $first_use=0;
-			for my $csub (@call_sequence) {				
+			for my $csub_info (@call_sequence) {
+				my $csub = $csub_info->{'Name'};
+			
 				$changed_iodirs->{$csub}={} unless exists $changed_iodirs->{$csub};
 				if (exists $stref->{'Subroutines'}{ $csub }{'DeclaredOrigArgs'}{'Set'}{$arg}) {
 					if ($first_use ==0 ) {
@@ -926,7 +942,9 @@ sub remove_redundant_arguments_and_fix_intents { (my $stref, my $f)=@_;
 
 		# We don't really need to re-emit the annlines but I guess I'd better?
 
-		for my $csub ($f,@call_sequence) {
+		for my $csub_info (@call_sequence) {
+			my $csub = $csub_info->{'Name'};
+
 			say "SUB: $csub" if $DBG;
 			say 'Changed IODirs: ',Dumper $changed_iodirs->{$csub} if $DBG;
 			# This is a bit inefficient because we redefine the lambda for every $csub, but this way it will capture $csub
@@ -1094,7 +1112,8 @@ sub __determine_called_sub_arg_iodir_w_context { my ($arg, $stref, $csub, $iodir
 			# warn $cs_idx+1 ,'..', scalar @{$call_sequence} - 1;
 			for my $idx ($cs_idx+1 .. scalar @{$call_sequence} - 1) {
 				
-				my $lcsub = $call_sequence->[$idx];
+				my $lcsub_info = $call_sequence->[$idx];
+				my $lcsub=$lcsub_info->{'Name'};
 				
 				if (
 					exists $iodir_for_arg_in_called_sub->{$lcsub}{$arg} and
@@ -1120,7 +1139,8 @@ sub __determine_called_sub_arg_iodir_w_context { my ($arg, $stref, $csub, $iodir
 		if ($iodir eq 'in') {
 			my $arg_was_written_earlier=0;
 			for my $idx (0 .. $cs_idx-1 ) {
-				my $pcsub = $call_sequence->[$idx];
+				my $pcsub_info = $call_sequence->[$idx];
+				my $pcsub = $pcsub_info->{'Name'};
 				if (
 					exists $iodir_for_arg_in_called_sub->{$pcsub}{$arg} and
 					$iodir_for_arg_in_called_sub->{$pcsub}{$arg} ne 'in'
@@ -1146,7 +1166,8 @@ sub __determine_called_sub_arg_iodir_w_context { my ($arg, $stref, $csub, $iodir
 	elsif ($top_iodir eq 'inout') {
 		my $used_as_in = 0;
 		my $used_as_out = 0;
-		for my $ccsub (@{$call_sequence}) {
+		for my $ccsub_info (@{$call_sequence}) {
+			my $ccsub = $ccsub_info->{'Name'};
 			# warn "$ccsub $arg ".Dumper($iodir_for_arg_in_called_sub->{$ccsub}{$arg});
 			if (
 					exists $iodir_for_arg_in_called_sub->{$ccsub}{$arg} 

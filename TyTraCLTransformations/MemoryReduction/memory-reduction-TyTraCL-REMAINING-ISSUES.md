@@ -15,6 +15,8 @@ I still struggle with arrays that are actually InOut, such as `wet`. As it is mo
 In are arrays not returned. So any array returned becomes Out? Need to test what happens if I make them InOut
 
 It looks like I had better run an aggressive argument detection analysis first, before I generate the Haskell AST. At the very least that would remove lots of args that ought to be local scalar vars, like `duu`.
+=> OK, I did that.
+Also fixed a small bug in the removeIntent function in AutoParallel-Fortran, it did not take leading spaces into account
 
 ## 2021-05-09
 

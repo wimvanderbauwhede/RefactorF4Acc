@@ -56,7 +56,7 @@ sub find_subroutines_functions_and_includes {
         %excluded_dirs = map { $_ => 1 } @sub_dirs;
     }
     $Config{'EXCL_DIRS'} = [sort keys %excluded_dirs];
-    croak Dumper %excluded_dirs;
+
     # The NEWSRCPATH should always be excluded
      if ($Config{'NEWSRCPATH'} ne '.') {
             $excluded_dirs{ $Config{'NEWSRCPATH'} } = 1;
