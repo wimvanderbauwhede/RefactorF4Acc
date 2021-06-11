@@ -1011,6 +1011,11 @@ sub _update_argument_io_direction {
                 # Add INTENT to the generated declaration. I think we should do this elsewhere!
                 # $info->{'Intent'} = $decl->{'IODir'};
                 my $rline = emit_f95_var_decl($decl);
+                # WV 2021-06-11 ad hoc, because I use it in the inliner
+                $info->{'ParsedVarDecl'}{'Attributes'}{'Intent'} = $decl->{'IODir'};
+                if (not exists $info->{'ArgDecl'}) {
+                    $info->{'ArgDecl'}{$varname}=1;
+                }
                 add_ann_to_info($info, $f, '_update_argument_io_direction() '.__LINE__);
                 if (exists $info->{'Deleted'}) {
                     $rline = '! ' . $rline;

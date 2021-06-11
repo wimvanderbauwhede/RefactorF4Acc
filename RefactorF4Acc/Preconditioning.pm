@@ -643,7 +643,6 @@ sub _split_multivar_decls {
                 and exists $info->{'VarDecl'}{'Names'})
             {
                 my @nvars = @{$info->{'VarDecl'}{'Names'}};
-                # add_ann_to_info($info,$f, __LINE__);
                 push @{$info->{'Ann'}}, annotate($f, __LINE__);
                 for my $var (@{$info->{'VarDecl'}{'Names'}}) {
 
@@ -652,6 +651,7 @@ sub _split_multivar_decls {
                     $rinfo_c->{'StmtCount'}{$var} = $info->{'StmtCount'}{$var};
 
                     my %rinfo = %{$rinfo_c};
+                    
                     if (exists $rinfo{'ArgDecl'}) {
                         if (not exists $rinfo{'ArgDecl'}{$var}) {
                             delete $rinfo{'ArgDecl'}
@@ -715,7 +715,7 @@ sub _split_multivar_decls {
                     }                    
                     push @{$new_annlines}, [$rline, {%rinfo}];
                 }    # for each $var
-
+                
             }
             elsif ( exists $info->{'ParamDecl'} 
             # and not exists $info->{'ParsedParDecl'}

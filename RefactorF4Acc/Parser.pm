@@ -195,23 +195,12 @@ sub parse_fortran_src {
 	print "LEAVING parse_fortran_src( $f ) with Status "
 	  . show_status( $stref->{$sub_or_incl_or_mod}{$f}{'Status'} ) . "\n"
 	  if $V;
-	#   carp "LEAVING parse_fortran_src( $f ) with Status " . show_status( $stref->{$sub_or_incl_or_mod}{$f}{'Status'} ) . "\n";
 	   
 	   if ($is_mod) { 
 	   	for my $sub ( @{ $stref->{'Modules'}{ $f }{'Contains'} } ) {
-#	   		say $sub;
 	   		$stref = parse_fortran_src($sub, $stref);
 	   	}
-		# croak $f;
 	   }
-       # WV 2019-03-29 Here I should clean up some keys that are only used during parsing
-       # but only when parse_fortran_src exits, so in fact maybe do this in Preconditioning?
-       #delete  $stref->{$sub_or_incl_or_mod}{$f}{'DeclCount'};
-       #delete  $stref->{$sub_or_incl_or_mod}{$f}{'DoneInitTables'};
-	#    say "\n";
-	#    map {say $_} @{pp_annlines($stref->{'Subroutines'}{'test_loop_nature'}{'AnnLines'},1)} if $f eq 'test_loop_nature';
-	#    say "\n";
-    # die;
 
 	return $stref;
 
@@ -831,8 +820,10 @@ MODULE
 					 my $vline = "$type, $var_dim  :: $varname";
 					#  croak $vline if $line=~/catn13/;
                      ( $Sf,  $info ) = __parse_f95_decl( $stref, $f, $Sf, $indent, $vline, {'Dimension' => 1});
-                     $Sf->{'DeclCount'}{$varname}++;
-                     $info->{'StmtCount'}{$varname}=$Sf->{'DeclCount'}{$varname};
+					 
+					 $Sf->{'DeclCount'}{$varname}{'Dimension'}=1;
+
+                     $info->{'StmtCount'}{$varname} = scalar keys %{$Sf->{'DeclCount'}{$varname}};
 					push @{ $extra_lines{$index} }, [$indent."dimension $dline",$info];
 				} # if it's not a macro
 		 }
@@ -1049,8 +1040,8 @@ MODULE
                 $info->{'HasVars'} = 1; 
 		    	say "DATA declaration with IMPLIED DO at $line" if $V;
 		}
-#== INTRINSIC, EXTERNAL, STATIC, AUTOMATIC, VOLATILE
-		 	elsif ($line=~/^(intrinsic|external|static|automatic|volatile)\s+([\w,\s]+)/) {
+#== INTRINSIC, EXTERNAL
+		 	elsif ($line=~/^(intrinsic|external)\s+([\w,\s]+)/) {
 		 		my $qualifier = $1;
 		 		my $external_procs_str = $2;
 		 		$external_procs_str=~s/\s//g;
@@ -1067,13 +1058,25 @@ MODULE
 		 	}
 
 #• specification statements
-			elsif ($line=~/^(allocatable|intent|optional|pointer|private|public|target)\s*::\s*([\w,\s]+)/) {
+# +ALLOCATABLE
+# +INTENT
+# +OPTIONAL
+# +POINTER
+# +PRIVATE
+# +PUBLIC
+# +TARGET
+# +VALUE♦
+# +STATIC♦
+# +AUTOMATIC♦
+# +VOLATILE♦
+			elsif ($line=~/^(allocatable|intent|optional|pointer|private|public|target|static|automatic|volatile|value)\s*::\s*([\w,\s]+)/) {
 		 		my $qualifier = $1;
 		 		my $args_str = $2;
 		 		$args_str=~s/\s//g;
-		 		my @external_procs = split(/\s*,\s*/,$args_str);
+		 		my @args = split(/\s*,\s*/,$args_str);
 
-		 		$info->{ucfirst($qualifier)} = { map {$_=>1} @external_procs};
+		 		$info->{ucfirst($qualifier)} = { map {$_=>1} @args};
+				map { $Sf->{'DeclCount'}{$_}{ucfirst($qualifier)}=1 } @args;
 		 		$info->{'SpecificationStatement'} = 1;
 				$info->{'HasVars'} = 1; 
 				warning( uc($qualifier).' is ignored in analysis.',3);
@@ -2338,6 +2341,7 @@ sub _parse_subroutine_and_function_calls {
 				not exists $info->{'NonSpecificationStatement'} and
 				not exists $info->{'Blank'} and
 				not exists $info->{'Comments'} and
+				not exists $info->{'Pragmas'} and
 				not exists $info->{'Macro'} 
 				){
 			warn "UNCATEGORISED STATEMENT: $line";
@@ -3044,34 +3048,7 @@ sub __parse_f95_decl {
 		
 		my $parliststr = $1;
 		( $Sf, $info ) = _parse_f77_par_decl(  $Sf, $stref, $f, $indent,  $line, $info, $parliststr );
-
-		# my $var        = $pt->{'Pars'}{'Var'};
-		# my $val        = $pt->{'Pars'}{'Val'};
-		# my $type       = $pt->{'TypeTup'}; # e.g. integer(kind=8) => {Type => 'integer', Kind => 8}
-
-		# my $pars_in_val = ___check_par_val_for_pars($val);
-
-		# my $param_decl = {
-		# 	'Indent'    => $indent,
-		# 	'Type'      => $type,
-		# 	'Attr'      => '',
-		# 	'Dim'       => [],
-		# 	'Parameter' => 'parameter',
-		# 	'Names'     => [ [ $var, $val ] ],
-		# 	'Name' => $var,
-		# 	'Val' => $val,
-		# 	'Status'    => 0,
-		# 	'Implicit' => 0
-		# };    # F95-style
-		# $info->{'ParamDecl'} = $param_decl;
-		# $info->{'VarDecl'} = {'Name' => $var };
-		
-		# $info->{'UsedParameters'} = $pars_in_val;
-
-		# $Sf->{'LocalParameters'}{'Set'}{$var} = $param_decl;
-
-		# # List is only used in Parser, find out what it does
-		# $Sf->{'LocalParameters'}{'List'}  = [ @{ $Sf->{'LocalParameters'}{'List'} }, $var ];
+		# croak $line. Dumper $info if $line=~/s7/;
 
 	} else {
 		# F95 VarDecl, continued
@@ -3284,7 +3261,6 @@ sub __parse_f95_decl {
 			}
 		}
 	}
-	
 	push @{ $info->{'Ann'} }, annotate( $Sf->{'Source'}, __LINE__ );
 	return ( $Sf, $info );
 
@@ -3433,21 +3409,29 @@ sub _parse_f77_par_decl {
 			
 		# }
 		# carp "$var $val ".Dumper(%ttatrs_types) if $line=~/ipn002/;
+		my $dim =[];
+		if ($val_ast->[0] == 28) { # an array constant 
+			if ($val_ast->[1][0] == 27) { # more than one element
+				my $n_elts = scalar @{$val_ast->[1]} - 1;
+				$dim = [[1,$n_elts]];
+			} else {
+				$dim = [[1,1]];
+			}
+		}
 		my $param_decl = {
-						'Type' => $ttatrs_types{$var}[0],#$type,
-						'Var'  => $var,
-						'Val'  => $val,
-						'AST' => $val_ast,
-						'Attr' => $ttatrs_types{$var}[1],#$attr,
-						'DEBUG' => __FILE__.' '.__LINE__,
-						'Indent'    => $indent,
-						'Dim'       => [],
-						'Parameter' => 'parameter',
-						'InheritedParams' => $inherited_params,
-						'Status'    => 0,
-						'Implicit' => 0     
-					};
-					# croak Dumper($param_decl) if $var eq 'icp001';
+			'Type' => $ttatrs_types{$var}[0],#$type,
+			'Var'  => $var,
+			'Val'  => $val,
+			'AST' => $val_ast,
+			'Attr' => $ttatrs_types{$var}[1],#$attr,
+			'DEBUG' => __FILE__.' '.__LINE__,
+			'Indent'    => $indent,
+			'Dim'       => $dim,
+			'Parameter' => 'parameter',
+			'InheritedParams' => $inherited_params,
+			'Status'    => 0,
+			'Implicit' => 0     
+		};
 		$Sf->{'LocalParameters'}{'Set'}{$var}=$param_decl;		
 	}
 
@@ -3663,8 +3647,9 @@ sub _parse_f77_var_decl {
 				$Sf->{$subset}{'Set'}{$tvar} = $decl;
 			}			
 		}
-		$Sf->{'DeclCount'}{$tvar}++;
-		$info->{'StmtCount'}{$tvar} = $Sf->{'DeclCount'}{$tvar};
+		$Sf->{'DeclCount'}{$tvar}{'VarDecl'}=1;
+
+		$info->{'StmtCount'}{$tvar} = scalar keys %{$Sf->{'DeclCount'}{$tvar}};
 		$annotation.= "$tvar :: ".$tvar_rec->{'Type'}.' ' ;
 	}    # loop over all vars declared on a single line
 

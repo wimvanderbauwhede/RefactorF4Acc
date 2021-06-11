@@ -41,6 +41,9 @@ TO RELEASE
   $ git push --delete origin v2.1.0
   $ git push origin v2.1.0
 
+STATUS 2021-06-11
+There was an issue with DeclCount which counts across passes, leading to declarations being deleted. I changed it to a hash. I extended this to a lot of F95 attributes that can in principle be on a separate line.
+
 STATUS 2021-06-09
 
 Some of the changes for DSM and MemoryReduction have broken the ExGlobVarDeclHook mechanism. The question is if I need this anyway. It should be quite clear: we can put the ExGlobArgDecls either before or after the local variables. So either before the first VarDecl that is not a ParamDecl, or before the first line that is not a SpecificationStatement if there are no VarDecls. I have introduced NonSpecificationStatement for this purpose.

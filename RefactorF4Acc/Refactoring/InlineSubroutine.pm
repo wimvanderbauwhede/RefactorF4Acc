@@ -6,12 +6,12 @@ package RefactorF4Acc::Refactoring::InlineSubroutine;
 use v5.10;
 use RefactorF4Acc::Config;
 use RefactorF4Acc::Utils;
-use RefactorF4Acc::Refactoring::Helpers qw( stateful_pass_inplace stateless_pass_inplace );
+use RefactorF4Acc::Refactoring::Helpers qw( stateful_pass_inplace stateless_pass_inplace stateless_pass );
 use RefactorF4Acc::Parser::Expressions qw( emit_expr_from_ast parse_expression_no_context _traverse_ast_with_action);
 # use RefactorF4Acc::Parser qw( analyse_lines );
 
 use Storable qw( dclone );
-
+use Digest::MD5 qw(md5_base64 md5_hex md5);
 
 use vars qw( $VERSION );
 $VERSION = "2.1.1";
@@ -139,10 +139,12 @@ sub _inline_subroutine { (my $stref, my $f, my $sub, my $is_child) = @_;
 
 # Inlining a call to $sub in $f
 sub _inline_call { my ($stref, $f, $sub, $is_child) = @_;
-
+    my $Ssub = $stref->{'Subroutines'}{$sub};       
+    for my $annline (@{$stref->{Subroutines}{'f_comp_un_1_4'}{RefactoredCode}}) {
+        my ($line,$info) =@{$annline};
+    }
    # First rename all variables in $sub. This is safe because even with COMMON blocks, the names are not global
     ($stref, my $renamed_vars) = __rename_vars($stref, $sub);
-    my $Ssub = $stref->{'Subroutines'}{$sub};       
     for my $var (sort keys %{$renamed_vars}) {
         my $qvar = $renamed_vars->{$var};
         $Ssub = __update_renamed_vardecl($Ssub,$var,$qvar);
@@ -155,27 +157,13 @@ sub _inline_call { my ($stref, $f, $sub, $is_child) = @_;
     # Now run the analysis again and check the result
     # No need as I did not keep the changes
     # $stref = analyse_lines( $sub, $stref );
-
-    #    say Dumper(pp_annlines($Ssub->{'AnnLines'},1));
-    #    say '========';
-    #    say Dumper(pp_annlines($Ssub->{'RefactoredCode'},1    ));        
-    #    croak;               
-        
     ($stref, my $use_part, my $specification_part) = __split_out_specification_parts($stref, $sub);
-    # say "$f $sub";
-    # map {say "SPEC $sub: $_"} @{pp_annlines($specification_part)};
     $Ssub->{'RefactoredCode'}=$Ssub->{'AnnLines'};
 
     # WV20201207 Up to here it seems to be OK
     $stref = __merge_specification_computation_parts_into_caller($stref, $f, $sub, $use_part, $specification_part,$is_child);  	            
     my $Sf = $stref->{'Subroutines'}{$f};       
 
-    # say $Sf->{'AnnLines'} , $Sf->{'RefactoredCode'};
-    # say "$f $sub \n". Dumper(pp_annlines($Sf->{'AnnLines'},0));
-    #    say '========';
-    # map {say $_} @{pp_annlines($Sf->{'RefactoredCode'} )};
-    #    say '========';
-    #    croak;       	
     return $stref;
 } # END of _inline_call
 
@@ -183,21 +171,23 @@ sub _inline_call { my ($stref, $f, $sub, $is_child) = @_;
 sub __split_out_specification_parts { (my $stref, my $f) =@_;
 	
     my $Sf = $stref->{'Subroutines'}{$f};
-    
+    # say "__split_out_specification_parts($f)";
     my $pass__split_out_specification_parts = sub {
         ( my $annline, my $state ) = @_;
         
         my ( $line, $info )  = @{$annline};
-        # say $line; 
-        # die Dumper($info) if $line=~/intent.*v_/ ;
+        say "$f BAD LINE $line" if $line=~/intent/i and not exists $info->{'ParsedVarDecl'}{'Attributes'}{'Intent'} and not exists $info->{'ArgDecl'};
         my ( $use_part, $specification_part, $preceding_comments ) = @{$state};
 
         if ( 
+
             exists $info->{'Signature'} or 
-            exists $info->{'EndSubroutine'} or 
             exists $info->{'ArgDecl'} or 
+            exists $info->{'ParsedVarDecl'}{'Attributes'}{'Intent'} or
+            exists $info->{'EndSubroutine'} or 
             exists $info->{'Return'}
         ) {
+            # say "SKIP: $line";
             # do nothing;
         } elsif ( exists $info->{'Comments'} or exists $info->{'Blank'} ) {
             push @{$preceding_comments}, $annline;
@@ -209,7 +199,6 @@ sub __split_out_specification_parts { (my $stref, my $f) =@_;
             exists $info->{'SpecificationStatement'} and 
             not exists $info->{'ImplicitNone'}
         ) {            
-            # say "$f $line ".Dumper($info) if $line=~/v_inout/;
             $specification_part = [ @{$specification_part}, @{$preceding_comments}, $annline ];
             $preceding_comments = [];
         } 
@@ -274,6 +263,30 @@ sub __merge_specification_computation_parts_into_caller { (my $stref, my $f, my 
 
 	my $Sf = $stref->{'Subroutines'}{$f};
 
+        my $pass_filter_non_caller_specifications = sub { my ($annline) = @_;
+            my ($line, $info) = @{$annline};
+            if (exists $info->{'VarDecl'}) {
+                my $var_name = $info->{'VarDecl'}{'Name'};
+                my $subset = in_nested_set($Sf,'Vars', $var_name);
+                if ($subset) {
+                    $info->{'Deleted'}=1;
+                    $line = '! '.$line;
+                }
+            }
+            elsif (exists $info->{'ParamDecl'}) {
+                my $par_name = $info->{'ParamDecl'}{'Name'}[0];
+                my $subset = in_nested_set($Sf,'Vars', $par_name);
+                if ($subset) {
+                    $info->{'Deleted'}=1;
+                    $line = '! '.$line;
+                }                
+            }
+
+            return [[$line,$info]]
+        };
+    
+        my $non_caller_specifications = stateless_pass($specification_part,$pass_filter_non_caller_specifications,"pass_filter_non_caller_specifications($f)");
+
     my $pass__merge_specification_computation_parts_into_caller = sub {
         my ( $annline, $state ) = @_;
         my ( $line,    $info )  = @{$annline};
@@ -281,28 +294,16 @@ sub __merge_specification_computation_parts_into_caller { (my $stref, my $f, my 
             $in_inline_region,
             $first_vardecl, $found_use
             )     = @{$state};
-        # say "$sub LINE $line in_inline_region: $in_inline_region, first_vardecl: $first_vardecl, found_use:$found_use <".
-        #  (grep {$_==1} map {$_?1:0} ( exists $Sf->{'InlinedCalls'}{'Set'}{$sub}
-        #     ,  exists $info->{'Signature'}
-        #     # ,  exists $info->{'VarDecl'}
-        #     ,  exists $info->{'ImplicitNone'}
-        #     ,  exists $info->{'SpecificationStatement'}
-        #     ,  exists $info->{'Comments'}
-        #     ,  exists $info->{'Blank'}
-        #     ,  exists $info->{'Deleted'}
-        #     )).'>';
             my $test = (    
             not exists $Sf->{'InlinedCalls'}{'Set'}{$sub}
             and not exists $info->{'Signature'}
             and not exists $info->{'ParamDecl'}
             and not exists $info->{'ImplicitNone'}
-            # and not exists $info->{'SpecificationStatement'}
             and not exists $info->{'Comments'}
             and not exists $info->{'Blank'}
             and not exists $info->{'Deleted'}
             and exists $info->{'VarDecl'}
             and $first_vardecl == 1 );
-            # say "TEST: <$test>";
 
         my $indent = $info->{'Indent'} // '      ';
         if (exists $info->{'Pragmas'}{'BeginInline'} ) {
@@ -326,7 +327,11 @@ sub __merge_specification_computation_parts_into_caller { (my $stref, my $f, my 
 
                 $Sf->{'InlinedCalls'}{'Set'}{$sub}++;
                 # comment($annline),
-                return ( [comment("$indent BEGIN inlined call to $sub"),@{$computation_part},comment("$indent END inlined call to $sub")], 
+                return ( [
+                    # comment("$indent BEGIN inlined call to $sub"),
+                    @{$computation_part}
+                    # ,comment("$indent END inlined call to $sub")
+                    ], 
                 [
                     $use_part, $specification_part, $computation_part, 
                     $in_inline_region,
@@ -375,7 +380,11 @@ sub __merge_specification_computation_parts_into_caller { (my $stref, my $f, my 
                     # - replace the call in the expression by it
                     # - replace the assignment to the function name or return arg with this name
                     # - replace the name in the declaration 
-                    return ( [comment("$indent BEGIN inlined call to $sub"),@{$computation_part},$updated_annline,comment("$indent END inlined call to $sub")], 
+                    return ( [
+                        # comment("$indent BEGIN inlined call to $sub"),
+                        @{$computation_part},$updated_annline
+                        # ,comment("$indent END inlined call to $sub")
+                        ], 
                         [
                             $use_part, $specification_part, $computation_part, 
                             $in_inline_region,
@@ -412,7 +421,11 @@ sub __merge_specification_computation_parts_into_caller { (my $stref, my $f, my 
                     push @{$remaining_use_part}, $use_annline;
                 }
             }
-            return ( [comment("$indent BEGIN merged ex-sub use statement $sub"),$updated_use_annline, comment("$indent END merged ex-sub use statement $sub")], 
+            return ( [
+                # comment("$indent BEGIN merged ex-sub use statement $sub"),
+                $updated_use_annline
+                # , comment("$indent END merged ex-sub use statement $sub")
+                ], 
                 [
                     $remaining_use_part, $specification_part, 
                     $in_inline_region,
@@ -427,7 +440,11 @@ sub __merge_specification_computation_parts_into_caller { (my $stref, my $f, my 
             and not exists $info->{'Blank'}
             and not exists $info->{'Deleted'}            
         ) {  
-            return ( [comment("$indent BEGIN ex-sub use statement $sub"),@{$use_part},comment("$indent END ex-sub use statement $sub"),$annline], 
+            return ( [
+                # comment("$indent BEGIN ex-sub use statement $sub"),
+                @{$use_part},
+                # comment("$indent END ex-sub use statement $sub"),
+                $annline], 
             [
                 [], $specification_part, 
                 $in_inline_region, 
@@ -448,7 +465,11 @@ sub __merge_specification_computation_parts_into_caller { (my $stref, my $f, my 
         {
             # croak Dumper $annline;
             $first_vardecl = 0;
-            return ( [comment("$indent BEGIN ex-sub decls $sub"),@{$specification_part},comment("$indent END ex-sub decls $sub"),$annline], 
+            return ( [
+                # comment("$indent BEGIN ex-sub decls $sub"),
+                @{$specification_part},
+                # comment("$indent END ex-sub decls $sub"),
+                $annline], 
                     [
                     $use_part, $specification_part, 
                     $in_inline_region,
@@ -468,7 +489,7 @@ sub __merge_specification_computation_parts_into_caller { (my $stref, my $f, my 
             
     };
 
-    my $state = [ $use_part, $specification_part, 0, 1, 0];
+    my $state = [ $use_part, $non_caller_specifications, 0, 1, 0];
     ( $stref, $state ) = stateful_pass_inplace( $stref, $f, $pass__merge_specification_computation_parts_into_caller, $state, 'pass__merge_specification_computation_parts_into_caller() ' . __LINE__ );
 
     $stref = __update_caller_inlined_vardecls($stref,$f,$sub,$specification_part);
@@ -491,8 +512,7 @@ sub __merge_specification_computation_parts_into_caller { (my $stref, my $f, my 
 # - run it through the parser. 
 # - Or maybe it is enough to only rerun _analyse_lines. 
 
-
-# Rename every variable on every line $var to  $var . '_' . $f
+# Rename every variable on every line $var to whatever __create_new_name returns
 sub __rename_vars {
 	( my $stref, my $f ) = @_;
 		
@@ -503,12 +523,13 @@ sub __rename_vars {
         ( my $line,    my $info )  = @{$annline};
         if (exists $info->{'VarDecl'}
         and not exists $info->{'ArgDecl'}
-        ) {            
+        and not exists $info->{'ParsedVarDecl'}{'Attributes'}{'Intent'}
+        ) {
+            # say "PROBLEM: LINE:$line at ".__LINE__ if $line=~/intent/i;
             my $var = $info->{'VarDecl'}{'Name'};
-            my $qvar = $var . '_' . $f;
+            my $qvar = __create_new_name($var, $f);
             $line =~ s/\b$var\b/$qvar/g;
             $renamed_vars->{$var}=$qvar;
-
             $info->{'VarDecl'}{'OrigName'}=$var;
             $info->{'VarDecl'}{'Name'}=$qvar;
             # Renaming the parameters in the array dimension
@@ -519,7 +540,7 @@ sub __rename_vars {
                     sub {
                         my ($ast) = @_;
                         if ($ast->[0] == 2) {
-                            $ast->[1] .=  '_' . $f;
+                            $ast->[1] = __create_new_name($ast->[1],$f);
                         }
                         return $ast;
                     }
@@ -536,6 +557,7 @@ sub __rename_vars {
                 $line = $info->{'Indent'}.$renamed_decl;
                 $info->{'ParsedVarDecl'}{'Attributes'}{'Dim'}= [split(/\s*,\s*/,$renamed_dim_str)];
                 $info->{'ParsedVarDecl'}{'Vars'} = [$qvar];
+                # carp $line .Dumper($info->{'ParsedVarDecl'}{'Attributes'});
             }
         }
         # WV 2021-06-08 If I would want to rename parameters.
@@ -545,7 +567,7 @@ sub __rename_vars {
             # warn Dumper $info;
             if (exists  $info->{'ParamDecl'}{'Var'}) {
                 my $par = $info->{'ParamDecl'}{'Var'}; 
-                my $qpar = $par . '_' . $f;
+                my $qpar = __create_new_name($par,$f);
                 $line =~ s/\b$par\b/$qpar/g;
                 $renamed_vars->{$par}=$qpar;
 
@@ -553,7 +575,7 @@ sub __rename_vars {
                 $info->{'ParamDecl'}{'Name'}=$qpar;
             } else {
                 my $par = $info->{'ParamDecl'}{'Name'}[0]; 
-                my $qpar = $par . '_' . $f;
+                my $qpar = __create_new_name($par,$f);
                 $line =~ s/\b$par\b/$qpar/g;
                 $renamed_vars->{$par}=$qpar;
 
@@ -585,7 +607,7 @@ sub __rename_vars {
                 or $Config{'RENAME_PARS_IN_INLINED_SUBS'} == 1
                 ) {                 
                     # The actual renaming
-                    my $qvar = $var . '_' . $f;
+                    my $qvar = __create_new_name($var,$f);
                     $line =~ s/\b$var\b/$qvar/g;
                     $renamed_vars->{$var}=$qvar;
                 }
@@ -601,6 +623,42 @@ sub __rename_vars {
 	return ($stref, $renamed_vars);
 
 } #  END of __rename_vars
+
+
+# F95 spec 
+# Section 3: Characters, lexical tokens, and source form
+# 3.2 Low-level syntax
+# 3.2.1 Names
+# Names are used for various entities such as variables, program units, dummy arguments, named constants, and derived types.
+#     R304 name is letter [alphanumeric-character]
+# Constraint: The maximum length of a name is 31 characters.
+
+# For Fortran 2003 it is 63
+
+sub __create_new_name { my ($var,$f) = @_;
+    my $MAX_NCHARS = 31;
+    my $qvar = $var . '_' . $f;
+    # say "VAR: $var F: $f";
+    if (length $qvar > $MAX_NCHARS) {
+        
+        # my $suffix = substr(md5_base64($qvar),0,12); # 22 characters but we keep 12
+        # $suffix=~tr/\+\//__/;
+        my $md5hash = md5($qvar); # 22 characters but we keep 12
+        my @vals= unpack( 'S' x 8, $md5hash );
+        my $suffix='';
+        for my $idx (0..  @vals/4-1)  {
+            my $xored = ($vals[$idx*4] ^ $vals[$idx*4+1]) ^
+            ($vals[$idx*4+2] ^ $vals[$idx*4+3]);
+            $suffix.= sprintf("%x",$xored);
+        }
+# die $suffix;
+        # say "SUFFIX: $suffix";
+        # we allow 41 chars, ad hoc        
+        $qvar = substr($qvar,0,$MAX_NCHARS-9).'_'.$suffix; 
+    }
+    # say "QVAR:$qvar";
+    return $qvar;
+}
 
 sub __substitute_args { my ($stref, $f, $sub, $line_id) = @_;
     # Now substitute the arguments, i.e. any occurrence of an argument in the body of $sub should get the value of the call arg in $f
@@ -647,7 +705,7 @@ sub __substitute_args_core { ( my $stref, my $f , my $argmap) = @_;
         ( my $line,    my $info )  = @{$annline};            
         # my $argmap = $state;
         # my $Sf = $stref->{'Subroutines'}{$f};
-        
+        my $orig_line=$line;
         for my $var ( keys %{$argmap} ) {
             if (exists $info->{'VarDecl'}) {            		
                 if ($info->{'VarDecl'}{'Name'} eq $var) { 
@@ -667,6 +725,9 @@ sub __substitute_args_core { ( my $stref, my $f , my $argmap) = @_;
                 $line = '! '.$line;
             }
         }
+
+        $line =~s/\s*:\s*\)\(//g;
+
         push @{ $info->{'Ann'} }, annotate( $f, __LINE__ . ' __substitute_args_core');
         return [[$line,$info]];
     };
@@ -676,8 +737,6 @@ sub __substitute_args_core { ( my $stref, my $f , my $argmap) = @_;
     return $stref;
 
 } #  END of __substitute_args_core
-
-
 
 # This should go in Analysis::Inline
 # I think we should allow
@@ -771,6 +830,7 @@ sub __update_caller_inlined_vardecls { my ($stref,$f,$sub,$specification_part) =
         my $decl = get_var_record_from_set($stref->{'Subroutines'}{$sub}{$subset},$qvar);
         # croak;
         # say "Adding $qvar to DeclaredOrigLocalVars in $f";
+        # carp $qvar. Dumper( $decl );
         if (not $is_param) {
             $stref->{'Subroutines'}{$f}{'DeclaredOrigLocalVars'}{'Set'}{$qvar}=dclone($decl);
         } else {

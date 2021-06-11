@@ -55,26 +55,27 @@ sub refactor_all {
 
 # FIXME: this should be treated just like subs, but of course that requires full parsing of expressions that contain function calls
     $stref = refactor_called_functions($stref); # Context-free only 
+        
  	# say "BEFORE refactor_all_subroutines";    
     # Refactor the source, but don't split long lines and keep annotations
     $stref = refactor_all_subroutines($stref);    
 #    say "AFTER refactor_all_subroutines";
+
 #  croak Dumper pp_annlines($stref->{'Subroutines'}{'adam'}{'AnnLines'});
     # This can't go into refactor_all_subroutines() because it is recursive
     # Also, this is actually analysis
     # And this is only for Subroutines of course, not for Modules
 	# The reason it is only called here is because we need to run this on the subroutines with refactored arguments.
 
+
     if ($sub_or_func_or_mod eq 'Subroutines') {
     	$stref = determine_argument_io_direction_rec( $stref,$code_unit_name );    	
     	say "DONE determine_argument_io_direction_rec()" if $V;
-
     	$stref = update_argument_io_direction_all_subs( $stref );
     }
-
     # So at this point we know everything there is to know about the argument declarations, we can now update them
     say "remove_vars_masking_functions" if $V;    
-    $stref = remove_vars_masking_functions($stref);    
+    $stref = remove_vars_masking_functions($stref); 
 	if ( $Config{'EVAL_PARAM_EXPRS'}) {
     	say "eval_param_expressions_all" if $V;    
 		$stref = eval_param_expressions_all($stref);

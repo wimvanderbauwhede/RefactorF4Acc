@@ -423,15 +423,14 @@ sub format_f95_par_decl {
 	my $attr = defined $par_rec->{'Attr'} ? $par_rec->{'Attr'} :  '';
     my $spaces = ' ' x 6;
 	my $dim = [];
+    if (exists $par_rec->{'Dim'}) {
+        $dim=$par_rec->{'Dim'};
+    }
 
-	if (not defined $par_rec->{'Type'} or $par_rec->{'Type'} eq 'Unknown') {
-		
+	if (not defined $par_rec->{'Type'} or $par_rec->{'Type'} eq 'Unknown') {		
 		my $Sv = get_var_record_from_set($Sf->{'LocalVars'},$var);
-
 		if (not defined $Sv) {
-
-        say "WARNING: PARAMETER $var is probably local to $f in format_f95_par_decl(). If $f is a parameter include file, that is OK." if $W;
-			
+            say "WARNING: PARAMETER $var is probably local to $f in format_f95_par_decl(). If $f is a parameter include file, that is OK." if $W;			
 		} else {
 			$spaces = $Sv->{'Indent'};
 			$dim=$Sv->{'Dim'};
@@ -445,28 +444,19 @@ sub format_f95_par_decl {
 			}
 		}
 	}    
-#       # Can't trust the type set via implicits! WEAK!
-       if ($val=~/^[\+\-\*\d]+$/) {
+    # Can't trust the type set via implicits! WEAK! FIXME!
+    if ($val=~/^[\+\-\*\d]+$/) {
        	$type = 'integer';
-       } elsif ($val=~/^[\.\+\-\*\/\d]+$/) {
+    } elsif ($val=~/^[\.\+\-\*\/\d]+$/) {
        	$type = 'real';
-       	} elsif ($val=~/^[\'\"]/) {
-       		my $len = length($val) -2;
-       		$type = 'character';
-       		$attr="(len=$len)";
-       	} elsif ($val=~/^__PH\d+__/) {       		
-       		$type = 'character';
-       		$attr='len=*';
-       	}	
-#       } else {
-#       	#FIXME
-#       	# This is an expression, so we should parse it and get the type from the constituents.
-##       	$type = 'real'; 
-#       }
-    
-    # Here we should rename for globals? Maybe not: let's just rename the globals instead
-#    ( $var, $val ) = _rename_conflicting_global_pars( $stref, $f, $var, $val );
-    
+    } elsif ($val=~/^[\'\"]/) {
+        my $len = length($val) -2;
+        $type = 'character';
+        $attr="(len=$len)";
+    } elsif ($val=~/^__PH\d+__/) {       		
+        $type = 'character';
+        $attr='len=*';
+    }	
 
     # FIXME: for multiple vars, we need to split this in multiple statements.
     # So I guess as soon as the Dim is not empty, need to split.
@@ -486,6 +476,9 @@ sub format_f95_par_decl {
         'Name' => [ $var, $val ] ,        
         'Status' => 1
     };
+    # if ($isArray) {
+    #     $final_par_rec->{'Dimension'} = [];
+    # }
     
      carp "FINAL PAR REC $f:".Dumper($final_par_rec) if $DBG and $type eq 'Unknown';
 #     if ($type eq 'Unknown') {
@@ -737,7 +730,7 @@ sub emit_f95_var_decl {
             $spaces 
           . $type  
           . $attr . ', ' 
-          . $dimstr
+          . $dimstr . ', '
           . 'parameter' . ' :: '
           . $var_val;
 

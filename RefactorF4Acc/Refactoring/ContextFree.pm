@@ -270,10 +270,9 @@ sub context_free_refactorings {
                     $line = emit_f95_parsed_var_decl($pvd);                    
                     push @{$info->{'Ann'}}, annotate($f, __LINE__ .': ParsedVarDecl, '.($stmt_count == 1 ? '' : 'SKIP'));                    
                 }                
-
+                
             } else { 
 	            if ( in_nested_set($Sf, 'Parameters', $var) ) { 
-                    # croak "$f: $line" . $stmt_count. Dumper $info if $var =~/alpha/;
                     # WV 2021-06-08 Although we come here, the action is not done and not reported in Ann ???
 	                # Remove this line, because this param should have been declared above
 	                $line = '!! Original line PAR:2 !! ' . $line;
@@ -302,9 +301,6 @@ sub context_free_refactorings {
                     $info->{'Deleted'} = 1;
             	}
             }  
-#            if (exists $info->{'Dimension'}) {
-#            	croak Dumper($line,$info);
-#            }         
         }
 # ------------------------------------------------------------------------------
 # END of section refactoring variable and parameter declarations
@@ -327,47 +323,48 @@ sub context_free_refactorings {
 # This section refactors parameter declarations, this is what generates the parameters in LES params_common
 # Problem is that in flexpart, these parameters have already been declared before the variable declarations
 # ------------------------------------------------------------------------------
-        elsif ( exists $info->{'ParamDecl'} )
-        {    # so this is a parameter declaration "pur sang"
-                # WV 20130709: why should I remove this?
-                my $par_decl = $info->{'ParamDecl'} ;
-                my $parsed_par_decl = $info->{'ParsedParDecl'};
-                my $info_ref = $info->{'Ref'} // 0;         
-                       	if (exists $info->{'VarDecl'}{'Name'} ) {             		
-                             my $var = $info->{'VarDecl'}{'Name'};                                               
-                                $par_decl =  format_f95_par_decl( $stref, $f, $var ) ;
-                       	}
-                    elsif (exists $info->{'ParamDecl'}{'Name'} ) {                    		
-                             my $var_val = $info->{'ParamDecl'}{'Name'};
-                                ( my $var, my $val ) = @{$var_val};                
-                                $par_decl =  format_f95_par_decl( $stref, $f, $var ) ;
-                    } elsif (exists $info->{'ParamDecl'}{'Names'} ) { 
-                        croak 'PROBLEM: multiple parameter decls on a single line!';
-                    }
-                	# We must check for string placeholders in parameter decls!
-                	if ($par_decl->{'Name'}[1]=~/(__PH\d+__)/) {
-                		my $ph=$1;
-                		$par_decl->{'Name'}[1]=$info->{'PlaceHolders'}{$ph};
-                	}
-	                my $new_line =emit_f95_var_decl($par_decl) ;
-	                # Here the declaration is complete
-	                push @extra_lines,
-	                  [
-	                    $new_line,
-	                    {
-	                        'Extra'     => 1,
-	                        'ParamDecl' => $par_decl,
-                            'ParsedParDecl' => $parsed_par_decl,
-	                        'Ref'       => $info_ref + 1,
-	                        'LineID'    => $nextLineID++,
-	                        'SpecificationStatement' => 1,
-	                        'Ann' => [annotate($f, __LINE__. ' : ParamDecl') ]                        
-	                    }
-	                  ]
-	                  ; # Create parameter declarations before variable declarations            
-		            $line = '!! ' . $line;
-		            $info->{'Ann'}=[ annotate($f, __LINE__ .' Original ParamDecl' ) ];
-		            $info->{'Deleted'} = 1;
+        elsif ( exists $info->{'ParamDecl'} ) {    
+            # so this is a parameter declaration "pur sang"
+            # WV 20130709: why should I remove this?
+            my $par_decl = $info->{'ParamDecl'} ;
+            my $parsed_par_decl = $info->{'ParsedParDecl'};
+            
+            my $info_ref = $info->{'Ref'} // 0;         
+            if (exists $info->{'VarDecl'}{'Name'} ) {             		
+                my $var = $info->{'VarDecl'}{'Name'};                                               
+                $par_decl =  format_f95_par_decl( $stref, $f, $var ) ;
+            }
+            elsif (exists $info->{'ParamDecl'}{'Name'} ) {                    		
+                my $var_val = $info->{'ParamDecl'}{'Name'};
+                ( my $var, my $val ) = @{$var_val};                
+                $par_decl =  format_f95_par_decl( $stref, $f, $var ) ;
+            } elsif (exists $info->{'ParamDecl'}{'Names'} ) { 
+                croak 'PROBLEM: multiple parameter decls on a single line!';
+            }
+                # We must check for string placeholders in parameter decls!
+            if ($par_decl->{'Name'}[1]=~/(__PH\d+__)/) {
+                my $ph=$1;
+                $par_decl->{'Name'}[1]=$info->{'PlaceHolders'}{$ph};
+            }
+            my $new_line =emit_f95_var_decl($par_decl) ;
+            # Here the declaration is complete
+            push @extra_lines,
+                [
+                $new_line,
+                {
+                    'Extra'     => 1,
+                    'ParamDecl' => $par_decl,
+                    'ParsedParDecl' => $parsed_par_decl,
+                    'Ref'       => $info_ref + 1,
+                    'LineID'    => $nextLineID++,
+                    'SpecificationStatement' => 1,
+                    'Ann' => [annotate($f, __LINE__. ' : ParamDecl') ]                        
+                }
+                ]
+                ; # Create parameter declarations before variable declarations            
+            $line = '!! ' . $line;
+            $info->{'Ann'}=[ annotate($f, __LINE__ .' Original ParamDecl' ) ];
+            $info->{'Deleted'} = 1;
         }
 
 # ------------------------------------------------------------------------------

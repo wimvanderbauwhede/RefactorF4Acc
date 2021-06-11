@@ -70,7 +70,9 @@ sub refactor_all_subroutines {
 		next if $Sf->{'Status'} == $FROM_BLOCK;
 
 		$stref = _refactor_subroutine_main( $stref, $f );
+
 	}
+
 
 	return $stref;
 }    # END of refactor_all_subroutines()
@@ -131,6 +133,7 @@ sub _refactor_subroutine_main {
 	# say "get_annotated_sourcelines($f)" if $V;
 	my $annlines = $Sf->{'RefactoredCode'};
 
+
 	if ( $Sf->{'HasCommons'} and $Config{'INLINE_INCLUDES'}==0 ) {
 		# If there are no COMMON blocks the argument list should not change, so there should be no need to do this		
 		$annlines = _group_local_param_decls_at_top( $stref, $f, $annlines );
@@ -152,15 +155,11 @@ sub _refactor_subroutine_main {
 			croak 'SHOULD BE OBSOLETE!';
 		}
 	}
-
 	$annlines = _fix_end_lines( $stref, $f, $annlines );    # FIXME maybe do this later
-
 	if ($is_block_data) {
 		$annlines = _add_extra_assignments_in_block_data( $stref, $f, $annlines );
 	}
-
 	$annlines = _add_implicit_none( $stref, $f, $annlines );
-
 
 	# The assignment lines for the mismatched ex-COMMON vars can go here
 	# probably before the first line that is not a SpecificationStatement and not a Comment and not a Blank and not Skip or Deleted
@@ -174,7 +173,6 @@ sub _refactor_subroutine_main {
 		#	    $stref = parse_fortran_src($f, $stref);
 		#	    $annlines=$Sf->{'AnnLines'};
 	}
-
 	$annlines = change_EQUIVALENCE_to_assignment_lines( $stref, $f, $annlines );
 
 	#	$Sf->{'AnnLines'} = $annlines;
