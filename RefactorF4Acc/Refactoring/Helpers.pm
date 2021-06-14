@@ -157,7 +157,7 @@ sub split_long_line {
 
     my $nchars = 64 + 28;
     if ( scalar(@chunks) == 0 ) {
-        print "\nLINE: \n<$line>\n" if $DBG;
+#print "\nLINE: \n<$line>\n" if $DBG;
         $nchars = 72 + 28;
     }
     my $split_on  = ',';

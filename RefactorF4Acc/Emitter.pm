@@ -125,8 +125,9 @@ sub emit_all {
             show_annlines( $stref->{'RefactoredCode'}{$src}, 0 );
         }
         else {
-            say "INFO: Emitter: New source: $targetdir/$nsrc ($src)"
-              if ( $I or $DBG );
+            say "INFO: Emitter: New source: $targetdir/$nsrc ($src)" if ( $I or $DBG );
+            show_annlines( $stref->{'AnnLines'}{$src}, 0 );
+              
             my $mod_lines = $stref->{'RefactoredCode'}{$src};
 
             if ( exists $stref->{'SourceFiles'}{$src}{'AnnLines'} ) {

@@ -55,12 +55,12 @@ sub refactor_all {
 
 # FIXME: this should be treated just like subs, but of course that requires full parsing of expressions that contain function calls
     $stref = refactor_called_functions($stref); # Context-free only 
-        
+          
  	# say "BEFORE refactor_all_subroutines";    
     # Refactor the source, but don't split long lines and keep annotations
     $stref = refactor_all_subroutines($stref);    
 #    say "AFTER refactor_all_subroutines";
-
+  
 #  croak Dumper pp_annlines($stref->{'Subroutines'}{'adam'}{'AnnLines'});
     # This can't go into refactor_all_subroutines() because it is recursive
     # Also, this is actually analysis
@@ -83,7 +83,7 @@ sub refactor_all {
     # Inlining 
     $stref = inline_subroutines($stref) ;
 
-    # croak Dumper($stref->{'Subroutines'}{'dyn_shapiro_update'}{'RefactoredCode'});
+
 	# Test array access and constant folding here
 
 	# $stref = analyse_loop_nature_all($stref) ;

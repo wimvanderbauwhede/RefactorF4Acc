@@ -200,6 +200,7 @@ sub __split_out_specification_parts { (my $stref, my $f) =@_;
             exists $info->{'SpecificationStatement'} and 
             not exists $info->{'ImplicitNone'}
         ) {            
+            
             $specification_part = [ @{$specification_part}, @{$preceding_comments}, $annline ];
             $preceding_comments = [];
         } 
@@ -275,10 +276,12 @@ sub __merge_specification_computation_parts_into_caller { (my $stref, my $f, my 
                 }
             }
             elsif (exists $info->{'ParamDecl'}) {
+                
                 my $par_name = ref($info->{'ParamDecl'}{'Name'}) eq 'ARRAY'
                 ? $info->{'ParamDecl'}{'Name'}[0]
                 : $info->{'ParamDecl'}{'Name'};
                 my $subset = in_nested_set($Sf,'Vars', $par_name);
+                # say "PAR LINE: $line => $par_name => in $subset of $f ";
                 if ($subset) {
                     $info->{'Deleted'}=1;
                     $line = '! '.$line;
@@ -532,6 +535,7 @@ sub __rename_vars {
         and not exists $info->{'ArgDecl'}
         and not exists $info->{'ParsedVarDecl'}{'Attributes'}{'Intent'}
         ) {
+            # croak Dumper $info if exists $info->{'ParamDecl'} or exists $info->{'ParsedParDecl'};
             # say "PROBLEM: LINE:$line at ".__LINE__ if $line=~/intent/i;
             my $var = $info->{'VarDecl'}{'Name'};
             my $qvar = __create_new_name($var, $f);
@@ -570,7 +574,7 @@ sub __rename_vars {
         # WV 2021-06-08 If I would want to rename parameters.
         # Currently I don't, which means that there could be conflicts.
         # So I think I'll need a flag RENAME_PARS_IN_INLINED_SUBS in case this breaks
-        elsif ($Config{'RENAME_PARS_IN_INLINED_SUBS'}==1 and exists $info->{'ParamDecl'}) {
+        elsif ( exists $info->{'ParamDecl'}) { # This must be a LocalParameter
             # warn Dumper $info;
             if (exists  $info->{'ParamDecl'}{'Var'}) {
                 my $par = $info->{'ParamDecl'}{'Var'}; 
@@ -609,7 +613,8 @@ sub __rename_vars {
             my $vars = get_vars_from_set( $Sf->{'Vars'} );
             # croak Dumper get_vars_from_set( $Sf->{'Parameters'} ) if $f eq 'dyn';
             for my $var (keys %{$vars} ) {
-                # say "$f $line $var" if $line=~/do/ and $f eq 'dyn' and $var eq 'nx';
+                my $subset_dbg = in_nested_set($Sf,'Vars', $var);
+                # say "$f [$line] $var: $subset_dbg" if $line=~/do/ and $var eq 'im';
                 # croak "$f $line $var ".Dumper($info) if $var eq 'v_inout' and $line=~/InOut/;
                 my $subset1 = in_nested_set($Sf,'Args', $var);
                 my $subset2 = in_nested_set($Sf,'UsedParameters', $var);

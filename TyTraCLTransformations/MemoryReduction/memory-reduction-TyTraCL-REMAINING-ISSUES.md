@@ -6,7 +6,13 @@
 Lots of issues have cropped up with Autoparallel-Fortran, all related to wrong handling of parameters in stencils. 
 I guess I should run a constant folding step first before running that compiler.
 
-The inliner is still buggy too: parameters are removed when they shouldn't, and parameters in stencils lead to a bug because
+The inliner is still buggy too: 
+
+      * parameters are renamed when they shouldn't. => OK, they should anyway.
+      * parameters are turned into arguments when they shouldn't. => Maybe OK
+      * parameters are removed when they shouldn't. => OK, this was the subroutine extractor, not the inliner.
+
+Parameters in stencils lead to a bug because
 	
       [sort keys %{ $state->{'StreamVars'}{$var}{'Set'} }]
 
@@ -14,7 +20,9 @@ has names with the parameters in them but
 
       $ordered_stencil_var_tuple
 
-has names with the parameters folded into constants      
+has names with the parameters folded into constants
+
+
 
 ## 2021-06-11
 

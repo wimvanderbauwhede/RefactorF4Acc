@@ -115,7 +115,7 @@ sub parse_fortran_src {
 	print "parse_fortran_src(): CALL read_fortran_src( $f )\n" if $V;
 	# croak Dumper $stref->{'Subroutines'}{$f}{'AnnLines'}[2] if $f eq 'dyn_shapiro_update';
 	$stref = read_fortran_src( $f, $stref, $is_source_file_path );    #	
-	# croak Dumper $stref->{'Subroutines'}{$f}{'AnnLines'}[2] if $f eq 'dyn_shapiro_update';
+	
 	say "DONE read_fortran_src( $f )" if $V;	
     
 	my $sub_or_incl_or_mod = sub_func_incl_mod( $f, $stref ); # Maybe call this "code_unit()"	

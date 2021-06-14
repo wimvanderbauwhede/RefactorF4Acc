@@ -214,8 +214,8 @@ Suppose we don't:
                     my @comments_stack = ();
                     my $norm_lines     = normalise_F95_src( [@lines] );
 
-                    #					map { say $_} @{$norm_lines };
-                    #					croak ;
+                    					# map { say $_} @{$norm_lines };
+                    					# croak if $f=~/unroll/;
 
                     for my $line ( @{$norm_lines} ) {
 
@@ -226,7 +226,6 @@ Suppose we don't:
                                 $f, $line, $free_form, __LINE__ );
                         }
                     }
-
 # So problem here is that in _pushAnnLine() we don't move the sub source to Subroutines
 
       # --------------------- # END of free-form parsing # ---------------------
@@ -1241,7 +1240,7 @@ sub _pushAnnLine {
             }
         }
 
-        #	      say $ann. ' : '.Dumper($annline);
+        	      # say $ann. ' : '.Dumper($annline);
     }
 
     return ( $stref, $f, $srctype );
@@ -1398,6 +1397,7 @@ sub _procLine {
 # If you put an exclamation mark (!) in any column of the statement field, except within character literals, then everything after the ! on that line is a comment.
         $info->{'OrigComments'} = 1;
         $info->{'Comments'} = 1;
+        $line = '! '.substr($line,1);
     }
     elsif ( $line =~ /^\s*contains\s*$/i ) {
         $info->{'Contains'} = 1;

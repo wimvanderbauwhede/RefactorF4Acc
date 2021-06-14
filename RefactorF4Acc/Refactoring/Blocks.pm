@@ -6,7 +6,7 @@ use RefactorF4Acc::State qw( initialise_per_code_unit_tables );
 use RefactorF4Acc::Parser qw( parse_fortran_src );
 use RefactorF4Acc::Analysis::Variables qw( identify_vars_on_line );
 use RefactorF4Acc::Refactoring::Helpers qw( get_f95_var_decl get_f95_par_decl emit_f95_var_decl);
-use RefactorF4Acc::Parser::Expressions qw( emit_expr_from_ast );
+use RefactorF4Acc::Parser::Expressions qw( emit_expr_from_ast parse_expression_no_context get_vars_from_expression);
 
 #
 #   (c) 2010-2019 Wim Vanderbauwhede <wim@dcs.gla.ac.uk>
@@ -413,7 +413,7 @@ sub __update_caller_datastructures {
 # The "Iter" approach is incomplete because we should really identify any variable used as a local variable
 # If we find a variable in the outer blocks, it could still be a local
 #
-sub __find_vars_in_block {# warn "This should use he $block,same() code as RefactorF4A::Analysis:: _analyse_variables"cc
+sub __find_vars_in_block {# warn "This should use the same code as RefactorF4A::Analysis:: _analyse_variables"
 	my ( $stref, $f, $blocksref, $varsref, $occsref, $paramsref ) = @_;
     my $sub_or_func_or_mod = sub_func_incl_mod( $f, $stref );
     my $Sf = $stref->{$sub_or_func_or_mod}{$f};
@@ -430,7 +430,7 @@ sub __find_vars_in_block {# warn "This should use he $block,same() code as Refac
 		print "\nVARS in $block:\n\n" if $V;
 		for my $annline (@annlines) {            
             ( my $tline, my $info ) = @{$annline};
-            # say "$block => $tline".Dumper($info);
+            #  say "$block => $tline";#.Dumper($info);
 			if ( exists $info->{'Do'} ) {
 				my $iter = $info->{'Do'}{'Iterator'};
 				push @{ $itersref->{$block} }, $iter;
@@ -454,7 +454,7 @@ sub __find_vars_in_block {# warn "This should use he $block,same() code as Refac
                 my $vars_on_line_ref=identify_vars_on_line($annline);
                 
                 for my $var_on_line (@{$vars_on_line_ref}) {
-                    # say "$var_on_line";
+                    # say $annline->[0]." => $var_on_line" ;
                     if  ( exists $tvars{$var_on_line} ) {          
                         if (exists $varsref->{$var_on_line}{'Parameter'}
                         and not exists $Sf->{'UsedParameters'}{'Set'}{$var_on_line}
@@ -462,6 +462,27 @@ sub __find_vars_in_block {# warn "This should use he $block,same() code as Refac
                             $paramsref->{$block}{$var_on_line}=$var_on_line;
                         } else {
                             $occsref->{$block}{$var_on_line}=$var_on_line;
+                            if ($block ne 'OUTER') {
+                                my $subset = in_nested_set($Sf,'Vars',$var_on_line);
+                                # say "SUBSET: $subset for $var_on_line";
+                                my $decl = get_var_record_from_set($Sf->{$subset},$var_on_line);
+                                if (exists $decl->{'Dim'}) {
+                                    # Quick and dirty
+                                    # carp Dumper $decl->{'Dim'};
+                                    my $expr_str = '('.join(',',map {$_->[0].','.$_->[1]} @{$decl->{'Dim'}}).')';
+                                    
+                                    my ($ast,$str,$error,$has_funcs)=parse_expression_no_context($expr_str);
+                                    my $pars_in_var_decl=get_vars_from_expression($ast,{});
+                                    for my $par_in_decl (keys %{$pars_in_var_decl}) {
+                                        my $subset = in_nested_set($Sf,'Vars',$par_in_decl);
+                                        if ($subset eq 'LocalParameters') {
+                                            $paramsref->{$block}{$par_in_decl}=$par_in_decl;
+                                        }
+                                # say "SUBSET: $subset for $par_in_decl";
+                                # my $decl = get_var_record_from_set($Sf->{$subset},$par_in_decl);
+                                    }
+                                }
+                            }
                         }                                      
                         delete $tvars{$var_on_line};                  
                         # say "Adding $var_on_line to occsref->{$block} ". __FILE__.' '.__LINE__ ;
@@ -476,6 +497,7 @@ sub __find_vars_in_block {# warn "This should use he $block,same() code as Refac
 }    # END of __find_vars_in_block() keys %{$
 
 sub __emit_param_lines { my ($Sblock, $varsref, $params, $param_decl_generated, $param_annlines, $block, $f)=@_;
+
     for my $param ( sort keys %{$params} ) {    
         # say "PAR $param";
         if (not exists $param_decl_generated->{$param}) {
@@ -654,7 +676,8 @@ sub __add_vardecls_and_info_to_AnnLines { my ($stref,$f,$Sf,$Sblock,$block,$iter
                 }
               ];
         }
-        if (exists $paramsref->{$block}) {
+
+        if (exists $paramsref->{$block}) {            
         my %params = %{ $paramsref->{$block} };
         my $param_annlines = __emit_param_lines($Sblock, $varsref, \%params, {}, [], $block, $f);         
         $Sblock->{'AnnLines'} = [ @{$param_annlines},  @{ $Sblock->{'AnnLines'} }];
