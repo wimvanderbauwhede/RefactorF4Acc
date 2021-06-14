@@ -22,7 +22,7 @@ has names with the parameters in them but
 
 has names with the parameters folded into constants
 
-
+So what we could do is fold the constants in the AST using fold_constants_in_expr() before we run _scalarise_array_accesses_in_ast()
 
 ## 2021-06-11
 
