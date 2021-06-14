@@ -196,6 +196,7 @@ sub eval_expression_with_parameters { (my $expr_str,my $info, my $stref, my $f) 
 # This routine attempts to evaluate arguments by following them to the caller, 
 # but in a very limited way.
 sub _try_to_eval_arg { my ($stref,$f,$arg)=@_;
+warn "\nSUB $f ARG: $arg TRY CALLER\n";
 	# Get the caller and the ID of the line with the call in $f
 	my $caller; my $line_id;
 	for my $k (keys %{$stref->{'Subroutines'}{$f}{'Callers'} }) {

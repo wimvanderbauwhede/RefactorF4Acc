@@ -291,6 +291,7 @@ sub _rename_array_accesses_to_scalars { (my $stref, my $f) = @_;
 			# ordered_stencil_var_tuple is OK as it should only have the Read accesses. But I need to put the Write access in the list as well!
 			# I guess that we ultimately should have  f(v_0_ip1,v_0_im1,v_1_i) 
 			# So I will put the Write access at the end. 
+			# FIXME: parameter folding messes up the names because the param names in $state->{'StreamVars'}{$var}{'Set'} are replaced with constants in $ordered_stencil_var_tuple
 		# say $f;
 		# say Dumper(
 		# 	[sort keys %{ $state->{'StreamVars'}{$var}{'Set'} }],
@@ -299,6 +300,7 @@ sub _rename_array_accesses_to_scalars { (my $stref, my $f) = @_;
 		for my $stream_var (@{$ordered_stencil_var_tuple} ) {
 				# carp "$f VAR $var STREAM VAR $stream_var\n";
 			push @{$state->{'StreamVars'}{$var}{'List'}},$stream_var;		
+			# warn $stream_var. Dumper $state->{'StreamVars'}{$var}{'Set'}{$stream_var};
 			my $scalar_assignment_line= '      '.$stream_var.' = '.$state->{'StreamVars'}{$var}{'Set'}{$stream_var}{'ArrayIndexExpr'};
 			my $array_assignment_line= '      '.$state->{'StreamVars'}{$var}{'Set'}{$stream_var}{'ArrayIndexExpr'}.' = '.$stream_var;
 			my $scalar_assignment_rhs_ast = parse_expression($state->{'StreamVars'}{$var}{'Set'}{$stream_var}{'ArrayIndexExpr'}, {},$stref, $f);

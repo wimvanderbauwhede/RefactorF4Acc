@@ -896,7 +896,6 @@ sub __mkUntypedScalar {
     return 'Scalar '.$ve.' DDC  "' . $v_name . '"';
 }
 sub __determine_VE { (my $stref, my $var_rec)=@_;
-# carp Dumper $stref->{'TyTraCL_AST'}{'Main'};
     if ($var_rec->[2] eq 's') {
         return 'VS'
     } else {

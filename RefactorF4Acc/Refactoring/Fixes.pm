@@ -151,8 +151,9 @@ if (not exists $Config{'FIXES'}{'_removed_unused_variables'}) { return $stref }
 			}			
 			$done=1;
 		}		
-		if (exists $info->{'If'} and not $skip_if) {						
-				my $cond_expr_ast=$info->{'Cond'}{'AST'};#= $ast;parse_expression($info->{'Cond'}{'Expr'}, $info,$stref, $f);
+		if ((exists $info->{'If'} or exists $info->{'ElseIf'})
+			and not $skip_if) {						
+			my $cond_expr_ast=$info->{'Cond'}{'AST'};#= $ast;parse_expression($info->{'Cond'}{'Expr'}, $info,$stref, $f);
 #				$state->{'ExprVars'} ={%{$state->{'ExprVars'}},%{ $info->{'Cond'}{'Vars'}{'Set'} } }; 
 			for my $var (keys %{ $info->{'Cond'}{'Vars'}{'Set'} }) {
 				say "ADDING $var to ExprVars in IF" if $DBG;
@@ -170,7 +171,7 @@ if (not exists $Config{'FIXES'}{'_removed_unused_variables'}) { return $stref }
 			$done=1;
 		}
 		if (exists $info->{'HasVars'} and $info->{'HasVars'} == 1 and $done==0) {
-			croak "Line <$line> NOT ANALYSED!";
+			croak "Line <$line> NOT ANALYSED! ".Dumper($info);
 		}
 
 		

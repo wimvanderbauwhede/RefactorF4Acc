@@ -727,7 +727,7 @@ MODULE
 				$prev_stmt_was_spec=0;
 			}			
 #== DIMENSION (VIRTUAL)		
-		 elsif ( $line =~ /^(?:dimension|virtual)/ ) {			
+		 elsif ( $line =~ /^(?:dimension|virtual)/ ) {	
 # Although a Dimension line is not a declaration, I will use it as such, so the var must be in DeclaredLocalVars/DeclaredCommonVars
 				$info->{'Dimension'}=1;
 				$info->{'SpecificationStatement'} = 1;
@@ -819,7 +819,10 @@ MODULE
 					} # not a macro
 					 my $vline = "$type, $var_dim  :: $varname";
 					#  croak $vline if $line=~/catn13/;
-                     ( $Sf,  $info ) = __parse_f95_decl( $stref, $f, $Sf, $indent, $vline, {'Dimension' => 1});
+                     ( $Sf,  $info ) = __parse_f95_decl( $stref, $f, $Sf, $indent, $vline, {
+						 'Dimension' => 1,
+						 'SpecificationStatement' =>1
+						 });
 					 
 					 $Sf->{'DeclCount'}{$varname}{'Dimension'}=1;
 
@@ -2235,11 +2238,11 @@ sub _parse_subroutine_and_function_calls {
 					$info->{'SubroutineCall'}{'IsExternal'} = 1;
 					# I should add these to CalledSubs I think
 					if ( $sub_or_func_or_mod eq 'Subroutines' ) { # The current code unit is a subroutine 
-						$Sf->{'CalledSubs'}{'Set'}{$name} = 1; # mark $name a called sub in $f
+						$Sf->{'CalledSubs'}{'Set'}{$name} = [1,1]; # mark $name a called sub in $f
 						push @{ $Sf->{'CalledSubs'}{'List'} }, $name;
 					} else { # The current code unit is NOT a subroutine, which means it is a Module I guess
 					# mark $name as a called sub in $current_sub_name 
-						$Sf->{'Subroutines'}{$current_sub_name}{'CalledSubs'}{'Set'}{$name} = 1;
+						$Sf->{'Subroutines'}{$current_sub_name}{'CalledSubs'}{'Set'}{$name} = [1,1];
 						push @{ $Sf->{'Subroutines'}{$current_sub_name}{'CalledSubs'}{'List'} }, $name;
 					}					
 				}
@@ -2344,7 +2347,7 @@ sub _parse_subroutine_and_function_calls {
 				not exists $info->{'Pragmas'} and
 				not exists $info->{'Macro'} 
 				){
-			warn "UNCATEGORISED STATEMENT: $line";
+			warn "UNCATEGORISED STATEMENT: $line ".Dumper($info);
 			 }
 			$srcref->[$index] = [ $line, $info ];
 		}    # loop over all annlines
@@ -4925,7 +4928,9 @@ sub _get_var_recs_from_parse_tree { (my $tpt, my $vspt)=@_;
 			'Dim'=>$dims,
 			'ArrayOrScalar' => $array_or_scalar
 		};
-		
+		if (not defined $var_name) {
+			croak Dumper $vspt;
+		}
 		push @{$var_lst}, $var_name;
 		$var_decls->{$var_name}=$decl;
 		$dims=[];

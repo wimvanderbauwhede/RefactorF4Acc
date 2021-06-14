@@ -724,13 +724,14 @@ sub emit_f95_var_decl {
     } else {
         # Parameter        
 #        say Dumper($var_decl_rec);
+    if ($dimstr) {$dimstr.=', '}
         croak Dumper($var_decl_rec) if $DBG and not defined $val;
         my $var_val = ref($var) eq 'ARRAY' ? $var->[0] . '=' . $var->[1] :  $var.'='.$val;
         my $decl_line =
             $spaces 
           . $type  
           . $attr . ', ' 
-          . $dimstr . ', '
+          . $dimstr 
           . 'parameter' . ' :: '
           . $var_val;
 
@@ -1205,6 +1206,7 @@ sub top_src_is_module {( my $stref, my $s) = @_;
 # It does this for all sources but in practice it assumes a single source, so it might be better to pass this source name in as an arg instead 
 sub pass_wrapper_subs_in_module { (my $stref,my $module_name, my $module_pass_sequences, my $sub_pass_sequences, my @rest) = @_;
 # say "CALL to pass_wrapper_subs_in_module($module_name)";
+# local $V=1;
 	if ($module_name eq ''
     or not exists $stref->{'Modules'}{$module_name}
     ) {
@@ -1212,6 +1214,7 @@ sub pass_wrapper_subs_in_module { (my $stref,my $module_name, my $module_pass_se
 		my %is_existing_module = ();
 	    my %existing_module_name = ();
 		# croak $module_name.Dumper [ $stref->{'SourceContains'},$stref->{'Top'}, $stref->{'Program'}] ;
+        say "NOT A MODULE NAME: <$module_name>" if $V;
 		for my $src (keys %{ $stref->{'SourceContains'} } ) {		
 			
             if ($module_name eq  $stref->{'Top'}) {
@@ -1233,13 +1236,24 @@ sub pass_wrapper_subs_in_module { (my $stref,my $module_name, my $module_pass_se
 			    }
 			}
 			my $has_contains = ( $is_existing_module{$src} and exists $stref->{'Modules'}{$existing_module_name{$src}}{'Contains'}  ) ? 1 : 0;
-	
+        
 			my @subs = $is_existing_module{$src}  
                 ? $has_contains 
                     ? @{ $stref->{'Modules'}{$existing_module_name{$src}}{'Contains'} } 
                     : ()  
-                :  grep {$_ ne 'UNKNOWN_SRC' } sort keys %{ $stref->{'Subroutines'} };
+                :  grep {$_ ne 'UNKNOWN_SRC' and (
+                $_ eq $module_name or
+                exists $stref->{'Subroutines'}{$module_name}{'CalledSubs'}{'Set'}{$_}
+                 ) } sort keys %{ $stref->{'Subroutines'} };
             # my $pass_ctr = 1;
+            # for my $sub (@subs) {
+            #     if  (exists $stref->{'Subroutines'}{$module_name}{'CalledSubs'}{'Set'}{$sub}) {
+            #         say "SUB $sub is CALLED in $module_name";
+            #     } else {
+            #         say "SUB $sub is NOT CALLED in $module_name";
+            #     }
+            # }
+            # die;
 			for my $pass_sequence (@{$sub_pass_sequences}) {	
 				for my $f ( @subs ) {
                     # my $pass_sub_ctr = 1;
@@ -1281,6 +1295,7 @@ sub pass_wrapper_subs_in_module { (my $stref,my $module_name, my $module_pass_se
                     for my $sub_from_module (@{$subs_from_module}) {
                         # If this sub is called in the parent module, then we need it
                         if (exists $stref->{'Subroutines'}{$sub}{'CalledSubs'}{'Set'}{$sub_from_module}) {
+                            say "ADDED $sub_from_module from module $used_module" if $V;
                             push @subs_from_modules, $sub_from_module;
                         }
                     }

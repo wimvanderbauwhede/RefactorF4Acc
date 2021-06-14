@@ -123,6 +123,7 @@ sub _inline_subroutine { (my $stref, my $f, my $sub, my $is_child) = @_;
 	        say "SUB $sub in $f is LEAF, OK to inline, is_child=$is_child" if $V; 
             $stref = _inline_call( $stref, $f, $sub, $is_child);
             # Update CalledSubs
+            # carp Dumper $stref->{'Subroutines'}{$f}{'CalledSubs'};
             $stref->{'Subroutines'}{$f}{'CalledSubs'}{'Set'}{$sub}[1]--;
             if ( $stref->{'Subroutines'}{$f}{'CalledSubs'}{'Set'}{$sub}[1] == 0 ) {
                 delete $stref->{'Subroutines'}{$f}{'CalledSubs'}{'Set'}{$sub};
@@ -274,7 +275,9 @@ sub __merge_specification_computation_parts_into_caller { (my $stref, my $f, my 
                 }
             }
             elsif (exists $info->{'ParamDecl'}) {
-                my $par_name = $info->{'ParamDecl'}{'Name'}[0];
+                my $par_name = ref($info->{'ParamDecl'}{'Name'}) eq 'ARRAY'
+                ? $info->{'ParamDecl'}{'Name'}[0]
+                : $info->{'ParamDecl'}{'Name'};
                 my $subset = in_nested_set($Sf,'Vars', $par_name);
                 if ($subset) {
                     $info->{'Deleted'}=1;
@@ -415,7 +418,11 @@ sub __merge_specification_computation_parts_into_caller { (my $stref, my $f, my 
                     $info->{'Use'}{'Only'}=[@updated_only_list];
                     my $updated_line = $info->{'Indent'}.'use '.$info->{'Use'}{'Name'}
                     . ($Config{'NO_ONLY'} ?  '!' : '') .
-                    ', only: '.join(', ',@updated_only_list);
+                    (scalar @updated_only_list > 0
+                        ? ', only: '.join(', ',@updated_only_list)
+                        : ''
+                    );
+                    
                     $updated_use_annline = [$updated_line,$info];
                 } else {
                     push @{$remaining_use_part}, $use_annline;
@@ -574,13 +581,19 @@ sub __rename_vars {
                 $info->{'ParamDecl'}{'OrigName'}=$par;
                 $info->{'ParamDecl'}{'Name'}=$qpar;
             } else {
-                my $par = $info->{'ParamDecl'}{'Name'}[0]; 
+                my $par = ref($info->{'ParamDecl'}{'Name'}) eq 'ARRAY'
+                ? $info->{'ParamDecl'}{'Name'}[0] 
+                : $info->{'ParamDecl'}{'Name'}; 
                 my $qpar = __create_new_name($par,$f);
                 $line =~ s/\b$par\b/$qpar/g;
                 $renamed_vars->{$par}=$qpar;
 
                 $info->{'ParamDecl'}{'OrigName'}=$par;
-                $info->{'ParamDecl'}{'Name'}[0]=$qpar;
+                if (ref($info->{'ParamDecl'}{'Name'}) eq 'ARRAY') {
+                    $info->{'ParamDecl'}{'Name'}[0]=$qpar;
+                } else {
+                    $info->{'ParamDecl'}{'Name'}=$qpar;
+                }
 
             }
         }
@@ -816,6 +829,7 @@ sub __update_caller_inlined_vardecls { my ($stref,$f,$sub,$specification_part) =
     for my $annline (@{$specification_part}) {        
         my ($line,$info) = @{$annline};
         next if exists $info->{'Comments'};
+        next if exists $info->{'Blank'};
         # say "$sub in $f:". Dumper $info;
         my ($qvar, $is_param) = exists $info->{'VarDecl'} 
             ? ($info->{'VarDecl'}{'Name'},0)
@@ -823,7 +837,9 @@ sub __update_caller_inlined_vardecls { my ($stref,$f,$sub,$specification_part) =
             ? exists $info->{'ParamDecl'}{'Var'}
                 ? ($info->{'ParamDecl'}{'Var'},1)
                 : exists $info->{'ParamDecl'}{'Name'}
-                    ? ($info->{'ParamDecl'}{'Name'}[0],1)
+                    ? ref($info->{'ParamDecl'}{'Name'}) eq 'ARRAY'
+                        ?($info->{'ParamDecl'}{'Name'}[0],1)
+                        : ($info->{'ParamDecl'}{'Name'},1)
                     : croak "Specification line is not a variable declaration: ". Dumper($annline)
             : croak "Specification line is not a variable declaration: ". Dumper($annline);
         my $subset = in_nested_set($stref->{'Subroutines'}{$sub},'Vars',$qvar);

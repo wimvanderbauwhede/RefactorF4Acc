@@ -1343,10 +1343,12 @@ generateMainProgramOrSuperkernel genModule functionSignatures ast_stages  =
                                 -- ,map ( ("!    "++) . show ) uniqueGeneratedDecls
                                 ,[
                                     "    integer :: idx",
-                                    "    call get_global_id(idx,0)"
+                                    "    call get_global_id(idx,0)",
+                                    "!$RF4A Begin Inline"
                                  ]
                                 ,generatedStmts
                                 ,[
+                                    "!$RF4A End Inline",
                                     "end subroutine stage_kernel_"++show ct
                                  ]
                             ]

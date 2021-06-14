@@ -400,7 +400,7 @@ sub __update_caller_datastructures {
         }
     } # for each block
     $stref->{'Subroutines'}{$f}{'CalledSubs'}{'List'}=[@called_subs];
-    $stref->{'Subroutines'}{$f}{'CalledSubs'}{'Set'} = { map { $_ => 1} @called_subs };
+    $stref->{'Subroutines'}{$f}{'CalledSubs'}{'Set'} = { map { $_ => [1,1]} @called_subs };
     $stref->{'CallTree'}{$f}=[@{$stref->{'Subroutines'}{$f}{'CalledSubs'}{'List'}}];
     return $stref;
 }    # END of __update_caller_datastructures()

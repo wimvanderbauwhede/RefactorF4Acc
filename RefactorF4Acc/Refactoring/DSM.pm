@@ -324,7 +324,7 @@ sub refactor_dsm { my ( $stref, $f ) = @_;
                 # I should add these to CalledSubs I think
                 # TODO!
                 # if ( $sub_or_func_or_mod eq 'Subroutines' ) { # The current code unit is a subroutine 
-                    $Sf->{'CalledSubs'}{'Set'}{$name} = 1; # mark $name a called sub in $f
+                    $Sf->{'CalledSubs'}{'Set'}{$name} = [1,1]; # mark $name a called sub in $f
                     push @{ $Sf->{'CalledSubs'}{'List'} }, $name;
                 # } else { # The current code unit is NOT a subroutine, which means it is a Module I guess
                 # # mark $name as a called sub in $current_sub_name 
