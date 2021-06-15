@@ -442,7 +442,7 @@ sub emit_AnnLines {
         }
         elsif ( exists $info->{'Use'} ) {
             my $module_name = $info->{'Use'}{'Name'};
-            my $only_list   = $info->{'Use'}{'Only'};
+            my $only_list   = $info->{'Use'}{'Only'} // [];
             my $maybe_only =
               scalar @{$only_list}
               ? ', only : ' . join( ', ', @{$only_list} )
@@ -515,12 +515,21 @@ sub emit_AnnLines {
         }
 #== VARIABLE AND PARAMETER DECLARATION        
         elsif ( exists $info->{'ParsedVarDecl'} ) {
+            if (exists $info->{'ArgDecl'}) {
+                my $var_name = $info->{'VarDecl'}{'Name'};
+                my $subset = in_nested_set( $Sf, 'Args', $var_name );
+                my $decl = get_var_record_from_set($Sf->{$subset},$var_name);
+                my $var_decl_str =
+                  emit_f95_var_decl( $decl );
 
+                $rline = $indent . $var_decl_str;
+            } else {
             # TODO EMIT  $info->{'ParsedVarDecl'};
-            my $var_decl_str =
-              emit_f95_parsed_var_decl( $info->{'ParsedVarDecl'} );
+                my $var_decl_str =
+                emit_f95_parsed_var_decl( $info->{'ParsedVarDecl'} );
 
-            $rline = $indent . $var_decl_str;
+                $rline = $indent . $var_decl_str;
+            }
         }
         elsif ( exists $info->{'ParamDecl'} ) {
 
@@ -545,6 +554,7 @@ sub emit_AnnLines {
             # 	'Expressions' => [ $range_start, $range_stop, $range_step ],
             # 	'Vars'        => $mvars
             # },
+            # carp 'DO LINE:'.$line.' =>'. Dumper $info->{'Do'};
             my $iter = $info->{'Do'}{'Iterator'};
             my $label =
                 exists $info->{'Do'}{'Label'}
@@ -601,13 +611,16 @@ sub emit_AnnLines {
         elsif ( exists $info->{'IfThen'} ) {
             my $ast           = $info->{'Cond'}{'AST'};
             my $cond_expr_str = emit_expr_from_ast($ast);
+            
+
+        
+        if ( exists $info->{'ElseIf'} ) {
+
+            my $ast = $info->{'Cond'}{'AST'};
+            $rline = $indent . 'else if ( ' . $cond_expr_str . ' ) then';
+        } else {
             $rline = $indent . 'if ( ' . $cond_expr_str . ' ) then';
-
         }
-        elsif ( exists $info->{'ElseIf'} ) {
-
-            my $ast = $info->{'Cond'}{'AST'}
-
 #== BACKSPACE, ENDFILE statements
         }
         elsif ( exists $info->{'IO'} ) {
@@ -717,10 +730,11 @@ sub emit_AnnLines {
         "pass_emit_RefactoredCode($f) " . __LINE__ );
 
     # if ($f=~/test_loop/) {
-    map { say $_} @{ pp_annlines( $new_annlines ) };
+    # map { say $_} @{ pp_annlines( $new_annlines ) };
 
     # die;
     # }
+    $Sf->{'RefactoredCode'}=$new_annlines;
     return $stref;
 
 } # END of emit_AnnLines

@@ -77,7 +77,7 @@ sub analyse_variables {
 			# -------------------------------------------------------------------------------------------------------------------
 			
 			for my $mvar (@chunks) { 
-				# say "<$mvar>";
+				croak "<$mvar>".Dumper(@chunks).Dumper($info) if $mvar eq 'and';
                 next if exists $stref->{'Subroutines'}{$f}{'CalledSubs'}{'Set'}{$mvar};    # Means it's a function
 				next if $mvar =~ /^\d+$/;
 				next if not defined $mvar or $mvar eq '';
@@ -288,7 +288,7 @@ sub analyse_variables {
 					}
 				} else {
 					say "INFO: $f : $mvar ALREADY DECLARED in $in_vars_subset" if $I ;					
-					say "analyse_variables($f) " . __LINE__ . " : $mvar ALREADY DECLARED in $in_vars_subset:\n" . Dumper( $Sf->{$in_vars_subset}{'Set'}{$mvar} ) if $DBG;
+#say "analyse_variables($f) " . __LINE__ . " : $mvar ALREADY DECLARED in $in_vars_subset:\n" . Dumper( $Sf->{$in_vars_subset}{'Set'}{$mvar} ) if $DBG;
 					for my $inc ( keys %{ $Sf->{'Includes'} } ) {
 							say "LOOKING FOR $mvar from $f in $inc" if $DBG;
 							# A variable can be declared in an include file or not and can be listed as common or not
@@ -404,7 +404,7 @@ sub identify_vars_on_line {
 			
 			my @chunks = ();
 			if ( exists $info->{'If'} or exists $info->{'ElseIf'} ) {
-				@chunks = @{ $info->{'Cond'}{'Vars'}{'List'} };
+				@chunks = @{ $info->{'Cond'}{'Vars'}{'List'} };				
 			}
 			if (   exists $info->{'PrintCall'}
 				or exists $info->{'WriteCall'}
@@ -456,7 +456,8 @@ sub identify_vars_on_line {
 			}	 elsif ( exists $info->{'Data'} 
 			or exists $info->{'Equivalence'} ) {
 				@chunks = ( @chunks, @{ $info->{'Vars'}{'List'} } );
-			} else {
+			} elsif ( not exists $info->{'IfThen'} ) {
+				 
 				# carp "HERE FOR IF ... GOTO $line" if $line=~/go\sto/;
 				# $line=~s/go\s+to/goto/; # WV: HACK, should normalise this much earlier!
 				my @mchunks = split( /\W+/, $line );

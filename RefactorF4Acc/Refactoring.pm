@@ -80,6 +80,7 @@ sub refactor_all {
     	say "eval_param_expressions_all" if $V;    
 		$stref = eval_param_expressions_all($stref);
 	}
+    $stref = fold_constants_all($stref) ;
     # Inlining 
     $stref = inline_subroutines($stref) ;
 
@@ -90,7 +91,7 @@ sub refactor_all {
 
 	# $stref = fold_constants_all($stref) ;
 	# $stref = refactor_dsm_all($stref) ;
-    # croak Dumper pp_annlines($stref->{'Subroutines'}{'press'}{'AnnLines'});
+    # croak ;#Dumper pp_annlines($stref->{'Subroutines'}{'sor_main'}{'RefactoredCode'});
     # Custom refactoring, must be done before creating final modules
     say "add_module_decls" if $V;
     $stref=add_module_decls($stref);

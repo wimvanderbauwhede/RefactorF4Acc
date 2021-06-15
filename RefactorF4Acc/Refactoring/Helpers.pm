@@ -372,7 +372,7 @@ sub get_f95_var_decl {
             # $array_or_scalar = $decl->{'ArrayOrScalar'};           
 
     } elsif ( defined $f and defined $stref and defined $var ) {   
-        croak "WARNING: VAR $var declared via IMPLICITS in get_f95_var_decl()!" if $DBG and $var eq 'mod';
+        croak "WARNING: VAR $var declared via IMPLICITS in get_f95_var_decl()!" if $DBG and $var eq 'and';
         warning("VAR $var declared via IMPLICITS in get_f95_var_decl()",$WW);
         ( $type, my $kind, $attr ) = type_via_implicits( $stref, $f, $var );
         return {
@@ -1136,7 +1136,6 @@ sub stateless_pass_reverse {
 
 
 sub emit_f95_parsed_var_decl { (my $pvd) =@_;
-# carp Dumper $pvd;
     my $type= $pvd->{'TypeTup'}{'Type'} . (exists $pvd->{'TypeTup'}{'Kind'} ?  '( '.$pvd->{'TypeTup'}{'Kind'}.')' : '');
     
     my  @attrs=($type); 

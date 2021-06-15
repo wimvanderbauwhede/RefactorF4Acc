@@ -356,11 +356,13 @@ sub parse_args { (my $args)=@_;
             $Config{$k} = $cfgrc->{$k};
         }
     } else {
+        if (!$opts{'s'}) {
         if (not -e $cfgrc) {
             say "There is not configuration file, let's create one.\n";
             interactive_create_rf4a_cfg();
         } else {
             read_rf4a_config($cfgrc);
+        }
         }
     }
 

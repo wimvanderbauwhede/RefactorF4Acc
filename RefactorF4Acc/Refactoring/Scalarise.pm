@@ -87,11 +87,8 @@ sub pass_rename_array_accesses_to_scalars {
             [
                 sub {
                     ( my $stref, my $f ) = @_;
-
                     alias_ordered_set( $stref, $f, 'RefactoredArgs',
                         'DeclaredOrigArgs' );
-
-         #    carp Dumper $stref->{Subroutines}{$f}{'DeclaredOrigArgs'}{'List'};
                 }
             ],
 
@@ -199,7 +196,7 @@ sub _rename_array_accesses_to_scalars {
         $stref->{'TyTraLlvmArgTuples'} = {};
 
 # 1. This pass performs renaming in assignments and conditional expressions of IFs
-# TODO: It does _not_ rename
+# It does _not_ rename
 # 	* subroutine call arguments (because there should not be any)
 # 	* SELECT CASE arguments (I'm lazy, FIXME!)
 # 	* DO index range expressions (I'm lazy, FIXME!)
@@ -232,8 +229,6 @@ sub _rename_array_accesses_to_scalars {
                     $info->{'Rhs'}{'ExpressionAST'} = $ast;
                     if ( ref($ast) ne '' ) {
                         my $vars = get_vars_from_expression( $ast, {} );
-
-                        #				croak "CARP:".Dumper($vars);
                         $info->{'Rhs'}{'Vars'}{'Set'} = $vars;
                         $info->{'Rhs'}{'Vars'}{'List'} =
                           [ grep { $_ ne 'IndexVars' } sort keys %{$vars} ];
@@ -242,7 +237,6 @@ sub _rename_array_accesses_to_scalars {
                         $info->{'Rhs'}{'Vars'} = { 'List' => [], 'Set' => {} };
                     }
 
-       #  croak Dumper $info->{'Rhs'}{'ExpressionAST'} if $line=~/acc\s+\+\s+v/;
                 }
                 if ( $info->{'Lhs'}{'ArrayOrScalar'} eq 'Array' ) {
 
@@ -835,9 +829,8 @@ sub _rename_array_accesses_to_scalars {
 sub _rename_array_accesses_to_scalars_in_subcalls {
     ( my $stref, my $f ) = @_;
 
-    # carp $f.': '.Dumper( $stref->{'Subroutines'}{$f}{'DeclaredOrigArgs'});
-    # carp $f.Dumper $stref->{'Subroutines'}{'f'}{'DeclaredOrigArgs'};
     if ( $f eq $Config{'KERNEL'} ) {
+
         my $pass_action = sub {
             ( my $annline, my $state ) = @_;
             ( my $line,    my $info )  = @{$annline};
@@ -1219,6 +1212,7 @@ sub _scalarise_array_accesses_in_ast {
                     {
                         # carp 'Found array access '.$mvar  ;
                         my $expr_str = emit_expr_from_ast($ast);
+                        # croak 'Found array access '.$mvar .':' .Dumper($expr_str);
                         my $var_str  = $expr_str;
 
                         # TODO: I should use tr// here

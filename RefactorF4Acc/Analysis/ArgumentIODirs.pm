@@ -557,7 +557,7 @@ sub _analyse_src_for_iodirs {
                         next;
                     }
                     else {    # not an assignment, do as before
-                        say "NON-ASSIGNMENT LINE: $line in $f" if $DBG;
+#say "NON-ASSIGNMENT LINE: $line in $f" if $DBG;
                         _find_vars_w_iodir($line, $args, \&_set_iodir_read);
                     }
                 }

@@ -54,7 +54,9 @@ use Exporter;
 &eval_expression_with_parameters 
 &replace_param_by_val
 &replace_consts_in_ast
+&replace_consts_in_ast_no_iters
 &fold_constants_in_expr
+&fold_constants_in_expr_no_iters
 );
 
 
@@ -62,7 +64,7 @@ use Exporter;
 # Apply to RHS of assignments
 sub replace_consts_in_ast { (my $stref, my $f, my $block_id, my $ast, my $state, my $const)=@_;
 	my $retval=0;
-	# say Dumper($ast);
+	# say "AST in replace_consts_in_ast:".Dumper($ast);
 	if (ref($ast) eq 'ARRAY') {
 		# But retval for arrays should only be 0 if it is 0 for every element!
 		# So we need to sum them!
@@ -78,8 +80,9 @@ sub replace_consts_in_ast { (my $stref, my $f, my $block_id, my $ast, my $state,
 			} else {
 				if ($idx==0 and (($entry & 0xFF) == 2)) { #eq '$'
 					my $mvar = $ast->[$idx+1];
-					
-					# say "MVAR: $mvar in $f";
+					# carp "VAR $mvar $block_id";
+					# If $mvar is a loop iterator for a loop nest with ID $block_id,
+					# we replace it with a constant value, this is to estimate bounds
 					if (exists $state->{$block_id}{'LoopIters'}{ $mvar }) { 
 						$ast= ref($const) eq 'ARRAY' ? $const : ''.$const.'';
 						# $ast->[$idx+1] =  ''.$const.'';
@@ -133,6 +136,46 @@ sub replace_consts_in_ast { (my $stref, my $f, my $block_id, my $ast, my $state,
 	return  ($ast, $retval);
 } # END of replace_consts_in_ast()
 
+sub replace_consts_in_ast_no_iters { my ($stref, $f, $ast, $state)=@_;
+	my $retval=0;
+	# say "AST in replace_consts_in_ast:".Dumper($ast);
+	if (ref($ast) eq 'ARRAY') {
+		# But retval for arrays should only be 0 if it is 0 for every element!
+		# So we need to sum them!
+		for my  $idx (0 .. scalar @{$ast}-1) {			
+			my $entry = $ast->[$idx];
+			if (ref($entry) eq 'ARRAY') {
+				(my $entry2, my $retval2) = replace_consts_in_ast_no_iters($stref,$f, $entry, $state);
+				$retval+=$retval2;
+				$ast->[$idx] = $entry2;
+			} else {
+				if ($idx==0 and (($entry & 0xFF) == 2)) { #eq '$'
+					my $mvar = $ast->[$idx+1];
+					# carp "MVAR $mvar : ".in_nested_set($stref->{'Subroutines'}{$f},'Parameters',$mvar);
+					if (in_nested_set($stref->{'Subroutines'}{$f},'Parameters',$mvar)) {
+						my $param_set = in_nested_set($stref->{'Subroutines'}{$f},'Parameters',$mvar);
+						
+		  				my $decl = get_var_record_from_set( $stref->{'Subroutines'}{$f}{'Parameters'},$mvar);
+		  				#The value could be an expression in terms of other parameters
+		  				my $val = $decl->{'Val'};
+		  				$ast = parse_expression($val, {},$stref,$f);
+		  				return ($ast,1);
+					# } elsif (in_nested_set($stref->{'Subroutines'}{$f},'Args',$mvar)) {
+					# 	carp "ARG $mvar";
+					# 		my $maybe_evaled_ast = _try_to_eval_arg($stref, $f, $mvar);
+					# 	return ($maybe_evaled_ast,1);
+					} else {
+						# carp "AST: ".Dumper($ast);
+						return ($ast,1);
+					}
+				}
+			}
+		}
+	} 
+
+	return  ($ast, $retval);
+
+} # END of replace_consts_in_ast_no_iters
 
 # Constant folding
 # replace_param_by_val ::  StRef -> SubName -> BlockID -> AST -> State -> AST
@@ -177,9 +220,31 @@ sub fold_constants_in_expr { (my $stref, my $f, my $block_id, my $ast)=@_;
 	return $ast;
 } # END of fold_constants_in_expr()
 
+sub fold_constants_in_expr_no_iters { my ($stref, $f, $ast, $info)=@_;
+  		# - see if $val contains vars
+  		my $vars=get_vars_from_expression($ast,{}) ;
+  		# - if so, substitute them using replace_consts_in_ast
+		# we should stop when it does not change anymore
+		my $prev_vars_str='';
+		my $vars_str=join('',sort keys %{$vars});
+  		while (
+			  $prev_vars_str ne $vars_str
+  		) {
+			  $prev_vars_str=$vars_str;
+			($ast, my $retval) = replace_consts_in_ast_no_iters($stref, $f, $ast, $info);
+			last if $retval == 0;
+			# - check if the result is var-free, else repeat
+			$vars=get_vars_from_expression($ast,{}) ;
+			$vars_str = join('',sort keys %{$vars});
+
+  		}
+  		# - return to be eval'ed
+	return $ast;
+
+} # END of fold_constants_in_expr_no_iters
 
 sub eval_expression_with_parameters { (my $expr_str,my $info, my $stref, my $f) = @_;
-
+	# say "EXPR STR $expr_str";
     my $expr_ast=parse_expression($expr_str,$info, $stref,$f);
 #    say Dumper($expr_ast);
     my $expr_ast2 = replace_param_by_val($stref, $f, 0,$expr_ast, {});
@@ -196,7 +261,7 @@ sub eval_expression_with_parameters { (my $expr_str,my $info, my $stref, my $f) 
 # This routine attempts to evaluate arguments by following them to the caller, 
 # but in a very limited way.
 sub _try_to_eval_arg { my ($stref,$f,$arg)=@_;
-warn "\nSUB $f ARG: $arg TRY CALLER\n";
+# warn "\nSUB $f ARG: $arg TRY CALLER\n";
 	# Get the caller and the ID of the line with the call in $f
 	my $caller; my $line_id;
 	for my $k (keys %{$stref->{'Subroutines'}{$f}{'Callers'} }) {
@@ -206,6 +271,7 @@ warn "\nSUB $f ARG: $arg TRY CALLER\n";
 	};
 
 	# Find the call to $f in $caller	
+	# say "Find the call to $f in $caller	";
 	my $pass_find_call= sub { my ($annline, $call_info)=@_;
 		(my $line,my $info)=@{$annline};		
 		my $new_annlines = [$annline];
@@ -322,13 +388,13 @@ sub _try_to_eval_via_vars  {my ($stref, $f, $var) = @_;
 			my $subset = in_nested_set( $stref->{'Subroutines'}{$f}, 'Args', $var );
 			
 			if ($subset) {
-				my $result_expr = _try_to_eval_arg($stref,$f,$var);
+				my $result_expr = _try_to_eval_arg($stref,$f,$var);				
 				return $result_expr;
 			} else {
 				if ($DBG) {
 				croak "Sorry, can\'t evaluate $var in $f, giving up.";
 				} else {
-					return [];
+					return [];#[2,$var];
 				}
 			}
 		}

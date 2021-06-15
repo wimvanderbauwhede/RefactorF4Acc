@@ -3,7 +3,9 @@
 
 ## 2021-06-14
 
-Lots of issues have cropped up with Autoparallel-Fortran, all related to wrong handling of parameters in stencils. 
+* Lots of issues have cropped up with Autoparallel-Fortran, all related to wrong handling of parameters in stencils. 
+* Also I should now get rid of the Dimension(1) :: *_ptr approach, it is obsolete.
+
 I guess I should run a constant folding step first before running that compiler.
 
 The inliner is still buggy too: 

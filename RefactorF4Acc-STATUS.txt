@@ -41,6 +41,13 @@ TO RELEASE
   $ git push --delete origin v2.1.0
   $ git push origin v2.1.0
 
+STATUS 2021-06-15
+* FIXME: $info->{'ParsedParDecl'}{'Pars'}{'Val'} seems to drop anything after a decimal point!
+* TODO: The inliner seems to work all right but the renamed variables are causing problems later on because I have not renamed them everywhere in all data structures.
+* TODO: Something that really needs rationalising is the variable declaration format. Currently, there is VarDecl, ParamDecl, ParsedVarDecl, ParsedParDecl, but to make it worse the latter sometimes have Name => [$par_name,$val] and sometimes Name => $par_name, Val => $val. 
+I see no good reason to keep anything but VarDecl in $info, with an extra Boolean tag ArgDecl or ParamDecl; VarDecl will have Name and Val, and maybe Parameter as attribute. Furthermore, Dim should be an AST.
+
+
 STATUS 2021-06-11
 There was an issue with DeclCount which counts across passes, leading to declarations being deleted. I changed it to a hash. I extended this to a lot of F95 attributes that can in principle be on a separate line.
 

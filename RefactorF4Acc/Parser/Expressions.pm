@@ -722,7 +722,7 @@ sub parse_expression_no_context { (my $str)=@_;
             # Here we return with an error value
             # What I could do is say:
             # if the next token is ':' or the pending op is ':' (12)
-            # carp "STR:<$str>" if not defined $op;
+            carp "STR:<$str>" if not defined $op;
             if($str=~/^\s*:/ or $op == 12) {
                 # Return a blank
                 $expr_ast=[35,'']

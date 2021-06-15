@@ -304,6 +304,7 @@ sub identify_array_accesses_in_exprs { (my $stref, my $f) = @_;
 					
 				# Find all array accesses in the LHS and RHS AST.					
 				# carp 'BLOCK: '.$block_id.';'.Dumper($state->{'Subroutines'}{ $f }{'Blocks'});#{$block_id});
+				# say "LINE: $line";
 				(my $lhs_ast, $state, my $lhs_accesses) = _find_var_access_in_ast($stref, $f, $block_id, $state, $info->{'Lhs'}{'ExpressionAST'},'Write',{});
 				(my $rhs_ast, $state, my $rhs_accesses) = _find_var_access_in_ast($stref, $f, $block_id, $state, $info->{'Rhs'}{'ExpressionAST'},'Read',{});
 				$info->{'Rhs'}{'VarAccesses'}=$rhs_accesses;
@@ -416,9 +417,9 @@ sub identify_array_accesses_in_exprs { (my $stref, my $f) = @_;
 		
 		my $state = {'CurrentSub'=>'', 'CurrentBlock'=>0,'Subroutines'=>{}};
 		$state->{'Subroutines'}{$f}{'Blocks'} = $stref->{'Subroutines'}{ $f }{'ArrayAccesses'};
-		# carp Dumper $state->{'Subroutines'}{$f}{'Blocks'};
+		
 	 	($stref,$state) = stateful_pass_inplace($stref,$f,$pass_identify_array_accesses_in_exprs, $state,'pass_identify_array_accesses_in_exprs ' . __LINE__  ) ;
-	 	
+	 	# croak "SUB $f:".Dumper $state->{'Subroutines'}{$f}{'Blocks'};
 	 	$stref = _collect_dependencies_for_halo_access($stref,$f);
 # croak Dumper $state;
 		$state = _link_writes_to_reads( $stref, $f, $state);
@@ -484,6 +485,7 @@ v => { i => {offset, used}, j => ... }
 # FIXME: I think this does not deal with constant accesses
 sub _find_var_access_in_ast { (my $stref, my $f,  my $block_id, my $state, my $ast, my $rw, my $accesses)=@_;
     if (ref($ast) eq 'ARRAY') {
+		# carp "AST:".Dumper $ast;
 		for my  $idx (0 .. scalar @{$ast}-1) {
 			my $entry = $ast->[$idx];
 
@@ -504,18 +506,27 @@ sub _find_var_access_in_ast { (my $stref, my $f,  my $block_id, my $state, my $a
 					# First we compute the offset
 #						say "OFFSET";
 					my $ast0 = dclone($ast);
+					
 # carp $f,Dumper( $state->{'Subroutines'}{ $f }{'Blocks'}{'0'});
 					($ast0, my $retval ) = replace_consts_in_ast($stref,$f,$block_id,$ast0, $state->{'Subroutines'}{ $f }{'Blocks'},0);
-					
+					carp "AST0:".Dumper $ast0;
 					my @ast_a0 = @{$ast0};
 					
 					my @idx_args0 = @ast_a0[2 .. $#ast_a0];
-					
+					carp "IDX_ARGS:".Dumper @idx_args0;
 					my @ast_exprs0 = map { emit_expr_from_ast($_) } @idx_args0;
-					# carp Dumper @ast_exprs0;
+					carp Dumper @ast_exprs0;
+					
 					my @offset_vals = map { eval($_) } @ast_exprs0;
-					# carp Dumper @offset_vals;
-					# carp Dumper @offset_vals;
+					# If the accesses were not constants, we need some hack
+					# if (scalar @offset_vals == 0) {
+					# 	if ($idx_args0[0][0]==27) {
+					# 		@offset_vals = map {0} (2 .. scalar @{$idx_args0[0]} );
+					# 	} else {
+					# 		@offset_vals=(0);
+					# 	}						
+					# }
+					# carp "OFFSETS:<".Dumper(@offset_vals).'>';
 					# Then we compute the multipliers (for proper stencils these are 1 but for the more general case e.g. copying a plane of a cube it can be different.
 #						say "MULT";
 					my $ast1 = dclone($ast);
@@ -525,8 +536,16 @@ sub _find_var_access_in_ast { (my $stref, my $f,  my $block_id, my $state, my $a
 					my @idx_args1 = @ast_a1[2 .. $#ast_a1];
 					my @ast_exprs1 = map { emit_expr_from_ast($_) } @idx_args1;
 					my @mult_vals = map { eval($_) } @ast_exprs1;
+					# carp 'MULT:'. Dumper(@ast_exprs1);
+					# if (scalar @mult_vals == 0) {
+					# 	if ($idx_args1[0][0]==27) {
+					# 		@mult_vals = map {1} (2 .. scalar @{$idx_args1[0]} );
+					# 	} else {
+					# 		@mult_vals=(1);
+					# 	}						
+					# }					
 					my @iters = @{$state->{'Subroutines'}{ $f }{'Blocks'}{ $block_id }{'Arrays'}{$array_var}{$rw}{'Iterators'}};
-					# say "502 OFFSET_VALS", @offset_vals;
+					say "529 OFFSET_VALS", Dumper(@offset_vals);
 					my $iter_val_pairs=[];
 					for my $idx (0 .. @iters-1) {
 						# say "IDX: $idx";
@@ -534,7 +553,7 @@ sub _find_var_access_in_ast { (my $stref, my $f,  my $block_id, my $state, my $a
 						# say $f;
 						if (not defined $offset_val) {
 							# The problem here is that these variables i_range, i_rel have been removed so can't find any iters!
-							say Dumper pp_annlines($stref->{'Subroutines'}{$f}{'RefactoredCode'});
+							# say Dumper pp_annlines($stref->{'Subroutines'}{$f}{'RefactoredCode'});
 						croak $f;#."\n".Dumper $state->{'Subroutines'}{ $f }{'Blocks'}{ $block_id } ;
 						}
 						my $mult_val=$mult_vals[$idx]-$offset_val;
@@ -667,11 +686,10 @@ Alternatively I could of course rely on the kernel name, they have 'map' or 'red
 sub _link_writes_to_reads {(my $stref, my $f, my $state)=@_;
 
     for my $block_id (sort keys %{ $state->{'Subroutines'}{$f}{'Blocks'} }) {
-        #        next if $block_id eq 'LoopNests';
 		my $links={};
 		my $assignments = $state->{'Subroutines'}{$f}{'Blocks'}{$block_id}{'Assignments'};
 		# So we have to establish the link for every variable that is a multi-dim (effectively 3-D) array argument
-		for my $some_var ( sort keys %{ $assignments }  ) {
+		for my $some_var ( sort keys %{ $assignments }  ) {			
 			# WV 2021-05-19 FIXME: should I use the Deps from the LoopIter analysis?
 			next if $Config{'KERNEL'} ne '' and $some_var=~/_rel|_range/;
 			$links = _link_writes_to_reads_rec($stref, $f, $block_id, $some_var,$assignments,$links,$state);
@@ -702,11 +720,12 @@ sub _link_writes_to_reads {(my $stref, my $f, my $state)=@_;
 } # END of _link_writes_to_reads()
 
 sub _link_writes_to_reads_rec {my ($stref, $f, $block_id, $some_var, $assignments, $links, $state)=@_;
-# carp "$f VAR: $some_var";# . Dumper($stref->{'Subroutines'}{$f}{'Vars'});
-
- 		my $decl = get_var_record_from_set( $stref->{'Subroutines'}{$f}{'Vars'},$some_var);
-		#  croak Dumper ($f, $block_id, $some_var, $assignments, $links, $state) if not defined $decl;
-		# carp "DECL:<".Dumper( $decl->{'Dim'}).'>';
+# warn "$f VAR: $some_var";# . Dumper($stref->{'Subroutines'}{$f}{'Vars'});
+		my $subset = in_nested_set($stref->{'Subroutines'}{$f},'Vars',$some_var);
+		my $subset_p = in_nested_set($stref->{'Subroutines'}{$f},'Parameters',$some_var);
+ 		my $decl = get_var_record_from_set( $stref->{'Subroutines'}{$f}{$subset},$some_var);
+		 croak "VAR $some_var in $f (block $block_id) : <$subset_p>".Dumper( $links) if not $subset;
+		# carp "$some_var DECL:<".Dumper( $decl->{'Dim'}).'>';
 		my $lhs_dim = scalar @{ $decl->{'Dim'} };
 		if (exists $assignments->{$some_var} ) {
 			my $rhs_array = $assignments->{$some_var};
@@ -1328,7 +1347,7 @@ sub _identify_boundary_accesss { my ($state, $f) = @_;
                                    my ($pos, $mult_offset_iter_pos) = @{ $rhs_non_const_access};
                                    my ($mult,$offset, $iter_pos) = @{$mult_offset_iter_pos};
                                    my ($iter,$pos_) = split(/:/,$iter_pos);
-                                  say "iter $iter at pos $pos with mult $mult and offset $offset";
+                                  warn "iter $iter at pos $pos with mult $mult and offset $offset";
                                   #$boundary_accesss->{$block_id}{$rhs_array_var}{'NonConst'}{"$iter_pos:$mult:$offset"}=[$iter,$pos,$mult,$offset];
                                    $non_const_id .= "$iter_pos:$mult:$offset";
                                    my $non_const_rec =[$iter,$pos,$mult,$offset];

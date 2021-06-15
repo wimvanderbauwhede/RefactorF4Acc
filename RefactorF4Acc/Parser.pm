@@ -128,7 +128,7 @@ sub parse_fortran_src {
 	  $is_incl ? ( $stref->{'IncludeFiles'}{$f}{'InclType'} eq 'External' ) : 0;
 
 	say "SRC TYPE for $f: $sub_or_incl_or_mod" if $V;
-
+# say Dumper $stref->{$sub_or_incl_or_mod}{$f};	
 	if ( 
 		$sub_or_incl_or_mod ne 'ExternalSubroutines' 
 		and $stref->{$sub_or_incl_or_mod}{$f}{'Status'} != $FILE_NOT_FOUND
@@ -1436,6 +1436,7 @@ or $line=~/^character\s*\(\s*len\s*=\s*[\w\*]+\s*\)/
 
 				my $ast = parse_expression($cond,  $info,  $stref,  $f);
 				
+				
 				$info->{'Cond'}{'AST'}= $ast;
 				my $vars_in_cond_expr =  get_vars_from_expression( $ast,{});
 				# croak Dumper $vars_in_cond_expr if exists $vars_in_cond_expr->{'mod'};
@@ -1449,7 +1450,7 @@ or $line=~/^character\s*\(\s*len\s*=\s*[\w\*]+\s*\)/
 					} 
 					$vars_and_index_vars_in_cond_expr->{$var} = $vars_in_cond_expr->{$var};#{'Type'}; 						
 				}
-				# croak Dumper $vars_and_index_vars_in_cond_expr;
+				# croak Dumper $vars_and_index_vars_in_cond_expr if $line=~/\.and\./;
 #					carp($line,Dumper($vars_and_index_vars_in_cond_expr)) if $line=~/ttt/;
 				for my $macro (keys %{$Config{'Macros'}} ) {
 					delete $vars_and_index_vars_in_cond_expr->{ lc($macro) };
