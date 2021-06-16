@@ -86,7 +86,7 @@ sub _inline_subroutines_main { my ( $stref, $f ) = @_;
     my $Sf = $stref->{'Subroutines'}{$f};
     if (exists $Sf->{'SubsToInline'} ) {    
         for my $sub ( @{$Sf->{'SubsToInline'}} ) {
-            say "INLINING $sub in $f" if $V;
+            carp "INLINING $sub in $f" if $V;
             $stref = _inline_subroutine($stref,$f,$sub,0);
         }
     } 
@@ -101,6 +101,7 @@ sub _inline_subroutine { (my $stref, my $f, my $sub, my $is_child) = @_;
 #    local $V=1;
  	push @{ $stref->{'CallStack'} }, $f;
     my %subs = map {$_=>1} @{ $stref->{'CallStack'} }; 
+    
 
     if (exists $stref->{'Subroutines'}{$sub} ) {
     	my $Ssub = $stref->{'Subroutines'}{$sub};
@@ -141,9 +142,6 @@ sub _inline_subroutine { (my $stref, my $f, my $sub, my $is_child) = @_;
 # Inlining a call to $sub in $f
 sub _inline_call { my ($stref, $f, $sub, $is_child) = @_;
     my $Ssub = $stref->{'Subroutines'}{$sub};       
-    for my $annline (@{$stref->{Subroutines}{'f_comp_un_1_4'}{RefactoredCode}}) {
-        my ($line,$info) =@{$annline};
-    }
    # First rename all variables in $sub. This is safe because even with COMMON blocks, the names are not global
     ($stref, my $renamed_vars) = __rename_vars($stref, $sub);
     for my $var (sort keys %{$renamed_vars}) {
@@ -271,6 +269,7 @@ sub __merge_specification_computation_parts_into_caller { (my $stref, my $f, my 
                 my $var_name = $info->{'VarDecl'}{'Name'};
                 my $subset = in_nested_set($Sf,'Vars', $var_name);
                 if ($subset) {
+                    say "$f => $sub => $subset => Delete $var_name decl: ".$line;
                     $info->{'Deleted'}=1;
                     $line = '! '.$line;
                 }
@@ -534,6 +533,7 @@ sub __rename_vars {
         if (exists $info->{'VarDecl'}
         and not exists $info->{'ArgDecl'}
         and not exists $info->{'ParsedVarDecl'}{'Attributes'}{'Intent'}
+        and $Config{'RENAME_VARS_IN_INLINED_SUBS'}==1
         ) {
             # croak Dumper $info if exists $info->{'ParamDecl'} or exists $info->{'ParsedParDecl'};
             # say "PROBLEM: LINE:$line at ".__LINE__ if $line=~/intent/i;
@@ -574,7 +574,7 @@ sub __rename_vars {
         # WV 2021-06-08 If I would want to rename parameters.
         # Currently I don't, which means that there could be conflicts.
         # So I think I'll need a flag RENAME_PARS_IN_INLINED_SUBS in case this breaks
-        elsif ( exists $info->{'ParamDecl'}) { # This must be a LocalParameter
+        elsif ( exists $info->{'ParamDecl'} and $Config{'RENAME_PARS_IN_INLINED_SUBS'}==1) { # This must be a LocalParameter
             # warn Dumper $info;
             if (exists  $info->{'ParamDecl'}{'Var'}) {
                 my $par = $info->{'ParamDecl'}{'Var'}; 
@@ -616,13 +616,19 @@ sub __rename_vars {
                 my $subset_dbg = in_nested_set($Sf,'Vars', $var);
                 # say "$f [$line] $var: $subset_dbg" if $line=~/do/ and $var eq 'im';
                 # croak "$f $line $var ".Dumper($info) if $var eq 'v_inout' and $line=~/InOut/;
-                my $subset1 = in_nested_set($Sf,'Args', $var);
-                my $subset2 = in_nested_set($Sf,'UsedParameters', $var);
-                my $subset3 = in_nested_set($Sf,'IncludedParameters', $var);
-                if (not $subset1 ) {
-                    if (($Config{'RENAME_PARS_IN_INLINED_SUBS'} == 0 and
-                not $subset2 and not $subset3)
-                or $Config{'RENAME_PARS_IN_INLINED_SUBS'} == 1
+
+                my $subset_args = in_nested_set($Sf,'Args', $var);
+                my $subset_par = in_nested_set($Sf,'Parameters', $var);
+                my $subset_usedpar = in_nested_set($Sf,'UsedParameters', $var);
+                my $subset_inclpar = in_nested_set($Sf,'IncludedParameters', $var);
+                if (not $subset_args ) {
+                    if (
+                        ($Config{'RENAME_VARS_IN_INLINED_SUBS'} == 1 and
+                        not $subset_par) or (
+                        $Config{'RENAME_PARS_IN_INLINED_SUBS'} == 1 and
+                        $subset_par and 
+                not $subset_usedpar and not $subset_inclpar)
+                # or $Config{'RENAME_PARS_IN_INLINED_SUBS'} == 1
                 ) {                 
                     # The actual renaming
                     my $qvar = __create_new_name($var,$f);

@@ -150,9 +150,9 @@ sub create_refactored_source {
 # There is a problem with trailing comments 
 # So I have to remove these first, then see if the line must be split, then append the comment to the last segment
 
-sub split_long_line {
+sub split_long_line { 
     my $line = shift;
-
+    $line=~s/\s+/ /g unless $line=~/[\'\"]/; # replace multiple spaces by a single one if there are no string constants on the line
     my @chunks = @_;
 
     my $nchars = 64 + 28;
@@ -168,6 +168,7 @@ sub split_long_line {
     # FIXME: add split on ';' and on operators (F95)
     my $smart = 0;
     if ( length($line) > $nchars ) {
+        # croak $line;
         my $patt  = '';
         my $ll    = length($line);
         my $rline = join( '', reverse( split( '', $line ) ) );

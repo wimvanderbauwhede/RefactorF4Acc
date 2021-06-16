@@ -301,7 +301,8 @@ sub analyse_lines {
 			if (exists $info->{'Pragmas'}{'BeginKernel'}) {
 				$Sf->{'HasKernelRegion'}=1;
 			}
-			if (exists $info->{'Pragmas'}{'BeginInline'}) { 
+			if (not exists $Sf->{'InSubroutineRegion'} and
+				exists $info->{'Pragmas'}{'BeginInline'}) { 
 				if (scalar @{$info->{'Pragmas'}{'BeginInline'}} > 0 ) { 
  					if (exists $Sf->{'SubsToInline'}) {
 						push @{$Sf->{'SubsToInline'}}, $info->{'Pragmas'}{'BeginInline'}[0];
@@ -310,12 +311,18 @@ sub analyse_lines {
 							$info->{'Pragmas'}{'BeginInline'}[0]
 						]
 					}
+					
 				} else { 
 					# Find the subs to be inlined in a separate pass
 					$Sf->{'HasInlineRegion'}=1;
 				}
-				# die Dumper $Sf->{'SubsToInline'};
-			}			
+				# It is possible (in fact common) that the Inline region is inside a newly extracted subroutine.
+				# 
+				# carp Dumper $Sf->{'Callers'};
+			}	
+			# else {
+			# 	carp Dumper $Sf->{'InSubroutineRegion'} if exists $Sf->{'InSubroutineRegion'};
+			# }		
 			# Here we remove the label if there is one, but we store it in Label so we can re-emit it
 			my $line = $lline;
 			
@@ -1900,7 +1907,7 @@ sub _parse_use {
 
 				$info->{'Use'} = {};
 				$info->{'Use'}{'Name'} = $name;
-				# carp Dumper $stref->{'Modules'}; 
+				
 				if (exists $stref->{'Modules'}{$name}{'ModType'} and
 				$stref->{'Modules'}{$name}{'ModType'} ne 'External') {
 					if ( not exists $stref->{'Modules'}{$name}{'Status'}
@@ -1939,8 +1946,6 @@ sub _parse_use {
 					# the used module has been parsed
 					if ( exists $stref->{'Modules'}{$name} ) {    # Otherwise it means it is an external module
 						# 'Parameters' here is OK because the include might contain other includes
-						
-						# say "Adding UsedParameters to $sub_or_func_or_mod_or_inc_or_mod $f from module $name ". __FILE__. ' ' . __LINE__;
 						$Sf->{'UsedParameters'} = &append_to_set( $Sf->{'UsedParameters'}, $stref->{'Modules'}{$name}{'Parameters'} );
 						# I think here I should 'inherit' UsedLocalVars from this module, i.e. any LocalVars in $name
 						$Sf->{'UndeclaredCommonVars'} = append_to_set( $Sf->{'UndeclaredCommonVars'}, $stref->{'Modules'}{$name}{'DeclaredCommonVars'} );
@@ -2911,7 +2916,17 @@ sub __handle_acc_pragma {
 		if (lc($pragma_name) ne 'inline' and not @pragma_args) {
 			$pragma_args[0] = lc($pragma_name).'_'.$index;
 		}
-		$info->{'Pragmas'}{ $pragma_name_prefix . ucfirst( lc($pragma_name) ) } = [@pragma_args];
+		$pragma_name =  ucfirst( lc($pragma_name) );
+		$info->{'Pragmas'}{ $pragma_name_prefix . $pragma_name } = [@pragma_args];
+
+		# This is a way to handle nested pragma regions, in particular to exclude Inline inside a Subroutine region
+		# TODO: make this work with Modules as well
+		if ($pragma_name_prefix eq 'Begin') {
+			$stref->{'Subroutines'}{$f}{'In'.$pragma_name.'Region'} = [@pragma_args];
+		} 
+		if ($pragma_name_prefix eq 'End') {
+			delete $stref->{'Subroutines'}{$f}{'In'.$pragma_name.'Region'} ;
+		} 
 		
 		# WV20170517 This is not used, KernelWrappers is meant for LoopDetect but that was never finished.
 

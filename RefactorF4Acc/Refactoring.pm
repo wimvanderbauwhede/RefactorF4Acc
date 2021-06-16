@@ -80,7 +80,9 @@ sub refactor_all {
     	say "eval_param_expressions_all" if $V;    
 		$stref = eval_param_expressions_all($stref);
 	}
-    $stref = fold_constants_all($stref) ;
+    if ($Config{'FOLD_CONSTANTS'}==1) {
+        $stref = fold_constants_all($stref) ;
+    }
     # Inlining 
     $stref = inline_subroutines($stref) ;
 

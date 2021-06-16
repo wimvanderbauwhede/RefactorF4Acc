@@ -107,7 +107,9 @@ our $targetdir = '../RefactoredSources';
 
 our %Config=(
 'INLINE_INCLUDES' => 0,
-'RENAME_PARS_IN_INLINED_SUBS' => 0,
+'RENAME_PARS_IN_INLINED_SUBS' => 1,
+'RENAME_VARS_IN_INLINED_SUBS' => 1,
+'FOLD_CONSTANTS' => 0,
 'SPLIT_LONG_LINES' => $SPLIT_LONG_LINES,
 'MAX_LINE_LENGTH' =>  $MAX_LINE_LENGTH,
 'NO_ONLY' => $NO_ONLY,
@@ -307,10 +309,12 @@ our $config_menu= {
         ['NO_MODULE','Comma-separated list of source files that should not be changed to modules','']
     ],
 
-    'SUPER_ADVANCED' => [
+    'SUPER_ADVANCED' => [        
         ['NO_ONLY','Generate USE without ONLY? 0/1','0'],
         ['RENAME_EXT', 'Suffix for renaming clashing variables ','_GLOB'],
         ['EVAL_PARAM_EXPRS','Evaluate RHS expression of parameter declarations? 0/1','0'],
+        ['RENAME_PARS_IN_INLINED_SUBS','Rename parameters in inlined subroutines (to avoid name conflicts)? 0/1','0'],
+        ['FOLD_CONSTANTS','Fold constants (replace parameters by their values)? 0/1','0'],
         ['NO_MODULE','Comma-separated list of source files that should not be changed to modules',''],
         ['MACRO_SRC','Relative path to C-style header file with macro definitions','macros.h']
     ]
