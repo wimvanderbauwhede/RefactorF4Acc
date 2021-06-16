@@ -509,13 +509,13 @@ sub _find_var_access_in_ast { (my $stref, my $f,  my $block_id, my $state, my $a
 					
 # carp $f,Dumper( $state->{'Subroutines'}{ $f }{'Blocks'}{'0'});
 					($ast0, my $retval ) = replace_consts_in_ast($stref,$f,$block_id,$ast0, $state->{'Subroutines'}{ $f }{'Blocks'},0);
-					carp "AST0:".Dumper $ast0;
+					# carp "AST0:".Dumper $ast0;
 					my @ast_a0 = @{$ast0};
 					
 					my @idx_args0 = @ast_a0[2 .. $#ast_a0];
-					carp "IDX_ARGS:".Dumper @idx_args0;
+					# carp "IDX_ARGS:".Dumper @idx_args0;
 					my @ast_exprs0 = map { emit_expr_from_ast($_) } @idx_args0;
-					carp Dumper @ast_exprs0;
+					# carp Dumper @ast_exprs0;
 					
 					my @offset_vals = map { eval($_) } @ast_exprs0;
 					# If the accesses were not constants, we need some hack
@@ -545,7 +545,7 @@ sub _find_var_access_in_ast { (my $stref, my $f,  my $block_id, my $state, my $a
 					# 	}						
 					# }					
 					my @iters = @{$state->{'Subroutines'}{ $f }{'Blocks'}{ $block_id }{'Arrays'}{$array_var}{$rw}{'Iterators'}};
-					say "529 OFFSET_VALS", Dumper(@offset_vals);
+					# say "529 OFFSET_VALS", Dumper(@offset_vals);
 					my $iter_val_pairs=[];
 					for my $idx (0 .. @iters-1) {
 						# say "IDX: $idx";
