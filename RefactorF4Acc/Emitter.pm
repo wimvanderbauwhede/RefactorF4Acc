@@ -515,13 +515,13 @@ sub emit_AnnLines {
         }
 #== VARIABLE AND PARAMETER DECLARATION        
         elsif ( exists $info->{'ParsedVarDecl'} ) {
+            # carp Dumper $info->{'ParsedVarDecl'};
             if (exists $info->{'ArgDecl'}) {
                 my $var_name = $info->{'VarDecl'}{'Name'};
                 my $subset = in_nested_set( $Sf, 'Args', $var_name );
                 my $decl = get_var_record_from_set($Sf->{$subset},$var_name);
                 my $var_decl_str =
-                  emit_f95_var_decl( $decl );
-
+                  emit_f95_var_decl( $decl, $Config{'FOLD_CONSTANTS'});
                 $rline = $indent . $var_decl_str;
             } else {
             # TODO EMIT  $info->{'ParsedVarDecl'};

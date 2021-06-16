@@ -947,6 +947,7 @@ So it looks like I need at least 6 bits, so we'll need <<8 and 0xFF
                 push @{$ast[$lev]},$expr_ast;
                 $ast[$lev]=[$op, $ast[$lev]];
             }
+            # warn Dumper $ast[$lev];
             $state=0;
         } elsif ($state == 6 or $state==7) {
             # warn "$state $str";

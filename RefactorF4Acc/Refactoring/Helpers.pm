@@ -577,7 +577,11 @@ sub _rename_conflicting_global_pars {
 } # _rename_conflicting_global_pars() 
 
 sub emit_f95_var_decl {
-    ( my $var_decl_rec ) = @_;
+    ( my $var_decl_rec , my $const_dim) = @_;
+    if (not defined $const_dim) {
+        $const_dim=0;
+    }
+    
     # carp Dumper($var_decl_rec);
 	if (not defined $var_decl_rec) {
 		confess('Argument to emit_f95_var_decl is not defined!')  if $DBG;
@@ -600,7 +604,14 @@ sub emit_f95_var_decl {
       	$type= $ttype . (defined $tkind ?  "($tkind)" : '');       	
       } 
       my $attr= $var_decl_rec->{'Attr'}; 
-      my $dim= $var_decl_rec->{'Dim'}; 
+      my $is_array = (exists $var_decl_rec->{'ArrayOrScalar'} and $var_decl_rec->{'ArrayOrScalar'} eq 'Array') ? 1 : 0;
+      my $dim = $var_decl_rec->{'Dim'}; 
+        if ($is_array and 
+            $const_dim==1 and exists $var_decl_rec->{'ConstDim'}) {
+            $dim =$var_decl_rec->{'ConstDim'};
+        } elsif ($DBG) {
+            carp "VAR has no ConstDim: ".$var_decl_rec->{'Name'} ;
+        }
       
       my $is_par = exists $var_decl_rec->{'Parameter'} ? 1 : 0;
       # We seem to have three ways of encoding the (var,val) pairs

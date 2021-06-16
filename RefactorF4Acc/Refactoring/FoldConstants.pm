@@ -73,24 +73,32 @@ sub fold_constants {
 			# # For every VarDecl, identify dimension if it is an array
 			# els
             if (exists $info->{'VarDecl'} and not exists $info->{'ParamDecl'}
-             and is_array_decl($info)
+            #  and is_array_decl($info)
              ) {
                 
                 my $var_name = $info->{'VarDecl'}{'Name'};
-                # croak $f,Dumper $info if $f eq 'sub1' and $var_name eq 'p1';
-                my $dims = [ 
-                    map {  $_->[0].':'.$_->[1] } 
-                    @{$Sf->{'ArrayAccesses'}{$block_id}{'Arrays'}{$var_name}{'Dims'}}
-                ]; 
-
-
                 my $subset = in_nested_set( $Sf, 'Vars', $var_name );
                 my $decl = get_var_record_from_set($Sf->{$subset},$var_name);
-                $decl->{'ConstDim'} = $Sf->{'ArrayAccesses'}{$block_id}{'Arrays'}{$var_name}{'Dims'};
-                # croak $decl;
-                $Sf->{$subset}{'Set'}{$var_name} = $decl;
-                # push @attrs,'dimension('.join(', ',  map {} @{ $pvd->{'Attributes'}{'Dim'} }).')';
-                $info->{'ParsedVarDecl'}{'Attributes'}{'Dim'}=$dims;
+                if (exists $decl->{'ArrayOrScalar'}
+                and $decl->{'ArrayOrScalar'} eq 'Array'
+                ) {
+                    my $expr_str = '['.join(',',map {'['.$_->[0].','.$_->[1].']'} @{$decl->{'Dim'}}).']';
+                    my ($ast,$str_,$error_,$has_funcs_)=parse_expression_no_context($expr_str);
+                    my ($const_ast, $retval_) = replace_consts_in_ast_no_iters($stref, $f, $ast, $info);
+                    my $const_expr_str = emit_expr_from_ast($const_ast);
+                    $const_expr_str=~s/\(\//[/g;
+                    $const_expr_str=~s/\/\)/]/g;
+                    my $const_dims= eval( $const_expr_str );
+                    $decl->{'ConstDim'} = $const_dims;
+                    $Sf->{$subset}{$var_name}{'Set'}=$decl;
+                    # say "$f SUBSET: $subset => $var_name";
+                    $Sf->{$subset}{'Set'}{$var_name} = $decl;
+                    my $pv_dims = [ 
+                        map {  $_->[0].':'.$_->[1] } 
+                        @{$const_dims}
+                    ]; 
+                    $info->{'ParsedVarDecl'}{'Attributes'}{'Dim'}=$pv_dims;
+                }
 
 			}
             if (exists $info->{'ParamDecl'} ) {
@@ -167,33 +175,41 @@ sub fold_constants_no_iters {
         (my $line,my $info)=@{$annline};
         # From $info, find the lines that contain expressions that might have constants to fold.
         # These would the same types of lines as in identify_array_accesses_in_exprs()
-            
             if (exists $info->{'VarDecl'} and not exists $info->{'ParamDecl'}
-             and is_array_decl($info)
+            #  and is_array_decl($info)
              ) {
                 
                 my $var_name = $info->{'VarDecl'}{'Name'};
-                # croak $f,Dumper $info if $f eq 'sub1' and $var_name eq 'p1';
-
-
                 my $subset = in_nested_set( $Sf, 'Vars', $var_name );
                 my $decl = get_var_record_from_set($Sf->{$subset},$var_name);
-                
-                my $expr_str = '['.join(',',map {'['.$_->[0].','.$_->[1].']'} @{$decl->{'Dim'}}).']';
-                my ($ast,$str_,$error_,$has_funcs_)=parse_expression_no_context($expr_str);
-                my ($const_ast, $retval_) = replace_consts_in_ast_no_iters($stref, $f, $ast, $info);
-                my $const_expr_str = emit_expr_from_ast($const_ast);
-                $const_expr_str=~s/\(\//[/g;
-                $const_expr_str=~s/\/\)/]/g;
-                my $const_dims= eval( $const_expr_str );
-                $decl->{'ConstDim'} = $const_dims;
-                $Sf->{$subset}{'Set'}{$var_name} = $decl;
-                my $pv_dims = [ 
-                    map {  $_->[0].':'.$_->[1] } 
-                    @{$const_dims}
-                ]; 
-                $info->{'ParsedVarDecl'}{'Attributes'}{'Dim'}=$pv_dims;
+                if (exists $decl->{'ArrayOrScalar'}
+                and $decl->{'ArrayOrScalar'} eq 'Array'
+                ) {
+                    my $expr_str = '['.join(',',map {'['.$_->[0].','.$_->[1].']'} @{$decl->{'Dim'}}).']';
+                    my ($ast,$str_,$error_,$has_funcs_)=parse_expression_no_context($expr_str);
+                    my ($const_ast, $retval_) = replace_consts_in_ast_no_iters($stref, $f, $ast, $info);
+                    my $const_expr_str = emit_expr_from_ast($const_ast);
+                    $const_expr_str=~s/\(\//[/g;
+                    $const_expr_str=~s/\/\)/]/g;
+                    my $const_dims= eval( $const_expr_str );
+                    $decl->{'ConstDim'} = $const_dims;
+                    $Sf->{$subset}{$var_name}{'Set'}=$decl;
+                    # say "$f SUBSET: $subset => $var_name";
+                    $Sf->{$subset}{'Set'}{$var_name} = $decl;
+                    my $pv_dims = [ 
+                        map {  $_->[0].':'.$_->[1] } 
+                        @{$const_dims}
+                    ]; 
+                    $info->{'ParsedVarDecl'}{'Attributes'}{'Dim'}=$pv_dims;
+                }
 			}
+            elsif (exists $info->{'ArgDecl'}) { # This is in case VarDecl is just the Name, FIXME!
+                my $var_name = $info->{'VarDecl'}{'Name'};
+                my $subset = in_nested_set( $Sf, 'Vars', $var_name );
+                my $decl = get_var_record_from_set($Sf->{$subset},$var_name);
+
+
+            }
             if (exists $info->{'ParamDecl'} ) {
                 
                 my $var_name = $info->{'ParsedParDecl'}{'Pars'}{'Var'};
@@ -259,10 +275,8 @@ sub fold_constants_all {
 	( my $stref ) = @_;
 
 	for my $f ( sort keys %{ $stref->{'Subroutines'} } ) {
-
 		next if ( $f eq '' or $f eq 'UNKNOWN_SRC' or not defined $f );
 		# next if exists $stref->{'Entries'}{$f};
-
 		my $Sf = $stref->{'Subroutines'}{$f};
 
 		if ( not defined $Sf->{'Status'} ) {
@@ -274,6 +288,7 @@ sub fold_constants_all {
 		next if $Sf->{'Status'} == $READ;
 		next if $Sf->{'Status'} == $FROM_BLOCK;
         #   map {say 'TEST'.$_} @{pp_annlines($Sf->{'RefactoredCode'})} if $f=~/test_loop/;
+
 		my $new_annlines = fold_constants_no_iters( $stref, $f );
 
         # warn $f;
@@ -293,27 +308,30 @@ sub fold_constants_in_decls {
     my $pass_fold_constants_in_decls = sub { (my $annline)=@_;
         (my $line,my $info)=@{$annline};
             if (exists $info->{'VarDecl'} and not exists $info->{'ParamDecl'}
-             and is_array_decl($info)
-             ) {                
+             ) {     
                 my $var_name = $info->{'VarDecl'}{'Name'};
                 my $subset = in_nested_set( $Sf, 'Vars', $var_name );
                 my $decl = get_var_record_from_set($Sf->{$subset},$var_name);
-                my $dims = $decl->{'Dim'};
-                $decl->{'ConstDim'}=[];
-                for my $dim (@{$dims}) {
-                    my $const_dim=[];
-                    for my $expr_str (@{$dim}) {
-                        if ($expr_str!~/^\d+$/) {
-                            my $evaled_str = eval_expression_with_parameters( $expr_str, $info,  $stref,  $f);
-                            # say "EVAL: $expr_str => $evaled_str";
-                            push @{$const_dim},  $evaled_str;
-                        } else {
-                            push @{$const_dim},  $expr_str;
+                if (exists $decl->{'ArrayOrScalar'}
+                and $decl->{'ArrayOrScalar'} eq 'Array'
+                ) {           
+                    my $dims = $decl->{'Dim'};
+                    $decl->{'ConstDim'}=[];
+                    for my $dim (@{$dims}) {
+                        my $const_dim=[];
+                        for my $expr_str (@{$dim}) {
+                            if ($expr_str!~/^\d+$/) {
+                                my $evaled_str = eval_expression_with_parameters( $expr_str, $info,  $stref,  $f);
+                                # say "EVAL: $expr_str => $evaled_str";
+                                push @{$const_dim},  $evaled_str;
+                            } else {
+                                push @{$const_dim},  $expr_str;
+                            }
                         }
+                        push @{$decl->{'ConstDim'}}, $const_dim;                    
                     }
-                    push @{$decl->{'ConstDim'}}, $const_dim;                    
+                    $Sf->{$subset}{'Set'}{$var_name} = $decl;
                 }
-                $Sf->{$subset}{'Set'}{$var_name} = $decl;
 			}
         return [$annline];
     };

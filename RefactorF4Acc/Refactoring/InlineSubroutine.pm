@@ -839,9 +839,10 @@ sub __update_renamed_vardecl { my ($Sf, $var, $qvar) = @_;
 sub __update_caller_inlined_vardecls { my ($stref,$f,$sub,$specification_part) = @_;
     for my $annline (@{$specification_part}) {        
         my ($line,$info) = @{$annline};
+        # say "$sub in $f:". Dumper $info if $line=~/rhs/;
         next if exists $info->{'Comments'};
         next if exists $info->{'Blank'};
-        # say "$sub in $f:". Dumper $info;
+        
         my ($qvar, $is_param) = exists $info->{'VarDecl'} 
             ? ($info->{'VarDecl'}{'Name'},0)
             : exists $info->{'ParamDecl'} 
@@ -857,8 +858,9 @@ sub __update_caller_inlined_vardecls { my ($stref,$f,$sub,$specification_part) =
         my $decl = get_var_record_from_set($stref->{'Subroutines'}{$sub}{$subset},$qvar);
         # croak;
         # say "Adding $qvar to DeclaredOrigLocalVars in $f";
-        # carp $qvar. Dumper( $decl );
+        # carp "ARG? $qvar: ". Dumper( $decl ) if exists $decl->{'ConstDim'};
         if (not $is_param) {
+
             $stref->{'Subroutines'}{$f}{'DeclaredOrigLocalVars'}{'Set'}{$qvar}=dclone($decl);
         } else {
             $stref->{'Subroutines'}{$f}{'LocalParameters'}{'Set'}{$qvar}=dclone($decl);

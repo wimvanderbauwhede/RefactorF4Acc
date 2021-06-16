@@ -1443,7 +1443,6 @@ or $line=~/^character\s*\(\s*len\s*=\s*[\w\*]+\s*\)/
 
 				my $ast = parse_expression($cond,  $info,  $stref,  $f);
 				
-				
 				$info->{'Cond'}{'AST'}= $ast;
 				my $vars_in_cond_expr =  get_vars_from_expression( $ast,{});
 				# croak Dumper $vars_in_cond_expr if exists $vars_in_cond_expr->{'mod'};

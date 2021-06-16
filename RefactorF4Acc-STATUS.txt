@@ -43,7 +43,8 @@ TO RELEASE
   
   
 STATUS 2021-06-16
-In the inliner, we currently rename parameters if they are not from an include or use, i.e. if they are local. RENAME_PARS_IN_INLINED_SUBS forces renaming of local parameters. What we should do is give the user the option never to rename any parameters. Later I could maybe make this an attribute to the pragma:
+* FIXME: there is a bug in the expression parser:  k>km-1 .or. k<1 becomes  km-1 .or. k<1
+*In the inliner, we currently rename parameters if they are not from an include or use, i.e. if they are local. RENAME_PARS_IN_INLINED_SUBS forces renaming of local parameters. What we should do is give the user the option never to rename any parameters. Later I could maybe make this an attribute to the pragma:
 
     !$RF4A Begin Inline, RenameParams(0), RenameVars(0)
     
