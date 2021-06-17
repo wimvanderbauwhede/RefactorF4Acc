@@ -555,6 +555,7 @@ sub parse_expression_no_context { (my $str)=@_;
 
     my $max_lev=11; # levels of precedence
     my $prev_lev=0;
+    my $pp_lev=0;
     my $lev=0;
     # Let's try an array first
     my @ast=();
@@ -816,7 +817,7 @@ Level
 So it looks like I need at least 6 bits, so we'll need <<8 and 0xFF
 
 =cut 
-
+            $pp_lev=$prev_lev;
             $prev_lev=$lev;
             if ($str=~s/^\+//) {
                 $lev=4;
@@ -934,6 +935,14 @@ So it looks like I need at least 6 bits, so we'll need <<8 and 0xFF
                 $ast[$lev]=[$op,$expr_ast];
             } elsif ($prev_lev<$lev) { # '*' < '+'
                 push @{$ast[$prev_lev]},$expr_ast;
+                if ($pp_lev>$prev_lev) { 
+                    say 'PP1:'.Dumper $ast[$pp_lev];
+                    say 'PP2:'.Dumper $ast[$prev_lev];
+                    my $tmp_ast= [@{$ast[$pp_lev]},$ast[$prev_lev]];
+                    say 'PP3:'.Dumper $tmp_ast;
+                    $ast[$prev_lev]= $tmp_ast;
+                    undef $ast[$pp_lev];
+                }                
                 if (not defined $ast[$lev]) {
                     $ast[$lev]=$ast[$prev_lev];
                 } else {
