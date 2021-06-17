@@ -89,7 +89,7 @@ my $help_message =<<ENDH;
         --dev: the target device: CPU or GPU. Default is $plat
         --nth: the number of threads per compute unit. Default is $nth  
         --nunits: the number of compute units (--nunits). Default is $nunits
-        --stage: the stage of the conversion: refactor, autopar, convert, build.
+        --stage: the stage of the conversion: refactor, autopar, reduce, inline, convert, build.
         --suffix: an optional suffix applied to config file names and folders                 
     You can provide several stages separated with a comma. 
     If not given, the script will attempt to run all stages in one go. 
@@ -162,12 +162,7 @@ my $kernel_sources_str = join(' ',map {"./$_" } @kernel_sources);
 my @sub_names = map {s/\.f95$//;$_ } @kernel_sources;
 
 # This 30 character limit was picked ad-hoc by Gavin
-my $superkernel_name = substr(join('_',@sub_names),0,30);
-if (length($superkernel_name)==30) {
-    $superkernel_name .= "_etc_superkernel"
-} else {
-    $superkernel_name .= "_superkernel"
-}
+my $superkernel_name = 'sor_main_superkernel';
 
 my $TRUST_THE_COMPILER = 1 - $use_separate_stash_step;
 my @stages = qw(
@@ -324,34 +319,10 @@ ENDCFG
 if (not $skip_stage[4]) { 
     
     ##
-    say "* In `$gen_dir`, we copy the non-modified source files into the current folder, as well as some scripts and config files needed to build the OpenCL kernel." if $VV;
+    # say "* In `$gen_dir`, we copy the non-modified source files into the current folder, as well as some scripts and config files needed to build the OpenCL kernel." if $VV;
     chdir $wd;
-    chdir $gen_dir;
-        
-    my $ref_dir = $TRUST_THE_COMPILER ? "$wd/$src_dir" : "$wd/PostCPP";
-    for my $src (@orig_sources) {
-       system("cp $ref_dir/$src ."); 
-    }
+    mkdir "opencl$suffix";
 
-    ## TODO rf4a_to_C.cfg should be generated
-    my $rf4a_to_C_cfg = <<ENDCFG;
-MODULE = module_${superkernel_name}
-MODULE_SRC = module_${superkernel_name}.f95
-TOP = ${superkernel_name}
-KERNEL = ${superkernel_name}
-PREFIX = .
-SRCDIRS = .
-NEWSRCPATH = ./Temp
-EXCL_SRCS = (module_${superkernel_name}_init|_host|\\.[^f])
-MACRO_SRC = macros_kernel.h
-EXCLUDE_ALL_SUBDIRS = 1
-
-ENDCFG
-    
-    open my $CFG, '>', 'rf4a_to_C.cfg';
-    print $CFG $rf4a_to_C_cfg;
-    close $CFG;
-    
     my @sources2=qw(
     macros_kernel.h
     array_index_f2c1d.h
@@ -359,13 +330,40 @@ ENDCFG
     
     my $ref_dir_2 = "$wd/aux";
     for my $src (@sources2) {
-        system("cp $ref_dir_2/$src . ");
+        system("cp $ref_dir_2/$src mem_reduced_inlined$suffix/Generated");
     }
+    # for my $src (@orig_sources) {
+    #    system("cp src$suffix/$src mem_reduced_inlined$suffix/Generated"); 
+    # }
+
+    chdir "mem_reduced_inlined$suffix/Generated";
+            
+
+    ## TODO rf4a_to_C.cfg should be generated
+    my $rf4a_to_OpenCL_cfg = <<ENDCFG;
+MODULE = module_${superkernel_name}
+MODULE_SRC = module_gen_${superkernel_name}.f95
+TOP = ${superkernel_name}
+KERNEL = ${superkernel_name}
+PREFIX = .
+SRCDIRS = .
+NEWSRCPATH = ../../opencl$suffix
+EXCL_SRCS = (module_${superkernel_name}_init|_host|\\.[^f])
+MACRO_SRC = macros_kernel.h
+EXCLUDE_ALL_SUBDIRS = 1
+
+ENDCFG
+    
+    open my $CFG, '>', 'rf4a_to_OpenCL.cfg';
+    print $CFG $rf4a_to_OpenCL_cfg;
+    close $CFG;
+    
+
 
     ##
     say '* Then we generate the actual OpenCL kernel code using `RefactorF4Acc`' if $VV;
-    chdir $wd;
-    chdir $gen_dir;
+    # chdir $wd;
+    # chdir $gen_dir;
     
     my $macros_kernel_src = './macros_kernel.h';
     
@@ -378,9 +376,9 @@ ENDCFG
         close $MKS;
 
     }
-    say($ENV{HOME}.'/Git/RefactorF4Acc/bin/'.'refactorF4acc.pl '.$vflag.' -P translate_to_OpenCL -c rf4a_to_C.cfg module_'.$superkernel_name); 
-    system($ENV{HOME}.'/Git/RefactorF4Acc/bin/'.'refactorF4acc.pl '.$vflag.' -P translate_to_OpenCL -c rf4a_to_C.cfg module_'.$superkernel_name);
-    system("cp Temp/module_$superkernel_name.cl module_${superkernel_name}_ORIG.cl");
+    say($ENV{'HOME'}.'/Git/RefactorF4Acc/bin/'.'refactorF4acc.pl '.$vflag.' -P translate_to_OpenCL -c rf4a_to_OpenCL.cfg module_'.$superkernel_name); 
+    system($ENV{'HOME'}.'/Git/RefactorF4Acc/bin/'.'refactorF4acc.pl '.$vflag.' -P translate_to_OpenCL -c rf4a_to_OpenCL.cfg module_'.$superkernel_name);
+    # system("cp Temp/module_$superkernel_name.cl module_${superkernel_name}_ORIG.cl");
 
 }
 

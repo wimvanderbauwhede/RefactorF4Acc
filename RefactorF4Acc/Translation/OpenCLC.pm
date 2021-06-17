@@ -105,9 +105,10 @@ sub add_OpenCL_address_space_qualifiers { (my $stref, my $f, my $ocl) = @_;
 	if ($ocl>=1) { 
 		if ($Config{'KERNEL'} eq '' and $Config{'TOP'} ne '') {
 			$Config{'KERNEL'}=$Config{'TOP'}
-		} else {
-			$Config{'KERNEL'}='';
-		}
+		} 
+		# else {
+		# 	$Config{'KERNEL'}='';
+		# }
 		if ($ocl==3 or $f eq $Config{'KERNEL'} ) {
 
 
@@ -271,9 +272,11 @@ Instead of the nice but cumbersome approach we had until now, from now on it is 
 			} else {
 				my $sig_line = _emit_subroutine_sig_C( $stref, $f, $annline);
 				$c_line = $sig_line." {\n";
-				$pass_state->{'ForwardDecl'} = $sig_line.';' unless $sig_line=~/int\s+main/;
-				if ($ocl==3 or ($ocl==1 and $f eq $Config{'KERNEL'})) {
+				$pass_state->{'ForwardDecl'} = $sig_line.';' unless ($sig_line=~/int\s+main/ or ($ocl==1 or $ocl==3) and $f eq $Config{'KERNEL'});
+				if ($ocl==3 ) {
 					$c_line = '__kernel __attribute__((reqd_work_group_size(1,1,1))) '.$c_line;
+				} elsif ($ocl==1 and $f eq $Config{'KERNEL'}) {
+					$c_line = '__kernel '.$c_line;
 				}
 			}			
 		}
