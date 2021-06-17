@@ -3,6 +3,7 @@ package RefactorF4Acc::Refactoring::Scalarise;
 use v5.10;
 use RefactorF4Acc::Config;
 use RefactorF4Acc::Utils;
+use RefactorF4Acc::Analysis::Variables qw( identify_vars_on_line );
 use RefactorF4Acc::Refactoring::Helpers qw(
   pass_wrapper_subs_in_module
   stateful_pass_inplace
@@ -194,7 +195,9 @@ sub _rename_array_accesses_to_scalars {
     ( my $stref, my $f ) = @_;
     if ( $f ne $Config{'KERNEL'} ) {
         $stref->{'TyTraLlvmArgTuples'} = {};
-
+# die;
+# show_annlines($stref->{'Subroutines'}{$f}{'RefactoredCode'});
+# die;
 # 1. This pass performs renaming in assignments and conditional expressions of IFs
 # It does _not_ rename
 # 	* subroutine call arguments (because there should not be any)
@@ -491,6 +494,7 @@ sub _rename_array_accesses_to_scalars {
         my $pass_update_sig_and_decls = sub {
             ( my $annline, my $state ) = @_;
             ( my $line,    my $info )  = @{$annline};
+            
             if ( exists $info->{'Signature'} ) {
 
 # What we do is replace the array args with the "tuple" of scalar args from StreamVars
@@ -621,6 +625,10 @@ sub _rename_array_accesses_to_scalars {
 # However, the array indices are computed from the global id on a per-sub basis so i,j,k are different for each sub.
 # So  we need to extract the calculations of i,j,k out of the sub
 
+# WV 2021-06-17 It is possible that i,j,k is used outside of actual indexing, in particular in guards. 
+# The easy way is to check for guards. But I think any occurence of i,j,k being read outside of an actual index should be a trigger.
+
+
         my $pass_lift_array_index_calculations = sub {
             ( my $annline, my $state ) = @_;
             ( my $line,    my $info )  = @{$annline};
@@ -629,29 +637,52 @@ sub _rename_array_accesses_to_scalars {
 # We do this until we have all of them. Basically, if we start from the back and push in reverse, we can do this in a single pass
 
             if ( exists $info->{'Assignment'} ) {
+              # warn "LINE: $line"; 
                 my $lhs_var = $info->{'Lhs'}{'VarName'};
-                if ( exists $state->{'IndexVars'}{$lhs_var} ) {
+                if ( exists $state->{'IndexVars'}{$lhs_var} ) { # It's an index var or dep on the LHS
                     unshift @{ $state->{'LiftedIndexCalcLines'} },
                       dclone($annline);
-                    $info->{'Deleted'} = 1;
                     my $rhs_vars = $info->{'Rhs'}{'Vars'}{'Set'};
                     $state->{'IndexVars'} =
                       { %{ $state->{'IndexVars'} }, %{$rhs_vars} };
-                    return ( [ [ "! $line", $info ] ], $state );
+                    if (not exists $state->{'IndexVarsToKeep'}{$lhs_var}) {
+                      $info->{'Deleted'} = 1;
+                    # warn "RHS VARS: " . Dumper $rhs_vars;
+                      return ( [ [ "! $line", $info ] ], $state );
+                    } else {
+                    $state->{'IndexVarsToKeep'} =
+                      { %{ $state->{'IndexVarsToKeep'} }, %{$rhs_vars} };
+                      return ( [ [ $line, $info ] ], $state );
+                    }
+                } else {
+                  # Maybe an index var is read on the RHS
+                  my $rhs_vars = $info->{'Rhs'}{'Vars'}{'Set'};
+                  for my $index_var (sort keys %{ $state->{'IndexVars'}} ) {
+                    if (exists $rhs_vars->{$index_var}) {
+                        $state->{'IndexVarsToKeep'}{$index_var}=$state->{'IndexVars'}{$index_var};
+                    }
+                  }
                 }
-            }
+
+            }            
             elsif ( exists $info->{'SubroutineCall'} ) {
                 for my $arg ( @{ $info->{'SubroutineCall'}{'Args'}{'List'} } ) {
-                    if ( exists $state->{'IndexVars'}{$arg} ) {
+                    if ( exists $state->{'IndexVars'}{$arg} ) { 
                         unshift @{ $state->{'LiftedIndexCalcLines'} },
                           dclone($annline);
-                        $info->{'Deleted'} = 1;
                         my $args = $info->{'SubroutineCall'}{'Args'}{'Set'};
 
                 # TODO: of course this ignores any indices or function call args
                         $state->{'IndexVars'} =
                           { %{ $state->{'IndexVars'} }, %{$args} };
+                          if (not exists $state->{'IndexVarsToKeep'}{$arg}) {
+                        $info->{'Deleted'} = 1;
                         return ( [ [ "! $line", $info ] ], $state );
+                          } else {
+                        $state->{'IndexVarsToKeep'} =
+                          { %{ $state->{'IndexVarsToKeep'} }, %{$args} };
+                          return ( [ [ $line, $info ] ], $state );
+                          }
                     }
                 }
             }
@@ -664,8 +695,13 @@ sub _rename_array_accesses_to_scalars {
                       dclone($annline);
                     $state->{'LiftedIndexVarDecls'}{'Set'}{$decl_var} =
                       dclone($annline);
+                    if (not exists $state->{'IndexVarsToKeep'}{$decl_var}) {
                     $info->{'Deleted'} = 1;
                     return ( [ [ "! $line", $info ] ], $state );
+                    } else {
+                      return ( [ [$line, $info ] ], $state );
+                    }
+
                 }
             }
 
@@ -693,14 +729,26 @@ sub _rename_array_accesses_to_scalars {
                 $info->{'Signature'}{'Args'}{'Set'} =
                   { map { $_ => 1 } @{$new_args} };
             }
-
+            elsif (exists $info->{'HasVars'} and not exists $info->{'SpecificationStatement'}) {
+              # As this is not an assignment or subroutine call, nor a declaration, the variable must be read
+              # This assumes it is not an I/O call as we don't allow them
+              my $vars_on_line = identify_vars_on_line($annline);
+              # say Dumper $vars_on_line;
+              for my $var (@{$vars_on_line}) {
+                if (exists $state->{'IndexVars'}{$var}) {
+                  $state->{'IndexVarsToKeep'}{$var}=$state->{'IndexVarsToKeep'}{$var};
+                }
+              }
+            }
             return ( [ [ $line, $info ] ], $state );
         };
+
         $state->{'RemainingArgs'}        = [];
         $state->{'DeletedArgs'}          = [];
         $state->{'LiftedIndexCalcLines'} = [];
         $state->{'LiftedIndexVarDecls'}  = { 'List' => [], 'Set' => {} };
         $state->{'LiftedStreamVarDecls'} = { 'List' => [], 'Set' => {} };
+
         ( $stref, $state ) =
           stateful_pass_reverse_inplace( $stref, $f,
             $pass_lift_array_index_calculations,
@@ -713,6 +761,7 @@ sub _rename_array_accesses_to_scalars {
           dclone( $state->{'LiftedIndexVarDecls'} );
 
 # --------------------------------------------------------------------------------------------------------
+
 # 6. Now we emit the updated code for the subroutine signature, the variable declarations, assignment expressions and ifthen expressions
 
         my $pass_emit_updated_code = sub {
@@ -720,7 +769,6 @@ sub _rename_array_accesses_to_scalars {
             ( my $line,    my $info )  = @{$annline};
             ( my $stref,   my $f )     = @{$state};
             my $rline = $line;
-
             my $rlines = [];
             if ( exists $info->{'Signature'} ) {
                 ( $rline, $info ) = emit_subroutine_sig($annline);

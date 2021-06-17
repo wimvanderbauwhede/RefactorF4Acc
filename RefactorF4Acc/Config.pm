@@ -140,6 +140,7 @@ our %Config=(
 'MODULE'  => '',
 
 'NO_MODULE'  => [],
+'ONE_SUB_PER_MODULE' => 1,
 
 'SUB_SUFFIX'  => '',
 'REFACTOR_TOPLEVEL_GLOBALS' => 1,

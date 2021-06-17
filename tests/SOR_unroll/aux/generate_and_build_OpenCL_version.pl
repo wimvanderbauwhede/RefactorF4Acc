@@ -38,34 +38,35 @@ The compilers used by the script do not work on all Fortran 77 or Fortran 95 cod
 # TODO
 
 Curren status: 
-* refactor works
-* autopar works
+* 1.refactor works
+* 2.autopar works
 
-* next stage: reduce (i.e. memory reduction)
+* next stage: 3.reduce (i.e. memory reduction)
 Now I need to run `memory_reduction.pl -C` on the results from autopar:
 
-    mkdir "memory_reduction$suffix";
-    system("cp generated_src$suffix/module_sor_main_superkernel.f95 memory_reduction$suffix");
-    chdir "memory_reduction$suffix";
+    mkdir "mem_reduced$suffix";
+    system("cp generated_src$suffix/module_sor_main_superkernel.f95 mem_reduced$suffix");
+    chdir "mem_reduced$suffix";
     system('memory_reduction.pl -C');
 
-That will create a result in memory_reduction$suffix/MemoryReduction/Generated
-I need to copy the files from memory_reduction$suffix/MemoryReduction/Scalarized into Generated
+That will create a result in mem_reduced$suffix/MemoryReduction/Generated
+I need to copy the files from mem_reduced$suffix/MemoryReduction/Scalarized into Generated
 
-    system("cp memory_reduction$suffix/MemoryReduction/Scalarized/* memory_reduction$suffix/MemoryReduction/Generated");
+    system("cp mem_reduced$suffix/MemoryReduction/Scalarized/* mem_reduced$suffix/MemoryReduction/Generated");
 
-* next stage: inline
-I need to run the inliner, so create `rf4a_inline.cfg` and store the result in `memory_reduction$suffix/MemoryReduction/Inlined`
+* next stage: 4.inline
+I need to run the inliner, so create `rf4a_inline.cfg` and store the result in `mem_reduced_inlined$suffix`
 
-    chdir  "memory_reduction$suffix/MemoryReduction/Generated";
+    chdir  "mem_reduced$suffix/MemoryReduction/Generated";
     # Generate cfg
     system('refactorF4Acc.pl -c rf4a_inline.cfg');
 
-* next stage: convert (to OpenCL)
+* next stage: 5.convert (to OpenCL)
     
-    chdir "memory_reduction$suffix/MemoryReduction/Inlined";
+    chdir "mem_reduced_inlined$suffix";
     # generate cfg
     system('refactorF4Acc.pl -P translate_to_OpenCL -c rf4a_ocl.cfg');
+    # final result should be in opencl$suffix
 
 
 
@@ -89,24 +90,20 @@ my $help_message =<<ENDH;
         --nth: the number of threads per compute unit. Default is $nth  
         --nunits: the number of compute units (--nunits). Default is $nunits
         --stage: the stage of the conversion: refactor, autopar, convert, build.
-                 
-    You can provide several stages separated with a comman. 
+        --suffix: an optional suffix applied to config file names and folders                 
+    You can provide several stages separated with a comma. 
     If not given, the script will attempt to run all stages in one go. 
 
     The stages are:
 
     1. refactor: Refactor the F77 code into accelerator-ready F95 code. 
-    The refactoring source-to-source compiler `rf4a` will only run if 
-        - the source files have extension `.f`, `.f77`, `.F` or `.F77`, and 
-        - the configuration file `rf4a.cfg` is present.
-    2. autopar: Auto-parallelise the host code and generate the kernel in F95 syntax. This step requires the definition of macros used in the code, in two ways:
-        - Macros to be expanded using the C preprocessor. You must define/undef these in the file `macros.h`. The script will warn if this file is not present.
-        - Macros enclosing code to be skipped by the compiler. This is used  in particular because the compiler can't handle IO operations.
-        You must define/undef these in the file `macros_to_skip.h`. The script will warn if this file is not present.
-    3. convert: Convert the kernel to OpenCL. 
+    2. autopar: Auto-parallelise the host code and generate the kernel in F95 syntax. 
+    3. reduce: Remove intermediate arrays using rewrite rules
+    4. inline: The reduce step generates lots of functions, inline them
+    5. convert: Convert the kernel to OpenCL. 
     The OpenCL kernel code uses two macros, the number of threads per compute unit NTH and the number of compute units NUNITS. 
     These can be defined using the --nth and --nunits flags or in the file `macros_kernel.h`.
-    4. build: Build the OpenCL Fortran code. The code is built using an auto-generated SConstruct file. 
+    6. build: Build the OpenCL Fortran code. The code is built using an auto-generated SConstruct file. 
     You can of course modify this file and build the code manually. The script will not overwrite an existing `Sconstruct.auto` file.
     
 ENDH
@@ -173,26 +170,25 @@ if (length($superkernel_name)==30) {
 }
 
 my $TRUST_THE_COMPILER = 1 - $use_separate_stash_step;
-    
-my $skip_step_0 = 1;
-my $skip_step_1 = 1;
-my $skip_step_2 = 1;
-my $skip_step_3 = 1;
+my @stages = qw(
+    refactor
+    autopar
+    reduce
+    inline
+    convert
+    build
+    );    
+my @skip_stage = map {1} @stages;
 
 my %stages = map { $_ => $_} split(/\s*,\s*/,$stages_str);
+my $idx=0;
+for my $stage (@stages) {
+    if (exists $stages{$stage}) {
+        $skip_stage[$idx] = 0;
+    }
+    ++$idx;
+}
 
-if (exists $stages{refactor}) {
-    $skip_step_0 = 0;
-}
-if (exists $stages{autopar}) {
-    $skip_step_1 = 0;
-}
-if (exists $stages{convert}) {
-    $skip_step_2 = 0;
-}
-if (exists $stages{build}) {
-    $skip_step_3 = 0;
-}
 
 my $gen_dir = 'generated_src'.$suffix;
 # if ($TRUST_THE_COMPILER==1) {
@@ -208,7 +204,7 @@ my $src_dir = 'src'.$suffix;
 
 my $refactored=0;
 
-if (not $skip_step_0) { # Refactor
+if (not $skip_stage[0]) { # Refactor
 
     my $rf4a_cfg = <<ENDCFG;
 # Relative path to the original Fortran source code
@@ -251,67 +247,81 @@ for my $red_src (@redundant_sources) {
     }
 }
 
-# Step 1. Run the auto-parallelizing GPU compiler `AutoParallel-Fortran-exe`. The output is stored in `GeneratedCodeV2`
-if (not $skip_step_1) {
-    if ($TRUST_THE_COMPILER) {
-        chdir $src_dir;
-        my $dots = ($src_dir=~/\//)
-            ? '../' x (scalar( split(/\//, $src_dir) ) - 1)
-            : '';
+# Stage 1. Run the auto-parallelizing GPU compiler `AutoParallel-Fortran-exe`. The output is stored in `GeneratedCodeV2`
+if (not $skip_stage[1]) {
+    chdir $src_dir;
+    my $dots = ($src_dir=~/\//)
+        ? '../' x (scalar( split(/\//, $src_dir) ) - 1)
+        : '';
 
-        ##
-        say '*NOTE 2018-03-07* 
-        The `AutoParallel-Fortran` compiler has built-in handling of macros via the -D and -X flags. 
-        This generates the same code as when using the `run_cpp.pl` and `restore_stashed_lines.pl` scripts. 
-        ' if 0;
-        
-        system("touch macros.h");
-        system("touch macros_to_skip.h");
-
-        (my $defined_macros_str, my $undef_macros_str) = macro_file_to_cmd_line_str( './macros.h','-D');
-        (my $macros_to_skip_str, my $empty_str) = macro_file_to_cmd_line_str('./macros_to_skip.h','-X');
-        
-        # say("AutoParallel-Fortran-exe $kernel_sources_str -out ../$dots$gen_dir/ -iowrite $iowrite_subs_str -main ./$main_src -plat $plat  $defined_macros_str $macros_to_skip_str $vflag" );
-        
-        # system("AutoParallel-Fortran-exe $kernel_sources_str -out ../$dots$gen_dir/ -iowrite $iowrite_subs_str -main ./$main_src  -plat $plat  $defined_macros_str $macros_to_skip_str $vflag" );    
-        
-        say("AutoParallel-Fortran-exe $kernel_sources_str -out ../$dots$gen_dir/ -main ./$main_src $vflag -plat $plat -N  -v"); 
-        system("AutoParallel-Fortran-exe $kernel_sources_str -out ../$dots$gen_dir/ -main ./$main_src $vflag -plat $plat -N -v"); 
-
-    } else {    
+    ##
+    say '*NOTE 2018-03-07* 
+    The `AutoParallel-Fortran` compiler has built-in handling of macros via the -D and -X flags. 
+    This generates the same code as when using the `run_cpp.pl` and `restore_stashed_lines.pl` scripts. 
+    ' if 0;
     
-        say '* First, in `'.$src_dir.'`, run CPP on the code using the macros in `macros.h` and stash lines guarded with macros from `macros_to_skip.h`. This generates the file `stash.pl`' if $VV;
-        
-        chdir $src_dir;
-        
-        run_cpp();
-          
-        ##
-        say '* Then, in `PostCPP`, run the OpenCL compiler `AutoParallel-Fortran-exe`. This will take a while and produce a lot of output, which you can ignore.' if $VV;
-        
-        chdir $wd;
-        if (not -d 'PostCPP') {
-            mkdir 'PostCPP';
-        }
-         
-        chdir 'PostCPP';
-        say("AutoParallel-Fortran-exe $kernel_sources_str -out ../$gen_dir/ -main ./$main_src $vflag -plat $plat -N -X NO_IO -v"); 
-        system("AutoParallel-Fortran-exe $kernel_sources_str -out ../$gen_dir/ -main ./$main_src $vflag -plat $plat -N -X NO_IO -v"); 
-        # say("AutoParallel-Fortran-exe $kernel_sources_str -out ../$gen_dir/ -iowrite $iowrite_subs_str -main ./$main_src $vflag -plat $plat");
-        system("AutoParallel-Fortran-exe $kernel_sources_str -out ../$gen_dir/ -iowrite $iowrite_subs_str -main ./$main_src $vflag -plat $plat");
-        
-        ##
-        say "* In '$gen_dir', we restore code segments that were stashed in the previous step" if $VV;
-        chdir $wd;
-        chdir $gen_dir;
-        
-        restore_stashed_lines("$wd/$src_dir/stash.pl"); 
-        system('cp ./PostGen/* .');
+    system("touch macros.h");
+    system("touch macros_to_skip.h");
+
+    (my $defined_macros_str, my $undef_macros_str) = macro_file_to_cmd_line_str( './macros.h','-D');
+    (my $macros_to_skip_str, my $empty_str) = macro_file_to_cmd_line_str('./macros_to_skip.h','-X');
     
-    }
+    # say("AutoParallel-Fortran-exe $kernel_sources_str -out ../$dots$gen_dir/ -iowrite $iowrite_subs_str -main ./$main_src -plat $plat  $defined_macros_str $macros_to_skip_str $vflag" );
+    
+    # system("AutoParallel-Fortran-exe $kernel_sources_str -out ../$dots$gen_dir/ -iowrite $iowrite_subs_str -main ./$main_src  -plat $plat  $defined_macros_str $macros_to_skip_str $vflag" );    
+    
+    say("AutoParallel-Fortran-exe $kernel_sources_str -out ../$dots$gen_dir/ -main ./$main_src $vflag -plat $plat -N  -v"); 
+    system("AutoParallel-Fortran-exe $kernel_sources_str -out ../$dots$gen_dir/ -main ./$main_src $vflag -plat $plat -N -v"); 
+   
 }
-# Step 2. Copy non-modified source files and scripts and config files needed to build the OpenCL kernel, and generate the OpenCL kernel
-if (not $skip_step_2) { 
+
+if (not $skip_stage[2]) { 
+# Stage 2. reduce (i.e. memory reduction)
+# Run `memory_reduction.pl -C` on the results from autopar:
+
+    mkdir "mem_reduced$suffix" unless -d "mem_reduced$suffix";
+    system("cp generated_src$suffix/module_sor_main_superkernel.f95 mem_reduced$suffix");
+    chdir "mem_reduced$suffix";
+    system('memory_reduction.pl -C');
+
+# That will create a result in mem_reduced$suffix/MemoryReduction/Generated
+# Copy the files from mem_reduced$suffix/MemoryReduction/Scalarized into Generated
+
+    system("cp MemoryReduction/Scalarized/* MemoryReduction/Generated");
+}
+if (not $skip_stage[3]) { 
+# Stage 3. inline
+# Run the inliner
+
+    chdir $wd;
+    mkdir "mem_reduced_inlined$suffix" unless -d "mem_reduced_inlined$suffix";
+    chdir "mem_reduced$suffix/MemoryReduction";
+
+# Create `rf4a_inline.cfg` 
+    my $rf4a_inline = <<ENDCFG;
+# Relative path to the original Fortran source code
+SRCDIRS = Generated
+# Relative path to the refactored Fortran source code
+NEWSRCPATH = ../../mem_reduced_inlined$suffix
+# Name of the subroutine to start from. If this is the main program, leave blank.
+# TOP = 
+EXT = .f95
+RENAME_PARS_IN_INLINED_SUBS = 0
+RENAME_VARS_IN_INLINED_SUBS = 0
+ONE_SUB_PER_MODULE = 0
+ENDCFG
+    
+    open my $CFG, '>', 'rf4a_inline.cfg';
+    print $CFG $rf4a_inline;
+    close $CFG;
+
+    say($ENV{HOME}.'/Git/RefactorF4Acc/bin/'.'refactorF4acc.pl '.$vflag.' -c rf4a_inline.cfg');
+    system($ENV{HOME}.'/Git/RefactorF4Acc/bin/'.'refactorF4acc.pl '.$vflag.' -c rf4a_inline.cfg');
+
+}
+
+# Stage 4. Copy non-modified source files and scripts and config files needed to build the OpenCL kernel, and generate the OpenCL kernel
+if (not $skip_stage[4]) { 
     
     ##
     say "* In `$gen_dir`, we copy the non-modified source files into the current folder, as well as some scripts and config files needed to build the OpenCL kernel." if $VV;
@@ -333,8 +343,8 @@ PREFIX = .
 SRCDIRS = .
 NEWSRCPATH = ./Temp
 EXCL_SRCS = (module_${superkernel_name}_init|_host|\\.[^f])
-EXCL_DIRS = ./PostCPP,./Temp
 MACRO_SRC = macros_kernel.h
+EXCLUDE_ALL_SUBDIRS = 1
 
 ENDCFG
     
@@ -372,26 +382,10 @@ ENDCFG
     system($ENV{HOME}.'/Git/RefactorF4Acc/bin/'.'refactorF4acc.pl '.$vflag.' -P translate_to_OpenCL -c rf4a_to_C.cfg module_'.$superkernel_name);
     system("cp Temp/module_$superkernel_name.cl module_${superkernel_name}_ORIG.cl");
 
-    # Unused, for debugging
-    #open my $MK, '<', $macros_kernel_src or die $!;
-    #my @ls=<$MK>;
-    #close $MK;
-    #my $macros_str=join(" ",map {
-    #    $_=~s/\n//;
-    #    s/^\s*//;
-    #    s/\s*$//;
-    #    s/.define\s*/-D/;
-    #    s/.undef\s*/-U/;
-    #    s/\s+/=/;
-    #    $_
-    #} @ls);
-    #say("cpp $macros_str -I. -P module_$superkernel_name.cl > module_${superkernel_name}_after_CPP_for_debugging.cl");
-    #system("cpp $macros_str -I. -P module_$superkernel_name.cl > module_${superkernel_name}_after_CPP_for_debugging.cl");
-
 }
 
 # Step 3. Build the host code for the OpenCL kernel
-if (not $skip_step_3) {
+if (not $skip_stage[5]) {
 ##
     chdir $wd;
     chdir $gen_dir;

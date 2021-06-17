@@ -7,7 +7,7 @@ use v5.10;
 use RefactorF4Acc::Config;
 use RefactorF4Acc::Utils;
 use RefactorF4Acc::Parser::Expressions qw( get_vars_from_expression parse_expression emit_expr_from_ast );
-use RefactorF4Acc::Refactoring::Helpers qw( splice_additional_lines_cond_inplace );
+use RefactorF4Acc::Refactoring::Helpers qw( splice_additional_lines_cond_inplace emit_f95_var_decl);
 # use RefactorF4Acc::Parser qw( parse_fortran_src );
 
 use vars qw( $VERSION );
@@ -814,7 +814,8 @@ sub _split_multipar_decls_and_set_type {
                         $rinfo{'ParamDecl'} = {'Name'=>$var}; # WV20190729 New approach. I don't see why anything but the name is needed
                         $rinfo{'VarDecl'} = {'Name' => $var};                        
                         my $val =  exists $param_decl->{'AST'} ? emit_expr_from_ast($param_decl->{'AST'}) : $param_decl->{'Val'};
-                        my $rline = $param_decl->{'Indent'}."parameter($var=$val)"; # F77 syntax, this should not be used anyway
+                        # my $rline = $param_decl->{'Indent'}."parameter($var=$val)"; # F77 syntax, this should not be used anyway
+                        my $rline = emit_f95_var_decl($param_decl); 
                         push @{$new_annlines}, [$rline, \%rinfo];
                     }
                             

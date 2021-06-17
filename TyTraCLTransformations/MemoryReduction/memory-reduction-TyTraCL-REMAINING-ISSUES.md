@@ -1,5 +1,19 @@
 # REMAINING ISSUES : Memory (Bandwidth) Reduction for Scientific Computing on GPUs
 
+## 2021-06-15
+
+* After inlining, the generated code does not use the module for stage_kernel_1 (singleton_module_stage_kernel_1) in singleton_module_sor_main_superkernel which contains only sor_main_superkernel. So either I should use this module singleton_module_stage_kernel_1 or (preferable I think) I should include the called subroutine stage_kernel_1 in the module singleton_module_sor_main_superkernel
+
+The wrapper module module_sor_main_superkernel still contains the inlined subroutine sor_main_map_23 as well as stage_kernel_1. This is not a problem but it is incorrect
+
+
+
+* To handle boundary conditions, I use if/thens with conditions on i,j,k
+Because the original subroutines from apf don't have i/j/k as arguments, somehow i/j/k gets lost.
+
+The root cause I suppose is that the dependency analysis should pick up that get_global_id should not be eliminated. => OK now
+
+
 
 ## 2021-06-14
 

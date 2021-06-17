@@ -95,6 +95,7 @@ sub refactor_all {
 	# $stref = refactor_dsm_all($stref) ;
     # croak ;#Dumper pp_annlines($stref->{'Subroutines'}{'sor_main'}{'RefactoredCode'});
     # Custom refactoring, must be done before creating final modules
+    # croak;
     say "add_module_decls" if $V;
     $stref=add_module_decls($stref);
     

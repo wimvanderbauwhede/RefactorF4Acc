@@ -33,7 +33,9 @@ This subroutine creates the module declarations around the original F77 files
 # -----------------------------------------------------------------------------
 sub add_module_decls { 
 	( my $stref ) = @_;
-
+		# local $I=1;
+		# local $V=1;
+		# local $DBG=1;
 	#    my $no_module=0;
 	my %is_existing_module   = ();
 	my %existing_module_name = ();
@@ -44,7 +46,7 @@ sub add_module_decls {
 	# 	1. Get all code units in this source ($sub_or_func_or_mod)
 	# 	2. - For each of these code units
 	#		- check if the code unit is an existing Module (assuming only 1 module per source!), if so
-	#			set 	$is_existing_module and $existing_module_name
+	#			set $is_existing_module and $existing_module_name
 	#   3. For all code units, get a list of CalledSubs (so in practice this is only for Subroutines)
 	#		- get the sources for these subs, to include in the current module.
 	for my $src ( keys %{ $stref->{'SourceContains'} } ) {		
@@ -98,7 +100,11 @@ sub add_module_decls {
 			say join( ', ', @{ $stref->{'SourceContains'}{$src}{'List'} } );
 		}
 		if ( $is_existing_module{$src} ) {
-
+			# The Module AnnLines only have the non-subroutine lines
+			# So to create the entire module, we must insert the lines from the subs
+			# say  "MOD: ".$existing_module_name{$src};
+			# 	show_annlines($stref->{'Modules'}{$existing_module_name{$src}}{AnnLines});
+				# die;
 			# What we need to do is find $info->{'Contains'} and splice in the subroutines in order there.
 			# So we create $new_annlines simply by merging the annlines for all subs, then splice.
 
@@ -109,7 +115,8 @@ sub add_module_decls {
 			# Unless there is a way to re-export modules
 			my $only_one_sub_in_module = scalar  @{ $stref->{'Modules'}{ $existing_module_name{$src} }{'Contains'} } == 1 ? 1 : 0;
 			my $split_out_modules_per_subroutine= $only_one_sub_in_module ? 0 : 1;
-			if ($split_out_modules_per_subroutine==1 and $stref->{'Modules'}{  $existing_module_name{$src} }{'Inlineable'}==0) {
+			if ($Config{'ONE_SUB_PER_MODULE'}==1 and
+				$split_out_modules_per_subroutine==1 and $stref->{'Modules'}{  $existing_module_name{$src} }{'Inlineable'}==0) {
 				$stref = _split_module_per_subroutine( $stref,  \%existing_module_name, $src, \%no_modules );
 			} else {
 			
@@ -120,7 +127,8 @@ sub add_module_decls {
 					say 'SUB: ' . $sub if $V;
 					$stref = _create_module_src(  $stref, $src, $sub, \%no_modules ) unless $only_one_sub_in_module;
 					
-					$new_annlines = [ @{$new_annlines}, @{ $stref->{'Subroutines'}{$sub}{'RefactoredCode'} } ];
+					$new_annlines = [ @{$new_annlines}, ['',{}],@{ $stref->{'Subroutines'}{$sub}{'RefactoredCode'} } ];
+					
 					say '=' x 80 if $V;
 				}
 	
@@ -153,6 +161,11 @@ sub add_module_decls {
 					$stref->{'RefactoredCode'}{$src} = $old_annlines;
 				}
 			}
+			# say '#' x 80 ;
+			# 	say "NEW ANNLINES for $src, MODULE ".$existing_module_name{$src};
+			# 		show_annlines($stref->{'RefactoredCode'}{$src});					
+			# 		say '#' x 80 ;
+
 		} else {
 
 			# This is either a subroutine or the main program

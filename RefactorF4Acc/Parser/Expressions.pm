@@ -936,10 +936,7 @@ So it looks like I need at least 6 bits, so we'll need <<8 and 0xFF
             } elsif ($prev_lev<$lev) { # '*' < '+'
                 push @{$ast[$prev_lev]},$expr_ast;
                 if ($pp_lev>$prev_lev) { 
-                    say 'PP1:'.Dumper $ast[$pp_lev];
-                    say 'PP2:'.Dumper $ast[$prev_lev];
                     my $tmp_ast= [@{$ast[$pp_lev]},$ast[$prev_lev]];
-                    say 'PP3:'.Dumper $tmp_ast;
                     $ast[$prev_lev]= $tmp_ast;
                     undef $ast[$pp_lev];
                 }                

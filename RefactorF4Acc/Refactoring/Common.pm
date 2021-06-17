@@ -199,7 +199,7 @@ sub refactor_COMMON_blocks_and_CONTAINed_subs {  # 218 lines Was _refactor_globa
 				--$inc_counter;
 				$skip = 1;
 			} else {
-				warning( "Module " . $info->{'Use'}{'Name'} . " in $f is not Inlineable" ,4);
+				warning( "Module " . $info->{'Use'}{'Name'} . " in $f is not Inlineable" ,3);
 			}
 		}
 		# say  $inc_counter , exists $info->{'Include'}, exists $info->{'ImplicitNone'},$hook_after_last_incl ;

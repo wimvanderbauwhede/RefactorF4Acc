@@ -66,6 +66,7 @@ if (not exists $Config{'FIXES'}{'_removed_unused_variables'}) { return $stref }
 		my $rlines=[];
 		my $skip_if=0;
 		my $done=0;
+		
  		if ( exists $info->{'Signature'} ) {			 
  			$state->{'Args'} = $info->{'Signature'}{'Args'}{'Set'}; 
 			 $done=1;
@@ -274,7 +275,7 @@ if (not exists $Config{'FIXES'}{'_declare_undeclared_variables'}) { return $stre
 	# Make a list of all variables anywhere in the code via Lhs, Rhs, Args, put in $state->{'ExprVars'}
 	my $pass_action_find_all_used_vars = sub { (my $annline, my $state)=@_;		
 		(my $line,my $info)=@{$annline};
-#		say "$f LINE: $line" if $line=~/range/;
+		# say "$f LINE: $line" if $line=~/range/;
 		my $rline=$line;
 		my $rlines=[];
 		
