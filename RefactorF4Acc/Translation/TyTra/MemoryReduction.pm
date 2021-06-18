@@ -78,6 +78,8 @@ sub pass_memory_reduction {
     };
 
 if ($Config{'TEST'} == 0 ) { 
+    # Get Purpose for the superkernel args
+    $stref = _get_Purpose_from_file($stref, $superkernel_name);
     $stref = pass_wrapper_subs_in_module(
         $stref, $superkernel_name,
 
@@ -746,6 +748,7 @@ sub mkMapAST {
     my $non_map_type = $mapNode->{'NonMapType'};
     my $vec_type = $mapNode->{'VecType'}; # This is a list as it could be a tuple; can be SVecs as well
     my $ret_type = $mapNode->{'ReturnType'};
+    # carp $fname.Dumper $mapNode;
 # I need to determine if a vector is VO, VI, VS or VS
 # VS is for stencil
 # I should know the inputs and outputs
@@ -860,6 +863,7 @@ sub __mkType { (my $t_rec, my $v_name, my $v_intent)=@_;
 
 sub __mkVec {
     my ($var_type_rec, $v_intent) = @_;
+    # carp if not defined $var_type_rec;
     my ($v_rec, $t_rec) = @{$var_type_rec};
     # t_rec is either [Int] or [SVec,3,Int]
     my $v_name  = _mkVarName($v_rec);
@@ -1402,5 +1406,14 @@ sub _create_Haskell_TyTraAST_type { my ($stref,$f,$arg_rec,$idx,$FSig_ctor,$type
                     }       
 } # END of _create_Haskell_TyTraAST_type
 
+sub _get_Purpose_from_file { my ($stref, $f) = @_;
+    my $purpose_for_args = read_config($Config{'PURPOSE_CFG'});
 
+    for my $arg (sort keys %{$purpose_for_args}) {
+        $stref->{'Subroutines'}{$f}{'DeclaredOrigArgs'}{'Set'}{$arg}{'Purpose'} = $purpose_for_args->{$arg};
+        say "SET Purpose for $arg in $f to ".$purpose_for_args->{$arg};
+    }
+
+    return $stref;
+}
 1;

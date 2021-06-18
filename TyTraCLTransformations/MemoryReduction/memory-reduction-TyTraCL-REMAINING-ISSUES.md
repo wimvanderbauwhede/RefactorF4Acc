@@ -1,5 +1,14 @@
 # REMAINING ISSUES : Memory (Bandwidth) Reduction for Scientific Computing on GPUs
 
+## 2021-06-18
+
+* The key remaining issue is that apf creates code with incorrect IODirs, in particular InOut that should be Out. To fix that, I need to do the written_before_read check on every subroutine and change any InOut to Out.
+* In principle we could also check if an arg is actually a local, by checking if an Out is used later or not.
+
+* velFG works if we remove the boundary conditions; to make them work I would have to integrate them into the main loops or extend the 2-D loops and guard them. I have included the maps from les.f95 as well.
+* I see that the map from adam.f95 is incorrect: f,g,h and fold,gold,hold are scalar!
+
+
 ## 2021-06-15
 
 * After inlining, the generated code does not use the module for stage_kernel_1 (singleton_module_stage_kernel_1) in singleton_module_sor_main_superkernel which contains only sor_main_superkernel. So either I should use this module singleton_module_stage_kernel_1 or (preferable I think) I should include the called subroutine stage_kernel_1 in the module singleton_module_sor_main_superkernel
@@ -87,7 +96,7 @@ Full 2-D shallow water, needs some changes:
 2/ remove local arrays from args, manually. Later we'll use the "Purpose" pragma for this.
 Ideally I would have 4 values for Purpose: In, Out, Temp and Local:
 - In and Out are proper args of the superkernel
-- Temp are arrays at topleve in the superkernel
+- Temp are arrays at toplevel in the superkernel
 - Local are arrays that are only used inside a subkernel
 
 I still struggle with arrays that are actually InOut, such as `wet`. As it is modified, it needs to be returned. And as I don't have InOut, I make it Out

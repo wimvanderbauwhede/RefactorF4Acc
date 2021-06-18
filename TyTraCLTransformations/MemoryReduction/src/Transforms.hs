@@ -81,7 +81,12 @@ substitute_vec_rec ast expr_tup@(lhs_vec,expr) = let
             let
                 expr_tup' = substitute_vec ast expr_tup
             in
-                substitute_vec_rec ast expr_tup'
+                if (expr_tup' == expr_tup) 
+                    then 
+                        -- Loop
+                        error $ "LOOP! "++(show vecs)
+                    else
+                        substitute_vec_rec ast expr_tup'
         else -- we're done, return the result 
             expr_tup
 

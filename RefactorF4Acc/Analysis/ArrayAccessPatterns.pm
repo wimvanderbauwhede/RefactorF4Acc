@@ -1574,7 +1574,7 @@ sub __only_const_acccesses { my ($array_var, $state, $f, $block_id) = @_;
 
 			for my $iter_pair (@{$iter_pairs})  {
 				my ($iter,$idx) = split(/:/,$iter_pair);
-				if ($iter ne '?') { croak $iter if $array_var eq 'w';
+				if ($iter ne '?') { 
 					return 0;
 				}
 			}

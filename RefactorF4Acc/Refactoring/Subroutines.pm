@@ -232,13 +232,16 @@ sub _fix_end_lines {
 			}
 			my $indent = $info->{'Indent'} // '      ';
 			my $end_sub_line = $indent.'end '.$sub_or_prog.' '.$f;
+			
 			if (exists $info->{'Label'} ) {
 				my $label = $info->{'Label'};
-				if ( exists $Sf->{'ReferencedLabels'}{$label} ) {				
+				if ( exists $Sf->{'ReferencedLabels'}{$label} ) {		
+							
 					$end_sub_line = $indent.$label.' end '.$sub_or_prog.' '.$f;
+					croak $end_sub_line.Dumper($info);
 				}
 		 	}
-
+			$info->{'End'.ucfirst($sub_or_prog)} = $f;
 			push @{$rlines}, [$end_sub_line,$info];
 
 			# push @{$rlines}, [ $line . " $sub_or_prog $f", $info ];
@@ -248,7 +251,7 @@ sub _fix_end_lines {
 		if ( $line =~ /^\s*contains\s*$/ ) {
 			$line =~ s/\s+$//;
 			$annline->[1]{'Contains'}=1;			
-			push @{$rlines}, $annline;
+			push @{$rlines}, $annline;			
 			push @{$rlines}, [ "end $sub_or_prog $f", $info ];
 			$done_fix_end = 1;
 		}

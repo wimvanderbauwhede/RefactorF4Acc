@@ -27,6 +27,7 @@ $targetdir
 %Config
 &read_rf4a_config    
 &interactive_create_rf4a_cfg
+&read_config
 $messages
 );
 # $SPLIT_LONG_LINES
@@ -156,7 +157,8 @@ our %Config=(
 'F77PATH' => [],
 'FFLAGS'  => ['-cpp','-O3', '-m64', '-ffree-form', '-ffree-line-length-0','-fconvert=little-endian', '-frecord-marker=4'],
 'F77FLAGS'  => ['-cpp','-O3', '-m64', '-fconvert=little-endian', '-frecord-marker=4'],
-'FIXES' => {}, 
+'FIXES' => {},
+'PURPOSE_CFG' => 'purpose.cfg',
 'Macros' => {}
 );
 
@@ -207,6 +209,44 @@ sub read_rf4a_config {
 }
 close $CFG;
 }
+
+sub read_config { 
+	my ($cfgrc,$cfg_hash)=@_;
+    if (not defined $cfg_hash) {
+        $cfg_hash={};
+    }
+    if (-e $cfgrc) {
+	open my $CFG, '<', $cfgrc or die $!,': ',$cfgrc;
+	say "INFO: CONFIG FILE $cfgrc:" if $I;
+
+	for my $line (<$CFG>) {
+        next if $line=~/^\s*#/;
+        next unless $line=~/=/;
+        print $line if $V;
+        chomp $line;
+        $line=~s/\s+$//;
+        (my $k, my $v) = split(/\s*\=\s*/,$line);
+        if (ref($cfg_hash->{$k}) eq 'ARRAY') {
+            my @vs=split(/\s*,\s*/,$v);
+            $cfg_hash->{$k}=[@vs];
+        } elsif (ref($cfg_hash->{$k}) eq 'HASH') {
+            my @vs=split(/\s*,\s*/,$v);
+            $cfg_hash->{$k}= { map {$_ => 1} @vs};
+        } else {
+            $cfg_hash->{$k}=$v;
+        }
+
+        say "INFO: $k => $v" if $I;
+    }
+
+    close $CFG;
+    
+    } else {
+        warn "Config file $cfgrc does not exists";
+    }
+    return $cfg_hash;
+}
+
 =pod
 TOP :: String: The name of the toplevel code unit for the analysis. Typically this is the main program name. 
 PREFIX :: String: The path to the directory  where the script will run. Typically this is '.'.
@@ -270,6 +310,7 @@ MACRO_SRC = macros.h
 RENAME_EXT = _G
 =cut
 
+# TODO: the defaults should be taken from %Config
 our $config_menu= {
     'BASIC' => [
         ['SRCDIRS','Relative path to the original Fortran source code','src'],
@@ -315,9 +356,12 @@ our $config_menu= {
         ['RENAME_EXT', 'Suffix for renaming clashing variables ','_GLOB'],
         ['EVAL_PARAM_EXPRS','Evaluate RHS expression of parameter declarations? 0/1','0'],
         ['RENAME_PARS_IN_INLINED_SUBS','Rename parameters in inlined subroutines (to avoid name conflicts)? 0/1','0'],
+        ['RENAME_VARS_IN_INLINED_SUBS','Rename variables in inlined subroutines (to avoid name conflicts)? 0/1','0'],
         ['FOLD_CONSTANTS','Fold constants (replace parameters by their values)? 0/1','0'],
         ['NO_MODULE','Comma-separated list of source files that should not be changed to modules',''],
-        ['MACRO_SRC','Relative path to C-style header file with macro definitions','macros.h']
+        ['MACRO_SRC','Relative path to C-style header file with macro definitions','macros.h'],
+        ['ONE_SUB_PER_MODULE', 'Create a module for each subroutine? 0/1','1'],
+        ['PURPOSE_CFG','Relative path to the Purpose configuration','purpose.cfg']
     ]
 };
 

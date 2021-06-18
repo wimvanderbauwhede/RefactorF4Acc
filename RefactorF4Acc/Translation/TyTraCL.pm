@@ -998,11 +998,29 @@ sub _add_TyTraCL_AST_entry {
         # carp $f. ' RefactoredArgs: '.Dumper $state->{'Subroutines'}{$f}{'RefactoredArgs'}; # This is OK
         # croak $f.' DeclaredOrigArgs: '.Dumper $state->{'Subroutines'}{$f}{'DeclaredOrigArgs'}; # This is NOK?!
         for my $arg (@{$state->{'Subroutines'}{$f}{'RefactoredArgs'}{'List'}}) {
-            warn 'Replace with Purpose!';
-            $tytracl_ast->{'OrigArgs'}{$arg} = 
-                $state->{'Subroutines'}{$f}{'DeclaredOrigArgs'}{'Set'}{$arg}{'IODir'};
-            $tytracl_ast->{'FunctionArgsMappings'}{$f}{$arg}=$arg_pos;
-            ++$arg_pos;
+            # warn 'Replace with Purpose!';
+
+            if (exists $state->{'Subroutines'}{$f}{'DeclaredOrigArgs'}{'Set'}{$arg}{'Purpose'}) {
+                my $purpose = lc($state->{'Subroutines'}{$f}{'DeclaredOrigArgs'}{'Set'}{$arg}{'Purpose'});
+                if (  $purpose eq 'in' or $purpose eq 'out' or $purpose eq 'inout'
+                ) {
+                    say "ARG $arg for $f : ".$purpose;
+                    $tytracl_ast->{'OrigArgs'}{$arg} = $purpose;
+                    $tytracl_ast->{'FunctionArgsMappings'}{$f}{$arg}=$arg_pos;
+                    ++$arg_pos;
+                }  else {
+                    say "ARG $arg for $f : <".$state->{'Subroutines'}{$f}{'DeclaredOrigArgs'}{'Set'}{$arg}{'Purpose'}.'>';
+                } # else it is not an argument
+            } else {
+                if (exists $state->{'Subroutines'}{$f}{'DeclaredOrigArgs'}{'Set'}{$arg}{'IODir'}) {
+                warn "No Purpose for $arg, using IODir " . $state->{'Subroutines'}{$f}{'DeclaredOrigArgs'}{'Set'}{$arg}{'IODir'};
+                $tytracl_ast->{'OrigArgs'}{$arg} = $state->{'Subroutines'}{$f}{'DeclaredOrigArgs'}{'Set'}{$arg}{'IODir'};
+                $tytracl_ast->{'FunctionArgsMappings'}{$f}{$arg}=$arg_pos;
+                ++$arg_pos;
+                } else {
+                    warn "No Purpose or IODir for $arg" . Dumper $state->{'Subroutines'}{$f}{'DeclaredOrigArgs'}{'Set'}{$arg};
+                }
+            }
         }
     }
 

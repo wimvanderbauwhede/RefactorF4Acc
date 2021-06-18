@@ -509,9 +509,9 @@ sub _analyse_src_for_iodirs {
                                     }
                                     else {                                        
                                         warning("Intent for call arg $var in call to $name in $f is unknown");
-                                        carp Dumper $iodirs_from_call;
-                                        carp Dumper $stref->{Subroutines}{$f}{RefactoredArgs}{Set}{$var};
-                                        croak Dumper $stref->{Subroutines}{$f}{DeclaredOrigArgs}{Set}{$var};
+                                        # carp Dumper $iodirs_from_call;
+                                        # carp "ARG $var RefactoredArgs => ".Dumper $stref->{Subroutines}{$f}{RefactoredArgs}{Set}{$var};
+                                        # croak "ARG $var DeclaredOrigArgs => ".Dumper $stref->{Subroutines}{$f}{DeclaredOrigArgs}{Set}{$var};
                                     }
                                 }
                                 else {
