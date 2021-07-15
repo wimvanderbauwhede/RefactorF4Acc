@@ -5,8 +5,11 @@
 * The key remaining issue is that apf creates code with incorrect IODirs, in particular InOut that should be Out. To fix that, I need to do the written_before_read check on every subroutine and change any InOut to Out.
 * In principle we could also check if an arg is actually a local, by checking if an Out is used later or not.
 
-* velFG works if we remove the boundary conditions; to make them work I would have to integrate them into the main loops or extend the 2-D loops and guard them. I have included the maps from les.f95 as well.
-* I see that the map from adam.f95 is incorrect: f,g,h and fold,gold,hold are scalar!
+* velFG works if we remove the boundary conditions; to make them work I would have to integrate them into the main loops or extend the 2-D loops and guard them. I have included the maps from les.f95 as well, and I could include feedbf too but it does not change the conclusions in any way.
+
+* I see that the map from adam.f95 is incorrect: f,g,h and fold,gold,hold are scalar! => This is a result from a bug in the first refactoring, which makes the declarations end up inside an #ifndef. I should make sure  that the #ifndef is removed before running the refactoring.
+
+* Another, minor issue but related to this is is that apf does not keep the order of the original calls when generating the case statement: it seems to be alphabetical instead. => This was a bug in the aux/generate_... script: the routine sources were not in call order.
 
 
 ## 2021-06-15

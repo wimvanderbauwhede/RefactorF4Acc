@@ -1540,7 +1540,7 @@ buildMainProgramForSuperkernelDef unique_stage_kernel_decls stage_kernel_calls =
         "program main",
         "    use module_"++superkernelName++", only : "++superkernelName,
         "    integer :: global_id",
-        "    common /ocl/ global_id",
+        "    -- common /ocl/ global_id",
         "    ! Declarations"
         ] ++
         main_program_decl_strs ++
@@ -1590,8 +1590,7 @@ buildSuperkernelDef unique_stage_kernel_decls stage_kernel_calls subdef_lines_st
             "end subroutine "++superkernelName
             ] ++ [""] ++
             subdef_lines_strs
-            ++
-            getGlobalIdDefStrs            
+            -- ++ getGlobalIdDefStrs            
             ,
                 "end module module_"++superkernelName                
             )

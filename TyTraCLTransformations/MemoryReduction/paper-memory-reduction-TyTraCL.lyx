@@ -593,20 +593,6 @@ literal "false"
  system.
 \end_layout
 
-\begin_layout Standard
-\begin_inset Note Note
-status open
-
-\begin_layout Plain Layout
-As a result of the staging, I am sure rhs cannot be removed.
- 
-\end_layout
-
-\end_inset
-
-
-\end_layout
-
 \begin_layout Section
 Related Work
 \begin_inset CommandInset label
