@@ -6,7 +6,7 @@ package RefactorF4Acc::Refactoring::InlineSubroutine;
 use v5.10;
 use RefactorF4Acc::Config;
 use RefactorF4Acc::Utils;
-use RefactorF4Acc::Refactoring::Helpers qw( stateful_pass_inplace stateless_pass_inplace stateless_pass );
+use RefactorF4Acc::Refactoring::Helpers qw( stateful_pass_inplace stateless_pass_inplace stateless_pass stateful_pass);
 use RefactorF4Acc::Parser::Expressions qw( emit_expr_from_ast parse_expression_no_context _traverse_ast_with_action);
 # use RefactorF4Acc::Parser qw( analyse_lines );
 
@@ -89,6 +89,7 @@ sub _inline_subroutines_main { my ( $stref, $f ) = @_;
             carp "INLINING $sub in $f" if $V;
             $stref = _inline_subroutine($stref,$f,$sub,0);
         }
+        $stref = _remove_duplicate_declarations($stref,$f);
     } 
     # I definitely need a step to fuse the declarations of all inlined subs 
     
@@ -269,7 +270,7 @@ sub __merge_specification_computation_parts_into_caller { (my $stref, my $f, my 
                 my $var_name = $info->{'VarDecl'}{'Name'};
                 my $subset = in_nested_set($Sf,'Vars', $var_name);
                 if ($subset) {
-                    say "$f => $sub => $subset => Delete $var_name decl: ".$line;
+                    say "__merge_specification_computation_parts_into_caller $f => $sub => $subset => Delete $var_name decl: ".$line;
                     $info->{'Deleted'}=1;
                     $line = '! '.$line;
                 }
@@ -282,6 +283,7 @@ sub __merge_specification_computation_parts_into_caller { (my $stref, my $f, my 
                 my $subset = in_nested_set($Sf,'Vars', $par_name);
                 # say "PAR LINE: $line => $par_name => in $subset of $f ";
                 if ($subset) {
+                     say "__merge_specification_computation_parts_into_caller $f => $sub => $subset => Delete $par_name decl: ".$line;
                     $info->{'Deleted'}=1;
                     $line = '! '.$line;
                 }                
@@ -290,7 +292,8 @@ sub __merge_specification_computation_parts_into_caller { (my $stref, my $f, my 
             return [[$line,$info]]
         };
     
-        my $non_caller_specifications = stateless_pass($specification_part,$pass_filter_non_caller_specifications,"pass_filter_non_caller_specifications($f)");
+        my $non_caller_specifications = $specification_part;
+        #  stateless_pass($specification_part,$pass_filter_non_caller_specifications,"pass_filter_non_caller_specifications($f)");
 
     my $pass__merge_specification_computation_parts_into_caller = sub {
         my ( $annline, $state ) = @_;
@@ -903,5 +906,51 @@ sub _replace_call_with_var { (my $ast, my $var) = @_;
 
 } # END of _replace_call_with_var
 
+sub _remove_duplicate_declarations { my ($stref,$f) = @_;
+    my $Sf = $stref->{'Subroutines'}{$f};
+    my $annlines = $Sf->{'RefactoredCode'};
 
+    my $pass_remove_duplicate_declarations = sub { my ($annline,$state) = @_;
+        my ($line, $info) = @{$annline};
+        # say "LINE: $line";
+        if (exists $info->{'Comments'}) {
+            $info ={'Deleted'=>1};
+        }
+        elsif (exists $info->{'VarDecl'}) {
+            my $var_name = $info->{'VarDecl'}{'Name'};
+            
+            if (exists $state->{'DeclaredVars'}{$var_name}) {
+                say "_remove_duplicate_declarations $f: Delete $var_name decl: ".$line;
+                $info ={'Deleted'=>1};
+                $line = '! '.$line;
+            } else {
+                # say Dumper($info);
+                $state->{'DeclaredVars'}{$var_name}=1;
+                # die if $var_name eq 'nou7';
+            }
+        }
+        elsif (exists $info->{'ParamDecl'}) {
+            
+            my $par_name = ref($info->{'ParamDecl'}{'Name'}) eq 'ARRAY'
+            ? $info->{'ParamDecl'}{'Name'}[0]
+            : $info->{'ParamDecl'}{'Name'};
+            if (exists $state->{'DeclaredVars'}{$par_name}) {
+                say "_remove_duplicate_declarations $f: Delete $par_name decl: ".$line;
+                # $info->{'Deleted'}=1;
+                $info ={'Deleted'=>1};
+                $line = '! '.$line;
+            } else {
+                    $state->{'DeclaredVars'}{$par_name}=1;
+            }
+        }            
+
+        return ([[$line,$info]],$state)
+    };
+
+    my $state = {'DeclaredVars'=>{}};
+
+    (my $new_annlines,$state) = stateful_pass($annlines,$pass_remove_duplicate_declarations,$state,"pass_remove_duplicate_declarations($f)");
+    $Sf->{'RefactoredCode'} = $new_annlines;
+    return $stref;
+} # END of _remove_duplicate_declarations
 1;

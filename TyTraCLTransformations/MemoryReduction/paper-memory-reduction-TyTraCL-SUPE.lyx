@@ -4263,7 +4263,7 @@ The code generation from the ANF representation of the TyTraCL program results
  As this form of the program is unnecessarily large, in a final compiler
  pass we aggressively inline all functions that are called in the toplevel
  kernel functions.
- The resulting source code is no larger than the original code.
+ The resulting source code size is of the same order as the original code.
  As our main purpose is to deploy the generated code on accelerators, we
  translate the kernel code to OpenCL as explained in [REF].
 \end_layout

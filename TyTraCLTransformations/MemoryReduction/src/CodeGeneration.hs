@@ -31,15 +31,15 @@ generateFortranCode decomposed_ast functionSignaturesList idSigList =
         generatedFunctionDefs = generateDefs functionSignatures asts_function_defs
         -- generatedStageKernels = map (\(ast,ct) -> (generateStageKernel functionSignatures) ct ast) (zip ast_stages [1..])
         (mainProgramStr,(maybeMainModuleStr,maybeEndModuleStr))
-            | genMain = 
+            | genMain =
                 let
-                    (mp,(mm,mme)) = generateMainProgramOrSuperkernel genModule functionSignatures ast_stages 
+                    (mp,(mm,mme)) = generateMainProgramOrSuperkernel genModule functionSignatures ast_stages
                 in
                     (mp,(
                         -- "! AST STAGES:\n"++unlines (map (\st -> "! " ++ (show st)) ast_stages) ++"\n"++
                         mm,mme))
             | otherwise = ("! Main code not generated",("",""))
-            
+
         generatedOpaqueFunctionDefsStr = unlines generatedOpaqueFunctionDefs
         -- putStrLn "\n! Generate subroutine definitions"
         generatedFunctionDefsStr = unlines generatedFunctionDefs
@@ -47,7 +47,7 @@ generateFortranCode decomposed_ast functionSignaturesList idSigList =
         -- generatedStageKernelsStr
         --     | genStages =  unlines generatedStageKernels         
         --     | otherwise = "! Stage kernel code not generated"
-    in  
+    in
         if not (null maybeMainModuleStr) then -- means we have a module
         (mainProgramStr,unlines [
              maybeMainModuleStr
@@ -94,16 +94,16 @@ mergeFields lst = let
     unique_names = nub $ map (\(n,_) -> n) lst
 -- for each unique name, filter the list 
     in
-        map (\un -> let 
+        map (\un -> let
                 tups_n = filter (\(n,_) -> n == un) lst
                 -- [(n,l1),(n,l2)]
                 n = fst $ head tups_n
                 snds = map snd tups_n
                 -- [l1,l2]
                 snds_merged = concat snds
-            in     
+            in
                 (n,snds_merged)
-        ) unique_names 
+        ) unique_names
 
 
 origNames :: Map.Map Name (Map.Map Name [(Name, FIntent)])
@@ -270,8 +270,8 @@ generateNonSubDef functionSignatures t  =
         in
         case rhs of
             Stencil s_exp v_exp -> generateStencilAppl s_exp v_exp v_name stencilDefinitions
-            rhs' -> let 
-                    (str,strs,decls) = case rhs' of          
+            rhs' -> let
+                    (str,strs,decls) = case rhs' of
                         Map f_exp v_exp -> generateMap functionSignatures f_exp v_exp t
                         UnzipT (Map f_exp v_exp) -> generateMap functionSignatures f_exp v_exp t
                         Vec _ (Scalar {}) -> generateVecAssign lhs rhs
@@ -357,11 +357,11 @@ createCallArg fname orig_name stencil_index =
 --                     in_scal_arg ++ (if stencil_index==0 then "" else "("++show stencil_index++")")
 --         else
 --             error $ show (origNames ! fname) ++ "; "++ orig_name
-        
+
 
 handleInOutArg fname orig_name ftype stencil_index = let
     actual_arg_names = origNames ! fname ! orig_name
-    actual_in_arg_name = if not (not (any (\(n,i) -> i==In) actual_arg_names))
+    actual_in_arg_name = if any (\(n,i) -> i==In) actual_arg_names
         then
             Just $ fst $ head $ filter (\(n,i) -> i==In) actual_arg_names
         else
@@ -371,7 +371,7 @@ handleInOutArg fname orig_name ftype stencil_index = let
             -- error $ show actual_arg_names  
 
     -- actual_out_arg_name = fst $ head $ filter (\(n,i) -> i==Out) actual_arg_names
-    actual_out_arg_name = if not (null (filter (\(n,i) -> i==Out) actual_arg_names))
+    actual_out_arg_name = if any (\(n,i) -> i==Out) actual_arg_names
         then
             Just $ fst $ head $ filter (\(n,i) -> i==Out) actual_arg_names
         else
@@ -411,7 +411,7 @@ generateSubDefOpaque fname functionSignatures =
                                             -- we need to use the orig_name instead of the new name!
                                             -- createCallArg fname  stencil_index
                                             (orig_name, extra_statements)
-                                    Out -> let 
+                                    Out -> let
                                                 scal_args = origNames ! fname ! orig_name
                                                 out_scal_args = filter (\(_, intent) -> intent == Out) scal_args;
                                                 out_scal_arg = fst $ head out_scal_args
@@ -422,6 +422,8 @@ generateSubDefOpaque fname functionSignatures =
                         ) argsList
                     (orig_arg_decl_strs,pre_call_assignment_strs,post_call_assignment_strs) = unzip3 extra_statements
                     mappedArgsListStr = commaSepList mappedArgsList
+                    -- WV 2021-07-16 What I should do instead is substitute the args in mappedArgsList with the LHS of post_call_assignment_strs
+                    -- So I should generate a hash from post_call_assignment_strs                    
                 in
                     [
                     "    ! Temp vars"
@@ -445,10 +447,10 @@ generateSubDefOpaque fname functionSignatures =
                         -- use_statements_for_opaques = map (\fname -> "    use singleton_module_"++fname++", only : "++fname++"_scal") (Map.keys scalarisedArgs)
                     in
                         buildSubDef ""
-                            fname 
-                            [non_map_args,in_args,out_args] 
-                            [non_map_arg_decls,in_arg_decls,out_arg_decls] 
-                            opaque_function_code_strs 
+                            fname
+                            [non_map_args,in_args,out_args]
+                            [non_map_arg_decls,in_arg_decls,out_arg_decls]
+                            opaque_function_code_strs
                             True
                         -- unlines $ [
                         --      "subroutine "++fname++"("  ++mkArgList [non_map_args,in_args,out_args]++")"
@@ -471,10 +473,10 @@ generateSubDefOpaque fname functionSignatures =
                         out_args = getVarNames os
                     in
                         buildSubDef ""
-                            fname 
-                            [non_map_args,acc_args,in_args,out_args] 
-                            [non_map_arg_decls,acc_arg_decls,in_arg_decls,out_arg_decls] 
-                            opaque_function_code_strs 
+                            fname
+                            [non_map_args,acc_args,in_args,out_args]
+                            [non_map_arg_decls,acc_arg_decls,in_arg_decls,out_arg_decls]
+                            opaque_function_code_strs
                             True
                         -- -- error $ "TODO:" ++
                         -- unlines ( [
@@ -503,11 +505,11 @@ generateSubDefMapS sv_exp f_exp maps_fname functionSignatures =
         sv_out_iters = createIter out_argtfn
         sv_in_accesses = zipWith (curry (\(x,y)-> x++y)) sv_in sv_in_iters
         sv_out_accesses = zipWith (curry (\(x,y)-> x++y)) sv_out sv_out_iters
-    in 
+    in
         buildSubDef ""
-            maps_fname 
-            [non_map_args,sv_in,sv_out] 
-            [non_map_arg_decls,sv_in_decl,sv_out_decl] 
+            maps_fname
+            [non_map_args,sv_in,sv_out]
+            [non_map_arg_decls,sv_in_decl,sv_out_decl]
             [
                  "    integer :: i"
                 ,"    do i=1,"++ show sv_sz
@@ -515,9 +517,9 @@ generateSubDefMapS sv_exp f_exp maps_fname functionSignatures =
                 mkArgList [non_map_args,sv_in_accesses,sv_out_accesses]
                 ++")"
                 ,"    end do"
-            ] 
-            False    
-    
+            ]
+            False
+
     -- unlines [
     --     "subroutine "++maps_fname++"("  ++mkArgList [non_map_args,sv_in,sv_out]++")"
     --     , mkDeclLines [non_map_arg_decls,sv_in_decl,sv_out_decl]
@@ -549,7 +551,7 @@ generateSubDefApplyT f_exps applyt_fname functionSignatures =
 
         fsig_names_tups = zip4 f_exps calls_non_map_args calls_in_args calls_out_args
 -- For Id we must rename the args so that they are different. Wonder if I could already do that in the Transform?
-    in 
+    in
         buildSubDef ""
             applyt_fname
             [non_map_args'',in_args'',out_args'']
@@ -595,7 +597,7 @@ generateSubDefComp f1_exp f2_exp comp_fname functionSignatures =
         local_var_decls = createDecls ms1
         tmp_args = getVarNames ms1
 
-    in 
+    in
         buildSubDef ""
             comp_fname
             [non_map_args'',in_args'',out_args'']
@@ -639,7 +641,7 @@ generateSubDefFComp f1_exp f2_exp fcomp_fname functionSignatures =
         local_var_decls = createDecls ms1
         tmp_args = getVarNames ms1
 
-    in 
+    in
         buildSubDef "! TO BE CHECKED!"
             fcomp_fname
             [non_map_args'',acc_args'',in_args'',out_args'']
@@ -648,7 +650,7 @@ generateSubDefFComp f1_exp f2_exp fcomp_fname functionSignatures =
                 "    call "++fname2++"(" ++mkArgList [non_map_args2,in_args'',tmp_args] ++")"
               , "    call "++fname1++"(" ++mkArgList [non_map_args1,acc_args'',tmp_args,out_args''] ++")"
             ]
-            False        
+            False
     -- unlines [
     --         "! TO BE CHECKED!",
     --         "subroutine "++fcomp_fname++"("  ++mkArgList [non_map_args'',acc_args'',in_args'',out_args'']++")"
@@ -840,7 +842,7 @@ generateStencilAppl :: Expr -> Expr -> FName -> Map.Map Name [Integer]  -> (Stri
 generateStencilAppl s_exp v_exp@(Vec _ dt) sv_name stencilDefinitions =
     let
         Single v_name = getName dt
-        v_decl = mainArgDecls ! v_name 
+        v_decl = mainArgDecls ! v_name
         --  MkFDecl "integer"  (Just [252004]) (Just In) ["wet_0"] )
         v_upper_bound = case dim v_decl of
             Just vub -> head vub
@@ -915,7 +917,7 @@ generateStencilAppl s_exp v_exp@(ZipT vs_exps') sv_name stencilDefinitions = let
         (unlines all_lines, concat decl_lines, concat decls,merge_bounds bs)
 
 merge_bounds :: [(Integer,Integer)] -> (Integer, Integer)
-merge_bounds bs = let        
+merge_bounds bs = let
         (ls,us) = unzip bs
     in
         (minimum ls, maximum us)
@@ -959,10 +961,10 @@ generateVecAssign lhs rhs = let
             ++" = "
             ++rhs_vec_name++( if isLocalScalar' then "" else "(idx)")
         -- WV 2021-05-14 if the LHS is not an arg, both LHS and RHS should be scalars I think
-        (rhs_vec_decl,isLocalScalar') 
+        (rhs_vec_decl,isLocalScalar')
             | rhs_vec_name `Map.member` mainArgDecls = (mainArgDecls ! rhs_vec_name , False) -- risky, might be indirect! FIXME
             | otherwise = (exprToFDecl $ (\(Vec _ s) -> s) rhs, True) -- A brave attempt
-        (lhs_vec_decl,isLocalScalar) 
+        (lhs_vec_decl,isLocalScalar)
             | lhs_vec_name `Map.member` mainArgDecls = (mainArgDecls ! lhs_vec_name , False) -- risky, might be indirect! FIXME
             | otherwise = (exprToFDecl $ (\(Vec _ s) -> s) lhs, True) -- A brave attempt
             -- Vec VT (Scalar VT DFloat "vec_u_0_1")
@@ -1001,8 +1003,8 @@ generateMap functionSignatures f_exp v_exp t = -- (Single ov_name)
                 in
                     -- [([a],[b]] -> ([[a]],[[b]]) 
                     bimap concat concat $
-                        unzip $ map (\(Single ov_name'') -> 
-                            if Map.member ov_name'' mainArgDecls 
+                        unzip $ map (\(Single ov_name'') ->
+                            if Map.member ov_name'' mainArgDecls
                                 then  ([ov_name''++"(idx)"],[])
                                 else
                                     if noStencilRewrites
@@ -1012,7 +1014,7 @@ generateMap functionSignatures f_exp v_exp t = -- (Single ov_name)
                                                         Vec VT _ ->  ([ov_name''],  [exprToFDecl lhs])
                                                         _ -> ([ov_name''],[])
                                                 else
-                                                    ([ov_name''],[])  
+                                                    ([ov_name''],[])
                                 -- ov_name'') fl_ov_names,exprToFDecls lhs) -- map (\(Single ov_name'') -> 
                                     ) fl_ov_names
 
@@ -1125,8 +1127,8 @@ generateFold functionSignatures f_exp acc_exp v_exp t =
         -- WV 2021-05-20 this is WRONG: we *never* need to index the accumulator, even if it was a vector
             -- if Map.member ov_name'' mainArgDecls then  ov_name''++"(_X_idx)" else  ov_name'') ov_names
         nms_vars_lst =  nub $ map (show . getName) nms_exps
-        nms_decls 
-            | foldl (\acc exp -> acc || isZipT exp) False nms_exps = error $ show nms_exps 
+        nms_decls
+            | foldl (\acc exp -> acc || isZipT exp) False nms_exps = error $ show nms_exps
             | otherwise = map exprToFDecl nms_exps
         in_vars_lst =  getName rhs_v_exp
         (in_vars_name_lst, extra_in_var_decls) = case in_vars_lst of
@@ -1332,11 +1334,11 @@ generateMainProgramOrSuperkernel genModule functionSignatures ast_stages  =
                 generatedStageKernelsStr
                     | genStages = unlines $ concat [
                                 [
-                                    "subroutine stage_kernel_"++show ct++"("++mkArgList [ in_args,out_args]++")" 
+                                    "subroutine stage_kernel_"++show ct++"("++mkArgList [ in_args,out_args]++")"
                                 ]
                                 -- ,(map ("    "++) $ nub $ (used_acc_decl_lines++arg_decl_lines++maybe_acc_arg_decl_str++uniqueGeneratedDeclLines))
                                 ,["! arg_decls"]
-                                ,map ( ("    "++) . show ) arg_decls 
+                                ,map ( ("    "++) . show ) arg_decls
                                 ,["! uniqueGeneratedDecls'"]
                                 ,map ( ("    "++) . show )  uniqueGeneratedDecls'
                                 ,[""]
@@ -1385,8 +1387,8 @@ generateMainProgramOrSuperkernel genModule functionSignatures ast_stages  =
             ]
             ) (zip stage_kernel_calls boundPairs)
         -- use_statements_for_opaques = map (\fname -> "use singleton_module_"++fname++", only : "++fname++"_scal") (Map.keys scalarisedArgs)
-    in 
-        if genModule 
+    in
+        if genModule
             then (buildMainProgramForSuperkernelDef unique_stage_kernel_decls stage_kernel_calls,
                 buildSuperkernelDef unique_stage_kernel_decls stage_kernel_calls def_lines_strs)
             else (buildMainProgramDef main_program_decl_strs' loops_over_calls def_lines_strs,("",""))
@@ -1482,28 +1484,28 @@ getRhsExpr exp = error $ show exp
 
 
 buildSubDef :: String -> String -> [[String]] -> [[String]] -> [String]-> Bool -> String
-buildSubDef comment fname list_of_arg_lsts list_of_arg_decl_lsts body_lines isOpaque = 
+buildSubDef comment fname list_of_arg_lsts list_of_arg_decl_lsts body_lines isOpaque =
     let
         maybeUseDecl :: String
         maybeUseDecl
             | isOpaque = "    use singleton_module_"++fname++", only : "++fname++"_scal"
             | otherwise = ""
     in
-        unlines $ concat 
+        unlines $ concat
             [
                 [
                     comment,
                     "subroutine "++fname++"("  ++(mkArgList list_of_arg_lsts)++")"
                     , maybeUseDecl
                     , mkDeclLines list_of_arg_decl_lsts
-                ], 
+                ],
                 body_lines,
                 [
                     "end subroutine "++fname
                 ]
             ]
 
-buildMainProgramDef main_program_decl_strs loops_over_calls subdef_lines_strs = 
+buildMainProgramDef main_program_decl_strs loops_over_calls subdef_lines_strs =
     unlines $ [
         "program main",
         -- unlines use_statements_for_opaques,
@@ -1521,21 +1523,21 @@ buildMainProgramDef main_program_decl_strs loops_over_calls subdef_lines_strs =
         getGlobalIdDefStrs
          ++ [""]++
         subdef_lines_strs
-        
+
 buildMainProgramForSuperkernelDef unique_stage_kernel_decls stage_kernel_calls = let
         main_program_decl_strs = map (\decl -> "    "++((show . clearIntent) decl)) unique_stage_kernel_decls
-        superkernel_args_str = intercalate ", " $ concatMap names unique_stage_kernel_decls    
-        case_param_decl_strs = map (\ct -> 
+        superkernel_args_str = intercalate ", " $ concatMap names unique_stage_kernel_decls
+        case_param_decl_strs = map (\ct ->
             "    integer, parameter :: ST_STAGE_KERNEL_"++(show ct)++" = "++(show ct)++" ! stage_kernel_"++(show ct)
-            )  [1.. length stage_kernel_calls]    
+            )  [1.. length stage_kernel_calls]
         loops_over_calls = map (\ct -> unlines [
             "    state_ptr = ST_STAGE_KERNEL_"++(show ct),
             "    do global_id = 1, "++(show vSz),
             "      call "++superkernelName++"("++superkernel_args_str++",state_ptr)",
             "    end do"
             ]
-            ) [1.. length stage_kernel_calls]                  
-    in        
+            ) [1.. length stage_kernel_calls]
+    in
     unlines $ [
         "program main",
         "    use module_"++superkernelName++", only : "++superkernelName,
@@ -1551,7 +1553,7 @@ buildMainProgramForSuperkernelDef unique_stage_kernel_decls stage_kernel_calls =
         loops_over_calls ++
         [
         "end program main  "
-        ]         
+        ]
 
 buildSuperkernelDef unique_stage_kernel_decls stage_kernel_calls subdef_lines_strs = let
         superkernel_decl_strs = map (\decl -> "    "++(show decl)) unique_stage_kernel_decls
@@ -1560,15 +1562,15 @@ buildSuperkernelDef unique_stage_kernel_decls stage_kernel_calls subdef_lines_st
 
         -- case (ST_SHAPIRO_MAP_24)
         --    call shapiro_map_24(wet,etan,eta)    
-        stage_call_strs = map (\(call_str,ct)-> 
+        stage_call_strs = map (\(call_str,ct)->
             "      case (ST_STAGE_KERNEL_"++(show ct)++")\n"++
             "      "++call_str
             ) $ zip stage_kernel_calls [1..]
 
         -- integer, parameter :: ST_SHAPIRO_MAP_24 = 1 !  shapiro_map_24
-        case_param_decl_strs = map (\ct -> 
+        case_param_decl_strs = map (\ct ->
             "    integer, parameter :: ST_STAGE_KERNEL_"++(show ct)++" = "++(show ct)++" ! stage_kernel_"++(show ct)
-            )  [1.. length stage_kernel_calls]    
+            )  [1.. length stage_kernel_calls]
     in
         ( unlines $ [
             "module module_"++superkernelName,
@@ -1580,10 +1582,10 @@ buildSuperkernelDef unique_stage_kernel_decls stage_kernel_calls subdef_lines_st
             [
                 "    integer :: state",
                 "    integer :: state_ptr",
-            "    state = state_ptr ! state", 
+            "    state = state_ptr ! state",
             "! SUPERKERNEL BODY",
-            "    select case(state)"    
-            ] ++        
+            "    select case(state)"
+            ] ++
             stage_call_strs ++
             [
                 "    end select",
@@ -1592,10 +1594,10 @@ buildSuperkernelDef unique_stage_kernel_decls stage_kernel_calls subdef_lines_st
             subdef_lines_strs
             -- ++ getGlobalIdDefStrs            
             ,
-                "end module module_"++superkernelName                
+                "end module module_"++superkernelName
             )
-        
-getGlobalIdDefStrs =        
+
+getGlobalIdDefStrs =
     [
         "subroutine get_global_id(idx,dim)",
         "    "++"integer, intent(out) :: idx",
