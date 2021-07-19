@@ -89,7 +89,7 @@ sub _inline_subroutines_main { my ( $stref, $f ) = @_;
             carp "INLINING $sub in $f" if $V;
             $stref = _inline_subroutine($stref,$f,$sub,0);
         }
-        # $stref = _remove_duplicate_declarations($stref,$f);
+        $stref = _remove_duplicate_declarations($stref,$f);
     } 
     # I definitely need a step to fuse the declarations of all inlined subs 
     
@@ -181,10 +181,12 @@ sub __split_out_specification_parts { (my $stref, my $f) =@_;
         my ( $use_part, $specification_part, $preceding_comments ) = @{$state};
 
         if ( 
-
             exists $info->{'Signature'} or 
             exists $info->{'ArgDecl'} or 
-            exists $info->{'ParsedVarDecl'}{'Attributes'}{'Intent'} or
+            (exists $info->{'ParsedVarDecl'}
+            and exists $info->{'ParsedVarDecl'}{'Attributes'}
+            and exists $info->{'ParsedVarDecl'}{'Attributes'}{'Intent'} 
+            ) or
             exists $info->{'EndSubroutine'} or 
             exists $info->{'Return'}
         ) {
@@ -211,7 +213,9 @@ sub __split_out_specification_parts { (my $stref, my $f) =@_;
     ( $stref, $state ) = stateful_pass_inplace( $stref, $f, $pass__split_out_specification_parts, $state, 'pass__split_specification_computation_parts() ' . __LINE__ );
     ( my $use_part, my $specification_part, my $preceding_comments__)     = @{$state};   
 
-    # Here we need to make the lines in $use_part unique
+    # croak Dumper(pp_annlines($specification_part))."\n\n".Dumper(pp_annlines($Sf->{'RefactoredCode'})) if $f eq 'velfg_map_76';
+
+    # Here we make sure the lines in $use_part are unique    
     my $use_part_unique=[];
     if (scalar @{$use_part}>0) {
         my %use_part_unique_lines=();
@@ -284,7 +288,7 @@ sub __merge_specification_computation_parts_into_caller { (my $stref, my $f, my 
 
         my $pass_filter_non_caller_specifications = sub { my ($annline) = @_;
             my ($line, $info) = @{$annline};
-            my $rinfo={};
+            my $rinfo={%{$info}};;
             if (exists $info->{'VarDecl'}) {
                 my $var_name = $info->{'VarDecl'}{'Name'};
                 my $subset = in_nested_set($Sf,'Vars', $var_name);
@@ -307,14 +311,14 @@ sub __merge_specification_computation_parts_into_caller { (my $stref, my $f, my 
                     $rinfo={%{$info},'Deleted'=>1};
                     $line = '! '.$line;
                 }                
-            }
+            } 
 
             return [[$line,$rinfo]]
         };
     
         my $non_caller_specifications = #$specification_part;
             stateless_pass($specification_part,$pass_filter_non_caller_specifications,"pass_filter_non_caller_specifications($f)");
-
+    # croak $f.' : '. Dumper( pp_annlines($non_caller_specifications,1) ) if $f eq  'f_pelt_f_1_0';#'f_maps_f_1_1';#
     my $pass__merge_specification_computation_parts_into_caller = sub {
         my ( $annline, $state ) = @_;
         my ( $line,    $info )  = @{$annline};
@@ -557,11 +561,12 @@ sub __merge_specification_computation_parts_into_caller { (my $stref, my $f, my 
 
     $state = {};
     ( $stref, $state ) = stateful_pass_inplace( $stref, $f, $pass__remove_duplicate_use_statements, $state, 'pass__remove_duplicate_use_statements() ' . __LINE__ );
+# pp_annlines($Sf->{'RefactoredCode'}
+    # carp $f.' : '. Dumper( pp_annlines($specification_part,1) ) if $f eq  'f_pelt_f_1_0';#'f_maps_f_1_1';#
+    # croak $f.' : '. Dumper( pp_annlines($Sf->{'RefactoredCode'},1) ) if $f eq  'f_maps_f_1_1';#'f_pelt_f_1_0';#
 
 
-
-
-    $stref = __update_caller_inlined_vardecls($stref,$f,$sub,$specification_part);
+    $stref = __update_caller_inlined_vardecl_records($stref,$f,$sub,$specification_part);
     
     return $stref;
 } # END of __merge_specification_computation_parts_into_caller
@@ -896,7 +901,8 @@ sub __update_renamed_vardecl { my ($Sf, $var, $qvar) = @_;
     return $Sf;
 }
 
-sub __update_caller_inlined_vardecls { my ($stref,$f,$sub,$specification_part) = @_;
+# This routine updates the records
+sub __update_caller_inlined_vardecl_records { my ($stref,$f,$sub,$specification_part) = @_;
     for my $annline (@{$specification_part}) {        
         my ($line,$info) = @{$annline};
         # say "$sub in $f:". Dumper $info if $line=~/rhs/;
