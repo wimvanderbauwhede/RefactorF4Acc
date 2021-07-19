@@ -89,7 +89,7 @@ sub _inline_subroutines_main { my ( $stref, $f ) = @_;
             carp "INLINING $sub in $f" if $V;
             $stref = _inline_subroutine($stref,$f,$sub,0);
         }
-        $stref = _remove_duplicate_declarations($stref,$f);
+        # $stref = _remove_duplicate_declarations($stref,$f);
     } 
     # I definitely need a step to fuse the declarations of all inlined subs 
     
@@ -176,7 +176,8 @@ sub __split_out_specification_parts { (my $stref, my $f) =@_;
         ( my $annline, my $state ) = @_;
         
         my ( $line, $info )  = @{$annline};
-        say "$f BAD LINE $line" if $line=~/intent/i and not exists $info->{'ParsedVarDecl'}{'Attributes'}{'Intent'} and not exists $info->{'ArgDecl'};
+        # say "$f LINE $line" if $f eq 'velfg_map_76';
+        # say "$f BAD LINE $line" if $line=~/intent/i and not exists $info->{'ParsedVarDecl'}{'Attributes'}{'Intent'} and not exists $info->{'ArgDecl'};
         my ( $use_part, $specification_part, $preceding_comments ) = @{$state};
 
         if ( 
@@ -192,7 +193,7 @@ sub __split_out_specification_parts { (my $stref, my $f) =@_;
         } elsif ( exists $info->{'Comments'} or exists $info->{'Blank'} ) {
             push @{$preceding_comments}, $annline;
         } elsif ( exists $info->{'Use'} ) {
-            # say $use_part;
+            
             $use_part = [ @{$use_part}, @{$preceding_comments}, $annline ];
             $preceding_comments = [];
         } elsif ( 
@@ -208,9 +209,26 @@ sub __split_out_specification_parts { (my $stref, my $f) =@_;
 
     my $state = [[],[],[]];
     ( $stref, $state ) = stateful_pass_inplace( $stref, $f, $pass__split_out_specification_parts, $state, 'pass__split_specification_computation_parts() ' . __LINE__ );
-    ( my $use_part, my $specification_part, my $preceding_comments__)     = @{$state};        
+    ( my $use_part, my $specification_part, my $preceding_comments__)     = @{$state};   
+
+    # Here we need to make the lines in $use_part unique
+    my $use_part_unique=[];
+    if (scalar @{$use_part}>0) {
+        my %use_part_unique_lines=();
+        for my $annline (@{$use_part}) {
+
+            my ( $line, $info )  = @{$annline};
+            if (not exists $use_part_unique_lines{ $line}) {
+                $use_part_unique_lines{ $line}=$info;
+                push @{$use_part_unique},$annline;
+            }
+        }
+    } else {
+        $use_part_unique=$use_part;
+    }
+
     # say "Specification part for $f:\n". Dumper(pp_annlines($specification_part,1));
-    return ($stref, $use_part, $specification_part);
+    return ($stref, $use_part_unique, $specification_part);
 } # END of __split_out_specification_parts
 
 # Not only split, also weed out argument decls and return statements
@@ -266,12 +284,14 @@ sub __merge_specification_computation_parts_into_caller { (my $stref, my $f, my 
 
         my $pass_filter_non_caller_specifications = sub { my ($annline) = @_;
             my ($line, $info) = @{$annline};
+            my $rinfo={};
             if (exists $info->{'VarDecl'}) {
                 my $var_name = $info->{'VarDecl'}{'Name'};
                 my $subset = in_nested_set($Sf,'Vars', $var_name);
                 if ($subset) {
                     say "__merge_specification_computation_parts_into_caller $f => $sub => $subset => Delete $var_name decl: ".$line;
-                    $info->{'Deleted'}=1;
+                    # croak if $line=~/[fgh]_1/ and $line!~/dimension/;
+                    $rinfo={%{$info},'Deleted'=>1};
                     $line = '! '.$line;
                 }
             }
@@ -284,16 +304,16 @@ sub __merge_specification_computation_parts_into_caller { (my $stref, my $f, my 
                 # say "PAR LINE: $line => $par_name => in $subset of $f ";
                 if ($subset) {
                      say "__merge_specification_computation_parts_into_caller $f => $sub => $subset => Delete $par_name decl: ".$line;
-                    $info->{'Deleted'}=1;
+                    $rinfo={%{$info},'Deleted'=>1};
                     $line = '! '.$line;
                 }                
             }
 
-            return [[$line,$info]]
+            return [[$line,$rinfo]]
         };
     
-        my $non_caller_specifications = $specification_part;
-        #  stateless_pass($specification_part,$pass_filter_non_caller_specifications,"pass_filter_non_caller_specifications($f)");
+        my $non_caller_specifications = #$specification_part;
+            stateless_pass($specification_part,$pass_filter_non_caller_specifications,"pass_filter_non_caller_specifications($f)");
 
     my $pass__merge_specification_computation_parts_into_caller = sub {
         my ( $annline, $state ) = @_;
@@ -321,7 +341,22 @@ sub __merge_specification_computation_parts_into_caller { (my $stref, my $f, my 
         elsif (exists $info->{'Pragmas'}{'EndInline'}) {
             $line=~s/\$//;
             $in_inline_region=0;
-        }	
+        }
+        elsif (exists $info->{'Signature'})	{
+            
+        # Use statements should go immediately after the subroutine decl
+        # But if there are other use statements, we need to see that they are unique
+        # I think the easies way is to have another pass for this.
+            return ( [
+                $annline, @{$use_part},
+                ], 
+                    [
+                    [], $specification_part, 
+                    $in_inline_region,
+                    $first_vardecl, $found_use
+                ] 
+            );            
+        }
         elsif ( 
             exists $info->{'SubroutineCall'} and 
             $info->{'SubroutineCall'}{'Name'} eq $sub and
@@ -430,6 +465,7 @@ sub __merge_specification_computation_parts_into_caller { (my $stref, my $f, my 
                     
                     $updated_use_annline = [$updated_line,$info];
                 } else {
+                    say "USE: $f ". $info->{'Use'}{'Name'} .'<>'. $use_info->{'Use'}{'Name'};
                     push @{$remaining_use_part}, $use_annline;
                 }
             }
@@ -503,6 +539,27 @@ sub __merge_specification_computation_parts_into_caller { (my $stref, my $f, my 
 
     my $state = [ $use_part, $non_caller_specifications, 0, 1, 0];
     ( $stref, $state ) = stateful_pass_inplace( $stref, $f, $pass__merge_specification_computation_parts_into_caller, $state, 'pass__merge_specification_computation_parts_into_caller() ' . __LINE__ );
+
+        my $pass__remove_duplicate_use_statements = sub { my ($annline,$state) = @_;
+            my ($line, $info) = @{$annline};
+            if (exists $info->{'Use'}) {
+                if (not exists $state->{$line}) {
+                        $state->{$line}=$info;
+                } else {
+                    say "$f: DUPLICATE: $line";
+                    $line = '! '.$line;
+                    $info={%{$info}, 'Deleted'=>1};
+                }
+            }
+            return ([[$line,$info]],$state)
+        };
+          
+
+    $state = {};
+    ( $stref, $state ) = stateful_pass_inplace( $stref, $f, $pass__remove_duplicate_use_statements, $state, 'pass__remove_duplicate_use_statements() ' . __LINE__ );
+
+
+
 
     $stref = __update_caller_inlined_vardecls($stref,$f,$sub,$specification_part);
     
