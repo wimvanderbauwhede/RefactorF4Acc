@@ -989,9 +989,11 @@ sub stateless_pass_inplace {
     my $new_annlines=[];
     for my $annline ( @{$annlines} ) {    
     	if (not exists $annline->[1]{'Deleted'}) {
-	        my $pass_annlines = $pass_actions->($annline); # returns an ARRAY ref
+	        my $pass_annlines = $pass_actions->($annline); # returns an ARRAY ref            
 	        for my $new_annline (@{ $pass_annlines }) { 
-	        	push @{$new_annlines}, $new_annline;
+                if (not exists $new_annline->[1]{'Deleted'}) {
+	        	    push @{$new_annlines}, $new_annline;
+                }
 	        }
     	} else {
             if (defined $keep_deleted) {
@@ -1014,7 +1016,9 @@ sub stateless_pass {
 	        my $pass_annlines = $pass_actions->($annline); # returns an ARRAY ref
             croak if ref($pass_annlines) ne 'ARRAY';
 	        for my $new_annline (@{ $pass_annlines }) { 
+                if (not exists $new_annline->[1]{'Deleted'}) {
 	        	push @{$new_annlines}, $new_annline;
+                }
 	        }
     	} else {
             if (defined $keep_deleted) {
@@ -1043,7 +1047,9 @@ sub stateful_pass_inplace { my ( $stref, $f, $pass_actions, $state, $pass_info, 
     	if (not exists $annline->[1]{'Deleted'}) {    	
 	        (my $pass_annlines, $state) = $pass_actions->($annline, $state);
     	    for my $new_annline (@{ $pass_annlines }) { 
+                if (not exists $new_annline->[1]{'Deleted'}) {
         		push @{$new_annlines}, $new_annline;
+                }
         	}
     	} else {
             if (defined $keep_deleted) {
@@ -1066,7 +1072,9 @@ sub stateful_pass { my ( $annlines, $pass_actions, $state, $pass_info, $keep_del
     	if (not exists $annline->[1]{'Deleted'}) {    	
 	        (my $pass_annlines, $state) = $pass_actions->($annline, $state);
     	    for my $new_annline (@{ $pass_annlines }) { 
+                if (not exists $new_annline->[1]{'Deleted'}) {
         		push @{$new_annlines}, $new_annline;
+                }
         	}
     	} else {
             if (defined $keep_deleted) {
@@ -1314,17 +1322,13 @@ sub pass_wrapper_subs_in_module { (my $stref,my $module_name, my $module_pass_se
             }
         }
     
-        # croak 'update_map_24_scal'.Dumper $stref->{'Modules'}{'singleton_module_update_map_24'}{'Contains'};
-        # my $pass_ctr = 1;
         for my $pass_sequence (@{$sub_pass_sequences}) {    
             for my $f ( @subs,  @subs_from_modules) {
-                # say "IN MODULE: $module_name $pass_ctr $f";
                 for my $pass_sub_ref (@{$pass_sequence}) {          
                     say "SUB PASS ".coderef_to_subname($pass_sub_ref)."($f)" if $V;
                     $stref=$pass_sub_ref->($stref, $f, @rest);
                 }           
             }
-            # ++$pass_ctr;
         }
 	}
 	return $stref;

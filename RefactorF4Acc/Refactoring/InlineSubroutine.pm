@@ -318,7 +318,7 @@ sub __merge_specification_computation_parts_into_caller { (my $stref, my $f, my 
     
         my $non_caller_specifications = #$specification_part;
             stateless_pass($specification_part,$pass_filter_non_caller_specifications,"pass_filter_non_caller_specifications($f)");
-    # croak $f.' : '. Dumper( pp_annlines($non_caller_specifications,1) ) if $f eq  'f_pelt_f_1_0';#'f_maps_f_1_1';#
+
     my $pass__merge_specification_computation_parts_into_caller = sub {
         my ( $annline, $state ) = @_;
         my ( $line,    $info )  = @{$annline};
@@ -375,9 +375,9 @@ sub __merge_specification_computation_parts_into_caller { (my $stref, my $f, my 
                 $Sf->{'InlinedCalls'}{'Set'}{$sub}++;
                 # comment($annline),
                 return ( [
-                    # comment("$indent BEGIN inlined call to $sub"),
+                    comment("$indent BEGIN inlined call to $sub"),
                     @{$computation_part}
-                    # ,comment("$indent END inlined call to $sub")
+                    ,comment("$indent END inlined call to $sub")
                     ], 
                 [
                     $use_part, $specification_part, $computation_part, 
@@ -428,9 +428,9 @@ sub __merge_specification_computation_parts_into_caller { (my $stref, my $f, my 
                     # - replace the assignment to the function name or return arg with this name
                     # - replace the name in the declaration 
                     return ( [
-                        # comment("$indent BEGIN inlined call to $sub"),
+                        comment("$indent BEGIN inlined call to $sub"),
                         @{$computation_part},$updated_annline
-                        # ,comment("$indent END inlined call to $sub")
+                        ,comment("$indent END inlined call to $sub")
                         ], 
                         [
                             $use_part, $specification_part, $computation_part, 
@@ -474,9 +474,9 @@ sub __merge_specification_computation_parts_into_caller { (my $stref, my $f, my 
                 }
             }
             return ( [
-                # comment("$indent BEGIN merged ex-sub use statement $sub"),
+                comment("$indent BEGIN merged ex-sub use statement $sub"),
                 $updated_use_annline
-                # , comment("$indent END merged ex-sub use statement $sub")
+                , comment("$indent END merged ex-sub use statement $sub")
                 ], 
                 [
                     $remaining_use_part, $specification_part, 
@@ -518,9 +518,9 @@ sub __merge_specification_computation_parts_into_caller { (my $stref, my $f, my 
             # croak Dumper $annline;
             $first_vardecl = 0;
             return ( [
-                # comment("$indent BEGIN ex-sub decls $sub"),
+                comment("$indent BEGIN ex-sub decls $sub"),
                 @{$specification_part},
-                # comment("$indent END ex-sub decls $sub"),
+                comment("$indent END ex-sub decls $sub"),
                 $annline], 
                     [
                     $use_part, $specification_part, 
@@ -563,8 +563,8 @@ sub __merge_specification_computation_parts_into_caller { (my $stref, my $f, my 
     ( $stref, $state ) = stateful_pass_inplace( $stref, $f, $pass__remove_duplicate_use_statements, $state, 'pass__remove_duplicate_use_statements() ' . __LINE__ );
 # pp_annlines($Sf->{'RefactoredCode'}
     # carp $f.' : '. Dumper( pp_annlines($specification_part,1) ) if $f eq  'f_pelt_f_1_0';#'f_maps_f_1_1';#
-    # croak $f.' : '. Dumper( pp_annlines($Sf->{'RefactoredCode'},1) ) if $f eq  'f_maps_f_1_1';#'f_pelt_f_1_0';#
-
+    #  croak $f.' : '. Dumper( pp_annlines($Sf->{'RefactoredCode'}) ) if $f eq 'f_pelt_f_1_0';#'f_comp_f_1_37';# 'f_maps_f_1_1';#'velfg_map_76' ;#'f_pelt_f_1_0';#
+	#  "stage_kernel_1", "f_pelt_f_1_38","f_comp_f_1_37", "f_applyt_f_1_36","f_maps_f_1_3",
 
     $stref = __update_caller_inlined_vardecl_records($stref,$f,$sub,$specification_part);
     
@@ -603,6 +603,7 @@ sub __rename_vars {
             # croak Dumper $info if exists $info->{'ParamDecl'} or exists $info->{'ParsedParDecl'};
             # say "PROBLEM: LINE:$line at ".__LINE__ if $line=~/intent/i;
             my $var = $info->{'VarDecl'}{'Name'};
+            # croak Dumper $info->{'VarDecl'};
             my $qvar = __create_new_name($var, $f);
             $line =~ s/\b$var\b/$qvar/g;
             $renamed_vars->{$var}=$qvar;
@@ -725,8 +726,13 @@ sub __rename_vars {
 # For Fortran 2003 it is 63
 
 sub __create_new_name { my ($var,$f) = @_;
+# If the suffix is already the function name, it means we've done this already.
+    if ($var=~/___/ ) {
+        # croak "$var,$f";
+        return $var;
+    }
     my $MAX_NCHARS = 31;
-    my $qvar = $var . '_' . $f;
+    my $qvar = $var . '___' . $f;
     # say "VAR: $var F: $f";
     if (length $qvar > $MAX_NCHARS) {
         
@@ -743,7 +749,7 @@ sub __create_new_name { my ($var,$f) = @_;
 # die $suffix;
         # say "SUFFIX: $suffix";
         # we allow 41 chars, ad hoc        
-        $qvar = substr($qvar,0,$MAX_NCHARS-9).'_'.$suffix; 
+        $qvar = substr($qvar,0,$MAX_NCHARS-9).'___'.$suffix; 
     }
     # say "QVAR:$qvar";
     return $qvar;

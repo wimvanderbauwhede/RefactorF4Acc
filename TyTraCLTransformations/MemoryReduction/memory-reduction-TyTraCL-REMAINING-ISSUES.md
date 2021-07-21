@@ -78,6 +78,14 @@ memory reduction results in 40 subroutines: superkernel, scalar versions of the 
 inlining results in a single superkernel
 
 
+## 2021-07-21
+
+* There was (and in fact is) still an issue with the inliner: when I rename uniquely, some of the declarations get removed rather than added at toplevel.
+I resolved this by renaming vars only one level, i.e. I add the function name as a suffix. This is a bit of a hack, I should figure out why the decls get removed. I assume the reason is that the updating of the datastructures is the problem.
+
+* When I tried to run `memory_reduction.pl -C` in `/home/wim/Git/MPI-LES/generated-src-for_MemoryReduction/Work2`, I get a LOOP error. 
+I think (to be verified) that this is because I removed the intents from the local variables that were arguments before. That is needed to compile the original code. But I think `MemoryReduction-exe` needs intents so that these local arrays can be removed. This makes no sense, but I see the LOOP error occurs when the entire list of vectors `vecs` in `Transforms::substitute_vec_rec` consists of `VT` vectors. 
+I should really use Purpose but that is still broken.
 
 
 

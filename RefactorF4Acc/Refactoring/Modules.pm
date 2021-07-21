@@ -201,6 +201,7 @@ sub _split_module_per_subroutine {
 		# if (exists $module_sub_names{$module_to_split}) {
 		# 	$module_to_split_name = 
 		# }
+		
 		# Now we have to create the wrapper module source which replaces the original module source
 		my @wrapper_module_annlines=( ["module $module_to_split",{'Module' => $module_to_split }]);
 		for my $sub (@subs) {
@@ -221,6 +222,7 @@ sub _split_module_per_subroutine {
 # This routine creates the new module source.
 # The extra argument $subname is used to split out modules per subroutine
 sub _create_module_src { (my $stref, my $src, my $subname, my $no_modules ) = @_;
+local $I=1;
 	# This is either a subroutine or the main program
     # So I wonder why I have this code when it's a program?
 	my $is_program = ( exists $stref->{'Program'} and $stref->{'Program'} eq $src ) ? 1 : 0;
