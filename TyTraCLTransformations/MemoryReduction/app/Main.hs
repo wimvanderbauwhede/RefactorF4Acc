@@ -6,7 +6,7 @@ import System.IO ( openFile, hPutStr, hClose, IOMode(..) )
 import Data.List ((\\))
 import TyTraCLAST 
 import ASTInstance (ast,functionSignaturesList,superkernelName)
-import Transforms (splitLhsTuples, substituteVectors, applyRewriteRules, fuseStencils, regroupTuples, decomposeExpressions)
+import Transforms (splitLhsTuples, substituteVectors, applyRewriteRules, fuseStencils, regroupTuples, removeDuplicateExpressions, decomposeExpressions)
 import CodeGeneration (
     inferSignatures, 
     generateFortranCode,
@@ -32,8 +32,9 @@ ast3'' :: TyTraCLAST
 ast3'' = fuseStencils ast3
 ast3' :: TyTraCLAST
 ast3' = regroupTuples ast3''
+ast4' = removeDuplicateExpressions ast3'
 ast4 :: [TyTraCLAST]
-ast4 = decomposeExpressions ast1 ast3' 
+ast4 = decomposeExpressions ast1 ast4' 
 
 asts  -- = ast4
     | stage == Original = [ast]
@@ -68,7 +69,9 @@ main = do
             putStrLn "\n-- Fuse stencils"
             mapM_ print ast3''    
             putStrLn "\n-- Regroup tuples"
-            mapM_ print ast3'              
+            mapM_ print ast3' 
+            putStrLn "\n-- Remove duplicate expressions"
+            mapM_ print ast4'                          
             -- putStrLn "\n-- Decompose expressions and infer intermediate function signatures"
             putStrLn "\n-- Decompose expressions and infer function signatures"
             mapM_ ( \((x1,x2),ct) -> do

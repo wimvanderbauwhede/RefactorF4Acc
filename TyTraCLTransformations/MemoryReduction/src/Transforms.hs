@@ -1,12 +1,12 @@
-module Transforms (splitLhsTuples, substituteVectors, applyRewriteRules, fuseStencils, regroupTuples, decomposeExpressions) where
+module Transforms (splitLhsTuples, substituteVectors, applyRewriteRules, fuseStencils, regroupTuples, removeDuplicateExpressions,  decomposeExpressions) where
 
 import Data.Generics (Data, Typeable, mkQ, mkT, mkM, gmapQ, gmapT, everything, everywhere, everywhere', everywhereM)
 import Control.Monad.State
 import qualified Data.Map.Strict as Map
-import Data.List (intercalate)
+import Data.List (intercalate,foldl')
 
 import TyTraCLAST
--- import Warning ( warning )
+import Warning ( warning )
 
 (!) = (Map.!)
 -- ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
@@ -346,8 +346,32 @@ regroupTuples ast = let
             ) (Map.keys regrouped_tuples_map)
     in            
         tuples_ast ++ non_elt_ast
+{-
+        if (exists $unique_names_for_stencils{$stencil_definition}) {
+            $stencil_names_to_unique_names{$stencil_name} = $unique_names_for_stencils{$stencil_definition}
+        } else {
+            # say "UNIQE: ".$stencil_definition. " => $stencil_name ";
+            $unique_names_for_stencils{$stencil_definition}=$stencil_name;                
+            push @stencil_defs, [ $stencil_name, $stencil_definition];
+        }  
+        -}
+removeDuplicateExpressions :: [(Expr,Expr)] -> [(Expr,Expr)] 
+removeDuplicateExpressions ast = let
+        (uniqueNamesForExprs, namesToUniqueNames,ast') = foldl' (\(uniqueNamesForExprs_,namesToUniqueNames_,ast_) (lhsExpr,rhsExpr) ->
+            if (Map.member rhsExpr uniqueNamesForExprs_)
+                then 
+                    -- There is already an entry for this rhsExp, so skip this line
+                    (uniqueNamesForExprs_, Map.insert (warning lhsExpr ("DUP:"++(show lhsExpr))) (uniqueNamesForExprs_ ! rhsExpr) namesToUniqueNames_,ast_) -- 
+                else 
+                    -- This line is unique, add to the AST
+                    (Map.insert rhsExpr lhsExpr uniqueNamesForExprs_,namesToUniqueNames_,ast_ ++ [(lhsExpr,rhsExpr)]) -- 
+
+            ) (Map.empty,Map.empty,[]) ast
+    in
+        ast'
 
 
+-- ============================================================================
 -- What we do is fuse stencils and make sure stencils are applied to input vectors, not zips
 rewrite_ast_expr_fuse expr = case expr of   
     Map f_expr v_expr -> let

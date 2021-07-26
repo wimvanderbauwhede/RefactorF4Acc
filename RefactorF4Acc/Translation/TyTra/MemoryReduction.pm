@@ -379,13 +379,12 @@ sub _emit_TyTraCL_Haskell_AST_Code {
             my $stencil_definition = '[' . join(',', @{$stencils_}) . ']';
             my $stencil_name = "s$ctr";
             if (exists $unique_names_for_stencils{$stencil_definition}) {
-                # say "STENCIL: $stencil_name => ". $unique_names_for_stencils{$stencil_definition};
                 $stencil_names_to_unique_names{$stencil_name} = $unique_names_for_stencils{$stencil_definition}
             } else {
-                # say "UNIQE: ".$stencil_definition. " => $stencil_name ";
                 $unique_names_for_stencils{$stencil_definition}=$stencil_name;                
                 push @stencil_defs, [ $stencil_name, $stencil_definition];
             }                        
+            # push @stencil_defs, [ $stencil_name, $stencil_definition];
         }        
     }   
     

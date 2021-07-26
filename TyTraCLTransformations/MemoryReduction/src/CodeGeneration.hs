@@ -1532,8 +1532,11 @@ buildMainProgramForSuperkernelDef unique_stage_kernel_decls stage_kernel_calls =
             )  [1.. length stage_kernel_calls]
         loops_over_calls = map (\ct -> unlines [
             "    state_ptr = ST_STAGE_KERNEL_"++(show ct),
+            "    do iter = 1, niters",
+            "    print *, iter",
             "    do global_id = 1, "++(show vSz),
             "      call "++superkernelName++"("++superkernel_args_str++",state_ptr)",
+            "    end do",
             "    end do"
             ]
             ) [1.. length stage_kernel_calls]
@@ -1542,13 +1545,15 @@ buildMainProgramForSuperkernelDef unique_stage_kernel_decls stage_kernel_calls =
         "program main",
         "    use module_"++superkernelName++", only : "++superkernelName,
         "    integer :: global_id",
-        "    -- common /ocl/ global_id",
+        "    common /ocl/ global_id",
         "    ! Declarations"
         ] ++
         main_program_decl_strs ++
         case_param_decl_strs ++
         [
             "    integer :: state_ptr",
+            "    integer, parameter :: niters = 5",
+            "    integer :: iter ",
         "    ! Loops over stage calls"] ++
         loops_over_calls ++
         [

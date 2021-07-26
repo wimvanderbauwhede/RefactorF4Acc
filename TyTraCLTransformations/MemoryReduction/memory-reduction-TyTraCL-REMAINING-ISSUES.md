@@ -1,5 +1,17 @@
 # REMAINING ISSUES : Memory (Bandwidth) Reduction for Scientific Computing on GPUs
 
+## 2021-07-26
+
+A small issue but I wonder why it happens: some of the non-map args that should be stage kernel arguments are not. 
+
+subroutine velfg_superkernel(u_0, v_0, w_0, f_1, g_1, h_1,state_ptr)
+
+    real, dimension(1:153), intent(In) :: dx1_0
+    real, dimension(1:152), intent(In) :: dy1_0
+    real, dimension(1:94), intent(In) :: dzn_0
+    real, dimension(1:94), intent(In) :: dzs_0
+
+
 ## 2021-06-18
 
 * The key remaining issue is that apf creates code with incorrect IODirs, in particular InOut that should be Out. To fix that, I need to do the written_before_read check on every subroutine and change any InOut to Out.

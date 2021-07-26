@@ -35,7 +35,7 @@ use RefactorF4Acc::Utils qw(module_has_only module_has_also);
 # Uses, Subroutines, Functions, Includes, Parameters, TypeDecls, ImplicitRules, Interfaces (not yet).
 sub find_subroutines_functions_and_includes {	
     my $stref = shift;
-    
+    # local $V=1;
     my $incl='';
     if (@_) {
     	($incl)=@_;
@@ -53,7 +53,7 @@ sub find_subroutines_functions_and_includes {
             opendir my $dh, $srcdir or die "$0: opendir: $!"; 
             @sub_dirs = (@sub_dirs, grep {-d "$srcdir/$_" && ! /^\.{1,2}$/} readdir($dh));
         }
-        %excluded_dirs = map { $_ => 1 } @sub_dirs;
+        %excluded_dirs = map { $_ => 1 } @sub_dirs;        
     }
     $Config{'EXCL_DIRS'} = [sort keys %excluded_dirs];
 
@@ -155,8 +155,9 @@ sub find_subroutines_functions_and_includes {
             find( $tf_finder, $path );
         }
     }
+    
     for my $src ( sort keys %src_files ) {
-		say "SRC: $src" if $V;
+		
         my $exclude=0;        
         for my $excl_dir (keys %excluded_dirs) {            
             if ($src=~/$excl_dir\//) {
@@ -165,7 +166,7 @@ sub find_subroutines_functions_and_includes {
             }
         }    
         next if $exclude; 
- 
+        say "SRC: $src" if $V;
     	if  ($src=~/\.c$/) { 
     		say "WARNING: IGNORING C SOURCE: $src\n" if $W;
     		# FIXME: ugly ad-hoc hack!
@@ -188,6 +189,7 @@ sub find_subroutines_functions_and_includes {
         $stref=_process_src($src,$stref) ;#if not $incl ;
         say "Done _process_src($src)" if $V;   
     }
+    # die;
     if (!$incl) {
     _find_external_modules($stref);
     
