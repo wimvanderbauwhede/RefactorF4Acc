@@ -368,6 +368,27 @@ sub _emit_TyTraCL_Haskell_AST_Code {
     my $tytracl_ast  = $stref->{'TyTraCL_AST'};
 
     my @stencil_defs=();
+    my %unique_names_for_stencils =();
+    my %stencil_names_to_unique_names = ();
+    for my $node (@{$tytracl_ast->{'Lines'}}) {
+        if ($node->{'NodeType'} eq 'StencilDef') {
+            my $lhs   = $node->{'Lhs'};
+            my $rhs   = $node->{'Rhs'};
+            my $ctr = $lhs->{'Ctr'};
+            my $stencils_          = generate_TyTraCL_stencils($rhs->{'StencilPattern'});
+            my $stencil_definition = '[' . join(',', @{$stencils_}) . ']';
+            my $stencil_name = "s$ctr";
+            if (exists $unique_names_for_stencils{$stencil_definition}) {
+                # say "STENCIL: $stencil_name => ". $unique_names_for_stencils{$stencil_definition};
+                $stencil_names_to_unique_names{$stencil_name} = $unique_names_for_stencils{$stencil_definition}
+            } else {
+                # say "UNIQE: ".$stencil_definition. " => $stencil_name ";
+                $unique_names_for_stencils{$stencil_definition}=$stencil_name;                
+                push @stencil_defs, [ $stencil_name, $stencil_definition];
+            }                        
+        }        
+    }   
+    
     # [($f, [($orig_name, $tytracl_name)])]
     my @origNamesList=();
 
@@ -375,13 +396,15 @@ sub _emit_TyTraCL_Haskell_AST_Code {
     for my $node (@{$tytracl_ast->{'Lines'}}) {
 
         if ($node->{'NodeType'} eq 'StencilDef') {
-            my $lhs   = $node->{'Lhs'};
-            my $rhs   = $node->{'Rhs'};
-            my $ctr = $lhs->{'Ctr'};
-            my $stencils_          = generate_TyTraCL_stencils($rhs->{'StencilPattern'});
-            my $stencil_definition = '[' . join(',', @{$stencils_}) . ']';
+            # do nothing
 
-            push @stencil_defs, [ "s$ctr", $stencil_definition];
+        #     my $lhs   = $node->{'Lhs'};
+        #     my $rhs   = $node->{'Rhs'};
+        #     my $ctr = $lhs->{'Ctr'};
+        #     my $stencils_          = generate_TyTraCL_stencils($rhs->{'StencilPattern'});
+        #     my $stencil_definition = '[' . join(',', @{$stencils_}) . ']';
+
+        #     push @stencil_defs, [ "s$ctr", $stencil_definition];
             
         }
         elsif ($node->{'NodeType'} eq 'StencilAppl') {
@@ -390,7 +413,7 @@ sub _emit_TyTraCL_Haskell_AST_Code {
 
             my $svec_type = $tytracl_ast->{'Main'}{'VarTypes'}{$svec_var};
             $node->{'VecType'}= $svec_type->[2];
-            my $line = mkStencilApplAST($node);
+            my $line = mkStencilApplAST($node,\%stencil_names_to_unique_names );
             push @{$tytracl_hs_ast_strs}, $line;
         }
 
@@ -705,7 +728,7 @@ sub _add_DType_to_AST {
 # I could then re-emit the Perl AST and go from there to Fortran, or emit Fortran straight from Haskell
 
 sub mkStencilApplAST {
-    (my $stencilApplNode) = @_;
+    (my $stencilApplNode, my $stencil_names_to_unique_names ) = @_;
 
     # $stencilApplNode = {
     #     'Lhs' => {'Var' => ['etan',0,'s']},
@@ -717,6 +740,9 @@ sub mkStencilApplAST {
     my $var      = _mkVarName($stencilApplNode->{'Rhs'}{'Var'});
     my $ve       = $stencilApplNode->{'Rhs'}{'Var'}[3];
     my $s        = 's' . $stencilApplNode->{'Rhs'}{'StencilCtr'};
+    if (exists $stencil_names_to_unique_names->{$s}) {
+        $s = $stencil_names_to_unique_names->{$s};
+    }
     my $s_sz     = $stencilApplNode->{'Rhs'}{'StencilSz'};
     my $ast_line = '(Vec VS (SVec '.$s_sz.' (Scalar VDC D'.$vec_type.' "' . $s_var . '" )) ,'
     . ' Stencil (SVec ' . $s_sz . ' (Scalar VDC DInt "' . $s . '")) '

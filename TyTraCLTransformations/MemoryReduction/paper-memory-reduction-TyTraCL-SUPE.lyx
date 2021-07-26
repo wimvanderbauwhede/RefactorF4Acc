@@ -4386,7 +4386,7 @@ name "lis:Arrays-used-in-1"
 Of these 37 arrays, only u,v,w are actual inputs to the calculation and
  f,g,h are the computed outputs.
  Our memory reduction approach eliminates the 31 intermediate arrays entirely.
- 
+ As a result, the problem size can increase by 6x.
 \end_layout
 
 \begin_layout Standard
@@ -4402,8 +4402,7 @@ To illustrate the impact, consider the following real-world simulation scenario.
  With our reduction, it only requires 4GB.
  As a result, the simulation domain can be increased to 8x16 km or the resolutio
 n reduced from 4 m to 2 m and be deployed on that same GPU.
- As all redundant array accesses are replaced by register accesses in the
- GPU, the resulting code will not only more memory efficient but also faster.
+ 
 \end_layout
 
 \begin_layout Section*
