@@ -404,11 +404,21 @@ isMap expr = case expr of
     _ -> False
 
 -- (map f_1 v_1, map f_2 v_2) = map (applyt (f_1,f_2)) (zipt (v_1, v_2))    
+-- WV 2021-07-27: For the case of 
+-- map (applyt ((pelt i) . f,(pelt j). f)) (zipt (v, v))    
+-- and of
+-- map (applyt (maps sv ((pelt i) . f),maps sv ((pelt j). f))) (zipt (v, v)) 
+-- and any combination of these for other f' and v' and expresions without pelt
+-- we can rewrite this as
+-- map (apply ((pelts [i,j]) . f) v 
+-- and in general
+-- map (applyt ((pelts [i,j]) . f,g, maps sv ((pelts [i',j',k']) . h))) (zipt (v,u,w))
 rewriteZipTMap es =  let
         f_s = map (\(Map f v) -> f) es
         v_s = map (\(Map f v) -> v) es
+        fv_s = zip f_s v_s
     in
-        Map (ApplyT f_s) (ZipT v_s)
+        warning (Map (ApplyT f_s) (ZipT v_s)) ("(ApplyT,ZipT): "++(show fv_s) )
 
 -- Instead of inserting Id I should insert a Function with a fresh name 
 -- and put that function in the functionSignaturesList

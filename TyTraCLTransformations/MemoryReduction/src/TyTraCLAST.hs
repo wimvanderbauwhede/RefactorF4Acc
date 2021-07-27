@@ -110,6 +110,7 @@ data Expr =
                     | UnzipT Expr
                     | Elt Int Expr
                     | PElt Int -- partially applied Elt
+                    | PElts [Int] -- group of partially applied Elt
                     | Map Expr Expr -- map f v
                     | Fold Expr Expr Expr -- fold f acc v
                     | Stencil Expr Expr -- stencil s v
