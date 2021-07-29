@@ -73,14 +73,17 @@ group_pelt_terms f_s t_v_s f_s_g t_v_s_g =
                         let
                             f_s_pelts = replace_with_PElts f_s_elts
                         in
-                            (f_s_g++[f_s_pelts],t_v_s_g++[(t_e,1)])
+                            (f_s_g++f_s_pelts,t_v_s_g++[(t_e,1)])
                     else -- <add the orginals to f_s' and to t_v_s'>
                         (f_s_g++f_s_elts,t_v_s_g++(t_e,elt_count))
             in
-                group_pelt_terms f_s' t_v_s' f_s_g' t_v_s_g'
-            
+                group_pelt_terms f_s' t_v_s' f_s_g' t_v_s_g'            
 
+is_PElt_series :: [Expr] -> Bool
+is_PElt_series f_s_elts = False -- Placeholder
 
+replace_with_PElts :: [Expr] -> [Expr] -- In principle the return value is a single Expr but in case it fails it could be the original
+replace_with_PElts f_s_elts = f_s_elts -- Placeholder
 
 
 {-

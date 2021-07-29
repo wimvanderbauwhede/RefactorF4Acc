@@ -147,6 +147,7 @@ getFunctionSignature rhs functionSignatures =
             MapS (SVec sv_sz _ ) (Function fname _) -> deriveSigMaps sv_sz fname functionSignatures
             Comp (Function f1 _) (Function f2 _) -> deriveSigComp f1 f2 functionSignatures
             Comp (PElt idx) (Function fname _) -> deriveSigPELt idx fname functionSignatures
+            Comp (PElts idxs) (Function fname _) -> deriveSigPELts idxs fname functionSignatures
             FComp (Function f1 _) (Function f2 _) -> deriveSigFComp f1 f2 functionSignatures
             ApplyT fs -> deriveSigApplyT fs functionSignatures
 
@@ -215,6 +216,24 @@ deriveSigPELt idx fname functionSignatures =
                     os' = es !! idx
                 in
                     [nms,as,ms,os']
+
+-- elt :: ([i,j::Int]) -> (..., a_i, ...,a_j, ...) -> [a_i, ..., a_j, ...]
+deriveSigPELts :: [Int] -> Name -> Map.Map Name FSig -> FSig
+deriveSigPELts idxs fname functionSignatures =
+    let
+        fsig =  functionSignatures ! fname
+    in
+        case fsig of
+            [nms,ms,os] -> let
+                    Tuple es = os
+                    oss' = map (\idx -> es !! idx) idxs
+                in
+                     [nms,ms,Tuple oss']
+            [nms,as,ms,os] -> let
+                    Tuple es = os
+                    oss' = map (\idx -> es !! idx) idxs
+                in
+                    [nms,as,ms,Tuple oss']                    
 
 -- ApplyT can only arise because of Map, so it can't be Fold.       
 -- Arguments to ApplyT can be Function, Id, what else? Let's assume that is all
@@ -318,6 +337,7 @@ generateSubDef functionSignatures t st =
             MapS sv_exp f_exp -> generateSubDefMapS sv_exp f_exp ho_fname functionSignatures
             ApplyT f_exps -> generateSubDefApplyT f_exps ho_fname functionSignatures
             Comp (PElt idx) f_exp -> generateSubDefElt idx f_exp ho_fname functionSignatures
+            Comp (PElts idxs) f_exp -> generateSubDefElts idxs f_exp ho_fname functionSignatures
             Comp f1_exp f2_exp -> generateSubDefComp f1_exp f2_exp ho_fname functionSignatures
             FComp f1_exp f2_exp -> generateSubDefFComp f1_exp f2_exp ho_fname functionSignatures
             Id _ _ -> generateSubDefOpaque ho_fname functionSignatures
@@ -687,6 +707,25 @@ generateSubDefElt idx f_exp felt_name functionSignatures =
         --     , "    call "++fname++"(" ++mkArgList [non_map_args,in_args,out_args] ++")"
         --     ,"end subroutine "++felt_name
         -- ]
+
+generateSubDefElts idxs f_exp felts_name functionSignatures =
+    let
+        Function fname _ = f_exp
+        fsig = functionSignatures ! fname
+        (_,arg_decls,arg_names) = createArgDeclsAndNames fsig
+        [non_map_arg_decls,in_args_decl,out_args_decl] = arg_decls
+        [non_map_args,in_args,out_args] = arg_names
+
+        sel_out_args = map (\idx -> out_args !! idx) idxs
+    in
+        buildSubDef ""
+            felts_name
+            [non_map_args,in_args,sel_out_args]
+            [non_map_arg_decls,in_args_decl,out_args_decl]
+            [
+                "    call "++fname++"(" ++mkArgList [non_map_args,in_args,out_args] ++")"
+            ]
+            False
 
 createArgDeclsAndNames argts = let
         argts_fn = map mkFinalArgSigList argts
