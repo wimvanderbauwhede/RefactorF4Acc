@@ -9,7 +9,7 @@ import Warning ( warning )
 
 {-# ANN module "HLint: ignore Use camelCase" #-}
 {-# ANN module "HLint: ignore Use lambda-case" #-}
-
+{-# ANN module "HLint: ignore Use any" #-}
 (!) :: Ord k => Map.Map k a -> k -> a
 (!) = (Map.!)
 
@@ -17,8 +17,10 @@ reduceCalls :: [Expr] -> [Expr] -> Bool -> ([Expr],[Expr])
 reduceCalls f_s v_s False = (f_s, v_s)
 reduceCalls f_s v_s True = let
         t_v_s = group_identical_args v_s
+        (f_s_g, t_v_s_g) = group_pelt_terms f_s t_v_s [] []
+        v_s_g = map fst t_v_s_g 
     in
-        group_pelt_terms f_s t_v_s [] []
+        (f_s_g, v_s_g)
 {-
 First of all we need to create v_s' which is a version of v_s where the 2nd arg of every SVec is  replaced by e.g. Const :
 SVec sz _ -> SVec sz (Const sz) 
@@ -95,11 +97,12 @@ If so, we can group them
 -}
 is_PElt_series :: [Expr] -> Bool
 is_PElt_series [] = error "PELT series can't be empty!";
-is_PElt_series f_s_elt:f_s_elts = case f_s_elt of
-    MapS (SVec k _) (Comp (PElt _) f -> null $ filter (\elt -> case elt of
-                MapS (SVec k _) (Comp (PElt _) f -> False
+is_PElt_series (f_s_elt:f_s_elts) = case f_s_elt of
+    MapS (SVec k _) (Comp (PElt _) f) -> null $ filter (
+        \elt -> case elt of
+                MapS (SVec k _) (Comp (PElt _) f) -> False
                 _ -> True
-                ) f_s_elts -- If all remaining elts are MapS sv (Comp (PElt _) f        
+            ) f_s_elts -- If all remaining elts are MapS sv (Comp (PElt _) f        
     Comp (PElt i) f -> null $ filter (\elt -> case elt of
         Comp (PElt _) f -> False
         _ -> True
@@ -107,16 +110,16 @@ is_PElt_series f_s_elt:f_s_elts = case f_s_elt of
     _ -> False
 
 replace_with_PElts :: [Expr] -> [Expr] -- In principle the return value is a single Expr but in case it fails it could be the original
-replace_with_PElts f_s_elt:f_s_elts = case f_s_elt of -- Placeholder
-    MapS (SVec k _) (Comp (PElt i) f -> let
-            idxs = map (\(MapS (SVec k _) (Comp (PElt j) f) -> j) f_s_elts
+replace_with_PElts (f_s_elt:f_s_elts) = case f_s_elt of -- Placeholder
+    MapS sv@(SVec k _) (Comp (PElt i) f) -> let
+            idxs = map (\(MapS (SVec k _) (Comp (PElt j) f)) -> j) f_s_elts
         in
-            MapS sv (Comp (PElts i:idxs) f)
+            [MapS sv (Comp (PElts (i:idxs)) f)]
     Comp (PElt i) f -> let
             idxs = map (\(Comp (PElt j) f) -> j) f_s_elts
         in
-            Comp (PElt i:idxs) f
-    _ -> error "Should be "MapS sv (Comp (PElt i) f or Comp (PElt i) f"
+            [Comp (PElts (i:idxs)) f]
+    _ -> error "Should be MapS sv (Comp (PElt i) f or Comp (PElt i) f"
 
 {-
 
