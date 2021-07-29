@@ -96,6 +96,61 @@ type ScalarisedArgs = [(String,[(String,(Integer,FIntent,String))])]
 type OrigNames = [(String,[(String,[(String,FIntent)])])]
 
 type ASTInstance = (TyTraCLAST, FunctionSignature, StencilDefinition, MainArgDecls, ScalarisedArgs, OrigNames) 
+{-
+-- As in Haskell but on Vec rather than []
+map :: (a -> b) -> Vec n a -> Vec n b
+
+-- Haskell's foldl but on Vec rather than []
+fold :: (a -> b -> a) -> a -> Vec n b -> a
+
+-- Ordinary map but only works on SVec
+maps :: (a -> b) -> SVec k a -> SVec k b
+
+-- Every element of the vector is replaced 
+-- by the stencil defined by the first argument
+stencil :: SVec k Int -> Vec n a -> Vec n (SVec k a)
+
+
+-- Like Haskell's zip/unzip but takes a tuple as argument and works on Vec
+zipt :: Tup k (...,Vec n a_i,...)  -> Vec n $ Tup k (...,a_i,...)
+unzipt :: Vec n Tup k (...,a_i,...) -> Tup k (...,Vec n a_i,...)
+
+-- Apply a tuple of functions to a tuple of values
+applyt :: Tup k (...,a_i -> b_i,...) -> Tup k (...,a_i,...) 
+  -> Tup k (...,b_i,...)
+applyt (...,f_i,...) (...,e_i,...) = \(...,e_i,...) 
+  -> (...,f_i e_i,...)
+
+-- Generalisation of Haskell's fst/snd
+elt :: (i:: Int) -> (...,a_i,...) -> a_i
+elt i es@(Vec n es) = es !! i
+
+-- The partially applied version is pelt:
+pelt :: (i:: Int) -> ((...,a_i,...) -> a_i)
+pelt i  = \es -> es !! i
+
+-- Generalisation of elt. The purpose of this is to avoid multiple calls to a function returning a tuple.
+elts :: [i,j,k,...:: Int] -> Tup n (...,a_i,...,a_j,...,a_k,...) -> Tup m (a_i,a_ja_k)
+elts :: Vec m Int -> Tup n [forall a . a] -> Tup m [forall a . a]
+elts (Vec m sel) (Tup n es) = Tup m (map (\idx -> (es !! idx)) sel)
+
+-- The partially applied version is pelts:
+pelts :: [i,j,k,...] :: Vec m Int -> Tup n [forall a . a] -> Tup m [forall a . a])
+pelts (Vec m sel) = \es -> Tup m (map (\idx -> (es !! idx)) sel) 
+
+-- Stencils can be combined using scomb
+scomb :: (SVec k_1 Int) -> (SVec k_2 Int) -> SVec k_1 (SVec k_2 Int)
+stencil s2 (stencil s1 v1) = stencil (scomb s2 s1) v1
+
+-- Function composition
+(.) ::  (b -> c) -> (a -> b) -> (a -> c)
+-- Function composition for fold of map 
+-- Function composition for fold of map 
+fcomp :: (c -> b -> c) -> (a -> b) -> (c -> a -> c)
+fold g acc (map f v) = fold (g `fcomp` f) acc v
+-}
+
+
 
 data Expr =
         -- Left-hand side:

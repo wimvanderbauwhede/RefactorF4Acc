@@ -26,29 +26,62 @@ Next we want to group identical arguments, and we need to know how many, so we h
 - take the element and put it in the acc: [(v1,1)]
 - take the next elt, take first tuple from the acc and see if it matches
 -}
+group_identical_args :: [Expr] -> [(Expr,Int)]
 group_identical_args v =
     let
         r_t_v = foldl' (\acc elt -> 
             let
                 t:ts = acc
+                t_e = fst t
+                t_e' = erase_maps_svec_names t_e
+                elt' = erase_maps_svec_names elt
             in
-                if (fst t == elt) then (elt,snd t+1):ts else acc
+                if (t_e' == elt') then (elt,snd t+1):ts else acc
                 ) [] v
     in
         reverse r_t_v
 
 -- Now, what we actually need from this is just the numbers, so we could do snd $ unzip 
+
 {-
 I think the possible arguments of ApplyT are:
-- Function
-- Id
-- MapS
-- Comp
-- FComp
+- Function -> skip
+- Id -> skip
+- MapS -> test if the 2nd arg is Comp PElt
+- Comp -> test if the first arg is PElt
+- FComp -> skip because the first arg can never be PElt? 
 I guess that there is no bare PElt, as it would be Comp (PElt i) Id; but we can add it and see if there is an error
 - PElt
 
+What we do is: let's say the list of elt counts is elt_counts
+So I think we take the applyt args and the vectors
+t_v_s = group_identical_args v_s
+
 -}
+
+group_pelt_terms :: [Expr] -> [(Expr,Int)] -> [Expr] -> [(Expr,Int)] -> ([Expr],[(Expr,Int)])
+group_pelt_terms f_s t_v_s f_s_g t_v_s_g = 
+    if null t_v_s 
+        then (f_s_g, t_v_s_g)
+        else
+            let
+                (t_e, elt_count) : t_v_s' = t_v_s
+                f_s_elts = take elt_count f_s
+                f_s' = drop elt_count f_s
+                (f_s_g', t_v_s_g') = if is_PElt_series f_s_elts -- <test if f_s_elts is a series of PElt calls to the same f or same in a MapS>
+                    then 
+                        let
+                            f_s_pelts = replace_with_PElts f_s_elts
+                        in
+                            (f_s_g++[f_s_pelts],t_v_s_g++[(t_e,1)])
+                    else -- <add the orginals to f_s' and to t_v_s'>
+                        (f_s_g++f_s_elts,t_v_s_g++(t_e,elt_count))
+            in
+                group_pelt_terms f_s' t_v_s' f_s_g' t_v_s_g'
+            
+
+
+
 
 {-
 
