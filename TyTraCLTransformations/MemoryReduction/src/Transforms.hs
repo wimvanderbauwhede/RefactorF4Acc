@@ -6,7 +6,17 @@ import qualified Data.Map.Strict as Map
 import Data.List (intercalate,foldl')
 
 import TyTraCLAST
+import CallReduction ( reduceCalls )
 import Warning ( warning )
+
+{-# ANN module "HLint: ignore Use camelCase" #-}
+{-# ANN module "HLint: ignore Use lambda-case" #-}
+{-# ANN module "HLint: ignore Use fromMaybe" #-}
+{-# ANN module "HLint: ignore Use zipWith" #-}
+{-# ANN module "HLint: ignore Use null" #-}
+{-# ANN module "HLint: ignore Use uncurry" #-}
+{-# ANN module "HLint: ignore Redundant curry" #-}
+{-# ANN module "HLint: ignore Reduce duplication" #-}
 
 (!) = (Map.!)
 -- ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
@@ -261,7 +271,7 @@ applyRewriteRules ast = foldl (\(lst,(ct,mp)) (lhs,rhs) ->
 -- We populate the Map with (id_$ct, [Tuple [], $in_exp, $in_exp ] )
 
 rewrite_ast_expr :: Expr -> State (Int, [(Name, [Expr])]) Expr
-rewrite_ast_expr ast = everywhereM (mkM rewrite_ast_sub_expr) ast
+rewrite_ast_expr = everywhereM (mkM rewrite_ast_sub_expr)
 
 rewrite_ast_into_single_map :: Int -> Expr -> State (Int,[(Name, [Expr])]) Expr
 rewrite_ast_into_single_map count exp = do
@@ -291,11 +301,11 @@ rewrite_ast_sub_expr expr =
                 else return $ Map (MapS s_1 f_1) (Stencil s_1 v_expr)   
             ZipT es -> 
                 -- If all args of ZipT are Map
-                if (length ( filter isMap es ) == length es) 
+                if length ( filter isMap es ) == length es
                     -- 3. ZipT of tuple of Map becomes Map of ApplyT of the functions to ZipT of the vectors
                     then return $ rewriteZipTMap es -- WV 2021-07-29 Here is where we hook in CallReduction
                     -- Otherwise, check if at least one of them is a Map, if so, rewrite Vec to Id
-                    else if (length ( filter isMap es ) > 0) 
+                    else if length ( filter isMap es ) > 0
                         -- 4. Rewrite Vec and Stencil as Map of Id 
                         then 
                             do
@@ -304,7 +314,7 @@ rewrite_ast_sub_expr expr =
                         else return expr
             -- 5.  Tuple select (Elt) after UnzipT of Map becomes Map of the composition of Elt and the mapped function
             Elt i_expr (UnzipT (Map f_expr exprs)) -> return $ Map (Comp (PElt i_expr) f_expr) exprs
-            _ -> return $ expr
+            _ -> return expr
 
 {-
 3b. fuse stencils and rewrite so stencils are applied to input vectors, not zips
@@ -350,7 +360,7 @@ regroupTuples ast = let
         if (exists $unique_names_for_stencils{$stencil_definition}) {
             $stencil_names_to_unique_names{$stencil_name} = $unique_names_for_stencils{$stencil_definition}
         } else {
-            # say "UNIQE: ".$stencil_definition. " => $stencil_name ";
+            # say "UNIQUE: ".$stencil_definition. " => $stencil_name ";
             $unique_names_for_stencils{$stencil_definition}=$stencil_name;                
             push @stencil_defs, [ $stencil_name, $stencil_definition];
         }  
@@ -358,7 +368,7 @@ regroupTuples ast = let
 removeDuplicateExpressions :: [(Expr,Expr)] -> [(Expr,Expr)] 
 removeDuplicateExpressions ast = let
         (uniqueNamesForExprs, namesToUniqueNames,ast') = foldl' (\(uniqueNamesForExprs_,namesToUniqueNames_,ast_) (lhsExpr,rhsExpr) ->
-            if (Map.member rhsExpr uniqueNamesForExprs_)
+            if Map.member rhsExpr uniqueNamesForExprs_
                 then 
                     -- There is already an entry for this rhsExp, so skip this line
                     (uniqueNamesForExprs_, Map.insert (warning lhsExpr ("DUP:"++(show lhsExpr))) (uniqueNamesForExprs_ ! rhsExpr) namesToUniqueNames_,ast_) -- 
@@ -418,9 +428,11 @@ isMap expr = case expr of
 rewriteZipTMap es =  let
         f_s = map (\(Map f v) -> f) es
         v_s = map (\(Map f v) -> v) es
-        fv_s = zip f_s v_s
+        (f_s_g, v_s_g) = reduceCalls f_s v_s True
+        -- fv_s = zip f_s v_s
     in
-        warning (Map (ApplyT f_s) (ZipT v_s)) ("(ApplyT,ZipT): "++(show fv_s) )
+        Map (ApplyT f_s_g) (ZipT v_s_g)
+        -- warning (Map (ApplyT f_s) (ZipT v_s)) ("(ApplyT,ZipT): "++ show fv_s) 
 
 -- Instead of inserting Id I should insert a Function with a fresh name 
 -- and put that function in the functionSignaturesList
@@ -436,7 +448,7 @@ rewriteIdToFunc :: Expr -> State (Int, [(Name, [Expr])]) Expr
 rewriteIdToFunc expr = do
     (ct, fsigs) <- get
     let 
-        id_name = ("id_"++(show ct))
+        id_name = "id_"++ show ct
         (rexp,in_exp, isId) = case expr of
             Vec _ dt   -> (Map (Id id_name []) expr, dt, True)
             Stencil (SVec sz _ )  (Vec _ dt ) -> (Map (Id id_name []) expr, SVec sz dt, True)
@@ -444,7 +456,7 @@ rewriteIdToFunc expr = do
             _ -> (expr, expr, False)
     if isId 
         then
-            put (ct+1, fsigs++[( "id_"++(show ct), [Tuple [], 
+            put (ct+1, fsigs++[( "id_"++ show ct, [Tuple [], 
             updateName "" "in" in_exp, 
             updateName "" "out" in_exp
             ])] )
@@ -462,8 +474,8 @@ rewriteIdToFunc expr = do
 
 
 get_map :: Expr -> [Expr]
-get_map m@(Map _ _) = [m]
-get_map m@(Fold _ _ _) = [m] -- cheating
+get_map m@(Map {}) = [m]
+get_map m@(Fold {}) = [m] -- cheating
 get_map _ = []
 
 -- This only works if the rules eliminate all maps
@@ -502,7 +514,7 @@ decomposeExpressions orig_ast ast =
     in
         map (\(lhs,rhs) -> (subsitute_exprs bindings lhs rhs )) ast
 
-subsitute_exprs ::  (Map.Map Expr Expr) -> Expr -> Expr -> [(Expr,Expr)]
+subsitute_exprs ::  Map.Map Expr Expr -> Expr -> Expr -> [(Expr,Expr)]
 subsitute_exprs orig_bindings lhs ast = let
         -- ast' is the original expression into which lhs has been substituted
         -- var_expr_pairs are the new intermediate bindings that have been created as a result
@@ -528,7 +540,7 @@ subsitute_expr lhs exp = do
                     Scalar _ dt sname -> (sname, True,dt)                    
             (ct,orig_bindings,added_bindings,var_expr_pairs) <- get
             let ((ct',orig_bindings', added_bindings',var_expr_pairs'),exp') = case exp of
-                      Scalar _ _ _ -> ((ct,orig_bindings,added_bindings,var_expr_pairs),exp)
+                      Scalar {} -> ((ct,orig_bindings,added_bindings,var_expr_pairs),exp)
                       Const _ -> ((ct,orig_bindings,added_bindings,var_expr_pairs),exp)
                       Tuple _ -> ((ct,orig_bindings,added_bindings,var_expr_pairs),exp)
                       Vec _ _  -> ((ct,orig_bindings,added_bindings,var_expr_pairs),exp)
@@ -539,55 +551,55 @@ subsitute_expr lhs exp = do
                       PElt _ -> ((ct,orig_bindings,added_bindings,var_expr_pairs),exp)
                       PElts _ -> ((ct,orig_bindings,added_bindings,var_expr_pairs),exp)
                       ZipT _ -> ((ct,orig_bindings,added_bindings,var_expr_pairs),exp)
-                      Fold _ _ _ -> ((ct,orig_bindings,added_bindings,var_expr_pairs),exp)
+                      Fold {} -> ((ct,orig_bindings,added_bindings,var_expr_pairs),exp)
                       Map _ _ -> if decomposeMap 
                         then
                             let 
-                                var = Vec VT (Scalar VT dt ("var_"++vec_name++"_"++(show ct))) 
+                                var = Vec VT (Scalar VT dt ("var_"++vec_name++"_"++ show ct )) 
                             in
                                 maybeAddBinding var exp (ct,orig_bindings, added_bindings, var_expr_pairs)
                         else
                             ((ct,orig_bindings, added_bindings,var_expr_pairs),exp)                      
                       MapS _ (Function _ nms) -> let
-                            f_expr = Function ("f_maps_"++vec_name++"_"++(show ct)) nms
+                            f_expr = Function ("f_maps_"++vec_name++"_"++ show ct ) nms
                         in                            
                             maybeAddBinding f_expr exp (ct,orig_bindings, added_bindings, var_expr_pairs)
                       ApplyT fs -> let
                             nmss = concatMap getNonMapFoldArgs fs
-                            f_expr = Function ("f_applyt_"++vec_name++"_"++(show ct)) nmss
+                            f_expr = Function ("f_applyt_"++vec_name++"_"++ show ct ) nmss
                         in
                             maybeAddBinding f_expr exp (ct,orig_bindings, added_bindings, var_expr_pairs)
                       Comp (Function _ nms1) (Function _ nms2) -> let
-                            f_expr = Function ("f_comp_"++vec_name++"_"++(show ct)) (nms1++nms2)
+                            f_expr = Function ("f_comp_"++vec_name++"_"++ show ct ) (nms1++nms2)
                         in
                             maybeAddBinding f_expr exp (ct,orig_bindings, added_bindings, var_expr_pairs)
                       Comp (PElt idx) (Function _ nms2) -> let
                         -- I think the vec_name here is unique so no need for ++"_"++(show idx)
-                            f_expr = Function ("f_pelt_"++vec_name++"_"++(show ct)) nms2
+                            f_expr = Function ("f_pelt_"++vec_name++"_"++ show ct ) nms2
                         in
                             maybeAddBinding f_expr exp (ct,orig_bindings, added_bindings, var_expr_pairs)
                       Comp (PElts idxs) (Function _ nms2) -> let -- WV: CHECK IF THIS IS OK!
                         -- I think the vec_name here is unique so no need for ++"_"++(show idx)
-                            f_expr = Function ("f_pelts_"++vec_name++"_"++(show ct)) nms2
+                            f_expr = Function ("f_pelts_"++vec_name++"_"++ show ct ) nms2
                         in
                             maybeAddBinding f_expr exp (ct,orig_bindings, added_bindings, var_expr_pairs)                            
                       FComp (Function _ nms1) (Function _ nms2) -> let
-                            f_expr = Function ("f_fcomp_"++vec_name++"_"++(show ct)) (nms1++nms2)
+                            f_expr = Function ("f_fcomp_"++vec_name++"_"++ show ct ) (nms1++nms2)
                         in
                             maybeAddBinding f_expr exp (ct,orig_bindings, added_bindings, var_expr_pairs)
                       Stencil (SVec _ _ ) v_exp -> let
                             dt_exp = getDType v_exp
-                            var = Vec VS (setName (Single ("svec_"++vec_name++"_"++(show ct))) dt_exp)
+                            var = Vec VS (setName (Single ("svec_"++vec_name++"_"++ show ct )) dt_exp)
                         in
                             maybeAddBinding var exp (ct,orig_bindings, added_bindings, var_expr_pairs)
                       Stencil (SComb _ _) v_exp -> let
                             dt_exp = getDType v_exp
-                            var = Vec VS (setName  (Single ("svec_"++vec_name++"_"++(show ct))) dt_exp)
+                            var = Vec VS (setName  (Single ("svec_"++vec_name++"_"++ show ct )) dt_exp)
                         in
                             maybeAddBinding var exp (ct,orig_bindings, added_bindings, var_expr_pairs)
                       UnzipT map_exp -> ((ct,orig_bindings, added_bindings,var_expr_pairs),exp)  -- error $ show map_exp  
                       _ -> let
-                              var = Vec VT (Scalar VT dt ("vec_"++vec_name++"_"++(show ct)))
+                              var = Vec VT (Scalar VT dt ("vec_"++vec_name++"_"++ show ct ))
                            in
                              maybeAddBinding var exp (ct,orig_bindings, added_bindings, var_expr_pairs)
             put (ct',orig_bindings',added_bindings',var_expr_pairs')
@@ -626,7 +638,7 @@ maybeAddBinding var exp (ct,orig_bindings, added_bindings, var_expr_pairs) =
 
 
 getNonMapFoldArgs :: Expr -> [Expr]
-getNonMapFoldArgs exp = everything (++) (mkQ [] (getNonMapFoldArgs')) exp
+getNonMapFoldArgs = everything (++) (mkQ [] getNonMapFoldArgs') 
 
 getNonMapFoldArgs' :: Expr -> [Expr]
 getNonMapFoldArgs' (Function _ nms) = nms

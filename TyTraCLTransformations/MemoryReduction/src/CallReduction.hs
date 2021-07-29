@@ -7,8 +7,18 @@ import Data.List (intercalate,foldl')
 import TyTraCLAST
 import Warning ( warning )
 
+{-# ANN module "HLint: ignore Use camelCase" #-}
+{-# ANN module "HLint: ignore Use lambda-case" #-}
+
+(!) :: Ord k => Map.Map k a -> k -> a
 (!) = (Map.!)
 
+reduceCalls :: [Expr] -> [Expr] -> Bool -> ([Expr],[Expr])
+reduceCalls f_s v_s False = (f_s, v_s)
+reduceCalls f_s v_s True = let
+        t_v_s = group_identical_args v_s
+    in
+        group_pelt_terms f_s t_v_s [] []
 {-
 First of all we need to create v_s' which is a version of v_s where the 2nd arg of every SVec is  replaced by e.g. Const :
 SVec sz _ -> SVec sz (Const sz) 
@@ -36,7 +46,7 @@ group_identical_args v =
                 t_e' = erase_maps_svec_names t_e
                 elt' = erase_maps_svec_names elt
             in
-                if (t_e' == elt') then (elt,snd t+1):ts else acc
+                if t_e' == elt' then (elt,snd t+1):ts else acc
                 ) [] v
     in
         reverse r_t_v
@@ -75,16 +85,38 @@ group_pelt_terms f_s t_v_s f_s_g t_v_s_g =
                         in
                             (f_s_g++f_s_pelts,t_v_s_g++[(t_e,1)])
                     else -- <add the orginals to f_s' and to t_v_s'>
-                        (f_s_g++f_s_elts,t_v_s_g++(t_e,elt_count))
+                        (f_s_g++f_s_elts,t_v_s_g++[(t_e,elt_count)])
             in
                 group_pelt_terms f_s' t_v_s' f_s_g' t_v_s_g'            
 
+{-
+We test if the series of expressions that are args of AppluT are Comp PElt ... or Maps of Comp PElt
+If so, we can group them    
+-}
 is_PElt_series :: [Expr] -> Bool
-is_PElt_series f_s_elts = False -- Placeholder
+is_PElt_series [] = error "PELT series can't be empty!";
+is_PElt_series f_s_elt:f_s_elts = case f_s_elt of
+    MapS (SVec k _) (Comp (PElt _) f -> null $ filter (\elt -> case elt of
+                MapS (SVec k _) (Comp (PElt _) f -> False
+                _ -> True
+                ) f_s_elts -- If all remaining elts are MapS sv (Comp (PElt _) f        
+    Comp (PElt i) f -> null $ filter (\elt -> case elt of
+        Comp (PElt _) f -> False
+        _ -> True
+        ) f_s_elts -- If all remaining elts are MapS sv (Comp (PElt _) f
+    _ -> False
 
 replace_with_PElts :: [Expr] -> [Expr] -- In principle the return value is a single Expr but in case it fails it could be the original
-replace_with_PElts f_s_elts = f_s_elts -- Placeholder
-
+replace_with_PElts f_s_elt:f_s_elts = case f_s_elt of -- Placeholder
+    MapS (SVec k _) (Comp (PElt i) f -> let
+            idxs = map (\(MapS (SVec k _) (Comp (PElt j) f) -> j) f_s_elts
+        in
+            MapS sv (Comp (PElts i:idxs) f)
+    Comp (PElt i) f -> let
+            idxs = map (\(Comp (PElt j) f) -> j) f_s_elts
+        in
+            Comp (PElt i:idxs) f
+    _ -> error "Should be "MapS sv (Comp (PElt i) f or Comp (PElt i) f"
 
 {-
 
@@ -129,4 +161,4 @@ rewriteZipTMap es =  let
         v_s = map (\(Map f v) -> v) es
         fv_s = zip f_s v_s
     in
-        warning (Map (ApplyT f_s) (ZipT v_s)) ("(ApplyT,ZipT): "++(show fv_s) )
+        warning (Map (ApplyT f_s) (ZipT v_s)) ("(ApplyT,ZipT): "++ show fv_s) 

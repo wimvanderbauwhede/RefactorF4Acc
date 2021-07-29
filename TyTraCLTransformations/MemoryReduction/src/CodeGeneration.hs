@@ -15,6 +15,13 @@ import TyTraCLAST
 import ASTInstance (functionSignaturesList, stencilDefinitionsList, mainArgDeclsList, origNamesList, scalarisedArgsList, superkernelName)
 -- import Warning ( warning )
 
+{-# ANN module "HLint: ignore Use camelCase" #-}
+{-# ANN module "HLint: ignore Use lambda-case" #-}
+{-# ANN module "HLint: ignore Use fromMaybe" #-}
+{-# ANN module "HLint: ignore Use zipWith" #-}
+{-# ANN module "HLint: ignore Redundant curry" #-}
+{-# ANN module "HLint: ignore Reduce duplication" #-}
+
 (!) = (Map.!)
 
 -- For code generation testing
@@ -150,6 +157,7 @@ getFunctionSignature rhs functionSignatures =
             Comp (PElts idxs) (Function fname _) -> deriveSigPELts idxs fname functionSignatures
             FComp (Function f1 _) (Function f2 _) -> deriveSigFComp f1 f2 functionSignatures
             ApplyT fs -> deriveSigApplyT fs functionSignatures
+            _ -> error $ "Can't get function signature for "++(show rhs)
 
 {-
 maps :: SVec sz a -> c->a->b -> c->SVec sz a -> SVec sz b
@@ -293,8 +301,8 @@ generateNonSubDef functionSignatures t  =
                     (str,strs,decls) = case rhs' of
                         Map f_exp v_exp -> generateMap functionSignatures f_exp v_exp t
                         UnzipT (Map f_exp v_exp) -> generateMap functionSignatures f_exp v_exp t
-                        Vec _ (Scalar {}) -> generateVecAssign lhs rhs
-                        Elt _ vec@(Vec _ (Scalar {})) -> generateVecAssign lhs vec -- FIXME
+                        Vec _ Scalar {} -> generateVecAssign lhs rhs
+                        Elt _ vec@(Vec _ Scalar {}) -> generateVecAssign lhs vec -- FIXME
                         Fold f_exp acc_exp v_exp -> generateFold functionSignatures f_exp acc_exp v_exp t
                         _ -> error $ show t -- (show rhs, ["generateNonSubDef: TODO: "++(show t)])
                 in
@@ -438,7 +446,7 @@ generateSubDefOpaque fname functionSignatures =
                                             in
                                                 (out_scal_arg,("","",""))
                                     In ->  (createCallArg fname orig_name stencil_index,("","",""))
-                                    _ -> error $ "Unknown Intent: "++(show intent)++" for orig_name in fname"
+                                    _ -> error $ "Unknown Intent: "++ show intent ++" for orig_name in fname"
                         ) argsList
                     (orig_arg_decl_strs,pre_call_assignment_strs,post_call_assignment_strs) = unzip3 extra_statements
                     mappedArgsListStr = commaSepList mappedArgsList
@@ -523,8 +531,8 @@ generateSubDefMapS sv_exp f_exp maps_fname functionSignatures =
 
         sv_in_iters = createIter in_argtfn
         sv_out_iters = createIter out_argtfn
-        sv_in_accesses = zipWith (curry (\(x,y)-> x++y)) sv_in sv_in_iters
-        sv_out_accesses = zipWith (curry (\(x,y)-> x++y)) sv_out sv_out_iters
+        sv_in_accesses = zipWith (++) sv_in sv_in_iters -- curry (\(x,y)-> x++y)
+        sv_out_accesses = zipWith (++) sv_out sv_out_iters -- curry (\(x,y)-> x++y)
     in
         buildSubDef ""
             maps_fname
@@ -1184,7 +1192,7 @@ generateFold functionSignatures f_exp acc_exp v_exp t =
                                                 ([ov_name''],[])
             Composite ov_names -> let
                     Composite fl_ov_names = flattenNames (Composite ov_names)
-                in (Data.Bifunctor.bimap concat concat) $ -- [([],[])] -> ([[]],[[]])
+                in Data.Bifunctor.bimap concat concat $ -- [([],[])] -> ([[]],[[]])
                     unzip $ map (\(Single ov_name'') -> if Map.member ov_name'' mainArgDecls
                         then  ([ov_name''++"(idx)"], [])
                         else  ([ov_name''],[])
@@ -1258,6 +1266,18 @@ getFSigs fs functionSignatures = zipWith (curry (\(f_expr, idx) -> case f_expr o
                        Nothing -> [Tuple [],Tuple [],Tuple []] -- error $ "getFSigs: no entry for Id "++fname            
             -- [Tuple [], setName ("id_in_"++(show idx)) dt, setName ("id_out_"++(show idx)) dt ]
     )) fs [1..]
+
+
+-- getFSigs :: [Expr] -> Map.Map Name FSig -> [FSig]
+-- getFSigs fs functionSignatures = map (\f_expr -> case f_expr of
+--                     (Function fname _) -> case Map.lookup fname functionSignatures  of
+--                         Just sig -> sig
+--                         Nothing -> error $ "getFSigs: no entry for "++fname
+--                     (Id fname dt) ->  case Map.lookup fname functionSignatures  of
+--                         Just sig -> sig
+--                         Nothing -> [Tuple [],Tuple [],Tuple []] -- error $ "getFSigs: no entry for Id "++fname            
+--             -- [Tuple [], setName ("id_in_"++(show idx)) dt, setName ("id_out_"++(show idx)) dt ]
+--     ) fs 
 
 {-
 For every Map or Fold, a list of the decomposed function definitions and a list of the rest
@@ -1419,7 +1439,6 @@ generateMainProgramOrSuperkernel genModule functionSignatures ast_stages  =
         unique_stage_kernel_decls = nubDeclList $ concat stage_kernel_decls
         main_program_decl_strs' =  map (show . clearIntent) unique_stage_kernel_decls
         loops_over_calls = map (\(call_str,(lb,ub)) -> unlines [
-            -- "\ndo global_id="++(show (1-lb))++","++(show ((fromIntegral vSz) - ub)),
             "\ndo global_id = 1, "++(show vSz),
             "  "++call_str,
             "end do"
