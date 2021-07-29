@@ -293,7 +293,7 @@ rewrite_ast_sub_expr expr =
                 -- If all args of ZipT are Map
                 if (length ( filter isMap es ) == length es) 
                     -- 3. ZipT of tuple of Map becomes Map of ApplyT of the functions to ZipT of the vectors
-                    then return $ rewriteZipTMap es
+                    then return $ rewriteZipTMap es -- WV 2021-07-29 Here is where we hook in CallReduction
                     -- Otherwise, check if at least one of them is a Map, if so, rewrite Vec to Id
                     else if (length ( filter isMap es ) > 0) 
                         -- 4. Rewrite Vec and Stencil as Map of Id 
@@ -413,6 +413,8 @@ isMap expr = case expr of
 -- map (apply ((pelts [i,j]) . f) v 
 -- and in general
 -- map (applyt ((pelts [i,j]) . f,g, maps sv ((pelts [i',j',k']) . h))) (zipt (v,u,w))
+
+-- Here is where we'll hook in CallReduction
 rewriteZipTMap es =  let
         f_s = map (\(Map f v) -> f) es
         v_s = map (\(Map f v) -> v) es
@@ -535,6 +537,7 @@ subsitute_expr lhs exp = do
                       SVec _ _ -> ((ct,orig_bindings,added_bindings,var_expr_pairs),exp)
                       SComb _ _ -> ((ct,orig_bindings,added_bindings,var_expr_pairs),exp)
                       PElt _ -> ((ct,orig_bindings,added_bindings,var_expr_pairs),exp)
+                      PElts _ -> ((ct,orig_bindings,added_bindings,var_expr_pairs),exp)
                       ZipT _ -> ((ct,orig_bindings,added_bindings,var_expr_pairs),exp)
                       Fold _ _ _ -> ((ct,orig_bindings,added_bindings,var_expr_pairs),exp)
                       Map _ _ -> if decomposeMap 
@@ -563,6 +566,11 @@ subsitute_expr lhs exp = do
                             f_expr = Function ("f_pelt_"++vec_name++"_"++(show ct)) nms2
                         in
                             maybeAddBinding f_expr exp (ct,orig_bindings, added_bindings, var_expr_pairs)
+                      Comp (PElts idxs) (Function _ nms2) -> let -- WV: CHECK IF THIS IS OK!
+                        -- I think the vec_name here is unique so no need for ++"_"++(show idx)
+                            f_expr = Function ("f_pelts_"++vec_name++"_"++(show ct)) nms2
+                        in
+                            maybeAddBinding f_expr exp (ct,orig_bindings, added_bindings, var_expr_pairs)                            
                       FComp (Function _ nms1) (Function _ nms2) -> let
                             f_expr = Function ("f_fcomp_"++vec_name++"_"++(show ct)) (nms1++nms2)
                         in
