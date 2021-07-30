@@ -8,12 +8,12 @@ import Data.Generics (mkQ, everything, mkM, everywhereM, everywhere, mkT)
 import Control.Monad.State
 import qualified Data.Map.Strict as Map
 import qualified Data.Set as Set
-import Data.List (intercalate, nub, partition, zip4, unzip4, maximum)
+import Data.List (foldl', intercalate, nub, partition, zip4, unzip4, maximum)
 import Data.Bifunctor ( bimap, second )
 
 import TyTraCLAST
 import ASTInstance (functionSignaturesList, stencilDefinitionsList, mainArgDeclsList, origNamesList, scalarisedArgsList, superkernelName)
--- import Warning ( warning )
+import Warning ( warning )
 
 {-# ANN module "HLint: ignore Use camelCase" #-}
 {-# ANN module "HLint: ignore Use lambda-case" #-}
@@ -22,6 +22,7 @@ import ASTInstance (functionSignaturesList, stencilDefinitionsList, mainArgDecls
 {-# ANN module "HLint: ignore Redundant curry" #-}
 {-# ANN module "HLint: ignore Reduce duplication" #-}
 
+(!) :: Ord k => Map.Map k a -> k -> a
 (!) = (Map.!)
 
 -- For code generation testing
@@ -36,6 +37,7 @@ generateFortranCode decomposed_ast functionSignaturesList idSigList =
         (asts_function_defs,ast_stages) = createStages decomposed_ast
         functionSignatures = inferSignaturesMap functionSignatures' asts_function_defs
         generatedFunctionDefs = generateDefs functionSignatures asts_function_defs
+        -- (warning asts_function_defs ("AST FUNCTION DEFS:\n"++ unlines (map (\(Function f_name _,exp)-> "("++f_name++", "++(show exp)++")") asts_function_defs) ++ "\n========================\n"))
         -- generatedStageKernels = map (\(ast,ct) -> (generateStageKernel functionSignatures) ct ast) (zip ast_stages [1..])
         (mainProgramStr,(maybeMainModuleStr,maybeEndModuleStr))
             | genMain =
@@ -324,31 +326,32 @@ Step 3. Generate the Fortran definitions for the intermediate functions
 
 -- This is fine as we don't need opaques for the Ids
 opaqueFunctionExprs = map (\(fname, _) -> (Function fname [], Id fname [] )) functionSignaturesList
-generatedOpaqueFunctionDefs = map (\elt -> fst $ generateSubDef functionSignatures elt []) opaqueFunctionExprs
+generatedOpaqueFunctionDefs = map (\elt -> fst $ generateSubDef functionSignatures [] elt []) opaqueFunctionExprs 
 
 generateDefs :: Map.Map Name FSig -> TyTraCLAST -> [String] -- 
 generateDefs  functionSignatures ast =
         fst $ foldl (
             \(lst,st) elt ->  let
-                (elt',st') = generateSubDef functionSignatures elt st
+                (elt',st') = generateSubDef functionSignatures ast elt st
             in
                 (lst++[elt'],st')
                 ) ([],[]) ast
 
-generateSubDef :: Map.Map Name FSig -> (Expr, Expr) -> [String] -> (String,[String])
-generateSubDef functionSignatures t st =
+-- A table of signatures, a (lhs,rhs) expression tuple, and a list of strings apparently unused. 
+generateSubDef :: Map.Map Name FSig -> TyTraCLAST -> (Expr, Expr) -> [String] -> (String,[String])
+generateSubDef functionSignatures ast t st =
     let
         (lhs,rhs) = t
         Function ho_fname _ = lhs
     in
         (case rhs of
-            MapS sv_exp f_exp -> generateSubDefMapS sv_exp f_exp ho_fname functionSignatures
-            ApplyT f_exps -> generateSubDefApplyT f_exps ho_fname functionSignatures
-            Comp (PElt idx) f_exp -> generateSubDefElt idx f_exp ho_fname functionSignatures
-            Comp (PElts idxs) f_exp -> generateSubDefElts idxs f_exp ho_fname functionSignatures
-            Comp f1_exp f2_exp -> generateSubDefComp f1_exp f2_exp ho_fname functionSignatures
-            FComp f1_exp f2_exp -> generateSubDefFComp f1_exp f2_exp ho_fname functionSignatures
-            Id _ _ -> generateSubDefOpaque ho_fname functionSignatures
+            MapS sv_exp f_exp -> generateSubDefMapS sv_exp f_exp ho_fname functionSignatures ast
+            ApplyT f_exps -> generateSubDefApplyT f_exps ho_fname functionSignatures ast
+            Comp (PElt idx) f_exp -> generateSubDefElt idx f_exp ho_fname functionSignatures 
+            Comp (PElts idxs) f_exp -> generateSubDefElts idxs f_exp ho_fname functionSignatures ast
+            Comp f1_exp f2_exp -> generateSubDefComp f1_exp f2_exp ho_fname functionSignatures ast
+            FComp f1_exp f2_exp -> generateSubDefFComp f1_exp f2_exp ho_fname functionSignatures 
+            Id _ _ -> generateSubDefOpaque ho_fname functionSignatures 
             _ -> show rhs
             ,[])
 
@@ -516,8 +519,8 @@ generateSubDefOpaque fname functionSignatures =
                         --     "end subroutine "++fname
                         --     ])
 
-generateSubDefMapS :: Expr -> Expr -> Name -> Map.Map Name FSig -> String
-generateSubDefMapS sv_exp f_exp maps_fname functionSignatures =
+generateSubDefMapS :: Expr -> Expr -> Name -> Map.Map Name FSig -> TyTraCLAST -> String
+generateSubDefMapS sv_exp f_exp maps_fname functionSignatures ast =
     let
         SVec sv_sz _ = sv_exp
         Function fname _ = f_exp
@@ -548,20 +551,83 @@ generateSubDefMapS sv_exp f_exp maps_fname functionSignatures =
             ]
             False
 
-    -- unlines [
-    --     "subroutine "++maps_fname++"("  ++mkArgList [non_map_args,sv_in,sv_out]++")"
-    --     , mkDeclLines [non_map_arg_decls,sv_in_decl,sv_out_decl]
-    --     ,"    integer :: i"
-    --     ,"    do i=1,"++ show sv_sz
-    --     ,"        call "++fname++"("++
-    --     mkArgList [non_map_args,sv_in_accesses,sv_out_accesses]
-    --     ++")"
-    --     ,"    end do"
-    --     ,"end subroutine "++maps_fname
-    -- ]
+{-
+We can further reduce the number of calls in applyt:
 
-generateSubDefApplyT :: [Expr]  -> Name -> Map.Map Name FSig -> String
-generateSubDefApplyT f_exps applyt_fname functionSignatures =
+- We look for all f_maps calls containing f_pelts calls or f_pelts calls 
+- Anything else we can't do anything about
+- If the have common inputs we look further, else we give up
+- For f_pelts with common f, i.e. (Comp (PElts ...) f), we can merge them further
+
+
+* f_exps is a list of RHS expression that make up the args of the ApplyT call
+* applyt_fname is the LHS name of the function doing the ApplyT
+* functionSignatures is the table where we get the signature for this function
+
+As I only want to change the internals, the sig should not change.
+
+The problem here is that at this stage, we don't have (Comp (PElts ...) f), we have (Function fname ...)
+So I need to have a lookup from this function name to the body. So I added the function defs AST to the args
+-}
+
+groupPEltsCallsInApplyT f_exps ast = let
+-- We first make a list of all the Function exps, by filtering f_exps
+
+    proper_fs = filter (\exp -> case exp of 
+            Function fname _ -> True
+            _ -> False
+        ) f_exps
+
+-- Then we get all the corresponding definitions from the ast:
+
+    f_defs = filter (\(f_exp, _) -> f_exp `elem` proper_fs) ast
+-- Now we look at which of these defs have PElts
+-- we need the list of all comp_pelts from the AST:
+    f_defs_comp_pelts_in_ast = filter (\(_, f_def) -> case f_def of
+        Comp (PElt i) f -> True
+        _ -> False
+        ) ast
+
+-- Comp Pelt calls in ApplyT are straightforward
+    f_defs_comp_pelts_in_applyt = filter (\(_, f_def) -> case f_def of
+        Comp (PElt i) f -> True
+        _ -> False
+        ) f_defs
+
+-- The MapS calls have functions so this is a two-step process
+    f_defs_maps_in_applyt = filter (\(_, f_def) -> case f_def of
+        -- If the function is in the comp_pelts list, we want it
+        MapS (SVec k _) f_exp -> f_exp `elem` (map fst f_defs_comp_pelts_in_ast)
+        _ -> False
+        ) f_defs
+
+-- Now we have all Comp PElts _ and MapS _ Comp Pelts _
+    
+-- For f_pelts with common f, i.e. (Comp (PElts ...) f), we can merge them further
+-- So now we need to see which of these have a common f. We do this by taking the first one, put it in one map, and then any next one we put in another map
+
+
+
+    in error "Placeholder"
+
+-- TODO, this is copied from the Transforms code, needs to be adapted!
+indentifyGroupableFunctions :: [(Expr,Expr)] -> (Map.Map Expr Expr, Map.Map Expr Expr)
+indentifyGroupableFunctions ast = let
+        (uniqueNamesForExprs, namesToUniqueNames) = foldl' (\(uniqueNamesForExprs_,namesToUniqueNames_) (lhsExpr,rhsExpr) ->
+            if Map.member rhsExpr uniqueNamesForExprs_
+                then 
+                    -- There is already an entry for this rhsExp, so skip this line
+                    (uniqueNamesForExprs_, Map.insert lhsExpr (uniqueNamesForExprs_ ! rhsExpr) namesToUniqueNames_) -- 
+                else 
+                    -- This line is unique, add to the AST
+                    (Map.insert rhsExpr lhsExpr uniqueNamesForExprs_,namesToUniqueNames_) -- 
+
+            ) (Map.empty,Map.empty) ast
+    in
+        error $ show (uniqueNamesForExprs, namesToUniqueNames)
+
+generateSubDefApplyT :: [Expr]  -> Name -> Map.Map Name FSig -> TyTraCLAST -> String
+generateSubDefApplyT f_exps applyt_fname functionSignatures ast =
     let
         applyt_fsig = functionSignatures ! applyt_fname
         [Tuple nms,Tuple in_args,Tuple out_args] = applyt_fsig
@@ -589,25 +655,14 @@ generateSubDefApplyT f_exps applyt_fname functionSignatures =
                 Id fname dt -> unlines $ zipWith (curry (\(o,m) -> "    "++o++" = "++m)) os ms
                 ) fsig_names_tups)
             False
-        -- unlines $ concat [
-        --     -- ["! APPLYT: FLATTENED, NUBBED: \n! " ++(show nmstfn)++"\n! "++(show in_argtfn)++"\n! "++(show out_argtfn)], 
-        --     [
-        --     "subroutine "++applyt_fname++"("  ++mkArgList [non_map_args'',in_args'',out_args'']++")"
-        --     , mkDeclLines [non_map_arg_decls,in_arg_decls,out_arg_decls]
-        --     ]
-        --     , map (\(f_expr,nms,ms,os) -> case f_expr of
-        --             Function fname _ -> "    call "++fname++"(" ++mkArgList [nms,ms,os] ++")"
-        --             Id fname dt -> unlines $ zipWith (curry (\(o,m) -> "    "++o++" = "++m)) os ms
-        --             ) fsig_names_tups
-        --     ,["end subroutine "++applyt_fname]
-        -- ]
+
 
 -- Comp (Function "f4" []) (Function "f_maps_v_3_0" []))
 -- nms are joint
 -- ms is for f2
 -- os is for f1
-generateSubDefComp :: Expr -> Expr -> Name -> Map.Map Name FSig -> String
-generateSubDefComp f1_exp f2_exp comp_fname functionSignatures =
+generateSubDefComp :: Expr -> Expr -> Name -> Map.Map Name FSig -> TyTraCLAST -> String
+generateSubDefComp f1_exp f2_exp comp_fname functionSignatures ast =
     let
         Function fname1 _ = f1_exp
         Function fname2 _ = f2_exp
@@ -716,7 +771,8 @@ generateSubDefElt idx f_exp felt_name functionSignatures =
         --     ,"end subroutine "++felt_name
         -- ]
 
-generateSubDefElts idxs f_exp felts_name functionSignatures =
+generateSubDefElts :: [Int] -> Expr -> String -> Map.Map Name [Expr] -> TyTraCLAST -> String
+generateSubDefElts idxs f_exp felts_name functionSignatures ast =
     let
         Function fname _ = f_exp
         fsig = functionSignatures ! fname
