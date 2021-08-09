@@ -378,7 +378,7 @@ generateSubDef functionSignatures ast t st =
             Comp f1_exp f2_exp -> generateSubDefComp f1_exp f2_exp ho_fname functionSignatures ast
             FComp f1_exp f2_exp -> generateSubDefFComp f1_exp f2_exp ho_fname functionSignatures 
             Id _ _ -> generateSubDefOpaque ho_fname functionSignatures 
-            _ -> show rhs
+            _ -> ""
             ,[])
 
 createCallArg :: Name -> Name -> Integer -> Name
@@ -751,10 +751,13 @@ appendOutArgToFSig out_arg [] = error $ show out_arg
 appendOutArgToFSig out_arg f_sig = let
         out_args_tup = last f_sig
         rest = init f_sig
-        Tuple out_args = out_args_tup
-        Tuple add_out_args = out_arg
+        out_args = getOutArgExprLst out_args_tup
+        add_out_args = getOutArgExprLst out_arg
     in
         rest ++ [Tuple (out_args ++ add_out_args)]
+
+getOutArgExprLst (Tuple out_args) = out_args
+getOutArgExprLst out_arg = [out_arg]
 
 generateSubDefApplyT :: [Expr]  -> Name -> Map.Map Name FSig -> TyTraCLAST -> (String,[String],Map.Map Name FSig)
 generateSubDefApplyT f_exps applyt_fname functionSignatures ast =
