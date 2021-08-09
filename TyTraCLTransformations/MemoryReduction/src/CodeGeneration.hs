@@ -331,10 +331,14 @@ generatedOpaqueFunctionDefs = map (\elt -> fst $ generateSubDef functionSignatur
 generateDefs :: Map.Map Name FSig -> TyTraCLAST -> [String] -- 
 generateDefs  functionSignatures ast = let
         (applyt_defs_str,_,functionSignatures') = foldl (
-                \(lst,st,functionSignatures_) elt ->  let
-                    (elt',st',functionSignatures__) = generateSubDefApplyT' functionSignatures_ ast elt st
-                in
-                    (lst++[elt'],st',functionSignatures__)
+                \(lst,st,functionSignatures_) elt -> 
+                    let
+                        (elt',st',functionSignatures__) = generateSubDefApplyT' functionSignatures_ ast elt st
+                    in
+                        if elt' /= "" then -- 
+                            (lst++[elt'],st',functionSignatures__)
+                        else 
+                            (lst,st,functionSignatures_)
                     ) ([],[],functionSignatures) ast
         other_defs_str = fst $ foldl (
             \(lst,st) elt ->  let
@@ -352,10 +356,12 @@ generateSubDefApplyT' functionSignatures ast t st =
     let
         (lhs,rhs) = t
         Function ho_fname _ = lhs
+        -- ApplyT f_exps = rhs
     in
         case rhs of
-            ApplyT f_exps -> generateSubDefApplyT f_exps ho_fname functionSignatures ast
-            _ -> (show rhs ,[], functionSignatures)
+            ApplyT f_exps -> 
+                generateSubDefApplyT f_exps ho_fname functionSignatures ast
+            _ -> ("" ,[], functionSignatures)
 
 -- A table of signatures, a (lhs,rhs) expression tuple, and a list of strings apparently unused. 
 generateSubDef :: Map.Map Name FSig -> TyTraCLAST -> (Expr, Expr) -> [String] -> (String,[String])
@@ -603,6 +609,8 @@ groupPEltsCallsInApplyT f_exps ast = let
 
 -- Now we look at which of these f_defs have PElts
 -- We need the list of all comp_pelts from the AST:
+-- Function "f_pelts_f_1_0" [...],Comp (PElts [0,1,2,7,8,9,3,4,5,10,11,12]) (Function "velfg_map_76" [SVec 153 (Scalar VDC DFloat "dx1_0"),SVec 152 (Scalar VDC DFloat "dy1_0"),SVec 94 (Scalar VDC DFloat "dzn_0"),SVec 94 (Scalar VDC DFloat "dzs_0")])),
+
     f_defs_comp_pelts_in_ast = filter (\(_, f_def) -> case f_def of
         Comp (PElts idxs) f -> True
         _ -> False
@@ -637,11 +645,16 @@ The namesToUniqueNames maps can be merged without a problem. But I think it is p
 The question is if I still need the uniqueNamesForExprs. Once I have the names of the functions that are OK to be merged, that should be enough.
 So let's just return the merged namesToUniqueNames map
 -}
-    (uniqueNamesForExprs_pelts,namesToUniqueNames_pelts) = indentifyGroupableFunctions f_defs_comp_pelts_in_applyt
-    (uniqueNamesForExprs_maps,namesToUniqueNames_maps) = indentifyGroupableFunctions f_defs_maps_in_applyt
+    (uniqueNamesForExprs_pelts,namesToUniqueNames_pelts) = indentifyGroupableFunctions f_defs_comp_pelts_in_applyt ast
+    (uniqueNamesForExprs_maps,namesToUniqueNames_maps) = indentifyGroupableFunctions f_defs_maps_in_applyt ast
+    merged_namesToUniqueNames = Map.union namesToUniqueNames_pelts namesToUniqueNames_maps
     in 
+        -- error $ show (uniqueNamesForExprs_maps,namesToUniqueNames_maps,f_defs_maps_in_applyt,proper_fs,f_defs)
+        -- warning 
+        merged_namesToUniqueNames
+        --  (show merged_namesToUniqueNames)
         -- error "Placeholder"
-        Map.union namesToUniqueNames_pelts namesToUniqueNames_maps
+        
 
 -- So now we have a Map which tells us which of the called functions can be merged. The final step is to actually merge them. What does this take?
 
@@ -654,16 +667,19 @@ So we say enter f_name_1 => f_pelts_name_1  in the map uniqueNamesForExprs
 then for f_pelts_name_2 we get its f, say f_name_2. If that exists in the map, we enter f_pelts_name_2 in the other map namesToUniqueNames: f_pelts_name_2 => f_pelts_name_1
 otherwise we enter f_name_2 => f_pelts_name_2 in the first map
 -}
-indentifyGroupableFunctions :: [(Expr,Expr)] -> (Map.Map Expr Expr, Map.Map Expr Expr)
-indentifyGroupableFunctions ast = let
-        (uniqueNamesForExprs, namesToUniqueNames) = foldl' (\(uniqueNamesForExprs_,namesToUniqueNames_) (lhsExpr,rhsExpr) ->
-            if Map.member (opaqueFunctionName rhsExpr) uniqueNamesForExprs_
+indentifyGroupableFunctions :: [(Expr,Expr)] ->  [(Expr,Expr)] -> (Map.Map Expr Expr, Map.Map Expr Expr)
+indentifyGroupableFunctions ast full_ast = let
+        (uniqueNamesForExprs, namesToUniqueNames) = foldl' (\(uniqueNamesForExprs_,namesToUniqueNames_) (lhsExpr,rhsExpr) -> let
+            opaque_fname' = opaqueFunctionName rhsExpr full_ast
+            -- opaque_fname' = warning opaque_fname ("OPAQUE:"++show opaque_fname)
+            in
+            if Map.member opaque_fname' uniqueNamesForExprs_
                 then 
-                    -- There is already an entry for this rhsExp, so skip this line
-                    (uniqueNamesForExprs_, Map.insert lhsExpr (uniqueNamesForExprs_ ! opaqueFunctionName rhsExpr) namesToUniqueNames_) -- 
+                    -- There is already an entry for this rhsExp, add this to namesToUniqueNames_
+                    (uniqueNamesForExprs_, Map.insert lhsExpr (uniqueNamesForExprs_ ! opaque_fname') namesToUniqueNames_) -- 
                 else 
                     -- This line is unique, add to the AST
-                    (Map.insert (opaqueFunctionName rhsExpr) lhsExpr uniqueNamesForExprs_,namesToUniqueNames_) -- 
+                    (Map.insert opaque_fname' lhsExpr uniqueNamesForExprs_,namesToUniqueNames_) -- 
 
             ) (Map.empty,Map.empty) ast
     in
@@ -672,15 +688,25 @@ indentifyGroupableFunctions ast = let
 
 -- Note that this returns (Function Name [Expr]), not Name
 -- This assumes there are no more PElt calls, only PElts
-opaqueFunctionName :: Expr -> Expr
-opaqueFunctionName (Comp (PElts idxs) f) = f
-opaqueFunctionName (MapS (SVec k _) f_expr) = opaqueFunctionName f_expr
-opaqueFunctionName e = error $ "Can't get opaque function name from expression " ++ show e 
+opaqueFunctionName :: Expr -> [(Expr,Expr)] -> Expr
+opaqueFunctionName (Comp (PElts idxs) f) _ = f
+opaqueFunctionName (MapS (SVec k _) f_expr) ast  = opaqueFunctionName ((Map.fromList ast) ! f_expr) ast
+-- opaqueFunctionName f_expr@(Function _ _) ast = f_expr
+opaqueFunctionName e _ = error $ "Can't get opaque function name from expression " ++ show e 
 
 
 {- So I am assuming that I can plumb groupPEltsCallsInApplyT into this. The easiest way seems to be in the actual generator code:
+* We check if the f_expr is in the uniqueNames map. If it is, we insert the corresponding function signature from functionSignatures
 
-We go through fsig_names_tups and check if the f_expr is in the namesToUniqueNames map. If it is, then it can in principle be merged.
+So we have a fold over zip f_exprs out_args with as accumulators: 
+- the new f_exprs
+- the updates uniqueNames
+
+
+* We check if the f_expr is in the namesToUniqueNames map. If it is, then it can in principle be merged. In that case we remove it from the list of f_exprs, and we append its output expressions to the output expressions for the unique function in uniqueNames
+
+
+* I also need the list of the unique names and I need to change the signature for each of these 
 To merge the output arguments, we simply append them in order
 What we need to do is change the signature of the function with the "unique name"; and finally we need to make sure that the  generateSubDef for this function is called with the updated function signature. That is a problem because so far I have assume this to be static.
 
@@ -692,6 +718,43 @@ A possible way to do this is to generate only ApplyT in a first pass, and return
                 ) fsig_names_tups)
             
 -}
+findCallsToMerge :: [Expr] -> [Expr] -> Map.Map Expr [Expr] -> Map.Map Expr Expr -> Map.Map Name FSig -> ([Expr],Map.Map Expr [Expr])
+findCallsToMerge f_exprs out_args uniqueNames namesToUniqueNames functionSignatures =
+    foldl' (\(f_exprs_, uniqueNames_) (f_expr,out_arg) ->
+        case f_expr of
+                        Function fname _ ->
+                            if Map.member f_expr uniqueNames 
+                                then 
+                                    (f_exprs_++[f_expr], uniqueNames_)
+                                else if Map.member f_expr namesToUniqueNames 
+                                    then 
+                                        (f_exprs_,updateFSig f_expr out_arg namesToUniqueNames uniqueNames functionSignatures )
+                                    else 
+                                        (f_exprs_++[f_expr],uniqueNames_) -- but should not happen?
+                        _ -> (f_exprs_++[f_expr],uniqueNames_)
+        ) ([],uniqueNames) (zip f_exprs out_args)
+
+
+updateFSig f_expr out_arg namesToUniqueNames uniqueNames functionSignatures = let
+        unique_fname = namesToUniqueNames ! f_expr
+    in        
+        Map.adjust (appendOutArgToFSig out_arg) (warning unique_fname ("unique_fname:" ++ show unique_fname)) (warning uniqueNames (show uniqueNames))
+
+updateFSigs functionSignatures uniqueNames = 
+    foldl' (\functionSignatures_ unique_fname@(Function ufn _) -> 
+            Map.adjust (\_-> uniqueNames ! unique_fname) ufn functionSignatures_
+        ) functionSignatures (Map.keys uniqueNames)
+
+-- out_arg is I think Tuple [Expr]
+-- f_sig is a list of either three or four tuples, and in both cases we need the last tuple
+appendOutArgToFSig out_arg [] = error $ show out_arg
+appendOutArgToFSig out_arg f_sig = let
+        out_args_tup = last f_sig
+        rest = init f_sig
+        Tuple out_args = out_args_tup
+        Tuple add_out_args = out_arg
+    in
+        rest ++ [Tuple (out_args ++ add_out_args)]
 
 generateSubDefApplyT :: [Expr]  -> Name -> Map.Map Name FSig -> TyTraCLAST -> (String,[String],Map.Map Name FSig)
 generateSubDefApplyT f_exps applyt_fname functionSignatures ast =
@@ -710,7 +773,17 @@ generateSubDefApplyT f_exps applyt_fname functionSignatures ast =
         calls_in_args =  map getVarNames calls_msfn
         calls_out_args =  map getVarNames calls_osfn
 
+        namesToUniqueNames = groupPEltsCallsInApplyT f_exps ast
+        uniqueNamesList = Map.elems namesToUniqueNames 
+        uniqueNameFSigsList = map snd $ filter (\(f_name,f_sig) ->  f_name `elem` (map (\(Function f _) -> f) uniqueNamesList)  ) (Map.toList functionSignatures)
+        
+        uniqueNames = Map.fromList $ zip uniqueNamesList uniqueNameFSigsList --(replicate (length uniqueNamesList) []) -- so at this point, no sigs
+
+        (f_exps',uniqueNames') = findCallsToMerge f_exps out_args uniqueNames namesToUniqueNames functionSignatures 
+        functionSignatures' = updateFSigs functionSignatures uniqueNames'
+        -- f_exps' = f_exps -- Here do the new merging
         fsig_names_tups = zip4 f_exps calls_non_map_args calls_in_args calls_out_args
+        fsig_names_tups' = filter (\(f_exp,_,_,_) -> f_exp `elem` f_exps') fsig_names_tups
 -- For Id we must rename the args so that they are different. Wonder if I could already do that in the Transform?
     in
         (buildSubDef ""
@@ -720,9 +793,9 @@ generateSubDefApplyT f_exps applyt_fname functionSignatures ast =
             (map (\(f_expr,nms,ms,os) -> case f_expr of
                 Function fname _ -> "    call "++fname++"(" ++mkArgList [nms,ms,os] ++")"
                 Id fname dt -> unlines $ zipWith (curry (\(o,m) -> "    "++o++" = "++m)) os ms
-                ) fsig_names_tups)
+                ) fsig_names_tups')
             False
-        ,[],functionSignatures)
+        ,[],functionSignatures')
 
 -- Comp (Function "f4" []) (Function "f_maps_v_3_0" []))
 -- nms are joint

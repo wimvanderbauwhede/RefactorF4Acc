@@ -13,10 +13,10 @@ import CodeGeneration (
     createStages
     )
 
-info 
-    | noStencilRewrites = True
-    | otherwise = True    
-
+info = False 
+    -- | noStencilRewrites = True
+    -- | otherwise = True    
+printTyTraCL = False
     
 data Stage = Original | SplitLhsTuples | SubstituteVectors | ApplyRewriteRules | FuseStencils | RegroupTuples | DecomposeExpressions deriving (Show, Ord, Eq)
 stage 
@@ -51,7 +51,7 @@ inferedSignatures = map inferSignatures ast4
 generatedFortranCode = generateFortranCode asts functionSignaturesList idSigList 
 (generatedMainProgramCode,generatedModuleCode) = generatedFortranCode
 
-printTyTraCL = True
+
 
 main = do
     if info then
