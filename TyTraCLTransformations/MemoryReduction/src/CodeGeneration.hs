@@ -26,6 +26,8 @@ import Warning ( warning )
 (!) = (Map.!)
 
 -- For code generation testing
+reduceCalls = True
+
 genMain = True
 genModule = True -- if False, will generate the main program if genMain is True
 genStages = True
@@ -560,8 +562,8 @@ generateSubDefMapS sv_exp f_exp maps_fname functionSignatures ast =
 
         sv_in_iters = createIter in_argtfn
         sv_out_iters = createIter out_argtfn
-        sv_in_accesses = zipWith (++) sv_in sv_in_iters -- curry (\(x,y)-> x++y)
-        sv_out_accesses = zipWith (++) sv_out sv_out_iters -- curry (\(x,y)-> x++y)
+        sv_in_accesses = zipWith (++) sv_in sv_in_iters 
+        sv_out_accesses = zipWith (++) sv_out sv_out_iters
     in
         buildSubDef ""
             maps_fname
@@ -594,17 +596,22 @@ As I only want to change the internals, the sig should not change.
 The problem here is that at this stage, we don't have (Comp (PElts ...) f), we have (Function fname ...)
 So I need to have a lookup from this function name to the body. So I added the function definitions AST to the args
 -}
-groupPEltsCallsInApplyT :: [Expr] -> [(Expr,Expr)] -> Map.Map Expr Expr
+groupPEltsCallsInApplyT :: [Expr] -> [(Expr,Expr)] -> (Map.Map Expr Expr, Map.Map Expr FSig, Map.Map Expr FSig)
 groupPEltsCallsInApplyT f_exps ast = let
--- We first make a list of all the Function exps, by filtering f_exps
 
+-- We first make a list of all the Function exps, by filtering f_exps
     proper_fs = filter (\exp -> case exp of 
             Function fname _ -> True
             _ -> False
         ) f_exps
 
--- Then we get all the corresponding definitions from the ast:
+-- I am not quite sure the prev step is needed, this is a test
+    not_proper_fs = filter (\exp -> case exp of 
+            Function fname _ -> False
+            _ -> True
+        ) f_exps       
 
+-- Then we get all the corresponding definitions from the ast:
     f_defs = filter (\(f_exp, _) -> f_exp `elem` proper_fs) ast
 
 -- Now we look at which of these f_defs have PElts
@@ -629,6 +636,9 @@ groupPEltsCallsInApplyT f_exps ast = let
         _ -> False
         ) f_defs
 
+    f_defs_comp_pelts_in_maps = map
+        (\(MapS (SVec k _) f_exp,_) -> Map.fromList f_defs_comp_pelts_in_ast ! f_exp )  f_defs_maps_in_applyt
+
 -- Now we have all Comp PElts _ and MapS _ Comp Pelts _
     
 -- For f_pelts with common f, i.e. (Comp (PElts ...) f), we can merge them further
@@ -648,10 +658,35 @@ So let's just return the merged namesToUniqueNames map
     (uniqueNamesForExprs_pelts,namesToUniqueNames_pelts) = indentifyGroupableFunctions f_defs_comp_pelts_in_applyt ast
     (uniqueNamesForExprs_maps,namesToUniqueNames_maps) = indentifyGroupableFunctions f_defs_maps_in_applyt ast
     merged_namesToUniqueNames = Map.union namesToUniqueNames_pelts namesToUniqueNames_maps
+
+    uniqueNamesList = Map.elems merged_namesToUniqueNames 
+    uniqueNameFSigsList = map snd $ filter (
+        \(f_name,f_sig) ->  f_name `elem` (
+                map (
+                    \(Function f _) -> f
+                ) uniqueNamesList)  
+            ) (Map.toList functionSignatures)
+    
+    uniqueNamesFSigs = Map.fromList $ zip uniqueNamesList uniqueNameFSigsList 
+
+    f_defs_unique_maps_in_applyt = filter (\(lhs,rhs) -> lhs `elem` (Map.elems uniqueNamesForExprs_maps)) f_defs_maps_in_applyt
+
+    f_defs_comp_pelts_in_unique_maps = map
+        (\(MapS (SVec k _) f_exp,_) -> (f_exp,Map.fromList f_defs_comp_pelts_in_ast ! f_exp) )  f_defs_unique_maps_in_applyt
+    -- So finally I need the sigs for these
+    nestedUniqueNamesFSigs = Map.fromList $ map (\(lhs,rhs) -> let
+                Function f _ = lhs 
+                fsig = functionSignatures ! f
+            in
+                (lhs,fsig)
+            ) f_defs_comp_pelts_in_unique_maps
+
     in 
-        -- error $ show (uniqueNamesForExprs_maps,namesToUniqueNames_maps,f_defs_maps_in_applyt,proper_fs,f_defs)
+        if not $ null not_proper_fs then error $ show not_proper_fs
+        else
+            -- uniqueNamesForExprs_maps,namesToUniqueNames_maps,f_defs_maps_in_applyt,proper_fs,f_defs)
         -- warning 
-        merged_namesToUniqueNames
+            (merged_namesToUniqueNames, uniqueNamesFSigs,nestedUniqueNamesFSigs)
         --  (show merged_namesToUniqueNames)
         -- error "Placeholder"
         
@@ -670,16 +705,16 @@ otherwise we enter f_name_2 => f_pelts_name_2 in the first map
 indentifyGroupableFunctions :: [(Expr,Expr)] ->  [(Expr,Expr)] -> (Map.Map Expr Expr, Map.Map Expr Expr)
 indentifyGroupableFunctions ast full_ast = let
         (uniqueNamesForExprs, namesToUniqueNames) = foldl' (\(uniqueNamesForExprs_,namesToUniqueNames_) (lhsExpr,rhsExpr) -> let
-            opaque_fname' = opaqueFunctionName rhsExpr full_ast
-            -- opaque_fname' = warning opaque_fname ("OPAQUE:"++show opaque_fname)
+            opaque_fname = opaqueFunctionName rhsExpr full_ast
+            -- opaque_fname = warning opaque_fname ("OPAQUE:"++show opaque_fname)
             in
-            if Map.member opaque_fname' uniqueNamesForExprs_
+            if Map.member opaque_fname uniqueNamesForExprs_
                 then 
                     -- There is already an entry for this rhsExp, add this to namesToUniqueNames_
-                    (uniqueNamesForExprs_, Map.insert lhsExpr (uniqueNamesForExprs_ ! opaque_fname') namesToUniqueNames_) -- 
+                    (uniqueNamesForExprs_, Map.insert lhsExpr (uniqueNamesForExprs_ ! opaque_fname) namesToUniqueNames_) -- 
                 else 
                     -- This line is unique, add to the AST
-                    (Map.insert opaque_fname' lhsExpr uniqueNamesForExprs_,namesToUniqueNames_) -- 
+                    (Map.insert opaque_fname lhsExpr uniqueNamesForExprs_,namesToUniqueNames_) -- 
 
             ) (Map.empty,Map.empty) ast
     in
@@ -738,7 +773,7 @@ findCallsToMerge f_exprs out_args uniqueNames namesToUniqueNames functionSignatu
 updateFSig f_expr out_arg namesToUniqueNames uniqueNames functionSignatures = let
         unique_fname = namesToUniqueNames ! f_expr
     in        
-        Map.adjust (appendOutArgToFSig out_arg) (warning unique_fname ("unique_fname:" ++ show unique_fname)) (warning uniqueNames (show uniqueNames))
+        Map.adjust (appendOutArgToFSig out_arg) unique_fname uniqueNames
 
 updateFSigs functionSignatures uniqueNames = 
     foldl' (\functionSignatures_ unique_fname@(Function ufn _) -> 
@@ -776,29 +811,39 @@ generateSubDefApplyT f_exps applyt_fname functionSignatures ast =
         calls_in_args =  map getVarNames calls_msfn
         calls_out_args =  map getVarNames calls_osfn
 
-        namesToUniqueNames = groupPEltsCallsInApplyT f_exps ast
-        uniqueNamesList = Map.elems namesToUniqueNames 
-        uniqueNameFSigsList = map snd $ filter (\(f_name,f_sig) ->  f_name `elem` (map (\(Function f _) -> f) uniqueNamesList)  ) (Map.toList functionSignatures)
-        
-        uniqueNames = Map.fromList $ zip uniqueNamesList uniqueNameFSigsList --(replicate (length uniqueNamesList) []) -- so at this point, no sigs
+        fsig_names_tups = zip4 f_exps calls_non_map_args calls_in_args calls_out_args
+
+        (namesToUniqueNames,uniqueNames,nestedUniqueNames) = groupPEltsCallsInApplyT f_exps ast
 
         (f_exps',uniqueNames') = findCallsToMerge f_exps out_args uniqueNames namesToUniqueNames functionSignatures 
         functionSignatures' = updateFSigs functionSignatures uniqueNames'
-        -- f_exps' = f_exps -- Here do the new merging
-        fsig_names_tups = zip4 f_exps calls_non_map_args calls_in_args calls_out_args
+        
         fsig_names_tups' = filter (\(f_exp,_,_,_) -> f_exp `elem` f_exps') fsig_names_tups
 -- For Id we must rename the args so that they are different. Wonder if I could already do that in the Transform?
     in
-        (buildSubDef ""
-            applyt_fname
-            [non_map_args'',in_args'',out_args'']
-            [non_map_arg_decls,in_arg_decls,out_arg_decls]
-            (map (\(f_expr,nms,ms,os) -> case f_expr of
-                Function fname _ -> "    call "++fname++"(" ++mkArgList [nms,ms,os] ++")"
-                Id fname dt -> unlines $ zipWith (curry (\(o,m) -> "    "++o++" = "++m)) os ms
-                ) fsig_names_tups')
-            False
-        ,[],functionSignatures')
+        if reduceCalls 
+            then
+                (buildSubDef ""
+                    applyt_fname
+                    [non_map_args'',in_args'',out_args'']
+                    [non_map_arg_decls,in_arg_decls,out_arg_decls]
+                    (map (\(f_expr,nms,ms,os) -> case f_expr of
+                        Function fname _ -> "    call "++fname++"(" ++mkArgList [nms,ms,os] ++")"
+                        Id fname dt -> unlines $ zipWith (curry (\(o,m) -> "    "++o++" = "++m)) os ms
+                        ) fsig_names_tups')
+                    False
+                ,[],functionSignatures')
+            else
+                (buildSubDef ""
+                    applyt_fname
+                    [non_map_args'',in_args'',out_args'']
+                    [non_map_arg_decls,in_arg_decls,out_arg_decls]
+                    (map (\(f_expr,nms,ms,os) -> case f_expr of
+                        Function fname _ -> "    call "++fname++"(" ++mkArgList [nms,ms,os] ++")"
+                        Id fname dt -> unlines $ zipWith (curry (\(o,m) -> "    "++o++" = "++m)) os ms
+                        ) fsig_names_tups)
+                    False
+                ,[],functionSignatures)
 
 -- Comp (Function "f4" []) (Function "f_maps_v_3_0" []))
 -- nms are joint
