@@ -26,7 +26,7 @@ import Warning ( warning )
 (!) = (Map.!)
 
 -- For code generation testing
-reduceCalls = True
+reduceCalls = False
 
 genMain = True
 genModule = True -- if False, will generate the main program if genMain is True
