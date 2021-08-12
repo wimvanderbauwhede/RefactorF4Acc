@@ -16,7 +16,7 @@ import CodeGeneration (
 info = False 
     -- | noStencilRewrites = True
     -- | otherwise = True    
-printTyTraCL = False
+printTyTraCL = True
     
 data Stage = Original | SplitLhsTuples | SubstituteVectors | ApplyRewriteRules | FuseStencils | RegroupTuples | DecomposeExpressions deriving (Show, Ord, Eq)
 stage 
