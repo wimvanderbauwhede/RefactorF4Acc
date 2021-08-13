@@ -35,6 +35,7 @@ ast3' = regroupTuples ast3''
 ast4' = removeDuplicateExpressions ast3'
 ast4 :: [TyTraCLAST]
 ast4 = decomposeExpressions ast1 ast4' 
+ast5 = removeDuplicateExpressions  $ concat ast4
 
 asts  -- = ast4
     | stage == Original = [ast]
@@ -45,8 +46,14 @@ asts  -- = ast4
     | stage == RegroupTuples = [ast3']
     | stage == DecomposeExpressions = ast4
 
+inferedSignatures3 :: [(Name,FSig)]
+inferedSignatures3 = inferSignatures ast3'
 inferedSignatures :: [[(Name,FSig)]]
 inferedSignatures = map inferSignatures ast4
+
+-- inferedSignatures5 :: [(Name,FSig)]
+-- inferedSignatures5 = inferSignatures ast5
+
 
 generatedFortranCode = generateFortranCode asts functionSignaturesList idSigList 
 (generatedMainProgramCode,generatedModuleCode) = generatedFortranCode
@@ -96,7 +103,8 @@ main = do
             mapM_ putStrLn $ ppAST ast
             -- putStrLn "\n-- Decompose expressions and infer intermediate function signatures"
             putStrLn "\n-- Decomposed expressions and inferred function signatures"
-            mapM_ ( \((x1,x2),ct) -> do
+            mapM_ (
+                 \((x1,x2),ct) -> do
                 if noStencilRewrites  then putStrLn $ "-- stage_kernel_" ++ show ct else return ()
                 if not (null (x2 \\ functionSignaturesList)) then
                     putStrLn $ "-- Inferred function signatures stage "++(show ct)
@@ -109,6 +117,9 @@ main = do
                 -- mapM_ print x1   
                 putStr $ unlines $ ppAST x1
                 ) (zip (zip ast4 inferedSignatures) [1..])
+                -- ) [(( ast5, inferedSignatures),0)]
+            putStrLn "\n-- Stage 5"
+            putStr $ unlines $ ppAST ast5    
             -- let
             --     (asts_function_defs,ast_stages) = createStages ast4
             -- mapM_ putStrLn (concatMap  ppAST ast_stages) 
