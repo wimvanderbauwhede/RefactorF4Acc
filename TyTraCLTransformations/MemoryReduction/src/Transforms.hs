@@ -15,6 +15,7 @@ import Warning ( warning )
 {-# ANN module "HLint: ignore Use zipWith" #-}
 {-# ANN module "HLint: ignore Use null" #-}
 {-# ANN module "HLint: ignore Use uncurry" #-}
+{-# ANN module "HLint: ignore Use record patterns" #-}
 {-# ANN module "HLint: ignore Redundant curry" #-}
 {-# ANN module "HLint: ignore Reduce duplication" #-}
 
@@ -92,10 +93,10 @@ substitute_vec_rec ast expr_tup@(lhs_vec,expr) = let
             let
                 expr_tup' = substitute_vec ast expr_tup
             in
-                if (expr_tup' == expr_tup) 
+                if expr_tup' == expr_tup
                     then 
                         -- Loop
-                        error $ "LOOP! "++(show vecs)
+                        error $ "LOOP! " ++ show vecs
                     else
                         substitute_vec_rec ast expr_tup'
         else -- we're done, return the result 
@@ -262,11 +263,12 @@ Rewrite rules
 This needs to be done repeatedly until a fixpoint is reached.    
 Fixpoint is reached when there is only a single Map expression
 -}
-applyRewriteRules ast = foldl (\(lst,(ct,mp)) (lhs,rhs) -> 
+applyRewriteRules :: [(Expr, Expr)] -> ([(Expr, Expr)], (Int, [(Name, [Expr])]))
+applyRewriteRules = foldl (\(lst,(ct,mp)) (lhs,rhs) -> 
         let
             (rhs',(ct',mp')) = runState (rewrite_ast_into_single_map 0 rhs) (ct,mp)
         in (lst++[(lhs,rhs')],(ct',mp'))
-    ) ([], (0,[])) ast
+    ) ([], (0,[])) 
 --
 -- I use a monadic version with the State monad
 -- We populate the Map with (id_$ct, [Tuple [], $in_exp, $in_exp ] )
@@ -372,7 +374,7 @@ removeDuplicateExpressions ast = let
             if Map.member rhsExpr uniqueNamesForExprs_
                 then 
                     -- There is already an entry for this rhsExp, so skip this line
-                    (uniqueNamesForExprs_, Map.insert (warning lhsExpr ("DUP:"++(show lhsExpr))) (uniqueNamesForExprs_ ! rhsExpr) namesToUniqueNames_,ast_) -- 
+                    (uniqueNamesForExprs_, Map.insert (warning lhsExpr ("DUP:" ++ show lhsExpr)) (uniqueNamesForExprs_ ! rhsExpr) namesToUniqueNames_,ast_) -- 
                 else 
                     -- This line is unique, add to the AST
                     (Map.insert rhsExpr lhsExpr uniqueNamesForExprs_,namesToUniqueNames_,ast_ ++ [(lhsExpr,rhsExpr)]) -- 
@@ -429,10 +431,11 @@ isMap expr = case expr of
 rewriteZipTMap es =  let
         f_s = map (\(Map f v) -> f) es
         v_s = map (\(Map f v) -> v) es
-        (f_s_g, v_s_g) = reduceCalls f_s v_s True
+        (f_s_g, v_s_g, idx_s_g) = reduceCalls f_s v_s True
         -- fv_s = zip f_s v_s
+        -- idx_s_g' = warning idx_s_g ("INDEXES:"++show idx_s_g)
     in
-        Map (ApplyT f_s_g) (ZipT v_s_g)
+        Map (RApplyT idx_s_g f_s_g) (ZipT v_s_g)
         -- warning (Map (ApplyT f_s) (ZipT v_s)) ("(ApplyT,ZipT): "++ show fv_s) 
 
 -- Instead of inserting Id I should insert a Function with a fresh name 
@@ -513,7 +516,7 @@ decomposeExpressions orig_ast ast =
     let
         bindings = Map.fromList $ map (\(f,s)->(s,f)) orig_ast
     in
-        map (\(lhs,rhs) -> (subsitute_exprs bindings lhs rhs )) ast
+        map (\(lhs,rhs) -> subsitute_exprs bindings lhs rhs) ast
 
 subsitute_exprs ::  Map.Map Expr Expr -> Expr -> Expr -> [(Expr,Expr)]
 subsitute_exprs orig_bindings lhs ast = let
@@ -538,7 +541,8 @@ subsitute_expr lhs exp = do
                             --     UnzipT _ -> error $ (show lhs) ++ " => " ++ (show exp) -- (vname,False,dt)
                             --     _ -> 
                             (vname,False,dt)
-                    Scalar _ dt sname -> (sname, True,dt)                    
+                    Scalar _ dt sname -> (sname, True,dt)   
+                    _ -> error $ show lhs -- keep hlint happy                 
             (ct,orig_bindings,added_bindings,var_expr_pairs) <- get
             let ((ct',orig_bindings', added_bindings',var_expr_pairs'),exp') = case exp of
                       Scalar {} -> ((ct,orig_bindings,added_bindings,var_expr_pairs),exp)
@@ -570,6 +574,11 @@ subsitute_expr lhs exp = do
                             f_expr = Function ("f_applyt_"++vec_name++"_"++ show ct ) nmss
                         in
                             maybeAddBinding f_expr exp (ct,orig_bindings, added_bindings, var_expr_pairs)
+                      RApplyT idxs fs -> let
+                            nmss = concatMap getNonMapFoldArgs fs
+                            f_expr = Function ("f_rapplyt_"++vec_name++"_"++ show ct ) nmss
+                        in
+                            maybeAddBinding f_expr exp (ct,orig_bindings, added_bindings, var_expr_pairs)                            
                       Comp (Function _ nms1) (Function _ nms2) -> let
                             f_expr = Function ("f_comp_"++vec_name++"_"++ show ct ) (nms1++nms2)
                         in
@@ -615,9 +624,9 @@ If it is not, we check if it is on orig_bindings.
 -}
 -- (ct',orig_bindings', added_bindings', var_expr_pairs') =
 maybeAddBinding :: Expr -> Expr -> (Int,Map.Map Expr Expr,Map.Map Expr Expr,[(Expr,Expr)]) -> ((Int,Map.Map Expr Expr,Map.Map Expr Expr,[(Expr,Expr)]), Expr)
-maybeAddBinding var exp (ct,orig_bindings, added_bindings, var_expr_pairs) =
-    if Map.member exp added_bindings 
-        then
+maybeAddBinding var exp (ct,orig_bindings, added_bindings, var_expr_pairs) 
+    | Map.member exp added_bindings =
+        -- then
         -- We already have this, so do nothing
         -- But this means we should definitely add this pair to the final AST 
         let
@@ -625,15 +634,17 @@ maybeAddBinding var exp (ct,orig_bindings, added_bindings, var_expr_pairs) =
         in
             ((ct,orig_bindings, added_bindings, var_expr_pairs)
             , added_name )
-        else 
-            if Map.member exp orig_bindings 
-                then
+        -- else 
+        --     if 
+    | Map.member exp orig_bindings =
+                -- then
                     let
                         orig_name = orig_bindings ! exp                    
                     in
                         ((ct,Map.delete exp orig_bindings, Map.insert exp var added_bindings, var_expr_pairs++[(orig_name,exp)])
                         , orig_name )
-                else                    
+    | otherwise =                        
+                -- else                    
                     ((ct+1,orig_bindings, Map.insert exp var added_bindings, var_expr_pairs++[(var,exp)])
                     , var )            
 

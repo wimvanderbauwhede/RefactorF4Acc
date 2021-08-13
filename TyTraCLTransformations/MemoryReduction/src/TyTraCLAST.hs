@@ -172,6 +172,7 @@ data Expr =
                     | Function Name [Expr] -- 2nd arg is list of non-map/fold args
                     | Id Name [Expr] -- id, but it's treated as a named function for ease of code generation
                     | ApplyT [Expr]  -- applyt (f1,f2)
+                    | RApplyT [[Int]] [Expr]  -- rapplyt [[i1,i2],i3] (f1,(f2,f3)) -- reorders the outputs after reducing calls
                     | MapS Expr Expr -- maps s f
                     | Comp Expr Expr -- comp f2 f1
                     | FComp Expr Expr -- like comp but to combine a fold and a map, quite a-hoc!
