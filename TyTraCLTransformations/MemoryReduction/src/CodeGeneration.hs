@@ -171,7 +171,9 @@ maps :: SVec sz a -> c->a->b -> c->SVec sz a -> SVec sz b
 deriveSigMaps :: Int -> Name -> Map.Map Name FSig -> FSig
 deriveSigMaps sv_sz fname functionSignatures =
     let
-        fsig = functionSignatures ! fname
+        fsig 
+            | Map.member fname functionSignatures = functionSignatures ! fname
+            | otherwise = error $ "No sig for "++fname
         os:ms:nms_maybe_accs = reverse fsig
         ms' = SVec sv_sz (updateName "sv" "in" ms)
         os' = SVec sv_sz (updateName "sv" "out" os)

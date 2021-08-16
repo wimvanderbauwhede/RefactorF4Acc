@@ -367,21 +367,122 @@ regroupTuples ast = let
             $unique_names_for_stencils{$stencil_definition}=$stencil_name;                
             push @stencil_defs, [ $stencil_name, $stencil_definition];
         }  
-        -}
-removeDuplicateExpressions :: [(Expr,Expr)] -> [(Expr,Expr)] 
-removeDuplicateExpressions ast = let
+-}
+
+-- FIXME this is incomplete: we need to do the substitutions in the ast based on namesToUniqueNames_!
+-- And this must be iterated until a fixed point is reached!
+-- So in Expr we need to look for Function name _ and replace name if it is in the list
+-- So we need to pattern match agains every possible RHS expr that can contain a function name
+
+substitute_unique_names_rec ast = let
+        (ast'',exprsToUniqueExprs) = remove_duplicate_expressions ast
+        -- Vec VS (Scalar VDC DFloat "svec_g_1_12")
+        -- namesToUniqueNames = Map.fromList (map (\t -> case t of
+        --     (Function fk ek,Function fv ev) -> (fk,fv) 
+        --     (Vec _ (Scalar _ _ vk),Vec _ (Scalar _ _ vv)) -> (vk,vv)
+        --     ) (Map.toList exprsToUniqueExprs))
+        (ast',hit) = foldl' (\(ast_,h_) t -> let
+                (t',h) = substitute_unique_names exprsToUniqueExprs t 
+                    in
+                        (ast_++[t'], h_ || h)
+            ) ([],False) ast''
+    in
+        if hit then substitute_unique_names_rec ast' else ast'
+
+
+substitute_unique_names :: Map.Map Expr Expr -> (Expr, Expr) -> ((Expr, Expr), Bool)
+substitute_unique_names namesToUniqueNames (lhs,rhs) = let
+    (rhs',hit) = case rhs of
+        Map f@(Function fn es) es' -> if Map.member f namesToUniqueNames then (Map (namesToUniqueNames ! f) es',True) else (rhs,False)
+        Fold f@(Function fn es) es' es'' -> if Map.member f namesToUniqueNames then (Fold (namesToUniqueNames ! f) es' es'' , True) else (rhs,False)        
+        f@(Function fn es) -> if Map.member f namesToUniqueNames then (namesToUniqueNames ! f,True) else (rhs,False)
+        f@(Id fn es) -> if Map.member f namesToUniqueNames then (namesToUniqueNames ! f,True) else (rhs,False)
+        ApplyT fs -> let (fs',hs) = unzip $ map (substitute_unique_names namesToUniqueNames) (zip fs fs)
+                        in
+                            (ApplyT (map snd fs'), foldl' (||) False hs)
+        RApplyT idxs fs  -> let (fs',hs) = unzip $ map (substitute_unique_names namesToUniqueNames) (zip fs fs)
+                        in
+                            (RApplyT idxs (map snd fs'), foldl' (||) False hs)
+        MapS k f@(Function fn es) -> if Map.member f namesToUniqueNames then (MapS k (namesToUniqueNames ! f),True) else (rhs,False)
+        Comp f2@(Function f2n e2s) f1@(Function f1n e1s) -> let
+                (f2',h2) =if Map.member f2 namesToUniqueNames then (namesToUniqueNames ! f2,True) else (f2,False)
+                (f1',h1) =if Map.member f1 namesToUniqueNames then (namesToUniqueNames ! f1,True) else (f1,False)            
+            in
+                (Comp f2' f1', h2 || h1)                
+        Comp e2 f1@(Function f1n e1s) -> let
+                -- (f2',h2) =if Map.member f2 namesToUniqueNames then (namesToUniqueNames ! f2,True) else (f2,False)
+                (f1',h1) =if Map.member f1 namesToUniqueNames then (namesToUniqueNames ! f1,True) else (f1,False)            
+            in
+                (Comp e2 f1', h1)
+        FComp f2@(Function f2n e2s) f1@(Function f1n e1s) -> let
+                (f2',h2) =if Map.member f2 namesToUniqueNames then (namesToUniqueNames ! f2,True) else (f2,False)
+                (f1',h1) =if Map.member f1 namesToUniqueNames then (namesToUniqueNames ! f1,True) else (f1,False)            
+            in
+                (FComp f2' f1', h2 || h1)
+        _ -> (rhs,False) -- error $ show rhs
+    in 
+        ((lhs,rhs'),hit)
+{-
+We must run this until there are no more hits on Map.member, so instead of map we should 
+foldl' and return True for hit and OR all of these. 
+
+Then we repeat this until it returns False.
+
+-}
+
+remove_duplicate_expressions :: [(Expr,Expr)] -> ([(Expr,Expr)],Map.Map Expr Expr)
+remove_duplicate_expressions ast = let
         (uniqueNamesForExprs, namesToUniqueNames,ast') = foldl' (\(uniqueNamesForExprs_,namesToUniqueNames_,ast_) (lhsExpr,rhsExpr) ->
             if Map.member rhsExpr uniqueNamesForExprs_
                 then 
                     -- There is already an entry for this rhsExp, so skip this line
-                    (uniqueNamesForExprs_, Map.insert (warning lhsExpr ("DUP:" ++ show lhsExpr)) (uniqueNamesForExprs_ ! rhsExpr) namesToUniqueNames_,ast_) -- 
+                    (uniqueNamesForExprs_, Map.insert 
+                    -- (warning 
+                    lhsExpr 
+                    -- ("DUP:" ++ show lhsExpr ++ "=>" ++ (show $ uniqueNamesForExprs_ ! rhsExpr)) )
+                     (uniqueNamesForExprs_ ! rhsExpr) namesToUniqueNames_,ast_) -- 
                 else 
                     -- This line is unique, add to the AST
                     (Map.insert rhsExpr lhsExpr uniqueNamesForExprs_,namesToUniqueNames_,ast_ ++ [(lhsExpr,rhsExpr)]) -- 
 
             ) (Map.empty,Map.empty,[]) ast
     in
-        ast'
+        (ast',namesToUniqueNames)
+
+{-
+As a final step, I should merge the remaining Comp PElt calls into Comp PElts, this is exactly like in callReduction except that we are not working on the arguments of ApplyT
+
+We go through the AST an look for calls to Comp PElt i f where f is common, this is done by reordering as in callReduction.
+Then we replace that by PElts, so we have
+f_pelts_... = Comp PElts idxs (f ...)
+
+However, the next bit is different: we need to keep a list of the grouped f_pelt calls, and what we do is find Map expressions with grouped calls: Map (f ...) -> if f `elem` grouped_pelt_calls then store the RHS in a new list, map_calls_with_grouped_pelt
+Then we check if these Map calls have common args, both non-map and map. If so, the final step is to convert the call into
+
+Tuple (v1, v2, v3, ...) = UnzipT (Map (f_pelts ... ) ...)
+
+The tricky bit is to link the output vector with the correct index; we also must make sure the types match.
+PElts returns a Tuple so Map f_Pelts will be [(...,...,...)] so we need indeed UnzipT to get the final tuple of vectors
+
+I think this might require a change to the code generator too
+
+-}
+
+removeDuplicateExpressions :: [(Expr,Expr)] -> [(Expr,Expr)] 
+removeDuplicateExpressions = substitute_unique_names_rec
+    -- let
+    --     (uniqueNamesForExprs, namesToUniqueNames,ast') = foldl' (\(uniqueNamesForExprs_,namesToUniqueNames_,ast_) (lhsExpr,rhsExpr) ->
+    --         if Map.member rhsExpr uniqueNamesForExprs_
+    --             then 
+    --                 -- There is already an entry for this rhsExp, so skip this line
+    --                 (uniqueNamesForExprs_, Map.insert (warning lhsExpr ("DUP:" ++ show lhsExpr)) (uniqueNamesForExprs_ ! rhsExpr) namesToUniqueNames_,ast_) -- 
+    --             else 
+    --                 -- This line is unique, add to the AST
+    --                 (Map.insert rhsExpr lhsExpr uniqueNamesForExprs_,namesToUniqueNames_,ast_ ++ [(lhsExpr,rhsExpr)]) -- 
+
+    --         ) (Map.empty,Map.empty,[]) ast
+    -- in
+    --     ast'
 
 
 -- ============================================================================

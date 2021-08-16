@@ -18,10 +18,10 @@ info = False
     -- | otherwise = True    
 printTyTraCL = True
     
-data Stage = Original | SplitLhsTuples | SubstituteVectors | ApplyRewriteRules | FuseStencils | RegroupTuples | DecomposeExpressions deriving (Show, Ord, Eq)
-stage 
-    | noStencilRewrites = DecomposeExpressions
-    | otherwise = DecomposeExpressions
+data Stage = Original | SplitLhsTuples | SubstituteVectors | ApplyRewriteRules | FuseStencils | RegroupTuples | DecomposeExpressions | RemoveDuplicateExpressions deriving (Show, Ord, Eq)
+stage = RemoveDuplicateExpressions
+    -- | noStencilRewrites = DecomposeExpressions
+    -- | otherwise = DecomposeExpressions
 
 ast1 :: TyTraCLAST
 ast1 = splitLhsTuples ast
@@ -32,10 +32,10 @@ ast3'' :: TyTraCLAST
 ast3'' = fuseStencils ast3
 ast3' :: TyTraCLAST
 ast3' = regroupTuples ast3''
-ast4' = removeDuplicateExpressions ast3'
+-- ast4' = removeDuplicateExpressions ast3'
 ast4 :: [TyTraCLAST]
-ast4 = decomposeExpressions ast1 ast4' 
-ast5 = removeDuplicateExpressions  $ concat ast4
+ast4 = decomposeExpressions ast1 ast3' 
+ast5 = removeDuplicateExpressions  $ concat ast4 -- FIXME: the fold stages should remain separate!
 
 asts  -- = ast4
     | stage == Original = [ast]
@@ -45,9 +45,11 @@ asts  -- = ast4
     | stage == FuseStencils = [ast3'']
     | stage == RegroupTuples = [ast3']
     | stage == DecomposeExpressions = ast4
+    | stage == RemoveDuplicateExpressions = [ast5]
 
-inferedSignatures3 :: [(Name,FSig)]
-inferedSignatures3 = inferSignatures ast3'
+-- inferedSignatures3 :: [(Name,FSig)]
+-- inferedSignatures3 = inferSignatures ast3'
+
 inferedSignatures :: [[(Name,FSig)]]
 inferedSignatures = map inferSignatures ast4
 
@@ -78,7 +80,7 @@ main = do
             putStrLn "\n-- Regroup tuples"
             mapM_ print ast3' 
             putStrLn "\n-- Remove duplicate expressions"
-            mapM_ print ast4'                          
+            mapM_ print ast3'                          
             -- putStrLn "\n-- Decompose expressions and infer intermediate function signatures"
             putStrLn "\n-- Decompose expressions and infer function signatures"
             mapM_ ( \((x1,x2),ct) -> do
@@ -118,7 +120,7 @@ main = do
                 putStr $ unlines $ ppAST x1
                 ) (zip (zip ast4 inferedSignatures) [1..])
                 -- ) [(( ast5, inferedSignatures),0)]
-            putStrLn "\n-- Stage 5"
+            putStrLn "\n-- Common subexpression elimination\n"
             putStr $ unlines $ ppAST ast5    
             -- let
             --     (asts_function_defs,ast_stages) = createStages ast4
