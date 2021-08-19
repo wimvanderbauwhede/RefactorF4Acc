@@ -330,11 +330,11 @@ generateNonSubDef functionSignatures t  =
         (lhs,rhs) = t
         lhs' = mkFinalVecs lhs
         v_name = getName lhs'
-        in
+    in
         case rhs of
             Stencil s_exp v_exp -> generateStencilAppl s_exp v_exp v_name stencilDefinitions
-            rhs' -> let
-                    (str,strs,decls) = case rhs' of
+            _ -> let
+                    (str,strs,decls) = case rhs of
                         Map f_exp v_exp -> generateMap functionSignatures f_exp v_exp t
                         UnzipT (Map f_exp v_exp) -> generateMap functionSignatures f_exp v_exp t
                         Vec _ Scalar {} -> generateVecAssign lhs rhs
@@ -1357,9 +1357,6 @@ generateMap functionSignatures f_exp v_exp t = -- (Single ov_name)
         out_vars_lst = getName lhs
         -- Map _ rhs_v_exp = rhs -- ZipT [Vec VI (Scalar VDC DFloat "va_0"),Vec VI (Scalar VDC DFloat "vc_0")]
         rhs_v_exp = getRhsExpr rhs
-        -- rhs_v_exp = case rhs_v_exp' of
-        --     ZipT _ -> error $ show rhs_v_exp' -- 
-        --     _ -> rhs_v_exp'
         -- I reason that output variables *must* be unique
         (out_vars_name_lst,extra_out_var_decls) = case out_vars_lst of
             Single ov_name'' -> if Map.member ov_name'' mainArgDecls
