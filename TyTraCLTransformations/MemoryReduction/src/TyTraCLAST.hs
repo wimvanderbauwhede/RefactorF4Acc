@@ -4,8 +4,6 @@ module TyTraCLAST where
 import Data.Generics (Data, Typeable)
 import Data.List (intercalate)
 
-noStencilRewrites = False -- FIXME: hangs when set to True, I need a different halting condition for the rewrite rules!
-
 type Name = String
 type FType = String
 type Size = Int

@@ -13,15 +13,11 @@ import CodeGeneration (
     createStages
     )
 
-info = False 
-    -- | noStencilRewrites = True
-    -- | otherwise = True    
+info = True 
 printTyTraCL = True
     
 data Stage = Original | SplitLhsTuples | SubstituteVectors | ApplyRewriteRules | FuseStencils | RegroupTuples | DecomposeExpressions | RemoveDuplicateExpressions deriving (Show, Ord, Eq)
 stage = RemoveDuplicateExpressions
-    -- | noStencilRewrites = DecomposeExpressions
-    -- | otherwise = DecomposeExpressions
 
 ast1 :: TyTraCLAST
 ast1 = splitLhsTuples ast
@@ -40,7 +36,7 @@ tagged_asts = map (\ast -> (foldl'(\isFold (lhs,rhs) -> case rhs of
                             _ -> isFold
                     ) False ast,ast)) ast4
 (fold_asts,maps_asts) = foldl' (\(f_,m_) (is_f,ast) -> if is_f then (f_++[ast],m_) else (f_,m_++[ast])) ([],[]) tagged_asts
-ast5 = removeDuplicateExpressions  $ concat maps_asts -- FIXME: the fold stages should remain separate!
+ast5 = removeDuplicateExpressions $ concat maps_asts -- FIXME: the fold stages should remain separate!
 ast6 = fold_asts++[ groupMapCalls ast5]
 
 asts  -- = ast4
@@ -85,12 +81,9 @@ main = do
             mapM_ print ast3''    
             putStrLn "\n-- Regroup tuples"
             mapM_ print ast3' 
-            putStrLn "\n-- Remove duplicate expressions"
-            mapM_ print ast3'                          
             -- putStrLn "\n-- Decompose expressions and infer intermediate function signatures"
             putStrLn "\n-- Decompose expressions and infer function signatures"
-            mapM_ ( \((x1,x2),ct) -> do
-                if noStencilRewrites  then putStrLn $ "-- stage_kernel_" ++ show ct else return ()
+            mapM_ ( \((x1,x2),ct) -> do                
                 if not (null (x2 \\ functionSignaturesList)) then
                     do
                         putStrLn $ "-- Inferred function signatures stage "++(show ct)
@@ -99,7 +92,9 @@ main = do
                     return [()]
                 putStrLn $ "-- Decomposed expressions stage "++(show ct)
                 mapM_ print x1   
-                ) (zip (zip ast4 inferedSignatures) [1..])        
+                ) (zip (zip ast4 inferedSignatures) [1..])   
+            mapM_ (\x -> do
+                            mapM_ print x) ast6         
             putStrLn ""
         else return ()
     if printTyTraCL then
@@ -113,7 +108,6 @@ main = do
             putStrLn "\n-- Decomposed expressions and inferred function signatures"
             mapM_ (
                  \((x1,x2),ct) -> do
-                if noStencilRewrites  then putStrLn $ "-- stage_kernel_" ++ show ct else return ()
                 if not (null (x2 \\ functionSignaturesList)) then
                     putStrLn $ "-- Inferred function signatures stage "++(show ct)
                 else

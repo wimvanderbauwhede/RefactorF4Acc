@@ -53,9 +53,7 @@ We use Generics: with `everywhere` we update all nodes in place
 
 -- Go trough all lines of the ast and do a recursive substitution on the lines with an output vector in the LHS
 substituteVectors :: TyTraCLAST -> TyTraCLAST
-substituteVectors ast' 
-    | noStencilRewrites = map (substitute_vec_rec ast') (filter lhs_is_VO_or_VT_vec ast')
-    | otherwise =  map (substitute_vec_rec ast') (filter lhs_is_output_vec ast')
+substituteVectors ast'  =  map (substitute_vec_rec ast') (filter lhs_is_output_vec ast')
 
 -- The result of a Fold is always an output
 lhs_is_output_vec (lhs_vec,Fold _ _ _) = True
@@ -85,9 +83,7 @@ lhs_is_VO_or_VT_vec (lhs_vec,expr) = case lhs_vec of
 -- Or it must be substituted and we must find out why it is not.
 substitute_vec_rec :: TyTraCLAST -> (Expr, Expr) -> (Expr, Expr)
 substitute_vec_rec ast expr_tup@(lhs_vec,expr) = let
-        vecs
-            | noStencilRewrites = non_input_or_temp_vecs expr
-            | otherwise = non_input_vecs expr
+        vecs = non_input_vecs expr
     in
         if not $ null vecs then 
             let
@@ -131,24 +127,20 @@ find_in_ast ast e  = e
 -- The actual substitution with `everywhere`
 substitute_vec_by_expr :: Expr -> Expr -> Expr -> Expr
 substitute_vec_by_expr svec sexpr  = everywhere (mkT (
-    if noStencilRewrites
-        then
-            substitute_vec_by_expr'' svec sexpr
-        else
             substitute_vec_by_expr' svec sexpr
             )) 
 
 substitute_vec_by_expr' :: Expr -> Expr -> Expr -> Expr 
 substitute_vec_by_expr' svec sexpr vec
-    | vec == svec = sexpr -- For the no-stencil-rewrite case I need to match on Map and Fold, not on the Vec itself!    
+    | vec == svec = sexpr 
     | otherwise = vec
 
 substitute_vec_by_expr'' :: Expr -> Expr -> Expr -> Expr     
 substitute_vec_by_expr'' svec sexpr (Map f vec) 
-    | vec == svec = Map f sexpr -- For the no-stencil-rewrite case I need to match on Map and Fold, not on the Vec itself!    
+    | vec == svec = Map f sexpr 
     | otherwise = Map f vec
 substitute_vec_by_expr'' svec sexpr (Fold f acc vec)    
-    | vec == svec = Fold f acc sexpr -- For the no-stencil-rewrite case I need to match on Map and Fold, not on the Vec itself!    
+    | vec == svec = Fold f acc sexpr
     | otherwise = Fold f acc vec
 substitute_vec_by_expr'' _ _ expr = expr 
    
@@ -299,9 +291,7 @@ rewrite_ast_sub_expr expr =
             -- 1b. Fold-Map composition
             Fold f1_expr acc_expr (Map f2_expr v_expr) -> return $ Fold (FComp f1_expr f2_expr) acc_expr v_expr
             -- 2. The key rule: Stencil of Map becomes Map of MapS of Stencil
-            Stencil s_1 (Map f_1 v_expr) -> if noStencilRewrites 
-                then return expr
-                else return $ Map (MapS s_1 f_1) (Stencil s_1 v_expr)   
+            Stencil s_1 (Map f_1 v_expr) -> return $ Map (MapS s_1 f_1) (Stencil s_1 v_expr)   
             ZipT es -> 
                 -- If all args of ZipT are Map
                 if length ( filter isMap es ) == length es

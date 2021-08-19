@@ -32,7 +32,6 @@ reduceCalls = False
 genMain = True
 genModule = True -- if False, will generate the main program if genMain is True
 genStages = True
-withStencilRewrites = not noStencilRewrites
 
 generateFortranCode decomposed_ast functionSignaturesList idSigList =
     let
@@ -1220,9 +1219,7 @@ generateStencilAppl s_exp v_exp@(Vec _ dt) sv_name stencilDefinitions =
             _ -> error $ v_name++" is not a Vector"
         Single lhs_v_name = sv_name
         sv_type = fortranType dt
-        extra_in_var_decls
-            | noStencilRewrites = [exprToFDecl v_exp]
-            | otherwise = []
+        extra_in_var_decls = []
         (s_names,s_defs,sv_szs) = generateStencilDef' s_exp stencilDefinitions
         -- instead of generating new stencils we can also recompute, simply
         stencil_accesses = intercalate "+" (zipWith (curry (\(s_name,ct)-> s_name++"(s_idx_"++ show ct ++")")) s_names [1..])
@@ -1361,15 +1358,7 @@ generateMap functionSignatures f_exp v_exp t = -- (Single ov_name)
         (out_vars_name_lst,extra_out_var_decls) = case out_vars_lst of
             Single ov_name'' -> if Map.member ov_name'' mainArgDecls
                                     then ([ov_name''++"(idx)"],[] )
-                                    else
-                                        if noStencilRewrites
-                                            then
-                                                -- ([ov_name''++"(idx)"],[getDeclFromExprByName ov_name'' lhs])
-                                                case lhs of
-                                                    Vec VT _ ->  ([ov_name''],  [exprToFDecl lhs])
-                                                    _ -> ([ov_name''],[])
-                                            else
-                                                 ([ov_name''],[])
+                                    else ([ov_name''],[])
             Composite ov_names -> let
                     Composite fl_ov_names = flattenNames (Composite ov_names)
                 in
@@ -1377,16 +1366,8 @@ generateMap functionSignatures f_exp v_exp t = -- (Single ov_name)
                     bimap concat concat $
                         unzip $ map (\(Single ov_name'') ->
                             if Map.member ov_name'' mainArgDecls
-                                then  ([ov_name''++"(idx)"],[])
-                                else
-                                    if noStencilRewrites
-                                                then
-                                                    -- ([ov_name''++"(idx)"],[getDeclFromExprByName ov_name'' lhs])
-                                                    case lhs of
-                                                        Vec VT _ ->  ([ov_name''],  [exprToFDecl lhs])
-                                                        _ -> ([ov_name''],[])
-                                                else
-                                                    ([ov_name''],[])
+                                then ([ov_name''++"(idx)"],[])
+                                else ([ov_name''],[])
                                 -- ov_name'') fl_ov_names,exprToFDecls lhs) -- map (\(Single ov_name'') -> 
                                     ) fl_ov_names
 
@@ -1400,29 +1381,13 @@ generateMap functionSignatures f_exp v_exp t = -- (Single ov_name)
         (in_vars_name_lst, extra_in_var_decls) = case in_vars_lst of
             Single ov_name'' -> if Map.member ov_name'' mainArgDecls
                                     then ([ov_name''++"(idx)"] ,[])
-                                    else
-                                        if noStencilRewrites -- means we need the temp arg decls too
-                                            then
-                                                -- ([ov_name''++"(idx)"],[getDeclFromExprByName ov_name'' rhs_v_exp])
-                                                case rhs_v_exp of
-                                                    Vec VT _ ->  ([ov_name''++"(idx)"] , exprToFDecls rhs_v_exp)
-                                                    _ -> ([ov_name''],[]) -- Stencil vecs come here
-                                            else
-                                                ([ov_name''],[]) -- temp vars will be removed
+                                    else  ([ov_name''],[]) -- temp vars will be removed
             Composite ov_names -> let
                     Composite fl_ov_names = flattenNames (Composite ov_names)
                 in bimap concat concat $ -- [([],[])] -> ([[]],[[]])
                     unzip $ map (\(Single ov_name'') -> if Map.member ov_name'' mainArgDecls
                         then  ([ov_name''++"(idx)"], [getDeclFromExprByName ov_name'' rhs_v_exp])
-                        else
-                            if noStencilRewrites
-                                then
-                                    -- ([ov_name''++"(idx)"],[getDeclFromExprByName ov_name'' rhs_v_exp])
-                                    case rhs_v_exp of
-                                        ZipT _ -> ([ov_name''++"(idx)"],[getDeclFromExprByName ov_name'' rhs_v_exp])
-                                        _ -> error $ show ov_name'' -- ([ov_name''],[]) -- probably WRONG!
-                                else
-                                    ([ov_name''],[])
+                        else ([ov_name''],[])
                         ) fl_ov_names
         in_vars_name_lst_str' =  map snd (nubTup $ zip (unwrapName sig_in_args_lst) in_vars_name_lst)
 
@@ -1506,15 +1471,7 @@ generateFold functionSignatures f_exp acc_exp v_exp t =
         (in_vars_name_lst, extra_in_var_decls) = case in_vars_lst of
             Single ov_name'' -> if Map.member ov_name'' mainArgDecls
                                     then ([ov_name''++"(idx)"],[] )
-                                    else
-                                        if noStencilRewrites
-                                            then
-                                                case rhs_v_exp of
-                                                    -- Vec VS _ ->  ([ov_name''++"(idx)"], [exprToFDecl rhs_v_exp]) 
-                                                    Vec VT _ ->  ([ov_name''++"(idx)"] , [exprToFDecl rhs_v_exp]) -- probably WRONG!
-                                                    _ ->  ([ov_name''],[])
-                                            else
-                                                ([ov_name''],[])
+                                    else ([ov_name''],[])
             Composite ov_names -> let
                     Composite fl_ov_names = flattenNames (Composite ov_names)
                 in Data.Bifunctor.bimap concat concat $ -- [([],[])] -> ([[]],[[]])
@@ -1566,7 +1523,7 @@ getInputArgs' :: Expr -> [Name]
 getInputArgs' node = case node of
                             Vec VI dt -> [(\(Single vn) -> vn) $ getName dt]
                             -- Vec VT (Scalar VT _ sn) -> []
-                            Vec VT dt -> [(\(Single vn) -> vn) $ getName dt | noStencilRewrites]
+                            Vec VT dt -> []
                             Scalar VI _ sn -> [sn]
                             -- The problem here is that (Vec VT (Scalar VT)) leads to VT being picked
                             Scalar VT _ sn -> [sn] -- WV 2021-06-02 This is a "quick fix" rather than the correct solution which is to rewrite the AST
@@ -1578,7 +1535,7 @@ getOutputArgs' :: Expr -> [Name]
 getOutputArgs' node = case node of
                             Vec VO dt -> [(\(Single vn) -> vn) $ getName dt]
                             Scalar VO _ sn -> [sn]
-                            Vec VT dt -> [(\(Single vn) -> vn) $ getName dt | noStencilRewrites]
+                            Vec VT dt -> []
                             _ -> []
 
 getFSigs :: [Expr] -> Map.Map Name FSig -> [FSig]
@@ -1611,11 +1568,9 @@ These are always of the same length
 But as we want a single superkernel we will always have all definitions so I can combine them
 
 All ASTs with Map can be combined as the Maps don't depend on one another
-This is NOT true for noStencilRewrites, because we still have Stencil calls.
 -}
 createStages :: [TyTraCLAST] -> (TyTraCLAST,[TyTraCLAST])
-createStages asts
-    | withStencilRewrites =
+createStages asts =
         let
             -- For every Map or Fold, a list of the decomposed function defs and a list of the rest
             -- These are always of the same length
@@ -1628,14 +1583,6 @@ createStages asts
         in
             -- error $ show (length asts_function_defs, length asts_no_function_defs, length asts_with_fold, length ast_without_fold)
             (concat asts_function_defs,  asts_with_fold++[ast_without_fold])
-    | otherwise = -- keep hlint happy, was noStencilRewrites
-        let
-            -- For every Map or Fold, a list of the decomposed function defs and a list of the rest
-            -- These are always of the same length
-            -- But as we want a single superkernel we will always have all defs so I can combine them
-            (asts_function_defs, asts_no_function_defs) = unzip $ map (partition isFunctionDef) asts
-        in
-            (concat asts_function_defs,  asts_no_function_defs)
 
 hasFold ast = let
         fold_exprs = filter (\(lhs, rhs) -> case rhs of
