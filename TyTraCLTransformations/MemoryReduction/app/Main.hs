@@ -3,10 +3,10 @@
 module Main where
 import Control.Monad ( when )
 import System.IO ( openFile, hPutStr, hClose, IOMode(..) )
-import Data.List ((\\))
+import Data.List ((\\),foldl')
 import TyTraCLAST 
 import ASTInstance (ast,functionSignaturesList,superkernelName)
-import Transforms (splitLhsTuples, substituteVectors, applyRewriteRules, fuseStencils, regroupTuples, removeDuplicateExpressions, decomposeExpressions)
+import Transforms (splitLhsTuples, substituteVectors, applyRewriteRules, fuseStencils, regroupTuples, removeDuplicateExpressions, decomposeExpressions, groupMapCalls)
 import CodeGeneration (
     inferSignatures, 
     generateFortranCode,
@@ -35,7 +35,13 @@ ast3' = regroupTuples ast3''
 -- ast4' = removeDuplicateExpressions ast3'
 ast4 :: [TyTraCLAST]
 ast4 = decomposeExpressions ast1 ast3' 
-ast5 = removeDuplicateExpressions  $ concat ast4 -- FIXME: the fold stages should remain separate!
+tagged_asts = map (\ast -> (foldl'(\isFold (lhs,rhs) -> case rhs of
+                            Fold _ _ _ -> True
+                            _ -> isFold
+                    ) False ast,ast)) ast4
+(fold_asts,maps_asts) = foldl' (\(f_,m_) (is_f,ast) -> if is_f then (f_++[ast],m_) else (f_,m_++[ast])) ([],[]) tagged_asts
+ast5 = removeDuplicateExpressions  $ concat maps_asts -- FIXME: the fold stages should remain separate!
+ast6 = fold_asts++[ groupMapCalls ast5]
 
 asts  -- = ast4
     | stage == Original = [ast]
@@ -45,7 +51,7 @@ asts  -- = ast4
     | stage == FuseStencils = [ast3'']
     | stage == RegroupTuples = [ast3']
     | stage == DecomposeExpressions = ast4
-    | stage == RemoveDuplicateExpressions = [ast5]
+    | stage == RemoveDuplicateExpressions = ast6
 
 -- inferedSignatures3 :: [(Name,FSig)]
 -- inferedSignatures3 = inferSignatures ast3'
@@ -121,10 +127,11 @@ main = do
                 ) (zip (zip ast4 inferedSignatures) [1..])
                 -- ) [(( ast5, inferedSignatures),0)]
             putStrLn "\n-- Common subexpression elimination\n"
-            putStr $ unlines $ ppAST ast5    
+            mapM_ (putStr . unlines . ppAST) ast6
             -- let
             --     (asts_function_defs,ast_stages) = createStages ast4
-            -- mapM_ putStrLn (concatMap  ppAST ast_stages) 
+            -- mapM_ print ast6
+            -- mapM_ (putStr . unlines) ast6
 
         else return ()     
     -- putStr generatedFortranCode

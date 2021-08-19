@@ -177,6 +177,7 @@ data Expr =
                     | Comp Expr Expr -- comp f2 f1
                     | FComp Expr Expr -- like comp but to combine a fold and a map, quite a-hoc!
                     | SComb Expr Expr -- scomb s1 s2
+                    | Nil
                         deriving (Show, Read, Ord, Typeable, Data, Eq)
 
 {-
