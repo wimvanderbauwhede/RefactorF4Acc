@@ -340,6 +340,7 @@ regroupTuples ast = let
                     Elt _ _ -> False
                     _ -> True
                 ) ast
+        non_elt_ast_regrouped_map_tuples = regroupTuplesMap non_elt_ast            
         tuples_ast = map (\rhs_expr -> 
             let
                 val_tups = regrouped_tuples_map ! rhs_expr
@@ -348,7 +349,49 @@ regroupTuples ast = let
                 (Tuple lhs_exprs,rhs_expr)
             ) (Map.keys regrouped_tuples_map)
     in            
-        tuples_ast ++ non_elt_ast
+        tuples_ast ++ non_elt_ast_regrouped_map_tuples
+
+regroupTuplesMap ast = let            
+        regrouped_map_tuples_map = foldl (
+            \acc (lhs,rhs) -> case rhs of
+                Map (Comp (PElt n) f_expr) v_expr -> let
+                        t = (f_expr,v_expr)
+                  in
+                    if Map.member t acc 
+                      then 
+                        let
+                            lst = acc ! t
+                        in
+                            Map.adjust (\lst -> lst++[(lhs,n)]) t acc
+                      else 
+                            Map.insert t [(lhs,n)] acc
+                _ -> acc    
+            ) Map.empty ast
+        non_map_ast = filter (\(lhs,rhs) -> case rhs of
+                    Map _ _ -> False
+                    _ -> True
+                ) ast
+        tuples_ast = map (\rhs_expr_t -> 
+            let
+                (f_expr,v_expr) = rhs_expr_t
+                val_tups = regrouped_map_tuples_map ! rhs_expr_t
+                lhs_exprs = map fst val_tups
+                idxs = map snd val_tups
+                rhs_expr' = Map (Comp (PElts idxs) f_expr) v_expr
+            in 
+                (Tuple lhs_exprs,UnzipT rhs_expr')
+            ) (Map.keys regrouped_map_tuples_map)
+    in            
+        non_map_ast ++ tuples_ast
+
+{- 
+    I can regroup the Map and Fold tuples here as well
+        (lhs,Map (Comp (PElt i) expr)
+         gather this by expr: expr -> [(lhs,i)]
+        replace in any case by PElts, even if there is only one
+        The logic is very similar to reduceCalls part II
+    
+    -}        
 {-
         if (exists $unique_names_for_stencils{$stencil_definition}) {
             $stencil_names_to_unique_names{$stencil_name} = $unique_names_for_stencils{$stencil_definition}
