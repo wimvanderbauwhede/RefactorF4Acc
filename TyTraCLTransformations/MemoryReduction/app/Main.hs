@@ -6,7 +6,7 @@ import System.IO ( openFile, hPutStr, hClose, IOMode(..) )
 import Data.List ((\\),foldl')
 import TyTraCLAST 
 import ASTInstance (ast,functionSignaturesList,superkernelName)
-import Transforms (splitLhsTuples, substituteVectors, applyRewriteRules, fuseStencils, regroupTuples, removeDuplicateExpressions, decomposeExpressions, groupMapCalls)
+import Transforms (splitLhsTuples, substituteVectors, applyRewriteRules, fuseStencils, regroupTuples, removeDuplicateExpressions, decomposeExpressions) --, groupMapCalls)
 import CodeGeneration (
     inferSignatures, 
     generateFortranCode,
@@ -28,7 +28,6 @@ ast3'' :: TyTraCLAST
 ast3'' = fuseStencils ast3
 ast3' :: TyTraCLAST
 ast3' = regroupTuples ast3''
--- ast4' = removeDuplicateExpressions ast3'
 ast4 :: [TyTraCLAST]
 ast4 = decomposeExpressions ast1 ast3' 
 tagged_asts = map (\ast -> (foldl'(\isFold (lhs,rhs) -> case rhs of
@@ -36,10 +35,10 @@ tagged_asts = map (\ast -> (foldl'(\isFold (lhs,rhs) -> case rhs of
                             _ -> isFold
                     ) False ast,ast)) ast4
 (fold_asts,maps_asts) = foldl' (\(f_,m_) (is_f,ast) -> if is_f then (f_++[ast],m_) else (f_,m_++[ast])) ([],[]) tagged_asts
-ast5 = removeDuplicateExpressions $ concat maps_asts -- FIXME: the fold stages should remain separate!
-ast6 = fold_asts++[ groupMapCalls ast5]
+ast5 = removeDuplicateExpressions $ concat maps_asts -- the fold stages must remain separate!
+ast6 = fold_asts++ [ast5] --[ groupMapCalls ast5]
 
-asts  -- = ast4
+asts  
     | stage == Original = [ast]
     | stage == SplitLhsTuples = [ast1]
     | stage == SubstituteVectors = [ast2]
@@ -49,20 +48,11 @@ asts  -- = ast4
     | stage == DecomposeExpressions = ast4
     | stage == RemoveDuplicateExpressions = ast6
 
--- inferedSignatures3 :: [(Name,FSig)]
--- inferedSignatures3 = inferSignatures ast3'
-
 inferedSignatures :: [[(Name,FSig)]]
 inferedSignatures = map inferSignatures ast4
 
--- inferedSignatures5 :: [(Name,FSig)]
--- inferedSignatures5 = inferSignatures ast5
-
-
 generatedFortranCode = generateFortranCode asts functionSignaturesList idSigList 
 (generatedMainProgramCode,generatedModuleCode) = generatedFortranCode
-
-
 
 main = do
     if info then
@@ -81,7 +71,6 @@ main = do
             mapM_ print ast3''    
             putStrLn "\n-- Regroup tuples"
             mapM_ print ast3' 
-            -- putStrLn "\n-- Decompose expressions and infer intermediate function signatures"
             putStrLn "\n-- Decompose expressions and infer function signatures"
             mapM_ ( \((x1,x2),ct) -> do                
                 if not (null (x2 \\ functionSignaturesList)) then
@@ -100,11 +89,9 @@ main = do
     if printTyTraCL then
             do        
             putStrLn "-- Original function signatures"
-            -- mapM_ print functionSignaturesList
             mapM_ (putStrLn . ppFSig) functionSignaturesList
             putStrLn "\n-- Original TyTraCL code"
             mapM_ putStrLn $ ppAST ast
-            -- putStrLn "\n-- Decompose expressions and infer intermediate function signatures"
             putStrLn "\n-- Decomposed expressions and inferred function signatures"
             mapM_ (
                  \((x1,x2),ct) -> do
@@ -122,13 +109,9 @@ main = do
                 -- ) [(( ast5, inferedSignatures),0)]
             putStrLn "\n-- Common subexpression elimination\n"
             mapM_ (putStr . unlines . ppAST) ast6
-            -- let
-            --     (asts_function_defs,ast_stages) = createStages ast4
-            -- mapM_ print ast6
-            -- mapM_ (putStr . unlines) ast6
 
         else return ()     
-    -- putStr generatedFortranCode
+
     let
         fp = mkSrcFileName superkernelName
     fh <- openFile fp WriteMode     

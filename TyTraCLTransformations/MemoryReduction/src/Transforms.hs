@@ -1,4 +1,4 @@
-module Transforms (splitLhsTuples, substituteVectors, applyRewriteRules, fuseStencils, regroupTuples, removeDuplicateExpressions,  decomposeExpressions, groupMapCalls) where
+module Transforms (splitLhsTuples, substituteVectors, applyRewriteRules, fuseStencils, regroupTuples, removeDuplicateExpressions,  decomposeExpressions) where
 
 import Data.Generics (Data, Typeable, mkQ, mkT, mkM, gmapQ, gmapT, everything, everywhere, everywhere', everywhereM)
 import Control.Monad.State
@@ -6,7 +6,7 @@ import qualified Data.Map.Strict as Map
 import Data.List (intercalate,foldl')
 
 import TyTraCLAST
-import CallReduction ( reduceCalls, groupMapCalls )
+import CallReduction ( reduceCalls )
 import Warning ( warning )
 
 {-# ANN module "HLint: ignore Use camelCase" #-}
@@ -384,14 +384,6 @@ regroupTuplesMap ast = let
     in            
         non_map_ast ++ tuples_ast
 
-{- 
-    I can regroup the Map and Fold tuples here as well
-        (lhs,Map (Comp (PElt i) expr)
-         gather this by expr: expr -> [(lhs,i)]
-        replace in any case by PElts, even if there is only one
-        The logic is very similar to reduceCalls part II
-    
-    -}        
 {-
         if (exists $unique_names_for_stencils{$stencil_definition}) {
             $stencil_names_to_unique_names{$stencil_name} = $unique_names_for_stencils{$stencil_definition}

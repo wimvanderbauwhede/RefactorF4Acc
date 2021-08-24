@@ -1,5 +1,14 @@
 module module_velfg_superkernel
     contains
+    
+    subroutine get_global_id(idx,dim)
+    integer, intent(out) :: idx
+    integer, intent(in) :: dim
+    integer :: global_id
+    common /ocl/ global_id
+    idx = dim ! dummy
+    idx = global_id
+    end subroutine get_global_id
 subroutine velfg_map_76(u,dx1,v,dy1,w,dzn,nou1,diu1,nou5,diu5,nou9,diu9,nou2,diu2,dzs,nou3,diu3,nou4,diu4,nou6,diu6,cov1,cov5,cov9,cov2,cov3,cov4,cov6)
      integer, parameter :: ip=150
      integer, parameter :: jp=150
@@ -35,27 +44,27 @@ subroutine velfg_map_76(u,dx1,v,dy1,w,dzn,nou1,diu1,nou5,diu5,nou9,diu9,nou2,diu
     real, dimension(0:(ip + 1),(-1):(jp + 1),(-1):(kp + 1)), intent(In) :: w
     real, dimension((-1):(kp + 2)), intent(In) :: dzn
     real, dimension((-1):(kp + 2)), intent(In) :: dzs
-    real, dimension((-1):(ip + 2),0:(jp + 2),0:(kp + 2)), intent(Out) :: cov1
-    real, dimension((-1):(ip + 2),0:(jp + 2),0:(kp + 2)), intent(Out) :: cov5
-    real, dimension(0:(ip + 2),0:(jp + 2),0:(kp + 2)), intent(Out) :: cov9
-    real, dimension(0:(ip + 2),0:(jp + 2),0:(kp + 2)), intent(Out) :: cov2
-    real, dimension(0:(ip + 2),0:(jp + 2),0:(kp + 2)), intent(Out) :: cov3
-    real, dimension(0:(ip + 2),0:(jp + 2),0:(kp + 2)), intent(Out) :: cov4
-    real, dimension(0:(ip + 2),0:(jp + 2),0:(kp + 2)), intent(Out) :: cov6
-    real(kind=4), dimension((-1):(ip + 2),0:(jp + 2),0:(kp + 2)), intent(Out) :: nou1
-    real, dimension((-1):(ip + 2),0:(jp + 2),0:(kp + 2)), intent(Out) :: diu1
-    real(kind=4), dimension((-1):(ip + 2),0:(jp + 2),0:(kp + 2)), intent(Out) :: nou5
-    real, dimension((-1):(ip + 2),0:(jp + 2),0:(kp + 2)) , intent(Out):: diu5
-    real(kind=4), dimension(0:(ip + 2),0:(jp + 2),0:(kp + 2)) , intent(Out):: nou9
-    real, dimension(0:(ip + 2),0:(jp + 2),0:(kp + 2)) , intent(Out):: diu9
+    real, dimension((-1):(ip + 2),0:(jp + 2),0:(kp + 2)) :: cov1
+    real, dimension((-1):(ip + 2),0:(jp + 2),0:(kp + 2)) :: cov5
+    real, dimension(0:(ip + 2),0:(jp + 2),0:(kp + 2)) :: cov9
+    real, dimension(0:(ip + 2),0:(jp + 2),0:(kp + 2)) :: cov2
+    real, dimension(0:(ip + 2),0:(jp + 2),0:(kp + 2)) :: cov3
+    real, dimension(0:(ip + 2),0:(jp + 2),0:(kp + 2)) :: cov4
+    real, dimension(0:(ip + 2),0:(jp + 2),0:(kp + 2)) :: cov6
+    real(kind=4), dimension((-1):(ip + 2),0:(jp + 2),0:(kp + 2)) :: nou1
+    real, dimension((-1):(ip + 2),0:(jp + 2),0:(kp + 2)) :: diu1
+    real(kind=4), dimension((-1):(ip + 2),0:(jp + 2),0:(kp + 2)) :: nou5
+    real, dimension((-1):(ip + 2),0:(jp + 2),0:(kp + 2)):: diu5
+    real(kind=4), dimension(0:(ip + 2),0:(jp + 2),0:(kp + 2)):: nou9
+    real, dimension(0:(ip + 2),0:(jp + 2),0:(kp + 2)):: diu9
     real(kind=4), dimension(0:(ip + 2),0:(jp + 2),0:(kp + 2)) , intent(Out):: nou2
     real, dimension(0:(ip + 2),0:(jp + 2),0:(kp + 2)) , intent(Out):: diu2
-    real(kind=4), dimension(0:(ip + 2),0:(jp + 2),0:(kp + 2)) , intent(Out):: nou3
-    real, dimension(0:(ip + 2),0:(jp + 2),0:(kp + 2)) , intent(Out):: diu3
-    real(kind=4), dimension(0:(ip + 2),0:(jp + 2),0:(kp + 2)) , intent(Out):: nou4
-    real, dimension(0:(ip + 2),0:(jp + 2),0:(kp + 2)) , intent(Out):: diu4
-    real(kind=4), dimension(0:(ip + 2),0:(jp + 2),0:(kp + 2)) , intent(Out):: nou6
-    real, dimension(0:(ip + 2),0:(jp + 2),0:(kp + 2)) , intent(Out):: diu6
+    real(kind=4), dimension(0:(ip + 2),0:(jp + 2),0:(kp + 2)):: nou3
+    real, dimension(0:(ip + 2),0:(jp + 2),0:(kp + 2)):: diu3
+    real(kind=4), dimension(0:(ip + 2),0:(jp + 2),0:(kp + 2)):: nou4
+    real, dimension(0:(ip + 2),0:(jp + 2),0:(kp + 2)):: diu4
+    real(kind=4), dimension(0:(ip + 2),0:(jp + 2),0:(kp + 2)):: nou6
+    real, dimension(0:(ip + 2),0:(jp + 2),0:(kp + 2)):: diu6
     integer :: global_id
     call get_global_id(global_id,0)
     k_vel2_range = (((90 + 1) - 1) + 1)
@@ -135,12 +144,12 @@ subroutine velfg_map_133(dzn,u,w,dx1,nou7,diu7,v,dy1,nou8,diu8,cov7,cov8)
     real, dimension((-1):(ip + 1)), intent(In) :: dx1
     real, dimension(0:(ip + 1),(-1):(jp + 1),0:(kp + 1)), intent(In) :: v
     real, dimension(0:(jp + 1)), intent(In) :: dy1
-    real, dimension(0:(ip + 2),0:(jp + 2),0:(kp + 2)) , intent(Out):: cov7
-    real, dimension(0:(ip + 2),0:(jp + 2),0:(kp + 2)) , intent(Out):: cov8
-    real(kind=4), dimension(0:(ip + 2),0:(jp + 2),0:(kp + 2)) , intent(Out):: nou7
-    real, dimension(0:(ip + 2),0:(jp + 2),0:(kp + 2)) , intent(Out):: diu7
-    real(kind=4), dimension(0:(ip + 2),0:(jp + 2),0:(kp + 2)) , intent(Out):: nou8
-    real, dimension(0:(ip + 2),0:(jp + 2),0:(kp + 2)) , intent(Out):: diu8
+    real, dimension(0:(ip + 2),0:(jp + 2),0:(kp + 2)):: cov7
+    real, dimension(0:(ip + 2),0:(jp + 2),0:(kp + 2)):: cov8
+    real(kind=4), dimension(0:(ip + 2),0:(jp + 2),0:(kp + 2)):: nou7
+    real, dimension(0:(ip + 2),0:(jp + 2),0:(kp + 2)):: diu7
+    real(kind=4), dimension(0:(ip + 2),0:(jp + 2),0:(kp + 2)):: nou8
+    real, dimension(0:(ip + 2),0:(jp + 2),0:(kp + 2)):: diu8
     integer :: global_id
     call get_global_id(global_id,0)
     k_vel2_range = (((90 - 1) - 1) + 1)
@@ -197,33 +206,33 @@ subroutine velfg_map_218(dx1,cov1,cov2,cov3,diu1,diu2,dy1,diu3,dzn,dfu1,cov4,cov
     integer :: j_rel
     integer :: i_rel
     real, dimension((-1):(ip + 1)), intent(In) :: dx1
-    real, dimension((-1):(ip + 2),0:(jp + 2),0:(kp + 2)), intent(In) :: cov1
-    real, dimension(0:(ip + 2),0:(jp + 2),0:(kp + 2)), intent(In) :: cov2
-    real, dimension(0:(ip + 2),0:(jp + 2),0:(kp + 2)), intent(In) :: cov3
-    real, dimension((-1):(ip + 2),0:(jp + 2),0:(kp + 2)), intent(In) :: diu1
+    real, dimension((-1):(ip + 2),0:(jp + 2),0:(kp + 2)) :: cov1
+    real, dimension(0:(ip + 2),0:(jp + 2),0:(kp + 2)) :: cov2
+    real, dimension(0:(ip + 2),0:(jp + 2),0:(kp + 2)) :: cov3
+    real, dimension((-1):(ip + 2),0:(jp + 2),0:(kp + 2)) :: diu1
     real, dimension(0:(ip + 2),0:(jp + 2),0:(kp + 2)), intent(In) :: diu2
     real, dimension(0:(jp + 1)), intent(In) :: dy1
-    real, dimension(0:(ip + 2),0:(jp + 2),0:(kp + 2)), intent(In) :: diu3
+    real, dimension(0:(ip + 2),0:(jp + 2),0:(kp + 2)) :: diu3
     real, dimension((-1):(kp + 2)), intent(In) :: dzn
-    real, dimension(0:(ip + 2),0:(jp + 2),0:(kp + 2)), intent(In) :: cov4
-    real, dimension((-1):(ip + 2),0:(jp + 2),0:(kp + 2)), intent(In) :: cov5
-    real, dimension(0:(ip + 2),0:(jp + 2),0:(kp + 2)), intent(In) :: cov6
-    real, dimension(0:(ip + 2),0:(jp + 2),0:(kp + 2)), intent(In) :: diu4
-    real, dimension((-1):(ip + 2),0:(jp + 2),0:(kp + 2)), intent(In) :: diu5
-    real, dimension(0:(ip + 2),0:(jp + 2),0:(kp + 2)), intent(In) :: diu6
-    real, dimension(0:(ip + 2),0:(jp + 2),0:(kp + 2)), intent(In) :: cov7
-    real, dimension(0:(ip + 2),0:(jp + 2),0:(kp + 2)), intent(In) :: cov8
-    real, dimension(0:(ip + 2),0:(jp + 2),0:(kp + 2)), intent(In) :: cov9
-    real, dimension(0:(ip + 2),0:(jp + 2),0:(kp + 2)), intent(In) :: diu7
-    real, dimension(0:(ip + 2),0:(jp + 2),0:(kp + 2)), intent(In) :: diu8
-    real, dimension(0:(ip + 2),0:(jp + 2),0:(kp + 2)), intent(In) :: diu9
+    real, dimension(0:(ip + 2),0:(jp + 2),0:(kp + 2)) :: cov4
+    real, dimension((-1):(ip + 2),0:(jp + 2),0:(kp + 2)) :: cov5
+    real, dimension(0:(ip + 2),0:(jp + 2),0:(kp + 2)) :: cov6
+    real, dimension(0:(ip + 2),0:(jp + 2),0:(kp + 2)) :: diu4
+    real, dimension((-1):(ip + 2),0:(jp + 2),0:(kp + 2)) :: diu5
+    real, dimension(0:(ip + 2),0:(jp + 2),0:(kp + 2)) :: diu6
+    real, dimension(0:(ip + 2),0:(jp + 2),0:(kp + 2)) :: cov7
+    real, dimension(0:(ip + 2),0:(jp + 2),0:(kp + 2)) :: cov8
+    real, dimension(0:(ip + 2),0:(jp + 2),0:(kp + 2)) :: cov9
+    real, dimension(0:(ip + 2),0:(jp + 2),0:(kp + 2)) :: diu7
+    real, dimension(0:(ip + 2),0:(jp + 2),0:(kp + 2)) :: diu8
+    real, dimension(0:(ip + 2),0:(jp + 2),0:(kp + 2)) :: diu9
     real, dimension((-1):(kp + 2)), intent(In) :: dzs
     real, dimension(0:ip,0:jp,0:kp), intent(Out) :: f
     real, dimension(0:ip,0:jp,0:kp), intent(Out) :: g
     real, dimension(0:ip,0:jp,0:kp), intent(Out) :: h
-    real, dimension(0:ip,1:jp,1:kp), intent(Out) :: dfu1
-    real, dimension(1:ip,0:jp,1:kp), intent(Out) :: dfv1
-    real, dimension(1:ip,1:jp,1:kp), intent(Out) :: dfw1
+    real, dimension(0:ip,1:jp,1:kp) :: dfu1
+    real, dimension(1:ip,0:jp,1:kp) :: dfv1
+    real, dimension(1:ip,1:jp,1:kp) :: dfw1
     integer :: global_id
     call get_global_id(global_id,0)
     k_range = ((90 - 1) + 1)
