@@ -607,6 +607,10 @@ If we could achieve this, the simulation could run on a 4 times larger domain
 \end_layout
 
 \begin_layout Standard
+
+\end_layout
+
+\begin_layout Standard
 In the original code, the turbulent flow algorithm uses the following 3-D
  arrays, 37 in total:
 \end_layout
@@ -664,7 +668,7 @@ After removal of the intermediate arrays, the domain can be up to 1000x1000
 
 \begin_layout Standard
 As all redundant array accesses are replace by register accesses in the
- GPU, the resulting code is not only more memory efficient but also faster.
+ GPU, the resulting code is 6x more memory efficient but only 20% slower.
 \end_layout
 
 \begin_layout Standard

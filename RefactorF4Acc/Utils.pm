@@ -1052,7 +1052,7 @@ sub get_block_id { my ($block, $block_id) = @_;
 }
 
 sub is_array_decl { (my $info)=@_;
-# warn Dumper $info->{'ParsedVarDecl'};
+# carp Dumper $info->{'ParsedVarDecl'};
 	return (exists $info->{'ParsedVarDecl'}
 	&& exists $info->{'ParsedVarDecl'}{'Attributes'}
 	&& exists $info->{'ParsedVarDecl'}{'Attributes'}{'Dim'}

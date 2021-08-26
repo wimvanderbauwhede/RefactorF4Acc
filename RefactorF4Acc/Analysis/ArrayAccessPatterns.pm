@@ -1845,6 +1845,7 @@ sub _get_loop_iters_from_global_id { my ($stref,$f) = @_;
 	# }
 	# Now assign this to LoopIters
 	$stref->{'Subroutines'}{ $f }{'ArrayAccesses'}{0}{'LoopIters'} = $state->{'LoopIters'};
+	# croak $f.':'.Dumper $state->{'LoopIters'};
 	return $stref;
 } # END of _get_loop_iters_from_global_id
 

@@ -3,7 +3,6 @@ package RefactorF4Acc::Refactoring::Scalarise;
 use v5.10;
 use RefactorF4Acc::Config;
 use RefactorF4Acc::Utils;
-use RefactorF4Acc::Analysis::Variables qw( identify_vars_on_line );
 use RefactorF4Acc::Refactoring::Helpers qw(
   pass_wrapper_subs_in_module
   stateful_pass_inplace
@@ -27,8 +26,8 @@ use RefactorF4Acc::Refactoring::Fixes qw(
   _make_dim_vars_scalar_consts_in_sigs
   remove_redundant_arguments_and_fix_intents
 );
-use RefactorF4Acc::Analysis::ArrayAccessPatterns
-  qw( identify_array_accesses_in_exprs );
+use RefactorF4Acc::Analysis::Variables qw( identify_vars_on_line );
+use RefactorF4Acc::Analysis::ArrayAccessPatterns qw( identify_array_accesses_in_exprs );
 use RefactorF4Acc::Refactoring::FoldConstants qw( fold_constants_in_decls );
 
 # I'm not sure that this is the best place for this routine as it is only used in this pass
@@ -37,8 +36,7 @@ use RefactorF4Acc::Refactoring::Subroutines::Emitters qw(
   emit_end_subroutine
   emit_subroutine_call
 );
-use RefactorF4Acc::Analysis::ArgumentIODirs
-  qw( determine_argument_io_direction_rec );
+use RefactorF4Acc::Analysis::ArgumentIODirs qw( determine_argument_io_direction_rec );
 use RefactorF4Acc::Parser::Expressions qw(
   parse_expression
   emit_expr_from_ast
@@ -73,16 +71,13 @@ use Exporter;
 sub pass_rename_array_accesses_to_scalars {
     ( my $stref, my $code_unit_name ) = @_;
 
-    # croak $code_unit_name;
     $Config{'FIXES'}{'remove_redundant_arguments_and_fix_intents'} = 1;
     $Config{'FIXES'}{'_removed_unused_variables'}                  = 1;
     $stref = pass_wrapper_subs_in_module(
         $stref,
         '',
-
         # module-specific passes
         [],
-
         # subroutine-specific passes
         [
             [
@@ -232,9 +227,12 @@ sub _rename_array_accesses_to_scalars {
                     $info->{'Rhs'}{'ExpressionAST'} = $ast;
                     if ( ref($ast) ne '' ) {
                         my $vars = get_vars_from_expression( $ast, {} );
+                        
                         $info->{'Rhs'}{'Vars'}{'Set'} = $vars;
+                        
                         $info->{'Rhs'}{'Vars'}{'List'} =
                           [ grep { $_ ne 'IndexVars' } sort keys %{$vars} ];
+                        
                     }
                     else {
                         $info->{'Rhs'}{'Vars'} = { 'List' => [], 'Set' => {} };
@@ -270,6 +268,7 @@ sub _rename_array_accesses_to_scalars {
                         };
                     }
                 }
+                
             }
             if ( exists $info->{'If'} ) {
 
@@ -314,11 +313,13 @@ sub _rename_array_accesses_to_scalars {
 
 # So I think I should put the arguments in $state, I can do that when I encounter the Signature
         my $state = { 'IndexVars' => {}, 'StreamVars' => {}, 'Args' => {} };
+        
         ( $stref, $state ) =
           stateful_pass_inplace( $stref, $f,
             $pass_rename_array_accesses_in_exprs,
             $state, 'pass_rename_array_accesses_in_exprs ' . __LINE__ );
-
+#WV 2021-08-26 at this point, $state->{'IndexVars'} contains indices from arrays that were not scalarised
+# croak $f.': '.Dumper $state->{'IndexVars'} ;
 # croak $f.': '.Dumper($state->{'StreamVars'});
 # --------------------------------------------------------------------------------------------------------
 # 2. Now we create new assignment lines, these go into LiftedScalarAssignments
@@ -489,6 +490,7 @@ sub _rename_array_accesses_to_scalars {
 
 # --------------------------------------------------------------------------------------------------------
 # So now we have identified all stream vars ( $state->{'StreamVars'}{$arg}{'List'} )
+
 # 3. In the next pass, update the subroutine Signature and VarDecl declarations in $info
 # We update DeclaredOrigArgs record of $f in a separate pass below
         my $pass_update_sig_and_decls = sub {
@@ -563,6 +565,7 @@ sub _rename_array_accesses_to_scalars {
           stateful_pass_inplace( $stref, $f, $pass_update_sig_and_decls,
             $state, 'pass_update_sig_and_decls' . __LINE__ );
 
+# WV 2021-08-26 so at this point, the VarDecl for i_vel2 in velfg_map_76 is still present
 # --------------------------------------------------------------------------------------------------------
 # 4. Here we update DeclaredOrigArgs
         my @updated_args_list = ();
@@ -676,12 +679,12 @@ sub _rename_array_accesses_to_scalars {
                         $state->{'IndexVars'} =
                           { %{ $state->{'IndexVars'} }, %{$args} };
                           if (not exists $state->{'IndexVarsToKeep'}{$arg}) {
-                        $info->{'Deleted'} = 1;
-                        return ( [ [ "! $line", $info ] ], $state );
+                            $info->{'Deleted'} = 1;
+                            return ( [ [ "! $line", $info ] ], $state );
                           } else {
-                        $state->{'IndexVarsToKeep'} =
-                          { %{ $state->{'IndexVarsToKeep'} }, %{$args} };
-                          return ( [ [ $line, $info ] ], $state );
+                            $state->{'IndexVarsToKeep'} =
+                              { %{ $state->{'IndexVarsToKeep'} }, %{$args} };
+                            return ( [ [ $line, $info ] ], $state );
                           }
                     }
                 }
@@ -695,7 +698,10 @@ sub _rename_array_accesses_to_scalars {
                       dclone($annline);
                     $state->{'LiftedIndexVarDecls'}{'Set'}{$decl_var} =
                       dclone($annline);
-                    if (not exists $state->{'IndexVarsToKeep'}{$decl_var}) {
+                    if (not exists $state->{'IndexVarsToKeep'}{$decl_var}
+                    and not exists $state->{'IndexVars'}{$decl_var} # These are indices of non-scalarised arrays
+                    ) {
+                      # carp "HERE IS THE BUG: DELETING $decl_var in $f";
                     $info->{'Deleted'} = 1;
                     return ( [ [ "! $line", $info ] ], $state );
                     } else {
@@ -969,7 +975,7 @@ sub _rename_array_accesses_to_scalars_in_subcalls {
 
 # ================================================================================================================================================
 
-sub _update_call_args {
+sub _update_call_args { 
     ( my $stref, my $f ) = @_;
 
     if ( $f eq $Config{'KERNEL'} ) {
@@ -989,7 +995,6 @@ sub _update_call_args {
 
                 # First update the ArgMap
                 # This is to account for the renamed pointers
-
                 for
                   my $sig_arg ( keys %{ $info->{'SubroutineCall'}{'ArgMap'} } )
                 {

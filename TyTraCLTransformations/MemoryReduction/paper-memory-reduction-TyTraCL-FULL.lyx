@@ -879,7 +879,7 @@ name "subsec:Types"
 
 \begin_layout Standard
 \begin_inset listings
-lstparams "mathescape=true,escapeinside={~~},language=Haskell"
+lstparams "language=Haskell,float,mathescape=true,escapeinside={~~}"
 inline false
 status open
 
@@ -951,7 +951,7 @@ noprefix "false"
 
 .
 \begin_inset listings
-lstparams "mathescape=true,escapeinside={~~},language=Haskell"
+lstparams "language=Haskell,float,mathescape=true,escapeinside={~~}"
 inline false
 status open
 
@@ -1357,7 +1357,7 @@ Untyped
 
 \begin_layout Standard
 \begin_inset listings
-lstparams "mathescape=true,escapeinside={~~},language=Haskell"
+lstparams "language=Haskell,float,mathescape=true,escapeinside={~~}"
 inline false
 status open
 
@@ -1588,7 +1588,7 @@ status open
 
 \begin_layout Plain Layout
 
-	v|$_{out}$| = map (f x|$_1$| ..
+v|$_{out}$| = map (f x|$_1$| ..
  x|$_m$|) v|$_{in}$|
 \end_layout
 
@@ -1603,13 +1603,13 @@ is represented as
 
 \begin_layout Standard
 \begin_inset listings
-lstparams "mathescape=true,escapeinside={~~},language=Haskell"
+lstparams "language=Haskell,mathescape=true,escapeinside={~~}"
 inline false
 status open
 
 \begin_layout Plain Layout
 
-	(Vec VO 
+(Vec VO 
 \begin_inset Quotes eld
 \end_inset
 
@@ -1689,13 +1689,13 @@ fold
 
 \begin_layout Standard
 \begin_inset listings
-lstparams "mathescape=true,escapeinside={~~},language=Haskell"
+lstparams "language=Haskell,mathescape=true,escapeinside={~~}"
 inline false
 status open
 
 \begin_layout Plain Layout
 
-	fold g acc (map f v) = fold (g `fcomp` f) acc v
+fold g acc (map f v) = fold (g `fcomp` f) acc v
 \end_layout
 
 \end_inset
@@ -1730,7 +1730,7 @@ noprefix "false"
 
 \begin_layout Standard
 \begin_inset listings
-lstparams "mathescape=true,escapeinside={~~},language=Haskell"
+lstparams "language=Haskell,mathescape=true,escapeinside={~~}"
 inline false
 status open
 
@@ -3901,27 +3901,6 @@ then none of the rules fires, so this is a fixed point for the rewrite system.
 \end_layout
 
 \end_deeper
-\begin_layout Subsubsection
-Grouping Elt calls
-\end_layout
-
-\begin_layout Standard
-As part of the normalisation in REF we have split expressions returning
- tuples into separate expressions via the `elt` call.
- The consequence is that any function on which the elt call is applied,
- is called as many times as there are elt calls, i.e.
- it is called again for every value it returns.
- This is obviously undesirable.
- Therefore, an additional rewrite rule is used to group all elt calls in
- an applyt call.
- This results in a reduction of the number of values in the input tuple
- of the applyt call.
- Therefore, the applyt call itself needs to be replaced by a call to a different
- primitive, rapplyt, which provides the same outputs as the original call
- but takes the reduced inputs and thus eliminates the repeated function
- calls.
-\end_layout
-
 \begin_layout Subsection
 Fusing stencils
 \begin_inset CommandInset label
@@ -4084,6 +4063,79 @@ fuseStencils v_expr = v_expr
 \end_inset
 
 
+\end_layout
+
+\begin_layout Subsection
+Regrouping tuples
+\end_layout
+
+\begin_layout Standard
+As part of the normalisation in Section 
+\begin_inset CommandInset ref
+LatexCommand ref
+reference "normalisation"
+plural "false"
+caps "false"
+noprefix "false"
+
+\end_inset
+
+ we have split expressions returning tuples into separate expressions via
+ the 
+\family typewriter
+elt
+\family default
+ call.
+ The consequence is that any function on which the elt call is applied,
+ is called as many times as there are elt calls, i.e.
+ it is called again for every value it returns.
+ This is obviously undesirable.
+ Therefore, an additional rewrite rule is applied to regroup the tuples.
+ 
+\end_layout
+
+\begin_layout Standard
+Because of the structure of the rewrite rules, 
+\family typewriter
+elt
+\family default
+ calls only occur in 
+\family typewriter
+applyt
+\family default
+ calls and after 
+\family typewriter
+map
+\family default
+ calls.
+ The latter is a simple matter of creating a tuple on the lhs of the let-binding
+ and adding an 
+\family typewriter
+unzipt
+\family default
+ on the rhs.
+ The former is a bit more complex: the regrouping results in a reduction
+ of the number of values in the input tuple of the 
+\family typewriter
+applyt
+\family default
+ call, and consequently in a reduction in the number of arguments to the
+ 
+\family typewriter
+applyt
+\family default
+ call.
+ Therefore, the 
+\family typewriter
+applyt
+\family default
+ call itself needs to be replaced by a call to a different primitive, 
+\family typewriter
+rapplyt
+\family default
+, which provides the same outputs as the original call but takes the reduced
+ inputs and thus eliminates the repeated function calls.
+ 
 \end_layout
 
 \begin_layout Subsection
@@ -4324,7 +4376,8 @@ Common subexpression elimination
 In ANF, all expressions are unique.
  However, in general many of the expressions will be identical.
  We therefore run a variant of a common subexpression elimination algorithm
- to reduce the number of expressions.
+ to reduce the number of expressions: all identical subexpressions are renamed
+ to the first encountered one and their definitions are removed.
 \end_layout
 
 \begin_layout Subsection

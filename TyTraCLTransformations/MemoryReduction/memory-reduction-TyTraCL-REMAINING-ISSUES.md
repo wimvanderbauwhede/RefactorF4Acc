@@ -3,12 +3,7 @@
 ## 2021-08-24
 
 There is a bug in the scalariser: if non-map args use indices i,j,k derived from global_id, they are ignored and not declared
-Another bug is that the non-map args are omitted from the args list in some cases:
-- velfg_map_76_scal should have dx1,dy1,dzn,dzs but only has dzn,dzs
-- velfg_map_133_scal should have dx1,dy1,dzn and that is OK
-- velfg_map_218_scal should have dx1,dy1,dzn,dzs and that is OK
 
-So why are dx1 and dy1 omitted? How is their usage different?
 
 ## 2021-07-26
 
