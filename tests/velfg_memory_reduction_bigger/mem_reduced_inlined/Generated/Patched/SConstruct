@@ -2,18 +2,15 @@ import os
 
 FC=os.environ.get('FC')
 
-fsources = ['module_velfg_superkernel.f95', 'velfg_driver.f95']
+fsources = ['gen_velfg_superkernel.f95', 'stage_kernel_1.f95', 
+#'velfg_map_133.f95', 'velfg_map_218.f95', 'velfg_map_76.f95', #'les_map_87.f95' , 'les_map_107.f95' ,
+         'velfg_superkernel.f95']
 
-
-#
-# '-fopenmp','-mcmodel=medium',
 FLFLAGS = ['-Ofast','-flto']
 FLFLAGS += ['-fopenmp','-DWITH_OPENMP']
 FFLAGS = FLFLAGS + ['-Wall','-cpp','-m64','-ffree-form','-ffree-line-length-0','-fconvert=little-endian','-frecord-marker=4']#, '-fopenmp']
 
-# '-fopenmp','-mcmodel=medium',
-
-envF=Environment(F95=FC,LINK=FC,LINKFLAGS=FLFLAGS,F95FLAGS=FFLAGS,F95PATH=['.' ,'/usr/local/include']) # LINKFLAGS=['-fopenmp'],
+envF=Environment(F95=FC,LINK=FC,LINKFLAGS=FLFLAGS,F95FLAGS=FFLAGS,F95PATH=['.' ,'/usr/local/include'])
 
 envF.Program('prog.exe',fsources,LIBS=['m'],LIBPATH=['.' ,'/usr/lib','/usr/local/lib'])
 

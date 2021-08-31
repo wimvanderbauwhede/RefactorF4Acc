@@ -1,23 +1,13 @@
 program main
-#ifdef WITH_OPENMP    
     use omp_lib
-#endif    
     use module_velfg_superkernel, only : velfg_superkernel
     integer :: global_id
-#ifndef WITH_OPENMP    
-    common /ocl/ global_id
-#endif    
     ! Declarations
     integer, parameter :: niters = 100
-integer, parameter :: ip=150
-integer, parameter :: jp=150
+integer, parameter :: ip=450
+integer, parameter :: jp=450
 integer, parameter :: kp=90 
-    ! real, dimension(1:2139552) :: u
-    ! real, dimension(1:2139552) :: v
-    ! real, dimension(1:2162808) :: w
-    ! real, dimension(1:2074891) :: f
-    ! real, dimension(1:2074891) :: g
-    ! real, dimension(1:2074891) :: h
+
     real, dimension(0:(ip + 1),(-1):(jp + 1),0:(kp + 1)) :: u
     real, dimension(0:(ip + 1),(-1):(jp + 1),0:(kp + 1)) :: v
     real, dimension(0:(ip + 1),(-1):(jp + 1),(-1):(kp + 1)) :: w
@@ -65,20 +55,12 @@ integer, parameter :: kp=90
       
       do state_idx = 1,5
       state_ptr=states(state_idx)
-#ifdef WITH_OPENMP
 !$OMP PARALLEL DO
-#endif    
-      do global_id = 1, 2025000 !2074891
-        call velfg_superkernel(f,g,h,dzn,u,v,w,delx1,dx1,dy1,dzs,state_ptr &
-#ifdef WITH_OPENMP
-    , global_id &
-#endif    
-        )
+      do global_id = 1, 2025000*3*3
+        call velfg_superkernel(f,g,h,dzn,u,v,w,dx1,dy1,dzs,state_ptr, global_id)
 !        print *, iter,global_id
       end do
-#ifdef WITH_OPENMP
 !$OMP END PARALLEL DO
-#endif    
       end do
 !    print *, f(1,1,1)
     end do

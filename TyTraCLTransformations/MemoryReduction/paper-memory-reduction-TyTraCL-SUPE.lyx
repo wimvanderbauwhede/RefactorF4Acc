@@ -607,10 +607,6 @@ If we could achieve this, the simulation could run on a 4 times larger domain
 \end_layout
 
 \begin_layout Standard
-
-\end_layout
-
-\begin_layout Standard
 In the original code, the turbulent flow algorithm uses the following 3-D
  arrays, 37 in total:
 \end_layout
