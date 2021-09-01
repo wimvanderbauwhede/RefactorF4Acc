@@ -78,5 +78,23 @@ So a slowdown of around 20% to 25%. This is with gfortran v9.3.0, '-flto','-Ofas
 Sadly,when I try this with OpenMP, I get a slowdown of almost 65%. I verified this, it seems correct: without OpenMP I get
 11.5 for the memreduced version, 100 iters; but 12.8 for the reference. 
 I should repeat this with larger arrays.
-For 10GB in total, and 40 arrays, that is 250MB per array or 64M . For example 800x800x100 or 900x900x90, that has the advantage that I can simply do *6/*6/*1
+
+However, for larger arrays, the picture is totally inverted: the performance is entirely memory dominated so the memory-reduced version is *faster* than the reference
+
+To be able to test this on the GPG cluster, I had to do two things:
+- Make all allocations dynamic. TODO: put this in the compiler
+- Use ulimit -s 1000000, which is the max I can set but it is enough
+- Append _8 to all integer constants because otherwise I get numeric overflows
+
+Some more FIXMEs: 
+- the dx1/dy1 etc start from 0 after conversion, but the indexing still uses the original index so sometimes this is -1. I need to adapt the indices to fit the 0 start or the other way round.
+
+Some more TODOs:
+- I should generate the OpenMP code automatically. For the memory-reduced case this is easy.
+- I need to triple-check the performance for small and large arrays, it is possible that the difference is a result of the dynamic allocation!
+
+
+
+
+
 
