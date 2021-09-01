@@ -90,12 +90,12 @@ pure subroutine stage_kernel_1(u_0,v_0,w_0,f_1,g_1,h_1,global_id)
  real :: dfu1_1___f_pelts_f_1_g_1_h_1_6
  real :: dfv1_1___f_pelts_f_1_g_1_h_1_6
  real :: dfw1_1___f_pelts_f_1_g_1_h_1_6
- real, dimension(1:2139552*MM), intent(in) :: u_0
- real, dimension(1:2139552*MM), intent(in) :: v_0
- real, dimension(1:2162808*MM), intent(in) :: w_0
- real, dimension(1:2074891*MM), intent(out) :: f_1
- real, dimension(1:2074891*MM), intent(out) :: g_1
- real, dimension(1:2074891*MM), intent(out) :: h_1
+ real, dimension(1:2139552_8*MM), intent(in) :: u_0
+ real, dimension(1:2139552_8*MM), intent(in) :: v_0
+ real, dimension(1:2162808_8*MM), intent(in) :: w_0
+ real, dimension(1:2074891_8*MM), intent(out) :: f_1
+ real, dimension(1:2074891_8*MM), intent(out) :: g_1
+ real, dimension(1:2074891_8*MM), intent(out) :: h_1
  integer, dimension(1:2), parameter :: s8=(/ 23718 , 23719 /)
  integer, dimension(1:5), parameter :: s2=(/ 305, 23409, 23560, 23561, 23712 /)
  real, dimension(1:2,1:5) :: svec_f_1_g_1_h_1_7
@@ -117,13 +117,13 @@ pure subroutine stage_kernel_1(u_0,v_0,w_0,f_1,g_1,h_1,global_id)
  real, dimension(0:150*WM+2), parameter :: dy1_0 = 1.0
  real, dimension(0:94), parameter :: dzn_0 = 1.0
  real, dimension(0:94), parameter :: dzs_0 = 1.0
- integer :: idx
-integer, intent(In) :: global_id
+ integer*8 :: idx
+integer*8, intent(In) :: global_id
 idx = global_id
 !RF4A Begin Inline
  do s_idx_1 = 1,2
  do s_idx_2 = 1,5
- if (idx+s8(s_idx_1)+s2(s_idx_2)>=1 .and. idx+s8(s_idx_1)+s2(s_idx_2)<=2139552*MM) then
+ if (idx+s8(s_idx_1)+s2(s_idx_2)>=1 .and. idx+s8(s_idx_1)+s2(s_idx_2)<=2139552_8*MM) then
  svec_f_1_g_1_h_1_7(s_idx_1, s_idx_2) = u_0(idx+s8(s_idx_1)+s2(s_idx_2))
  else
  svec_f_1_g_1_h_1_7(s_idx_1, s_idx_2) = u_0(idx)
@@ -132,7 +132,7 @@ idx = global_id
  end do
  do s_idx_1 = 1,2
  do s_idx_2 = 1,5
- if (idx+s8(s_idx_1)+s3(s_idx_2)>=1 .and. idx+s8(s_idx_1)+s3(s_idx_2)<=2139552*MM) then
+ if (idx+s8(s_idx_1)+s3(s_idx_2)>=1 .and. idx+s8(s_idx_1)+s3(s_idx_2)<=2139552_8*MM) then
  svec_f_1_g_1_h_1_8(s_idx_1, s_idx_2) = v_0(idx+s8(s_idx_1)+s3(s_idx_2))
  else
  svec_f_1_g_1_h_1_8(s_idx_1, s_idx_2) = v_0(idx)
@@ -141,7 +141,7 @@ idx = global_id
  end do
  do s_idx_1 = 1,2
  do s_idx_2 = 1,4
- if (idx+s8(s_idx_1)+s1(s_idx_2)>=1 .and. idx+s8(s_idx_1)+s1(s_idx_2)<=2162808*MM) then
+ if (idx+s8(s_idx_1)+s1(s_idx_2)>=1 .and. idx+s8(s_idx_1)+s1(s_idx_2)<=2162808_8*MM) then
  svec_f_1_g_1_h_1_9(s_idx_1, s_idx_2) = w_0(idx+s8(s_idx_1)+s1(s_idx_2))
  else
  svec_f_1_g_1_h_1_9(s_idx_1, s_idx_2) = w_0(idx)
@@ -150,7 +150,7 @@ idx = global_id
  end do
  do s_idx_1 = 1,2
  do s_idx_2 = 1,2
- if (idx+s12(s_idx_1)+s6(s_idx_2)>=1 .and. idx+s12(s_idx_1)+s6(s_idx_2)<=2139552*MM) then
+ if (idx+s12(s_idx_1)+s6(s_idx_2)>=1 .and. idx+s12(s_idx_1)+s6(s_idx_2)<=2139552_8*MM) then
  svec_f_1_g_1_h_1_10(s_idx_1, s_idx_2) = u_0(idx+s12(s_idx_1)+s6(s_idx_2))
  else
  svec_f_1_g_1_h_1_10(s_idx_1, s_idx_2) = u_0(idx)
@@ -159,7 +159,7 @@ idx = global_id
  end do
  do s_idx_1 = 1,2
  do s_idx_2 = 1,3
- if (idx+s12(s_idx_1)+s5(s_idx_2)>=1 .and. idx+s12(s_idx_1)+s5(s_idx_2)<=2162808*MM) then
+ if (idx+s12(s_idx_1)+s5(s_idx_2)>=1 .and. idx+s12(s_idx_1)+s5(s_idx_2)<=2162808_8*MM) then
  svec_f_1_g_1_h_1_11(s_idx_1, s_idx_2) = w_0(idx+s12(s_idx_1)+s5(s_idx_2))
  else
  svec_f_1_g_1_h_1_11(s_idx_1, s_idx_2) = w_0(idx)
@@ -168,7 +168,7 @@ idx = global_id
  end do
  do s_idx_1 = 1,2
  do s_idx_2 = 1,2
- if (idx+s12(s_idx_1)+s4(s_idx_2)>=1 .and. idx+s12(s_idx_1)+s4(s_idx_2)<=2139552*MM) then
+ if (idx+s12(s_idx_1)+s4(s_idx_2)>=1 .and. idx+s12(s_idx_1)+s4(s_idx_2)<=2139552_8*MM) then
  svec_f_1_g_1_h_1_12(s_idx_1, s_idx_2) = v_0(idx+s12(s_idx_1)+s4(s_idx_2))
  else
  svec_f_1_g_1_h_1_12(s_idx_1, s_idx_2) = v_0(idx)

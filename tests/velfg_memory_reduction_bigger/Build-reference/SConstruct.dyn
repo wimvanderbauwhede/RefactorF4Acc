@@ -8,12 +8,12 @@ fsources = ['module_velfg_superkernel-dyn.f95', 'velfg_driver-dyn.f95']
 #
 # '-fopenmp','-mcmodel=medium',
 FLFLAGS = ['-Ofast','-flto']
-FLFLAGS += ['-fopenmp','-DWITH_OPENMP','-mcmodel=medium','-DWM=7']
+FLFLAGS += ['-fopenmp','-DWITH_OPENMP','-mcmodel=medium','-DWM=4']
 FFLAGS = FLFLAGS + ['-Wall','-cpp','-m64','-ffree-form','-ffree-line-length-0','-fconvert=little-endian','-frecord-marker=4']#, '-fopenmp']
 
 # '-fopenmp','-mcmodel=medium',
 
 envF=Environment(F95=FC,LINK=FC,LINKFLAGS=FLFLAGS,F95FLAGS=FFLAGS,F95PATH=['.' ,'/usr/local/include']) # LINKFLAGS=['-fopenmp'],
 
-envF.Program('prog.exe',fsources,LIBS=['m'],LIBPATH=['.' ,'/usr/lib','/usr/local/lib'])
+envF.Program('prog-dyn.exe',fsources,LIBS=['m'],LIBPATH=['.' ,'/usr/lib','/usr/local/lib'])
 

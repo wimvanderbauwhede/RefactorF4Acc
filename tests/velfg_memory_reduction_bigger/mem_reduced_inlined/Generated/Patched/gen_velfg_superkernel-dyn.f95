@@ -13,7 +13,7 @@ use singleton_module_velfg_superkernel, only : velfg_superkernel
 integer :: clock_rate
 integer (kind=4), dimension(0:1) :: timestamp 
 ! END new declarations
-    integer :: global_id
+    integer*8 :: global_id
 !    ! Declarations
 #ifdef DYN_ALLOC    
 real, allocatable  :: u_0(:)
@@ -35,12 +35,12 @@ real, allocatable :: h_1(:)
 ! Moved param decl for niters in main to top of code unit
     integer :: iter
 #ifdef DYN_ALLOC  
-    allocate(u_0(1:2139552*MM))
-    allocate(v_0(1:2139552*MM))
-    allocate(w_0(1:2162808*MM))
-    allocate(f_1(1:2074891*MM))
-    allocate(g_1(1:2074891*MM))
-    allocate(h_1(1:2074891*MM))
+    allocate(u_0(1:2139552_8*MM))
+    allocate(v_0(1:2139552_8*MM))
+    allocate(w_0(1:2162808_8*MM))
+    allocate(f_1(1:2074891_8*MM))
+    allocate(g_1(1:2074891_8*MM))
+    allocate(h_1(1:2074891_8*MM))
 #endif
     u_0=0.0
     v_0=0.0
@@ -56,7 +56,7 @@ call system_clock(timestamp(0), clock_rate)
 #ifdef WITH_OPENMP
 !$OMP PARALLEL DO
 #endif      
-    do global_id = 1, 2025000*MM
+    do global_id = 1, 2025000_8*MM
       call velfg_superkernel(u_0,v_0,w_0,f_1,g_1,h_1,state_ptr,global_id)
 
     end do
@@ -65,8 +65,8 @@ call system_clock(timestamp(0), clock_rate)
 #endif      
     end do
 call system_clock(timestamp(1), clock_rate)
-print '(f6.3)',(timestamp(1)-timestamp(0))/ real(clock_rate)
-print *, f_1(2), g_1(3),h_1(4)    
+print '(f8.3)',(timestamp(1)-timestamp(0))/ real(clock_rate)
+!print *, f_1(2), g_1(3),h_1(4)    
 #ifdef DYN_ALLOC  
     deallocate(u_0)
     deallocate(v_0)

@@ -132,14 +132,14 @@ integer, parameter :: kp=90
       do state_idx = 1,5
       state_ptr=states(state_idx)
 !$OMP PARALLEL DO
-      do global_id = 1, 2025000*WM*WM
+      do global_id = 1, ip*jp*kp
         call velfg_superkernel(f,g,h,dzn,u,v,w,dx1,dy1,dzs,state_ptr, global_id, &
     diu1, diu2, diu3, diu4, diu5, diu6, diu7, diu8, diu9, &
     cov1, cov2, cov3, cov4, cov5, cov6, cov7, cov8, cov9, &
     nou1, nou5, nou9, nou2, nou3, nou4, nou6, nou7, nou8, &
     dfu1, dfv1, dfw1, sm &
                 )
-!        print *, iter,global_id
+        !print *, iter,global_id
       end do
 !$OMP END PARALLEL DO
       end do
