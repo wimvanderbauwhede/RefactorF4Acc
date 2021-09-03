@@ -1,5 +1,7 @@
 This is an example of reducing memory by eliminating intermediate arrays.
 
+## Exemplar code and impact of memory reduction
+
 The code is based on one of the key algorithms in the Large Eddy Simulator for Urban Flows.
 
 The simulator performs the following actions at every timestep (the number in parentheses is the number of full-domain 3-D arrays used):
@@ -22,9 +24,30 @@ Of these 37 arrays, only u,v,w are actual inputs to the calculation and f,g,h co
 
 Our memory reduction approach eliminates the 31 intermediate arrays entirely. In the other algorithms, there are no redundant arrays. 
 
-To illustrate the impact: assuming the GPU has 4GB of memory, then the maximum domain  for the original code was 100 MB, which translates to a domain of about 400x400 points.
-After removal of the intermediate arrays, the domain can be up to 1000x1000 points.
-As all redundant array accesses are replace by register accesses in the GPU, the resulting code is not only more memory efficient but also faster.
+[[To illustrate the impact: assuming the GPU has 4GB of memory, then the maximum domain  for the original code was 100 MB, which translates to a domain of about 400x400 points.
+After removal of the intermediate arrays, the domain can be up to 1000x1000 points.]]
+To illustrate the impact: the server used in this work has 62GB of memory. The maximum domain for the original code was 2100x2100x90 points, which corresponds to an array size of 1.5GB
+After removal of the intermediate arrays, the domain can be up to 5400x5400x90 points, an array size of 9.8GB.
+
+As all redundant array accesses are replaced by register accesses, the resulting code is not only more memory efficient but also faster, as shown in Section Evaluation
+
+## Evaluation
+
+To evaluate the performance of the memory-reduced code, we used a dual-socket Intel(R) Xeon(R) CPU E5-2640 v2 server which has 8 hyperthreaded cores per socket, so 32 hardware threads in total. The CPU frequency is 2GHz and the cache is 20MB. The server has 62GB or RAM.
+
+model name: Intel(R) Xeon(R) CPU E5-2640 v2 @ 2.00GHz
+cpu MHz: 2001.372
+cache size: 20480 KB
+siblings: 16
+cpu cores: 8
+
+We evaluated the performance of the memory-reduced code as a function of the number of threads and compared it to the reference code, i.e. the auto-parallelised code before memory reduction. Fig XXX shows the comparison for the maximum array size supported by the reference code. We observe that the memory-reduced code is twice as fast as the reference code regardless of the number of threads. Fig XXX shows the comparison for a much smaller array size (a domain of 300x300x90 points, or array size 31MB). Even with this low memory utilisation, the memory-reduced code is 50% faster than the reference regardless of the number of threads.
+
+Finally we evaluated the performance as a function of memory size for the optimal number of threads (32). From Fig XXX it is clear that the compute time is linear with the memory size until the memory limit of the system is exceeded.
+
+
+
+
 
 
 *** FIXME FIXME FIXME >>> ***
@@ -88,7 +111,8 @@ To be able to test this on the GPG cluster, I had to do two things:
 
 Some more FIXMEs: 
 - the dx1/dy1 etc start from 0 after conversion, but the indexing still uses the original index so sometimes this is -1. I need to adapt the indices to fit the 0 start or the other way round.
-
+- The i,j,k indices calculated via `_rel/_range` should all be integer*8
+- The constants in the indices should have the `_8` suffix
 Some more TODOs:
 - I should generate the OpenMP code automatically. For the memory-reduced case this is easy.
 - I need to triple-check the performance for small and large arrays, it is possible that the difference is a result of the dynamic allocation!

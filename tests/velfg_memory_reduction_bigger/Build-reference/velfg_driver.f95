@@ -14,6 +14,7 @@ integer, parameter :: kp=90
     real, dimension(0:ip,0:jp,0:kp) :: f
     real, dimension(0:ip,0:jp,0:kp) :: g
     real, dimension(0:ip,0:jp,0:kp) :: h
+    
 
     real, dimension((-1):(kp + 2)) :: dzn
     real, dimension((-1):(kp + 2)) :: dzs
