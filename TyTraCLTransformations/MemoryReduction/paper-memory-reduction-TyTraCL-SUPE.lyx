@@ -263,8 +263,8 @@ literal "false"
  with OpenMP.
  We demonstrate the effectiveness of our approach using a real-world exemplar,
  the Large Eddy Simulator for Urban flows, and show that our algorithm successfu
-lly removes 31 or 37 intermediate arrays, reducing the memory footprint
- by a factor of 6.6.
+lly removes 31 out of 37 intermediate arrays, reducing the memory footprint
+ by a factor of 6.6x.
  As stencil code is generally memory bandwidth limited, the memory-reduced
  code can actually be faster than the reference code, as evidenced by a
  speed-up of 2x for our exemplar.
