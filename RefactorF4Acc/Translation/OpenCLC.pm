@@ -258,6 +258,7 @@ Instead of the nice but cumbersome approach we had until now, from now on it is 
 	my $pass_state = {'Pointers'=>{},'Args' =>{},'LocalVars' =>{}, 'Parameters'=>{}};
 	(my $new_annlines_,$pass_state) = stateful_pass($annlines,$pass_pointer_analysis,$pass_state,"pass_pointer_analysis($f)");
 	$Sf->{'Pointers'} = $pass_state->{'Pointers'};
+
 	my $pass_translate_to_C = sub { (my $annline, my $state)=@_;
 		(my $line,my $info)=@{$annline};
 		my $c_line=$line;
@@ -975,8 +976,8 @@ sub _emit_subroutine_call_expr_C { my ($stref,$f,$info) = @_;
 	# AD-HOC, replacing abs/min/max to fabs/fmin/fmax without any type checking ... FIXME!!!
 	# The (float) cast is necessary because otherwise I get an "ambiguous" error
 	$mvar=~s/^(abs|min|max)$/(float)f$1/;
-	$mvar=~s/^am(ax|in)1$/(float)fm$1/;				
-	$mvar=~s/^alog$/(float)log/;				
+	$mvar=~s/^am(ax|in)1$/(float)fm$1/;
+	$mvar=~s/^alog$/(float)log/;
 	my $subname_C = $mvar;			
 
 	for my $call_arg_expr_str (@{$info->{'SubroutineCall'}{'Args'}{'List'}}) {
