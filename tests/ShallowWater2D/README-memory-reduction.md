@@ -16,7 +16,7 @@ The full work flow is as follows:
 * Do the memory reduction 
 4. In  `GeneratedCodeForMemoryReduction`
     - Run `memory_reduction.pl -C`. 
-    This assumes that you have [the Haskell tool `stack`] installed.
+    This assumes that you have [the Haskell tool `stack`](https://docs.haskellstack.org/en/stable/README/) installed.
     This should create the reduced file in `GeneratedCodeForMemoryReduction/MemoryReduction`
 5. In `GeneratedCodeForMemoryReduction/MemoryReduction/`:
     - Patch the kernel module, the scalarised functions and the SConstruct file:
