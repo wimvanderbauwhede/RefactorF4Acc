@@ -466,9 +466,9 @@ sub __find_vars_in_block {# warn "This should use the same code as RefactorF4A::
                                 my $subset = in_nested_set($Sf,'Vars',$var_on_line);
                                 # say "SUBSET: $subset for $var_on_line";
                                 my $decl = get_var_record_from_set($Sf->{$subset},$var_on_line);
-                                if (exists $decl->{'Dim'}) {
+                                if (exists $decl->{'Dim'} and scalar @{$decl->{'Dim'}}>0 ) { # A non-empty Dim record, so it is an array
                                     # Quick and dirty
-                                    # carp Dumper $decl->{'Dim'};
+                                    # carp "$tline => $var_on_line" .Dumper $decl->{'Dim'};
                                     my $expr_str = '('.join(',',map {$_->[0].','.$_->[1]} @{$decl->{'Dim'}}).')';
                                     
                                     my ($ast,$str,$error,$has_funcs)=parse_expression_no_context($expr_str);
