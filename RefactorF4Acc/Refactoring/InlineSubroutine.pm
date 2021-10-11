@@ -301,9 +301,15 @@ sub __merge_specification_computation_parts_into_caller { (my $stref, my $f, my 
             }
             elsif (exists $info->{'ParamDecl'}) {
                 
-                my $par_name = ref($info->{'ParamDecl'}{'Name'}) eq 'ARRAY'
+                my $par_name = exists $info->{'ParamDecl'}{'Name'} ?
+                ref($info->{'ParamDecl'}{'Name'}) eq 'ARRAY'
                 ? $info->{'ParamDecl'}{'Name'}[0]
-                : $info->{'ParamDecl'}{'Name'};
+                : $info->{'ParamDecl'}{'Name'}
+                : exists $info->{'ParamDecl'}{'Var'} ?
+                $info->{'ParamDecl'}{'Var'} : undef;
+                if (not defined $par_name) {
+                    croak Dumper($info);
+                }
                 my $subset = in_nested_set($Sf,'Vars', $par_name);
                 # say "PAR LINE: $line => $par_name => in $subset of $f ";
                 if ($subset) {
@@ -642,6 +648,9 @@ sub __rename_vars {
         # So I think I'll need a flag RENAME_PARS_IN_INLINED_SUBS in case this breaks
         elsif ( exists $info->{'ParamDecl'} and $Config{'RENAME_PARS_IN_INLINED_SUBS'}==1) { # This must be a LocalParameter
             # warn Dumper $info;
+            my $info_paramdecl = dclone($info->{'ParamDecl'});
+            $info->{'ParamDecl'} = $info_paramdecl;
+            # say "__rename_vars $f LINE: $line";
             if (exists  $info->{'ParamDecl'}{'Var'}) {
                 my $par = $info->{'ParamDecl'}{'Var'}; 
                 my $qpar = __create_new_name($par,$f);
@@ -650,6 +659,7 @@ sub __rename_vars {
 
                 $info->{'ParamDecl'}{'OrigName'}=$par;
                 $info->{'ParamDecl'}{'Name'}=$qpar;
+        
             } else {
                 my $par = ref($info->{'ParamDecl'}{'Name'}) eq 'ARRAY'
                 ? $info->{'ParamDecl'}{'Name'}[0] 
@@ -666,6 +676,8 @@ sub __rename_vars {
                 }
 
             }
+            # say Dumper  $info->{'ParamDecl'};
+            
         }
         elsif (
                 not exists $info->{'Use'}
@@ -727,6 +739,7 @@ sub __rename_vars {
 
 sub __create_new_name { my ($var,$f) = @_;
 # If the suffix is already the function name, it means we've done this already.
+        #  croak "$var,$f" if $var =~/nx/;
     if ($var=~/___/ ) {
         # croak "$var,$f";
         return $var;
@@ -999,17 +1012,18 @@ sub _remove_duplicate_declarations { my ($stref,$f) = @_;
             }
         }
         elsif (exists $info->{'ParamDecl'}) {
-            
+            # say "ParamDecl LINE: $line " .Dumper( $info->{'ParamDecl'});
             my $par_name = ref($info->{'ParamDecl'}{'Name'}) eq 'ARRAY'
             ? $info->{'ParamDecl'}{'Name'}[0]
             : $info->{'ParamDecl'}{'Name'};
             if (exists $state->{'DeclaredVars'}{$par_name}) {
-                say "_remove_duplicate_declarations $f: Delete $par_name decl: ".$line;
-                # $info->{'Deleted'}=1;
+                # say 'EXISTS:' .Dumper $state->{'DeclaredVars'}{$par_name};
+                say "_remove_duplicate_declarations $f: Delete $par_name decl: ".$line;                
                 $info ={'Deleted'=>1};
                 $line = '! '.$line;
             } else {
-                    $state->{'DeclaredVars'}{$par_name}=1;
+                # say 'SETTING DeclaredVars: '.$par_name;
+                    $state->{'DeclaredVars'}{$par_name}=111;
             }
         }            
 
