@@ -4,12 +4,18 @@ use v5.30;
 use strict;
 use warnings;
 our $V=1;
+
+# Patching for OpenCL is different 
+my $OCL=0;
+if (@ARGV && $ARGV[0] eq 'OpenCL') {
+    $OCL=1;
+}
 # To be run in mem_reduced_inlined/Generated after the inliner was run on the mem-reduced code
 
 # TODO: make sure global_id is added to args in  gen_*_superkernel.f95 and *_superkernel.f95
 
 # - Clean up
-# - Get the parames from the original superkernel
+# - Get the params from the original superkernel
 # - Find the file with the main program. It is the file starting with 'gen_'
 # - From the superkernel file, get the module name, subroutine name and stage kernel name(s)
 # - In the superkernel file, in the superkernel subroutine, add the use declarations for the stage kernels
@@ -17,8 +23,8 @@ our $V=1;
 #    - get the module line and correct the name
 # - In the stage kernel file
 #    - find all unique calls     
-# - We need to patch the call to deal with get_global_id, for now
-# - Replace `call get_global_id(idx,0,global_id)` by `idx=global_id`
+# - We need to patch the call to deal with get_global_id, for now => not for OpenCL
+# - Replace `call get_global_id(idx,0,global_id)` by `idx=global_id` => not for OpenCL
 # - Patch the _scal files
 # - We need to substitute the parameters from the original module
 # - Create a SConstruct file if it does not exists
