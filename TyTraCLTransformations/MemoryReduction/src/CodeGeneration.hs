@@ -1722,35 +1722,7 @@ generateMainProgramOrSuperkernel genModule functionSignatures ast_stages  =
         if genModule
             then (buildMainProgramForSuperkernelDef unique_stage_kernel_decls stage_kernel_calls,
                 buildSuperkernelDef unique_stage_kernel_decls stage_kernel_calls def_lines_strs)
-            else (buildMainProgramDef main_program_decl_strs' loops_over_calls def_lines_strs,("",""))
-    -- unlines $ [
-    --     "program main",
-    --     -- unlines use_statements_for_opaques,
-    --     "integer :: global_id",
-    --     "common /ocl/ global_id",
-    --     "! Declarations"
-    --     ] ++
-    --     main_program_decl_strs' ++
-    --     ["! Loops over stage calls"] ++
-    --     loops_over_calls ++
-    --     [
-    --     "end program main  "
-    --     ] ++
-    --     [
-    --     "",
-    --     "subroutine get_global_id(idx,dim)",
-    --     "    "++"integer, intent(out) :: idx",
-    --     "    "++"integer, intent(in) :: dim",
-    --     "    "++"integer :: global_id",
-    --     "    "++"common /ocl/ global_id",
-    --     "    "++"idx = global_id",
-    --     "end subroutine get_global_id",
-    --     ""
-    --     ] ++
-    --     def_lines_strs
-    --     ++ [
-    --         ""
-    --     ]
+            else (buildMainProgramDef main_program_decl_strs' loops_over_calls def_lines_strs,("",""))    
 
 -- A helper which nubs a list of FDecls ignoring the Intent        
 nubDeclList :: [FDecl] -> [FDecl]
@@ -1876,7 +1848,7 @@ buildMainProgramForSuperkernelDef unique_stage_kernel_decls stage_kernel_calls =
         "program main",
         "    use module_"++superkernelName++", only : "++superkernelName,
         "    integer :: global_id",
-        "    common /ocl/ global_id",
+        "    ! common /ocl/ global_id",
         "    ! Declarations"
         ] ++
         main_program_decl_strs ++
@@ -1928,7 +1900,6 @@ buildSuperkernelDef unique_stage_kernel_decls stage_kernel_calls subdef_lines_st
             "end subroutine "++superkernelName
             ] ++ [""] ++
             subdef_lines_strs
-            -- ++ getGlobalIdDefStrs            
             ,
                 "end module module_"++superkernelName
             )
