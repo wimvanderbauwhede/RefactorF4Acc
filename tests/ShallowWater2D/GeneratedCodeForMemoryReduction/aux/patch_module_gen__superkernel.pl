@@ -11,7 +11,7 @@ if ($wd!~/MemoryReduction$/) {
 }
 
 my $for_inlining = 0;
-if (@ARGV) { 
+if (@ARGV) {
 
 if ($ARGV[0] eq '-i') {
     $for_inlining = 1;
@@ -22,7 +22,7 @@ else {
 
 }
 
-my $get_global_id='    
+my $get_global_id='
     subroutine get_global_id(idx,dim)
     integer, intent(out) :: idx
     integer, intent(in) :: dim
@@ -33,7 +33,7 @@ my $get_global_id='
     end subroutine get_global_id
 ';
 
-my $module_global_id='    
+my $module_global_id='
 module module_global_id
     contains
     subroutine get_global_id(idx,dim)
@@ -45,7 +45,7 @@ module module_global_id
         idx = global_id
     end subroutine get_global_id
 
-end module module_global_id    
+end module module_global_id
 ';
 
 if (not -e 'Generated/module_global_id.f95') {
@@ -56,7 +56,7 @@ close $MG;
     unlink 'Generated/module_global_id.f95';
 }
 
-my @superkernel_files=glob('Generated/module_gen_*_superkernel.f95');
+my @superkernel_files=glob('Generated/module_*_superkernel.f95');
 if (scalar @superkernel_files>1) {
     die 'Too many superkernel files!';
 }
@@ -73,14 +73,14 @@ my %stage_kernel_args=();
 my $has_global_id_decl=0;
 
 for my $line (@superkernel_file_lines) {
-        if (not $for_inlining and $line=~/^module module/) { 
+        if (not $for_inlining and $line=~/^module module/) {
             print $SKMF $line;
             print $SKMF 'use module_global_id'."\n";
             next;
         }
     # if ($line=~/integer\s*,\s*intent\(\w+\)\s+::\s+global_id/) {
     # $has_global_id_decl=1
-    # }        
+    # }
     if ($line=~/subroutine\s+stage_kernel_\d+\(([\w,\s]+)\)/) {
         my $args_str = $1;
         my @args = split(/\s*,\s*/,$args_str);
