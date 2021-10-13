@@ -39,7 +39,7 @@ nou9
 sm
 );
 
-my $get_global_id='    
+my $get_global_id='
     subroutine get_global_id(idx,dim)
     integer, intent(out) :: idx
     integer, intent(in) :: dim
@@ -64,8 +64,8 @@ close $SKMF;
 open $SKMF, '>', "$superkernel_file" or die "$!";
 
 for my $line (@superkernel_file_lines) {
-    
-    if ($line=~/intent.+?::\s+(\w+)/) { 
+
+    if ($line=~/intent.+?::\s+(\w+)/) {
         my $var = $1;
         if (exists $temp_vars{$var}) {
             $line=~s/\s*,\s*intent\(\w+\)//;
