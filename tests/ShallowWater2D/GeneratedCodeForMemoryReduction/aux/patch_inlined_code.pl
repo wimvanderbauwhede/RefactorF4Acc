@@ -155,8 +155,9 @@ for my $stage_kernel_name (@stage_kernel_names) {
         if ($line=~/^\s*call\s+(\w+?_scal)/) {
             my $scal_f_name=$1;
             $scalar_functions{$scal_f_name}=1;
-            # We need to patch the call to deal with get_global_id, for now
-            $line=~s/$scal_f_name\s*\(/$scal_f_name(global_id,/
+            if (!$OCL) {
+                $line=~s/$scal_f_name\s*\(/$scal_f_name(global_id,/
+            }
         }
     }
     open $SKF, '>', "Patched/$stage_kernel_file" or die $!;
@@ -168,7 +169,7 @@ for my $stage_kernel_name (@stage_kernel_names) {
         if ($line=~/integer\s*,\s*intent\(\w+\)\s+::\s+global_id/) {
             $has_global_id_decl=1
             }        
-        # replace `call get_global_id(idx,0,global_id)` by `idx=global_id`
+            if (!$OCL) {
         if ($line=~/subroutine\s+stage_kernel_\d+\(([\w,\s]+)\)/) {
             my $args_str = $1;
             my @args = split(/\s*,\s*/,$args_str);
@@ -176,6 +177,7 @@ for my $stage_kernel_name (@stage_kernel_names) {
             $line=~s/\)\s*$/,global_id)/;
             $line.="\n";
         }
+    }
         if ($line=~/intent\(\w+\)\s*::\s*(\w+)/) {
             my $var = $1;
             if (not exists $stage_kernel_args{$var}) {
@@ -184,7 +186,9 @@ for my $stage_kernel_name (@stage_kernel_names) {
         }
         if ($line=~/integer :: global_id___/) {next;}
         $line=~s/global_id___\w+\b/global_id/g;
+        # replace `call get_global_id(idx,0,global_id)` by `idx=global_id`
         if ($line=~/^\s*call\s+get_global_id/ ) {
+        if (!$OCL) {
             if ( $first_call_to_get_global_id) {
                 say $SKF "integer, intent(In) :: global_id" unless $has_global_id_decl;
                 say $SKF "idx = global_id"; 
@@ -192,6 +196,7 @@ for my $stage_kernel_name (@stage_kernel_names) {
             } else {
                 next;
             }
+        }
         } else {
             print $SKF $line;
         }
@@ -222,21 +227,29 @@ for my $scal_f_name (sort keys %scalar_functions) {
             }
         }
         if ($line=~/integer\s+::\s+global_id/) {
-            $line=~s/integer/integer, intent(In)/;
+            $line=~s/integer/integer, intent(In)/ unless $OCL;
             $has_global_id_decl=1
             }
         if ($line=~/subroutine\s+$scal_f_name\s*\(/) {
-            $line=~s/$scal_f_name\s*\(/$scal_f_name(global_id,/;
+            $line=~s/$scal_f_name\s*\(/$scal_f_name(global_id,/ unless $OCL;
             $line=~s/subroutine/pure subroutine/;
-        } elsif ($line=~/get_global_id/) {
+        } elsif (!$OCL and $line=~/get_global_id/) {
             $line = '!'.$line;
         }
         if ($line=~/globalIdInitialisation/ and $has_global_id_decl==0) {
-            say $SFF "integer, intent(In) :: global_id";
+            if (!$OCL) {
+                say $SFF "integer, intent(In) :: global_id";
+            } else {
+            say $SFF "integer :: global_id";
+        }
             $has_global_id_decl=1;
         }
         if ($line!~/::/ and $line=~/=/ and $first_decl==1 and $has_global_id_decl==0) { 
+            if (!$OCL) {
             say $SFF "integer, intent(In) :: global_id";
+        } else {
+            say $SFF "integer :: global_id";
+        }
             $has_global_id_decl=1;
             $first_decl=0;
         }
