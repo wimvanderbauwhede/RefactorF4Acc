@@ -68,9 +68,9 @@ main = do
             putStrLn "\n-- Apply rewrite rules"
             mapM_ print ast3
             putStrLn "\n-- Fuse stencils"
-            mapM_ print ast3''    
+            mapM_ print ast3''
             putStrLn "\n-- Regroup tuples"
-            mapM_ print ast3' 
+            mapM_ print ast3'
             putStrLn "\n-- Decompose expressions and infer function signatures"
             mapM_ ( \((x1,x2),ct) -> do                
                 if not (null (x2 \\ functionSignaturesList)) then
@@ -92,7 +92,11 @@ main = do
             mapM_ (putStrLn . ppFSig) functionSignaturesList
             putStrLn "\n-- Original TyTraCL code"
             mapM_ putStrLn $ ppAST ast
-            putStrLn "\n-- Decomposed expressions and inferred function signatures"
+            putStrLn "\n-- Fuse stencils"
+            mapM_ putStrLn $ ppAST ast3''
+            putStrLn "\n-- Regroup tuples"       
+            mapM_ putStrLn $ ppAST ast3'
+            putStrLn "\n-- Decomposed expressions and inferred function signatures"            
             mapM_ (
                  \((x1,x2),ct) -> do
                 if not (null (x2 \\ functionSignaturesList)) then
@@ -109,6 +113,7 @@ main = do
                 -- ) [(( ast5, inferedSignatures),0)]
             putStrLn "\n-- Common subexpression elimination\n"
             mapM_ (putStr . unlines . ppAST) ast6
+
 
         else return ()     
 

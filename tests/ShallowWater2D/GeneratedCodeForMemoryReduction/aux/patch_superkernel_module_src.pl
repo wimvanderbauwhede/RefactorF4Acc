@@ -5,8 +5,9 @@ use warnings;
 
 # WV: This patches the generated kernel source so that it can be built for reference.
 
+# For the 2-D Shallow Water, the input arrays are wet, hzero and the outputs eta, h, u, v
+# etan, un and vn are internal
 # Remove the intent from arrays that are not args
-# Add definition of get_global_id
 my @temp_var_list=qw(
 cov1
 cov2
@@ -39,16 +40,16 @@ nou9
 sm
 );
 
-my $get_global_id='
-    subroutine get_global_id(idx,dim)
-    integer, intent(out) :: idx
-    integer, intent(in) :: dim
-    integer :: global_id
-    common /ocl/ global_id
-    idx = dim ! dummy
-    idx = global_id
-    end subroutine get_global_id
-';
+# my $get_global_id='
+#     subroutine get_global_id(idx,dim)
+#     integer, intent(out) :: idx
+#     integer, intent(in) :: dim
+#     integer :: global_id
+#     common /ocl/ global_id
+#     idx = dim ! dummy
+#     idx = global_id
+#     end subroutine get_global_id
+# ';
 
 my %temp_vars = map {$_ => 1} @temp_var_list;
 my @superkernel_files=glob('../module_*_superkernel.f95');
@@ -60,7 +61,8 @@ my $superkernel_file = shift @superkernel_files;
 open my $SKMF, '<', $superkernel_file or die $!;
 my @superkernel_file_lines = <$SKMF>;
 close $SKMF;
-    $superkernel_file=~s/^\.\.\///;
+
+$superkernel_file=~s/^\.\.\///;
 open $SKMF, '>', "$superkernel_file" or die "$!";
 
 for my $line (@superkernel_file_lines) {
@@ -72,9 +74,9 @@ for my $line (@superkernel_file_lines) {
         }
     }
     print $SKMF $line;
-    if ($line=~/^\s*contains\s*$/) {
-        print $SKMF $get_global_id;
-    }
+    # if ($line=~/^\s*contains\s*$/) {
+    #     print $SKMF $get_global_id;
+    # }
 
 }
 close $SKMF;

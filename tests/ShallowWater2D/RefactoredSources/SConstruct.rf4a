@@ -1,10 +1,10 @@
 # Generated build script for refactored source code
-# Mon Oct 11 16:25:03 2021
+# Thu Oct 14 13:04:53 2021
 import os
 
 FC=os.environ.get('FC')
 
-fsources = ['./dyn.f95','./dyn_shapiro_update.f95','./init.f95','./main.f95','./param.f95','./shapiro.f95','./sub.f95']
+fsources = ['./dyn.f95','./dyn_shapiro.f95','./init.f95','./main.f95','./param.f95','./shapiro.f95','./sub.f95']
 
 
 

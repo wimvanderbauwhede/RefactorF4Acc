@@ -3,7 +3,7 @@ module Transforms (splitLhsTuples, substituteVectors, applyRewriteRules, fuseSte
 import Data.Generics (Data, Typeable, mkQ, mkT, mkM, gmapQ, gmapT, everything, everywhere, everywhere', everywhereM)
 import Control.Monad.State
 import qualified Data.Map.Strict as Map
-import Data.List (intercalate,foldl')
+import Data.List (intercalate,foldl',nub)
 
 import TyTraCLAST
 import CallReduction ( reduceCalls )
@@ -322,11 +322,13 @@ fuseStencils ast
             in    
                 (nm+m, ast_acc++[(lhs,rhs')])
             ) (0,[]) ast
-
+            
 regroupTuples ast = let            
+    -- If the RHS is Elt n, we check if the LHS is in the map `acc`
+    -- If so, we add the `(lhs,n)` tuple to the map
         regrouped_tuples_map = foldl (
             \acc (lhs,rhs) -> case rhs of
-                Elt n expr -> if Map.member expr acc 
+                Elt n expr -> if Map.member expr acc
                     then 
                         let
                             lst = acc ! expr
@@ -335,7 +337,7 @@ regroupTuples ast = let
                         else 
                             Map.insert expr [(lhs,n)] acc
                 _ -> acc    
-            ) Map.empty ast
+            ) Map.empty ast        
         non_elt_ast = filter (\(lhs,rhs) -> case rhs of
                     Elt _ _ -> False
                     _ -> True
@@ -355,7 +357,7 @@ regroupTuplesMap ast = let
         regrouped_map_tuples_map = foldl (
             \acc (lhs,rhs) -> case rhs of
                 Map (Comp (PElt n) f_expr) v_expr -> let
-                        t = (f_expr,v_expr)
+                        t = (erase_Id_names f_expr,v_expr)
                   in
                     if Map.member t acc 
                       then 
@@ -365,12 +367,34 @@ regroupTuplesMap ast = let
                             Map.adjust (\lst -> lst++[(lhs,n)]) t acc
                       else 
                             Map.insert t [(lhs,n)] acc
+                -- FIXME: of course there could be even more nested Comp expressions!
+                -- A better approach would probably be to have Comps [exprs]
+                -- and then 
+                -- Map (Comps (PElt n):f_exprs)
+                -- which would then become Comps f_exprs 
+                Map (Comp (Comp (PElt n) f1_expr) f2_expr) v_expr -> let
+                        t = (erase_Id_names (Comp f1_expr f2_expr),v_expr)
+                  in
+                    if Map.member t acc 
+                      then 
+                        let
+                            lst = acc ! t
+                        in
+                            Map.adjust (\lst -> lst++[(lhs,n)]) t acc
+                      else 
+                            Map.insert t [(lhs,n)] acc                            
                 _ -> acc    
             ) Map.empty ast
-        non_map_ast = filter (\(lhs,rhs) -> case rhs of
-                    Map _ _ -> False
-                    _ -> True
-                ) ast
+        regrouped_lhs_exprs = nub $ map fst $ concat (Map.elems regrouped_map_tuples_map)
+        -- This is not right: there can be occurences of Map and even Map Comp without PElt
+        -- non_map_ast' = filter (\(lhs,rhs) -> case rhs of
+        --             Map _ _ -> False
+        --             _ -> True
+        --         ) ast
+        -- So instead we filter the expressions that were grouped.
+        non_grouped_map_ast = filter (
+                \(lhs,rhs) -> lhs `notElem` regrouped_lhs_exprs
+            ) ast                
         tuples_ast = map (\rhs_expr_t -> 
             let
                 (f_expr,v_expr) = rhs_expr_t
@@ -380,10 +404,17 @@ regroupTuplesMap ast = let
                 rhs_expr' = Map (Comp (PElts idxs) f_expr) v_expr
             in 
                 (Tuple lhs_exprs,UnzipT rhs_expr')
-            ) (Map.keys regrouped_map_tuples_map)
+            ) (Map.keys regrouped_map_tuples_map) -- (warning regrouped_map_tuples_map (show regrouped_map_tuples_map)) )
     in            
-        non_map_ast ++ tuples_ast
+        non_grouped_map_ast ++ tuples_ast -- (warning tuples_ast (show tuples_ast))
 
+
+erase_Id_names :: Expr -> Expr
+erase_Id_names = everywhere (mkT ( \expr -> case expr of
+            Id _ e -> Id "id" e
+            e -> e
+        )
+    )         
 {-
         if (exists $unique_names_for_stencils{$stencil_definition}) {
             $stencil_names_to_unique_names{$stencil_name} = $unique_names_for_stencils{$stencil_definition}

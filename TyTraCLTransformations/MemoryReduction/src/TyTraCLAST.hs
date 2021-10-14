@@ -213,6 +213,7 @@ ppRHSExpr (ZipT xs) = "zipt ("++(intercalate ", " (map ppRHSExpr xs))++")"
 ppRHSExpr (UnzipT x) = "unzipt ("++(ppRHSExpr x)++")"
 ppRHSExpr (Elt idx x) =  "elt "++(show idx)++" "++(ppRHSExpr x)
 ppRHSExpr (PElt idx) = "pelt "++(show idx)++" "
+ppRHSExpr (PElts idxs) = "pelts ("++ (intercalate ", " (map show idxs))++") "
 ppRHSExpr (Map f v) = "map " ++ (ppRHSExpr f) ++ " " ++ (ppRHSExpr v)
 ppRHSExpr (Fold f acc v) = "fold " ++ (ppRHSExpr f)  ++ " " ++ (ppRHSExpr acc) ++ " " ++ (ppRHSExpr v)
 ppRHSExpr (Stencil s v) = "stencil " ++ (ppRHSExpr s)++" "++(ppRHSExpr v)
@@ -222,6 +223,7 @@ ppRHSExpr (Function fname xs) = let
     if null non_map_args then fname else  "("++fname++" " ++ (unwords non_map_args)++")" 
 ppRHSExpr (Id _ _) = "id "
 ppRHSExpr (ApplyT xs)  = "applyt ("++(intercalate ", " (map ppRHSExpr xs))++")"
+ppRHSExpr (RApplyT idxs xs)  = "rapplyt "++(show idxs)++ " (" ++ (intercalate ", " (map ppRHSExpr xs))++")"
 ppRHSExpr (MapS s f) = "maps "++(ppRHSExpr s)++" "++ (ppRHSExpr f)
 ppRHSExpr (Comp f2 f1) = "comp "++(ppRHSExpr f2) ++" "++(ppRHSExpr f1)
 ppRHSExpr (FComp f2 f1) = "fcomp "++(ppRHSExpr f2) ++" "++(ppRHSExpr f1)

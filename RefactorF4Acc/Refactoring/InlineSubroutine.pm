@@ -293,7 +293,7 @@ sub __merge_specification_computation_parts_into_caller { (my $stref, my $f, my 
                 my $var_name = $info->{'VarDecl'}{'Name'};
                 my $subset = in_nested_set($Sf,'Vars', $var_name);
                 if ($subset) {
-                    say "__merge_specification_computation_parts_into_caller $f => $sub => $subset => Delete $var_name decl: ".$line;
+                    say "__merge_specification_computation_parts_into_caller $f => $sub => $subset => Delete $var_name decl: ".$line if $DBG;
                     # croak if $line=~/[fgh]_1/ and $line!~/dimension/;
                     $rinfo={%{$info},'Deleted'=>1};
                     $line = '! '.$line;
@@ -313,7 +313,7 @@ sub __merge_specification_computation_parts_into_caller { (my $stref, my $f, my 
                 my $subset = in_nested_set($Sf,'Vars', $par_name);
                 # say "PAR LINE: $line => $par_name => in $subset of $f ";
                 if ($subset) {
-                     say "__merge_specification_computation_parts_into_caller $f => $sub => $subset => Delete $par_name decl: ".$line;
+                     say "__merge_specification_computation_parts_into_caller $f => $sub => $subset => Delete $par_name decl: ".$line if $DBG;
                     $rinfo={%{$info},'Deleted'=>1};
                     $line = '! '.$line;
                 }                

@@ -95,7 +95,7 @@ DO n = 1,ntot
 
 time = REAL(n)*dt
 
-!$ACC Subroutine dyn_shapiro_update
+!$ACC Subroutine dyn_shapiro
 !$ACC Begin Inline 
 ! call predictor
 CALL dyn
@@ -104,17 +104,18 @@ CALL dyn
 
 CALL shapiro
 
-DO j = 0,ny+1
-DO k = 0,nx+1
-  h(j,k) = hzero(j,k) + eta(j,k)
-  wet(j,k) = 1
-  IF (h(j,k)<hmin) wet(j,k) = 0
-  u(j,k) = un(j,k)
-  v(j,k) = vn(j,k)
-END DO
-END DO
 !$ACC End Inline
-!$ACC End Subroutine dyn_shapiro_update
+!$ACC End Subroutine dyn_shapiro
+
+DO j = 0,ny+1
+  DO k = 0,nx+1
+    h(j,k) = hzero(j,k) + eta(j,k)
+    wet(j,k) = 1
+    IF (h(j,k)<hmin) wet(j,k) = 0
+    u(j,k) = un(j,k)
+    v(j,k) = vn(j,k)
+  END DO
+END DO
 
 ! data output
 ! Only write once at the end
