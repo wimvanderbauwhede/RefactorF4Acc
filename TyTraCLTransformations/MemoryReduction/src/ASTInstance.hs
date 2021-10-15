@@ -22,12 +22,12 @@ ast = [
        ,( (Tuple [Vec VO (Scalar VDC DFloat "un_1"),Vec VO (Scalar VDC DFloat "vn_1")]), UnzipT ( Map (Function "dyn_shapiro_map_55" []) (ZipT [Vec VI (Scalar VDC DFloat "u_0"),Vec VT (Scalar VDC DFloat "du___dyn_1"),Vec VS (SVec 3 (Scalar VDC DInt "wet_s_0")),Vec VI (Scalar VDC DFloat "v_0"),Vec VT (Scalar VDC DFloat "dv___dyn_1")]) ) )
         -- dyn_shapiro_map_75
        ,(Vec VS (SVec 2 (Scalar VDC DFloat "un_s_0" )) , Stencil (SVec 2 (Scalar VDC DInt "s3")) (Vec VO (Scalar VDC DFloat "un_1")))
-       ,(Vec VS (SVec 5 (Scalar VDC DFloat "h_s_0" )) , Stencil (SVec 5 (Scalar VDC DInt "s4")) (Vec VI (Scalar VDC DFloat "h_0")))
-       ,(Vec VS (SVec 2 (Scalar VDC DFloat "vn_s_0" )) , Stencil (SVec 2 (Scalar VDC DInt "s5")) (Vec VO (Scalar VDC DFloat "vn_1")))
+       ,(Vec VS (SVec 2 (Scalar VDC DFloat "vn_s_0" )) , Stencil (SVec 2 (Scalar VDC DInt "s4")) (Vec VO (Scalar VDC DFloat "vn_1")))
+       ,(Vec VS (SVec 5 (Scalar VDC DFloat "h_s_0" )) , Stencil (SVec 5 (Scalar VDC DInt "s5")) (Vec VI (Scalar VDC DFloat "h_0")))
        ,( Vec VT (Scalar VDC DFloat "etan_1"), Map (Function "dyn_shapiro_map_75"  [Scalar VI DFloat "dt_0",Scalar VI DFloat "dx_0",Scalar VI DFloat "dy_0"]) (ZipT [Vec VS (SVec 2 (Scalar VDC DFloat "un_s_0")),Vec VS (SVec 5 (Scalar VDC DFloat "h_s_0")),Vec VS (SVec 2 (Scalar VDC DFloat "vn_s_0")),Vec VI (Scalar VDC DFloat "eta_0")]) )
         -- dyn_shapiro_map_92
-       ,(Vec VS (SVec 5 (Scalar VDC DFloat "etan_s_0" )) , Stencil (SVec 5 (Scalar VDC DInt "s4")) (Vec VT (Scalar VDC DFloat "etan_1")))
-       ,(Vec VS (SVec 5 (Scalar VDC DInt "wet_s_1" )) , Stencil (SVec 5 (Scalar VDC DInt "s4")) (Vec VI (Scalar VDC DInt "wet_0")))
+       ,(Vec VS (SVec 5 (Scalar VDC DFloat "etan_s_0" )) , Stencil (SVec 5 (Scalar VDC DInt "s5")) (Vec VT (Scalar VDC DFloat "etan_1")))
+       ,(Vec VS (SVec 5 (Scalar VDC DInt "wet_s_1" )) , Stencil (SVec 5 (Scalar VDC DInt "s5")) (Vec VI (Scalar VDC DInt "wet_0")))
        ,( Vec VO (Scalar VDC DFloat "etann_1"), Map (Function "dyn_shapiro_map_92"  [Scalar VI DFloat "eps_0"]) (ZipT [Vec VS (SVec 5 (Scalar VDC DInt "wet_s_1")),Vec VS (SVec 5 (Scalar VDC DFloat "etan_s_0"))]) )
         ]
 
@@ -37,18 +37,18 @@ functionSignaturesList = [
         ("dyn_shapiro_map_75",  [Tuple [Scalar VI DFloat "dt_0",Scalar VI DFloat "dx_0",Scalar VI DFloat "dy_0"],Tuple [SVec 2 (Scalar VDC DFloat "un_s_0"),SVec 5 (Scalar VDC DFloat "h_s_0"),SVec 2 (Scalar VDC DFloat "vn_s_0"),Scalar VI DFloat "eta_0"],Scalar VT DFloat "etan_1"]),
         ("dyn_shapiro_map_92",  [Scalar VI DFloat "eps_0",Tuple [SVec 5 (Scalar VDC DInt "wet_s_1"),SVec 5 (Scalar VDC DFloat "etan_s_0")],Scalar VO DFloat "etann_1"])
     ]
-stencilDefinitionsList = [("s1" , [503,504,1005] ), ("s3" , [1,503] ), ("s4" , [1,502,503,504,1005] ), ("s5" , [502,503] )]
+stencilDefinitionsList = [("s1" , [503,504,1005] ), ("s3" , [1,503] ), ("s4" , [502,503] ), ("s5" , [1,502,503,504,1005] )]
 
 mainArgDeclsList = [
-      ("h_0" , MkFDecl "real"  (Just [252004]) (Just In) ["h_0"] )
-    , ("dx_0" , MkFDecl "real" Nothing (Just In) ["dx_0"] )
-    , ("g_0" , MkFDecl "real" Nothing (Just In) ["g_0"] )
-    , ("dy_0" , MkFDecl "real" Nothing (Just In) ["dy_0"] )
-    , ("v_0" , MkFDecl "real"  (Just [252004]) (Just In) ["v_0"] )
+      ("g_0" , MkFDecl "real" Nothing (Just In) ["g_0"] )
     , ("eta_0" , MkFDecl "real"  (Just [252004]) (Just In) ["eta_0"] )
+    , ("dy_0" , MkFDecl "real" Nothing (Just In) ["dy_0"] )
+    , ("wet_0" , MkFDecl "integer"  (Just [252004]) (Just In) ["wet_0"] )
+    , ("dx_0" , MkFDecl "real" Nothing (Just In) ["dx_0"] )
+    , ("h_0" , MkFDecl "real"  (Just [252004]) (Just In) ["h_0"] )
     , ("eps_0" , MkFDecl "real" Nothing (Just In) ["eps_0"] )
     , ("u_0" , MkFDecl "real"  (Just [252004]) (Just In) ["u_0"] )
-    , ("wet_0" , MkFDecl "integer"  (Just [252004]) (Just In) ["wet_0"] )
+    , ("v_0" , MkFDecl "real"  (Just [252004]) (Just In) ["v_0"] )
     , ("dt_0" , MkFDecl "real" Nothing (Just In) ["dt_0"] )
     , ("un_1" , MkFDecl "real"  (Just [252004]) (Just Out) ["un_1"] )
     , ("etann_1" , MkFDecl "real"  (Just [252004]) (Just Out) ["etann_1"] )
@@ -104,10 +104,10 @@ main (eta_0,dt_0,g_0,dx_0,dy_0,wet_0,u_0,v_0,h_0,eps_0) =
      -- dyn_shapiro_map_75
     s3 = [1,503]
     un_s_0 = stencil s3 un_1
-    s4 = [1,502,503,504,1005]
-    h_s_0 = stencil s4 h_0
-    s5 = [502,503]
-    vn_s_0 = stencil s5 vn_1
+    s4 = [502,503]
+    vn_s_0 = stencil s4 vn_1
+    s5 = [1,502,503,504,1005]
+    h_s_0 = stencil s5 h_0
     etan_1 =  map (dyn_shapiro_map_75 (dt_0,dx_0,dy_0)) (zipt (un_s_0,h_s_0,vn_s_0,eta_0))
      -- dyn_shapiro_map_92
     s6 = [1,502,503,504,1005]

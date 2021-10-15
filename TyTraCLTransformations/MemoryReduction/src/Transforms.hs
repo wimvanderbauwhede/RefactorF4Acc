@@ -536,9 +536,18 @@ fuse_stencils (ZipT v_exprs) =
         (if sum ms > 0 then 1 else 0, ZipT v_exprs' )
 fuse_stencils v_expr = (0,v_expr)
 
+-- TODO: If we do this, then wherever there is a match on Comp we need a match on Comps as well
+-- unless we simply remove Comp by Comps
+-- Maybe a better approach would be to do this higher up and *always* *only* have Comps
+fuse_comp (Comp (Comp e1 e2) e3) = Comps [e1,e2,e3]
+fuse_comp (Comp (Comps e1s) (Comps e2s)) = Comps (e1s++e2s)
+fuse_comp (Comp (Comps es) e) = Comps (es++[e])
+fuse_comp (Comp e (Comps es)) = Comps (e:es)
+fuse_comp e = e
 
-    
-
+-- The actual substitution with `everywhere`
+fuse_all_Comp_exprs :: Expr -> Expr
+fuse_all_Comp_exprs  = everywhere (mkT fuse_comp) 
 -- map_checks :: TyTraCLAST -> [Int]
 -- map_checks ast = filter (/=0) $ map  (\(lhs,rhs) -> n_map_subexprs rhs) ast
 
