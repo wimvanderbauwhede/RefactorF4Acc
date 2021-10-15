@@ -1,0 +1,1 @@
+{"vars":[{"line":1,"name":"warnings","containerName":"","kind":2},{"line":2,"name":"strict","kind":2,"containerName":""},{"line":4,"name":"Main","containerName":"RefactorF4Acc","kind":2},{"name":"main","line":7,"kind":12}],"version":5}
