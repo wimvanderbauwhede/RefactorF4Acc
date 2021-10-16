@@ -898,17 +898,29 @@ generateSubDefRApplyT f_exps idx_s rapplyt_fname functionSignatures ast =
         calls_non_map_args =  map getVarNames calls_nmsfn
         calls_in_args =  map getVarNames calls_msfn
         calls_out_args =  map getVarNames calls_osfn
-        calls_out_args' = fst $ foldl' (\(calls_out_args', calls_out_args) idxlst -> let
-                    n_args = length idxlst
-                    out_args_chunk = take n_args calls_out_args    
-                    out_args_rest = drop  n_args calls_out_args    
-                in 
-                    (calls_out_args'++[out_args_chunk],out_args_rest)
-            ) ([], concat calls_out_args) idx_s
+        -- calls_out_args' = fst $ foldl' (\(calls_out_args', calls_out_args) idxlst -> let
+        --             n_args = length idxlst
+        --             out_args_chunk = take n_args calls_out_args    
+        --             out_args_rest = drop  n_args calls_out_args    
+        --         in 
+        --             (calls_out_args'++[out_args_chunk],out_args_rest)
+        --     ) ([], concat calls_out_args) idx_s
+        calls_out_args' = map (\idx_tup -> concatMap (\idx -> calls_out_args !! idx ) idx_tup) idx_s    
         fsig_names_tups = zip4 f_exps calls_non_map_args calls_in_args calls_out_args'
 
     in
-        -- error $ show (f_exps, idx_s, calls_out_args')
+        -- error $ show (f_exps, idx_s, calls_out_args',calls_out_args)
+        -- Here `calls_out_args'` is already wrong, it should have been 
+        -- u_0_out 
+        -- du___dyn_1,dv___dyn_1 
+        -- wet_0_out 
+        -- v_0_out 
+        -- calls_out_args = [["u_0_out"],["du___dyn_1"],["wet_0_out"],["v_0_out"],["dv___dyn_1"]]
+        -- So, in the above I really should use `!!` to get the elements
+        -- MemoryReduction-exe: (
+        --     [Id "id_0" [],Function "f_pelts_un_1_vn_1_0" [],Id "id_1" [],Id "id_2" []],
+        --     [[0],[1,4],[2],[3]],
+        --     [["u_0_out"],["du___dyn_1","wet_0_out"],["v_0_out"],["dv___dyn_1"]])        
         (buildSubDef ""
             rapplyt_fname
             [non_map_args'',in_args'',out_args'']
@@ -1546,6 +1558,7 @@ getFSigs fs functionSignatures = zipWith (curry (\(f_expr, idx) -> case f_expr o
                    (Id fname dt) ->  case Map.lookup fname functionSignatures  of
                        Just sig -> sig
                        Nothing -> [Tuple [],Tuple [],Tuple []] -- error $ "getFSigs: no entry for Id "++fname     
+                    --    Nothing -> error $ "getFSigs: no entry for Id "++fname     
                    _ -> error $ show f_expr -- keep hlint happy       
             -- [Tuple [], setName ("id_in_"++(show idx)) dt, setName ("id_out_"++(show idx)) dt ]
     )) fs [1..]

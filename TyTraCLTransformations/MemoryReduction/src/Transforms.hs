@@ -353,36 +353,62 @@ regroupTuples ast = let
     in            
         tuples_ast ++ non_elt_ast_regrouped_map_tuples
 
+-- This needs to come in place of the expression 
+update_acc_with_erased_Id acc t' lhs n = let
+    (acc', updated') = foldl (\(acc_,updated_) t_ -> let
+                (f_expr,v_expr) = t_
+                (f_expr',v_expr') = t'
+            in
+                if (erase_Id_names f_expr,v_expr) == (erase_Id_names f_expr',v_expr') 
+                    then                        
+                        -- the value at key `t` can be updated
+                        let
+                            lst = acc_ ! t_
+                        in
+                            (Map.adjust (\lst -> lst++[(lhs,n)]) t_ acc_                        
+                            ,True)
+                    else
+                            (acc_,updated_)
+        ) (acc,False) (Map.keys acc)
+    in
+        if updated' then acc' else Map.insert t' [(lhs,n)] acc
+
+-- FIXME: erasing Id names is WRONG!        
 regroupTuplesMap ast = let            
         regrouped_map_tuples_map = foldl (
             \acc (lhs,rhs) -> case rhs of
-                Map (Comp (PElt n) f_expr) v_expr -> let
-                        t = (erase_Id_names f_expr,v_expr)
-                  in
-                    if Map.member t acc 
-                      then 
-                        let
-                            lst = acc ! t
-                        in
-                            Map.adjust (\lst -> lst++[(lhs,n)]) t acc
-                      else 
-                            Map.insert t [(lhs,n)] acc
+                Map (Comp (PElt n) f_expr) v_expr -> update_acc_with_erased_Id acc (f_expr,v_expr) lhs n
+                -- let
+                --         t = (erase_Id_names f_expr,v_expr) -- remove this erase_...
+                --   in
+                
+                --       -- replace by update_acc_with_erased_Id
+                --     if Map.member t acc 
+                --       then 
+                --         let
+                --             lst = acc ! t
+                --         in
+                --             Map.adjust (\lst -> lst++[(lhs,n)]) t acc
+                --       else 
+                --             Map.insert t [(lhs,n)] acc
                 -- FIXME: of course there could be even more nested Comp expressions!
                 -- A better approach would probably be to have Comps [exprs]
                 -- and then 
                 -- Map (Comps (PElt n):f_exprs)
                 -- which would then become Comps f_exprs 
-                Map (Comp (Comp (PElt n) f1_expr) f2_expr) v_expr -> let
-                        t = (erase_Id_names (Comp f1_expr f2_expr),v_expr)
-                  in
-                    if Map.member t acc 
-                      then 
-                        let
-                            lst = acc ! t
-                        in
-                            Map.adjust (\lst -> lst++[(lhs,n)]) t acc
-                      else 
-                            Map.insert t [(lhs,n)] acc                            
+                Map (Comp (Comp (PElt n) f1_expr) f2_expr) v_expr -> update_acc_with_erased_Id acc (Comp f1_expr f2_expr,v_expr) lhs n
+                --     let
+                --         t = (erase_Id_names (Comp f1_expr f2_expr),v_expr) -- remove this erase_...
+                --   in
+                --       -- replace by update_acc_with_erased_Id
+                --     if Map.member t acc 
+                --       then 
+                --         let
+                --             lst = acc ! t
+                --         in
+                --             Map.adjust (\lst -> lst++[(lhs,n)]) t acc
+                --       else 
+                --             Map.insert t [(lhs,n)] acc                            
                 _ -> acc    
             ) Map.empty ast
         regrouped_lhs_exprs = nub $ map fst $ concat (Map.elems regrouped_map_tuples_map)

@@ -22,7 +22,7 @@ subroutine dyn_shapiro_map_92_scal(wet_j_km1,wet_jm1_k,wet_j_k,wet_jp1_k,wet_j_k
  real, intent(In) :: etan_j_kp1
  real, intent(In) :: etan_jm1_k
  real, intent(In) :: etan_jp1_k
- real, intent(in) :: eps
+ real, intent(In) :: eps
 !  WRITTEN
  real, intent(Out) :: etann_j_k
 !  READ & WRITTEN

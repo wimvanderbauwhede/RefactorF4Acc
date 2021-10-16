@@ -225,9 +225,9 @@ ppRHSExpr (Function fname xs) = let
     if null non_map_args then fname else  "("++fname++" " ++ (unwords non_map_args)++")" 
 ppRHSExpr (Id _ _) = "id "
 ppRHSExpr (ApplyT xs)  = "applyt ("++(intercalate ", " (map ppRHSExpr xs))++")"
-ppRHSExpr (RApplyT idxs xs)  = "rapplyt "++(show idxs)++ " (" ++ (intercalate ", " (map ppRHSExpr xs))++")"
+ppRHSExpr (RApplyT idxs xs)  = "(rapplyt "++(show idxs)++ " (" ++ (intercalate ", " (map ppRHSExpr xs))++"))"
 ppRHSExpr (MapS s f) = "maps "++(ppRHSExpr s)++" "++ (ppRHSExpr f)
-ppRHSExpr (Comp f2 f1) = "comp "++(ppRHSExpr f2) ++" "++(ppRHSExpr f1)
+ppRHSExpr (Comp f2 f1) = "(comp "++(ppRHSExpr f2) ++" "++(ppRHSExpr f1)++")"
 ppRHSExpr (FComp f2 f1) = "fcomp "++(ppRHSExpr f2) ++" "++(ppRHSExpr f1)
 ppRHSExpr (SComb s1 s2) = "(scomb "++ (ppRHSExpr s1) ++" "++(ppRHSExpr s2)++")"
 
