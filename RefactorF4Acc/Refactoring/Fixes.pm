@@ -184,7 +184,11 @@ if (not exists $Config{'FIXES'}{'_removed_unused_variables'}) { return $stref }
 			$done=1;
 		}
 		if (exists $info->{'HasVars'} and $info->{'HasVars'} == 1 and $done==0) {
-			croak "Line <$line> NOT ANALYSED! ".Dumper($info);
+			if ($DBG) {
+				croak "Line <$line> NOT ANALYSED! ".Dumper($info) 
+			} else {
+				warning( "Line <$line> NOT ANALYSED! ");
+			}
 		}
 
 		

@@ -418,10 +418,11 @@ sub _emit_TyTraCL_Haskell_AST_Code {
 
         elsif ($node->{'NodeType'} eq 'Map') {
             my $fname = $node->{'FunctionName'};
+            die "get_global_id() is an OpenCL intrinsic and should not be defined\n" if $fname eq 'get_global_id';
             $node->{'NonMapType'}= $tytracl_ast->{'Main'}{'VarTypes'}{$fname}{'NonMapArgType'};
             $node->{'VecType'}= $tytracl_ast->{'Main'}{'VarTypes'}{$fname}{'MapArgType'};
             $node->{'ReturnType'}= $tytracl_ast->{'Main'}{'VarTypes'}{$fname}{'ReturnType'};
-            my $line = mkMapAST($stref,$fname,$node);            
+            my $line = mkMapAST($stref,$fname,$node);
             push @origNamesList, __origNamesListEntry($node);
             push @{$tytracl_hs_ast_strs}, $line;
 
@@ -888,7 +889,7 @@ sub __mkType { (my $t_rec, my $v_name, my $v_intent)=@_;
 
 sub __mkVec {
     my ($var_type_rec, $v_intent) = @_;
-    # carp if not defined $var_type_rec;
+    carp if not defined $var_type_rec;
     my ($v_rec, $t_rec) = @{$var_type_rec};
     # t_rec is either [Int] or [SVec,3,Int]
     my $v_name  = _mkVarName($v_rec);
