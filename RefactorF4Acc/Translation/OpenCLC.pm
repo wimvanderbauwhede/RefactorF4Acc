@@ -588,7 +588,7 @@ sub _emit_var_decl_C { (my $stref,my $f,my $var)=@_;
 	my $val='';	
 	if (defined $decl->{'Parameter'}) {
 		$const = 'const ';
-		$val = ' = '.$decl->{'Val'};
+		$val = ' = '.$decl->{'Val'}; # WV: FIXME: this is not correct in the case of a constant array		
 	}
 	my $ocl = $stref->{'OpenCL'};
 	# my $ptr = ($array && $ocl<3) ? '*' : '';
