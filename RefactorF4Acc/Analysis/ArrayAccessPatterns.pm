@@ -6,6 +6,7 @@ package RefactorF4Acc::Analysis::ArrayAccessPatterns;
 use v5.10;
 use RefactorF4Acc::Config;
 use RefactorF4Acc::Utils;
+use RefactorF4Acc::Utils::Functional qw( max );
 use RefactorF4Acc::Refactoring::Helpers qw(
 	pass_wrapper_subs_in_module
 	stateful_pass
