@@ -96,6 +96,18 @@ if (not exists $Config{'FIXES'}{'_removed_unused_variables'}) { return $stref }
 		}
 		elsif ( exists $info->{'VarDecl'} ) {
 			$state->{'DeclaredVars'}{ $info->{'VarDecl'}{'Name'}}=1;
+			# Now check also if the declaration does have any ExprVars
+			if (exists $info->{'ParsedVarDecl'} and
+				exists $info->{'ParsedVarDecl'}{'Attributes'} and
+				exists $info->{'ParsedVarDecl'}{'Attributes'}{'Dim'} ) {
+				for my $dim_str (@{$info->{'ParsedVarDecl'}{'Attributes'}{'Dim'}}) {
+					my $dim_expr_ast=parse_expression($dim_str, $info,{}, '');
+					my $vars = get_vars_from_expression($dim_expr_ast,{});
+					for my $var (keys %{ $vars } ) {
+						$state->{'ExprVars'}{$var}++;	
+					}					
+				}
+			}										
 			$done=1;
 		}
 		elsif ( exists $info->{'Assignment'}  ) {
