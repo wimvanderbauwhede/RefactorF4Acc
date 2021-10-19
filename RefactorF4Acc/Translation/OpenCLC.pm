@@ -48,6 +48,7 @@ use Exporter;
 
 #### #### #### #### BEGIN OF C TRANSLATION CODE #### #### #### ####
 # $ocl: 0 = C, 1 = CPU/GPU OpenCL, 2 = C for TyTraIR aka TyTraC, 3 = pipe-based OpenCL for FPGAs
+# 4 = translate_to_TyTraLlvmIR, 5 = translate_to_OpenCL_memory_reduction
 sub translate_module_to_C {  (my $stref, my $module_name, my $ocl) = @_;
 
 	if (not defined $ocl) {$ocl=0;}
@@ -286,10 +287,11 @@ Instead of the nice but cumbersome approach we had until now, from now on it is 
 			} else {
 				my $sig_line = _emit_subroutine_sig_C( $stref, $f, $annline);
 				$c_line = $sig_line." {\n";
-				$pass_state->{'ForwardDecl'} = $sig_line.';' unless ($sig_line=~/int\s+main/ or ($ocl==1 or $ocl==3) and $f eq $Config{'KERNEL'});
+				# RS 19/11/21
+				$pass_state->{'ForwardDecl'} = $sig_line.';' unless ($sig_line=~/int\s+main/ or ($ocl==1 or $ocl==3 or $ocl==5) and $f eq $Config{'KERNEL'});
 				if ($ocl==3 ) {
 					$c_line = '__kernel __attribute__((reqd_work_group_size(1,1,1))) '.$c_line;
-				} elsif ($ocl==1 and $f eq $Config{'KERNEL'}) {
+				} elsif (($ocl==1 or $ocl==5) and $f eq $Config{'KERNEL'}) {
 					$c_line = '__kernel '.$c_line;
 				}
 			}
@@ -597,6 +599,7 @@ sub _emit_arg_decl_C { (my $stref,my $f,my $arg)=@_;
 sub _emit_var_decl_C { (my $stref,my $f,my $var)=@_;
 	my $decl =  get_var_record_from_set($stref->{'Subroutines'}{$f}{'Vars'},$var);
 	my $array = (exists $decl->{'ArrayOrScalar'} and $decl->{'ArrayOrScalar'} eq 'Array') ? 1 : 0;
+	# say $decl->{"ParsedVarDecl"};
 	my $const = '';
 	my $val='';
 	if (defined $decl->{'Parameter'}) {
@@ -611,7 +614,8 @@ sub _emit_var_decl_C { (my $stref,my $f,my $var)=@_;
 	my $ocl = $stref->{'OpenCL'};
 	# my $ptr = ($array && $ocl<3) ? '*' : '';
    	# $ptr = $const eq '' ? '*' : '';
-	my $dim= ($array && $ocl==3 ) ? '['.__C_array_size($decl->{'Dim'}).']' : '';
+	# RS 19/11/21 - translating multidim arrays for memory reduction.
+	my $dim= ($array && ($ocl==1 || $ocl==5)) ? '['.__C_array_size($decl->{'Dim'}).']' : '';
 	my $ptr =  $stref->{'Subroutines'}{$f}{'Pointers'}{$var} ;
 
 	my $ftype = $decl->{'Type'};
@@ -664,7 +668,7 @@ sub _emit_assignment_C { (my $stref, my $f, my $info)=@_;
 #		# Undo!
 #		$rhs_stripped=$rhs;
 #	}
-#	say $rhs_stripped;
+	# say $rhs_stripped;
 	my $rline = $info->{'Indent'}.$lhs.' = '.$rhs_stripped;
 	if (exists $info->{'If'}) {
 		my $if_str = _emit_ifthen_C($stref,$f,$info);

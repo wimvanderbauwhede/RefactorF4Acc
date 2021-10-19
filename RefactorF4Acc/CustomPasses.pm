@@ -71,7 +71,7 @@ sub run_custom_passes {
 	if ($pass =~/rename_array_accesses_to_scalars|scalarize/) {
 		$stref = pass_rename_array_accesses_to_scalars($stref,$code_unit_name);				
 	}
-	if ($pass =~/memory_reduction/) {
+	if ($pass =~/^\s*memory_reduction/) { # RS 19/11/21 - avoid name clash with "translate_to_OpenCL_memory_reduction"
 		$stref = pass_memory_reduction($stref,$code_unit_name);
 	}
 	if ($pass =~/translate_to_C/) { 
@@ -82,6 +82,8 @@ sub run_custom_passes {
         $stref = translate_module_to_C($stref,$code_unit_name,4);		
 	} elsif ( $pass =~/translate_to_OpenCL_with_pipes/) {              
         $stref = translate_module_to_C($stref,$code_unit_name,3);
+	} elsif ( $pass =~/translate_to_OpenCL_memory_reduction/) {
+        $stref = translate_module_to_C($stref,$code_unit_name,5);
 	} elsif ( $pass =~/translate_to_OpenCL/) {				
 		$stref = translate_module_to_C($stref,$code_unit_name,1);
 	} elsif ( $pass =~/translate_to_SaC/) {				
