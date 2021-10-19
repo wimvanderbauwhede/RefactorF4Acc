@@ -135,7 +135,20 @@ sub add_OpenCL_address_space_qualifiers { (my $stref, my $f, my $ocl) = @_;
 #							say $arg.Dumper($decl);
 						if ($decl->{'ArrayOrScalar'} eq 'Array') {
 							$decl->{'OclAddressSpace'} = '__global';
+							# RS 19/11/2021 - we could put all READ-ONLY pointers into constant
+							# memory space but, depending on the device, the constant memory can be
+							# smaler than global memory and have different/no caching policy.
 						}
+						elsif ($decl->{'ArrayOrScalar'} eq 'Scalar') {
+							# RS 19/11/2021 - I think it makes sense to put scalars into constant mem.
+							# Note, if the scalar is Read/Write, it will be put into global mem.
+							my $decl_for_iodir = $stref->{'Subroutines'}{$f}{'RefactoredArgs'}{'Set'}{$arg};
+							$decl->{'OclAddressSpace'} = (defined $decl_for_iodir->{'IODir'} and
+														lc($decl_for_iodir->{'IODir'}) eq 'in')
+														? '__constant'
+														: '__global';
+						}
+
 						++$_arg_idx;
 					}
 				}
