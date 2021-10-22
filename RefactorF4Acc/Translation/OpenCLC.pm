@@ -143,6 +143,7 @@ sub add_OpenCL_address_space_qualifiers { (my $stref, my $f, my $ocl) = @_;
 						elsif ($decl->{'ArrayOrScalar'} eq 'Scalar') {
 							# RS 19/11/2021 - I think it makes sense to put scalars into constant mem.
 							# Note, if the scalar is Read/Write, it will be put into global mem.
+							# WV 2021-10-19 if they are pointers it makes sense. Otherwise they should be in registers.
 							my $decl_for_iodir = $stref->{'Subroutines'}{$f}{'RefactoredArgs'}{'Set'}{$arg};
 							$decl->{'OclAddressSpace'} = (defined $decl_for_iodir->{'IODir'} and
 														lc($decl_for_iodir->{'IODir'}) eq 'in')
@@ -606,6 +607,8 @@ sub _emit_var_decl_C { (my $stref,my $f,my $var)=@_;
 		$const = 'const ';
 		$val = ' = '.$decl->{'Val'};
 		# In the case of a constant array: replace '(/' with '{' and add '[]' to front
+		# WV 2021-10-19 This is OK but a bit hacky, because Fortran also supports the '[ ... ]' syntax
+		# It would be better to use ParsedVarDecl
 		if ($val=~s/\(\//{/) {
 			$val=~s/\/\)/}/;
 			$val = '[]' . $val;

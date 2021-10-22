@@ -59,6 +59,7 @@ if (not exists $Config{'FIXES'}{'_removed_unused_variables'}) { return $stref }
 	# So start with all declared variables, put in $state->{'DeclaredVars'}
 	# Make a list of all variables anywhere in the code via Lhs, Rhs, Args, put in $state->{'ExprVars'}
 	# croak Dumper $stref->{Subroutines}{$f}{RefactoredCode}		;
+	
 	my $pass_action_find_all_used_vars = sub { (my $annline, my $state)=@_;		
 		(my $line,my $info)=@{$annline};
 		
