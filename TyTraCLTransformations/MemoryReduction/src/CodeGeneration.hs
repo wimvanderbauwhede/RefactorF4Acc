@@ -1150,7 +1150,7 @@ createIODecls intent (SVec sz dt)  = let
                     (szs,dt') = getSzFromSVec dt []
                     Single vn' = vn
                 in
-                    [ MkFDecl (fortranType dt') (Just (sz:szs)) intent [ vn']  ]
+                    [ MkFDecl (fortranType dt') (Just (map (\x->(1,x)) (sz:szs)) ) intent [ vn']  ]
             -- we know this has no tuples inside it                
             Tuple dts -> let
                      Composite vns = vn
@@ -1163,7 +1163,7 @@ createIODecls intent (SVec sz dt)  = let
             dt -> let
                         Single vn' = vn
                 in
-                    [MkFDecl (fortranType dt) (Just [sz]) intent [vn'] ]
+                    [MkFDecl (fortranType dt) (Just [(1,sz)]) intent [vn'] ]
 
 createIODecls intent (Scalar _ DDC vn) =  error "DDC!"
 createIODecls intent sdt@(Scalar _ dt vn) = [MkFDecl (fortranType sdt) Nothing intent [vn]]
@@ -1238,11 +1238,11 @@ generateStencilAppl s_exp v_exp@(Vec _ dt) sv_name stencilDefinitions =
         stencil_accesses = intercalate "+" (zipWith (curry (\(s_name,ct)-> s_name++"(s_idx_"++ show ct ++")")) s_names [1..])
         lhs_idx_str =  commaSepList  $ map (\ct -> "s_idx_"++show ct) [1 .. length sv_szs]
         decls = concat [
-                map (\(s_name, s_def, sv_sz) -> MkFParamDecl "integer" (Just [sv_sz]) s_name (show s_def)) (zip3 s_names s_defs sv_szs),
+                map (\(s_name, s_def, sv_sz) -> MkFParamDecl "integer" (Just [(1,sv_sz)]) s_name (show s_def)) (zip3 s_names s_defs sv_szs),
                 [
                     case sv_name of
-                        Single sv_name' -> MkFDecl sv_type (Just sv_szs) Nothing [sv_name']
-                        Composite sv_names -> error $ show $ MkFDecl sv_type (Just sv_szs) Nothing (map show sv_names)
+                        Single sv_name' -> MkFDecl sv_type (Just (map (\x->(1,x)) sv_szs)) Nothing [sv_name']
+                        Composite sv_names -> error $ show $ MkFDecl sv_type (Just (map (\x->(1,x)) sv_szs)) Nothing (map show sv_names)
                 ],
                 map (\ct -> MkFDecl "integer" Nothing Nothing ["s_idx_"++show ct] ) [1 .. length sv_szs]
             ]
@@ -1437,9 +1437,9 @@ getDeclFromExprByName name expr = let
 
 exprToFDecls :: Expr -> [FDecl]
 exprToFDecls s_expr@(Scalar _ _ vname)  = [MkFDecl (fortranType s_expr) Nothing (Just In) [vname]]
-exprToFDecls sv_expr@(SVec sz (Scalar _ _ vname) ) = [MkFDecl (fortranType sv_expr) (Just [sz]) (Just In) [vname]]
-exprToFDecls (Vec _ s_expr@(Scalar _ _ vname))  = [MkFDecl (fortranType s_expr) (Just [vSz]) Nothing [vname]]
-exprToFDecls (Vec _ (SVec sz s_expr@(Scalar _ _ vname) ))  = [MkFDecl (fortranType s_expr) (Just [vSz]) Nothing [vname]]
+exprToFDecls sv_expr@(SVec sz (Scalar _ _ vname) ) = [MkFDecl (fortranType sv_expr) (Just [(1,sz)]) (Just In) [vname]]
+exprToFDecls (Vec _ s_expr@(Scalar _ _ vname))  = [MkFDecl (fortranType s_expr) (Just [(1,vSz)]) Nothing [vname]]
+exprToFDecls (Vec _ (SVec sz s_expr@(Scalar _ _ vname) ))  = [MkFDecl (fortranType s_expr) (Just [(1,vSz)]) Nothing [vname]]
 exprToFDecls (ZipT exprs) = concatMap exprToFDecls exprs
 -- Tuple [Vec VO (Scalar VDC DFloat "h_0"),Vec VO (Scalar VDC DFloat "u_0"),Vec VO (Scalar VDC DInt "wet_1")]
 exprToFDecls (Tuple exprs) = concatMap exprToFDecls exprs
@@ -1448,9 +1448,9 @@ exprToFDecls expr = error $ show expr
 
 exprToFDecl :: Expr -> FDecl
 exprToFDecl s_expr@(Scalar _ _ vname)  = MkFDecl (fortranType s_expr) Nothing (Just In) [vname]
-exprToFDecl sv_expr@(SVec sz (Scalar _ _ vname) ) = MkFDecl (fortranType sv_expr) (Just [sz]) (Just In) [vname]
-exprToFDecl (Vec _ s_expr@(Scalar _ _ vname))  = MkFDecl (fortranType s_expr) (Just [vSz]) Nothing [vname]
-exprToFDecl (Vec _ (SVec sz s_expr@(Scalar _ _ vname) ))  = MkFDecl (fortranType s_expr) (Just [vSz]) Nothing [vname]
+exprToFDecl sv_expr@(SVec sz (Scalar _ _ vname) ) = MkFDecl (fortranType sv_expr) (Just [(1,sz)]) (Just In) [vname]
+exprToFDecl (Vec _ s_expr@(Scalar _ _ vname))  = MkFDecl (fortranType s_expr) (Just [(1,vSz)]) Nothing [vname]
+exprToFDecl (Vec _ (SVec sz s_expr@(Scalar _ _ vname) ))  = MkFDecl (fortranType s_expr) (Just [(1,vSz)]) Nothing [vname]
 
 exprToFDecl expr = error $ show expr
 
@@ -1778,8 +1778,8 @@ vSz = getVSz  mainArgDeclsList
 getVSz  :: [(String,FDecl)] -> Int
 getVSz lst = maximum $ map (\(v,r) -> case dim r of
             Nothing -> 0
-            Just [sz] -> sz
-            Just sz -> product sz
+            Just [(_,sz)] -> sz
+            Just sz -> product (map snd sz)
             ) lst
 
 
