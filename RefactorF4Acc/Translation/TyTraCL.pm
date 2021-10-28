@@ -398,12 +398,16 @@ sub __toTyTraCLType {
     }
     else {                                                          # Vector
         my @ranges = ();
-        # carp Dumper $array_dims;
+        
+        my $offset='';
         for my $array_dim (@{$array_dims}) {
+            if ($offset eq '') {
+                $offset = $array_dim->[0];
+            }
             push @ranges, '(' . $array_dim->[1] . '- ' . $array_dim->[0] . '+1)';
         }
-        # carp join('*', @ranges);
-        my $vec_sz      = eval(join('*', @ranges));                 # FIXME: needs proper constant folding here!
+        
+        my $vec_sz      = eval(join('*', @ranges)); # FIXME: needs proper constant folding here!
         my $scalar_type = ucfirst($type);
         if ($type eq 'real') {
             $scalar_type = 'Float';
@@ -412,7 +416,7 @@ sub __toTyTraCLType {
             $scalar_type = 'Int';
         }
 
-        my $tycl_type = [$non==1 ? 'SVec' : 'Vec', $vec_sz, $scalar_type];
+        my $tycl_type = [$non==1 ? 'SVec' : 'Vec', [$non==1 ? $offset : 1, $vec_sz], $scalar_type]; 
         # carp Dumper $tycl_type;
         # WV 2019-08-12 the '0' below feels hacky
         # say $tycl_type;

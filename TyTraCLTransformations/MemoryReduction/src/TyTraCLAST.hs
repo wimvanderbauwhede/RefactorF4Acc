@@ -46,14 +46,14 @@ data FIntent = In | Out | InOut | Unknown | NA
 
 data FDecl = MkFDecl {
   ftype :: String,  
-  dim :: Maybe [Int],
+  dim :: Maybe [(Int,Int)],
   intent :: Maybe FIntent,
   names :: [String] 
   } |
 --  deriving (Ord, Typeable, Data, Eq)
  MkFParamDecl {
   ftype :: String,  
-  dim :: Maybe [Int],
+  dim :: Maybe [(Int,Int)], -- WV: hopefully unused?
   name :: String,
   val :: String 
   }
@@ -66,7 +66,7 @@ instance Show FDecl where
         attributes = [ftype]
         attributes' = case mdim of          
           Just dims -> let
-              dims_str = intercalate "," $ map (\dm ->  "1:"++(show dm)) dims
+              dims_str = intercalate "," $ map (\(dmo,dmd) ->  (show dmo)++":"++(show dmd)) dims
             in
               attributes++["dimension("++dims_str++")"]
           Nothing -> attributes

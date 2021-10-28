@@ -883,6 +883,7 @@ sub __mkType { (my $t_rec, my $v_name, my $v_intent)=@_;
     if ($t_rec->[0] ne 'SVec') {
         return 'Scalar '.$ve.' D'.$t_rec->[0].' "'.$v_name.'"';
     } else {
+        say Dumper $t_rec;
         return 'SVec '.$t_rec->[1]. ' (Scalar '.$ve.' D'.$t_rec->[2].' "'.$v_name.'")';
     }
 }
@@ -1075,8 +1076,8 @@ sub _create_TyTraCL_Haskell_signatures { (my $stref) = @_;
                                             #     ? __VE_to_Intent($arg_rec->[3])
                                             #     : croak "Can't work out INTENT for $arg_name in $f";
                                             # my $hs_type_decl_str = __mkType($tytra_cl_type,$arg_name,$intent);                            
-                            
-                            push @{$typed_arg_tup}, 'SVec '.$arg_type->[1].' (Scalar VDC D'.$arg_type->[2].' "'.$arg_name.'")';
+                            my $svec_sz = ref($arg_type->[1]) eq 'ARRAY' ? $arg_type->[1][1] : $arg_type->[1];
+                            push @{$typed_arg_tup}, 'SVec '.$svec_sz.' (Scalar VDC D'.$arg_type->[2].' "'.$arg_name.'")';
                             # croak $arg_name.' : '.Dumper($arg_rec).$hs_type_decl_str .Dumper($typed_arg_tup);
                         }  
                         # croak Dumper $decl if $arg_name eq 'v_nm_0';
@@ -1163,10 +1164,12 @@ sub __toHaskellFDecl {(my $arg_name, my $tytracl_var_rec, my $intent) =@_;
 
     my $vt  = shift @{$tytracl_var_rec };
     if ($vt eq 'Vec' or $vt eq 'SVec') {
-        my $dim = shift @{$tytracl_var_rec };
+        my $offset_dim = shift @{$tytracl_var_rec };
+        (my $offset, my $dim) = @{$offset_dim};
+        # my $dim = shift @{$tytracl_var_rec };
         my $vt = shift @{$tytracl_var_rec};
         # return $fortran_type{$vt}.', dimension(1:'.$dim.'), intent('.$intent.') :: '. $arg_name;
-        return 'MkFDecl "'.$fortran_type{$vt}.'"  (Just ['.$dim.']) (Just '.$intent.') ["'.$arg_name.'"]';
+        return 'MkFDecl "'.$fortran_type{$vt}.'"  (Just [('.$offset.','.$dim.')]) (Just '.$intent.') ["'.$arg_name.'"]';
     } else {
         # return $fortran_type{$vt}.', intent('.$intent.') :: '. $arg_name;
         return 'MkFDecl "'.$fortran_type{$vt}.'" Nothing (Just '.$intent.') ["'.$arg_name.'"]';
@@ -1425,7 +1428,7 @@ sub _create_Haskell_TyTraAST_type { my ($stref,$f,$arg_rec,$idx,$FSig_ctor,$type
                             return 'Scalar '.$arg_rec->[3].' D'.$arg_type->[2].' "'.$arg_name.'"';
                         } else {
                             # croak  'SVec '.$arg_type->[1].' (Scalar VDC D'.$arg_type->[2].' "'.$arg_name.'")';
-                            return 'SVec '.$arg_type->[1].' (Scalar VDC D'.$arg_type->[2].' "'.$arg_name.'")';
+                            return 'SVec '.$arg_type->[1][1].' (Scalar VDC D'.$arg_type->[2].' "'.$arg_name.'")';
                         }  
                     } else {
                         croak "TROUBLE: NO DECL for $arg in $f: ".Dumper($stref->{'Subroutines'});
