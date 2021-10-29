@@ -334,7 +334,18 @@ sub emit_TyTraCL {
 
 sub emit_TyTraCLType {
     my ($decl) = @_;
-    return join(' ', @{$decl});
+    if (ref($decl->[1]) eq 'ARRAY')  {
+        if ($decl->[0] eq 'FVec') {
+            my $dims = $decl->[1];
+            my $dims_str = join(',', map { '('. $_->[0] .','.$_->[1].')' } @{$dims});
+            return $decl->[0]. ' ['. $dims_str. '] '.$decl->[2];    
+        } else {
+            return $decl->[0]. ' '. $decl->[1][1]. ' '.$decl->[2];
+        }
+    } else {
+        return join(' ', @{$decl});
+    }
+    
 }    # END of emit_TyTraCLType
 
 sub _emit_FunctionTypeDecl {
@@ -375,8 +386,8 @@ sub __toTyTraCLScalarType {
 }
 
 # Return the type as a datastructure and use emit_TyTraCLType
-# What it returns is [$scalar_type] | ['Vec', $vec_sz, $scalar_type] | ['SVec', $vec_sz, $scalar_type] 
-# Vec is only used for streams, anything else is SVec
+# What it returns is [$scalar_type] | ['Vec', $vec_sz, $scalar_type] | ['FVec', $vec_sz, $scalar_type] 
+# Vec is only used for streams, anything else is FVec
 sub __toTyTraCLType {
     (my $type, my $array_dims, my $non) = @_;
     # If $non is not defined, set it to 0;
@@ -415,8 +426,11 @@ sub __toTyTraCLType {
         elsif ($type eq 'integer') {
             $scalar_type = 'Int';
         }
+        
+        # my $tycl_type = [$non==1 ? 'FVec' : 'Vec', [$non==1 ? $offset : 1, $vec_sz], $scalar_type]; 
+        my $tycl_type = [$non==1 ? 'FVec' : 'Vec', $non==1 ? $array_dims : [1, $vec_sz], $scalar_type]; 
 
-        my $tycl_type = [$non==1 ? 'SVec' : 'Vec', [$non==1 ? $offset : 1, $vec_sz], $scalar_type]; 
+
         # carp Dumper $tycl_type;
         # WV 2019-08-12 the '0' below feels hacky
         # say $tycl_type;

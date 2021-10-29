@@ -15,7 +15,8 @@ import Warning ( warning )
 (!) :: Ord k => Map.Map k a -> k -> a
 (!) = (Map.!)
 
-reorderArgs = True -- FIXME: the RApplyT with reordering is still wrong!
+reorderArgs = True 
+
 {-
 To group all identical args, we need an additional step: we need to reorder v_s and f_s so that arguments with identical vectors are consecutive.
 I think this is OK because we infer the signatures only later and the opaques are not affected. 

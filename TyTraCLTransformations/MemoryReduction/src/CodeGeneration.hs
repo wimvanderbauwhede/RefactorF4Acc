@@ -1100,6 +1100,7 @@ rewriteDT' dt = case dt of
     SVec sz (Tuple dts) ->  Tuple (map (SVec sz . rewriteDT') dts)
     SVec sz (SVec sz2 dt2) ->  SVec sz (rewriteDT' (SVec sz2 dt2))
     SVec sz dt2 ->  dt
+    -- FVec _ _  -> error $ "TODO 1103: FVec "++ show dt
     Tuple dts -> Tuple $ concatMap (\dt -> case dt of
                         Tuple dts -> map rewriteDT' dts
                         SVec sz2 dt2 -> [ rewriteDT' (SVec sz2 dt2)]
@@ -1122,6 +1123,7 @@ createIter (SVec sz dt) = let
     in
         case dt of
             -- we know this can only be either nested DSVec or terminal
+            FVec _ _  -> error $ "TODO 1126: FVec "++ show dt
             SVec _ _  ->  let
                     (szs,_) = getSzFromSVec dt []
                     colons = map (const ":") szs
@@ -1146,6 +1148,7 @@ createIODecls intent (SVec sz dt)  = let
     in
         case dt of
             -- we know this can only be either nested DSVec or terminal
+            FVec _ _  -> error $ "TODO 1151: FVec "++ show dt
             SVec _ _  ->  let
                     (szs,dt') = getSzFromSVec dt []
                     Single vn' = vn
@@ -1165,6 +1168,27 @@ createIODecls intent (SVec sz dt)  = let
                 in
                     [MkFDecl (fortranType dt) (Just [(1,sz)]) intent [vn'] ]
 
+createIODecls intent (FVec dims dt)  = let
+        vn = getName dt
+    in
+        case dt of
+            -- we know this can only be either nested DSVec or terminal
+            FVec _ _  -> error $ "Should not happen! FVec "++ show dt
+            SVec _ _  -> error $ "Should not happen! SVec "++ show dt
+            -- we know this has no tuples inside it                
+            Tuple dts -> let
+                     Composite vns = vn
+                in
+                    createIODecls intent (
+                        Tuple (
+                            zipWith (curry (\(vn',dt) -> FVec dims (setName vn' dt))) vns dts
+                            )
+                    )
+            dt -> let
+                        Single vn' = vn
+                in
+                    [MkFDecl (fortranType dt) (Just dims) intent [vn'] ]                    
+
 createIODecls intent (Scalar _ DDC vn) =  error "DDC!"
 createIODecls intent sdt@(Scalar _ dt vn) = [MkFDecl (fortranType sdt) Nothing intent [vn]]
 createIODecls intent (Tuple es) = concatMap (createIODecls intent)  es
@@ -1176,6 +1200,7 @@ createDecls (SVec sz dt) = let
     in
         case dt of
             -- we know this can only be either nested DSVec or terminal
+            FVec _ _  -> error $ "TODO 1182: FVec "++ show dt
             SVec _ _  ->  let
                     (szs,dt') = getSzFromSVec dt []
                     Single vn' = vn
@@ -1195,6 +1220,28 @@ createDecls (SVec sz dt) = let
                 in
                     [fortranType dt++", dimension("++show sz++") :: "++ vn']
 
+createDecls (FVec dims dt) = let
+        vn = getName dt
+    in
+        case dt of
+            -- we know this can only be either nested DSVec or terminal
+            FVec _ _  -> error $ "Should not happen! FVec "++ show dt
+            SVec _ _  ->  error $ "Should not happen! SVec "++ show dt
+            -- we know this has no tuples inside it                
+            Tuple dts -> let
+                     Composite vns = vn
+                in
+                    createDecls (
+                        Tuple (
+                            zipWith (curry (\(vn',dt) -> FVec dims (setName vn' dt))) vns dts
+                            )
+                    )
+            dt -> let
+                        Single vn' = vn
+                in
+                    [fortranType dt++ fortranDim dims ++" :: "++ vn']
+
+
 createDecls (Scalar _ DDC vn) =  error "DDC!"
 createDecls sdt@(Scalar _ dt vn) = [fortranType sdt++" :: "++vn]
 createDecls (Tuple es) = concatMap createDecls es
@@ -1202,6 +1249,7 @@ createDecls e = error $ show e -- keep hlint happy
 
 getVarNames :: Expr -> [String]
 getVarNames (SVec sz dt) = getVarNames dt
+getVarNames (FVec _ dt) = getVarNames dt
 getVarNames (Scalar _ _ vn) = [vn]
 getVarNames (Tuple es) = concatMap getVarNames es
 getVarNames (ZipT es) = concatMap getVarNames es
@@ -1438,6 +1486,7 @@ getDeclFromExprByName name expr = let
 exprToFDecls :: Expr -> [FDecl]
 exprToFDecls s_expr@(Scalar _ _ vname)  = [MkFDecl (fortranType s_expr) Nothing (Just In) [vname]]
 exprToFDecls sv_expr@(SVec sz (Scalar _ _ vname) ) = [MkFDecl (fortranType sv_expr) (Just [(1,sz)]) (Just In) [vname]]
+exprToFDecls fv_expr@(FVec dims (Scalar _ _ vname) ) = [MkFDecl (fortranType fv_expr) (Just dims) (Just In) [vname]]
 exprToFDecls (Vec _ s_expr@(Scalar _ _ vname))  = [MkFDecl (fortranType s_expr) (Just [(1,vSz)]) Nothing [vname]]
 exprToFDecls (Vec _ (SVec sz s_expr@(Scalar _ _ vname) ))  = [MkFDecl (fortranType s_expr) (Just [(1,vSz)]) Nothing [vname]]
 exprToFDecls (ZipT exprs) = concatMap exprToFDecls exprs
@@ -1449,6 +1498,7 @@ exprToFDecls expr = error $ show expr
 exprToFDecl :: Expr -> FDecl
 exprToFDecl s_expr@(Scalar _ _ vname)  = MkFDecl (fortranType s_expr) Nothing (Just In) [vname]
 exprToFDecl sv_expr@(SVec sz (Scalar _ _ vname) ) = MkFDecl (fortranType sv_expr) (Just [(1,sz)]) (Just In) [vname]
+exprToFDecl fv_expr@(FVec dims (Scalar _ _ vname) ) = MkFDecl (fortranType fv_expr) (Just dims) (Just In) [vname]
 exprToFDecl (Vec _ s_expr@(Scalar _ _ vname))  = MkFDecl (fortranType s_expr) (Just [(1,vSz)]) Nothing [vname]
 exprToFDecl (Vec _ (SVec sz s_expr@(Scalar _ _ vname) ))  = MkFDecl (fortranType s_expr) (Just [(1,vSz)]) Nothing [vname]
 
@@ -1782,14 +1832,17 @@ getVSz lst = maximum $ map (\(v,r) -> case dim r of
             Just sz -> product (map snd sz)
             ) lst
 
-
 fortranType :: Expr -> String
 fortranType (Scalar _ DInt _) = "integer"
 fortranType (Scalar _ DInteger _) = "integer"
 fortranType (Scalar _ DReal _) = "real"
 fortranType (Scalar _ DFloat _) = "real"
-fortranType (SVec sz dt) = fortranType dt -- ++", svecdimension("++show sz++")" -- dimension is added in createDecls 
+fortranType (SVec sz dt) = fortranType dt
+fortranType (FVec dims dt) = fortranType dt
 fortranType dt = "! No equivalent Fortran type for "++show dt++" !!! "
+
+fortranDim :: [(Int,Int)] -> String
+fortranDim dims = "dimension(" ++ intercalate "," ( map (\(b,e) -> show b ++ ":" ++ show e) dims) ++ ")"
 
 -- getAccExprs :: Name -> Expr -> [Expr]
 -- getAccExprs acc_name = everything (++) (mkQ [] (getAccExprs' acc_name)) 

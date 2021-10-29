@@ -282,8 +282,6 @@ rewrite_ast_into_single_map count exp = do
             rewrite_ast_into_single_map count' exp'
         else
             return exp   
--- (Stencil (SVec 3 "s2") (Stencil (SVec 3 "s1") (Vec VI "v_0"))))
--- (Stencil (SComb (SVec 3 "s2") (SVec 3 "s1")) (Vec VI "v_0"))))
 rewrite_ast_sub_expr expr = 
         case expr of 
             -- 1. Map composition
@@ -504,8 +502,6 @@ substitute_unique_names namesToUniqueNames (lhs,rhs) = let
     in 
         ((lhs,rhs'),hit)
 
--- TODO!        
--- (ZipT [Vec VS (SVec 2(Scalar DFloat "un_s_0")),Vec VS (SVec 5(Scalar DFloat "h_s_0")),Vec VS (SVec 2(Scalar DFloat "vn_s_0")),Vec VT (Scalar VDC DFloat "eta_1")]) )
 substitute_unique_names_vecs namesToUniqueNames = everywhere (mkT (
     \v_expr ->
         case v_expr of
@@ -603,16 +599,10 @@ rewriteZipTMap es =  let
         Map (RApplyT idx_s_g f_s_g) (ZipT v_s_g)
         -- warning (Map (ApplyT f_s) (ZipT v_s)) ("(ApplyT,ZipT): "++ show fv_s) 
 
--- Instead of inserting Id I should insert a Function with a fresh name 
+-- Instead of inserting Id, I should insert a Function with a fresh name 
 -- and put that function in the functionSignaturesList
 -- the dt or (SVec sz dt) is the Expr to be put in the function signature
 
--- rewriteId expr =  case expr of
---     Vec _ dt   -> Map (Id dt) expr
---     Stencil (SVec sz _ )  (Vec _ dt ) -> Map (Id (SVec sz dt)) expr
---     _ -> expr
-
--- TODO PUT THIS IN PLACE AND MAKE THIS MONADIC EVERYWHERE    
 rewriteIdToFunc :: Expr -> State (Int, [(Name, [Expr])]) Expr
 rewriteIdToFunc expr = do
     (ct, fsigs) <- get
@@ -632,14 +622,6 @@ rewriteIdToFunc expr = do
         else
             put (ct, fsigs)            
     return rexp
-
--- scalarFromVec expr =
---     case expr of
---         Vec _ dt   -> dt
---         Stencil (SVec sz _ )  (Vec _ dt ) -> SVec sz dt
---         ZipT es -> Tuple $ map scalarFromVec es
---         _ -> error $ show expr
-
 
 
 get_map :: Expr -> [Expr]
@@ -664,14 +646,6 @@ Fortran from it.
 {-
 4. First decompose the expressions. We rewrite in a variant of ANF: every vector, stencil and function gets a name.
 
-
-( Vec VT (Scalar VDC DFloat "eta_2"), 
-Map (Function "dyn_map_65"  [
-    Scalar VDC DFloat "dt_0",
-    Scalar VDC DFloat "dx_0",
-    Scalar VDC DFloat "dy_0"]) 
-    
-    (ZipT [Vec VS (SVec 2(Scalar DFloat "un_s_0")),Vec VS (SVec 5(Scalar DFloat "h_s_0")),Vec VS (SVec 2(Scalar DFloat "vn_s_0")),Vec VT (Scalar VDC DFloat "eta_1")]) )
 -}
 
 -- This returns the decomposed expressions as a lists of lists
@@ -717,6 +691,7 @@ subsitute_expr lhs exp = do
                       Id _ _ -> ((ct,orig_bindings,added_bindings,var_expr_pairs),exp)
                       Function _ _ -> ((ct,orig_bindings,added_bindings,var_expr_pairs),exp)
                       SVec _ _ -> ((ct,orig_bindings,added_bindings,var_expr_pairs),exp)
+                      FVec _ _ -> ((ct,orig_bindings,added_bindings,var_expr_pairs),exp)
                       SComb _ _ -> ((ct,orig_bindings,added_bindings,var_expr_pairs),exp)
                       PElt _ -> ((ct,orig_bindings,added_bindings,var_expr_pairs),exp)
                       PElts _ -> ((ct,orig_bindings,added_bindings,var_expr_pairs),exp)
