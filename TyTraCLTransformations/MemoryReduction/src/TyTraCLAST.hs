@@ -71,12 +71,12 @@ instance Show FDecl where
         attributes = [ftype]
         attributes' = case mdim of          
           Just dims -> let
-              dims_str = intercalate "," $ map (\(dm_off,dm_sz) ->  show dm_off ++ ":" ++ show (dm_sz+dm_off-1) ) dims
+              dims_str = intercalate "," $ map (\(dm_off,dm_sz) ->  show dm_off ++ ":" ++ show dm_sz ) dims -- (dm_sz+dm_off-1) ) dims
             in
               attributes++["dimension("++dims_str++")"]
           Nothing -> attributes
         attributes'' = case intent of
-            Just i -> attributes'++["intent("++(show i)++")"]
+            Just i -> attributes'++["intent("++ show i ++")"]
             Nothing -> attributes'
       in
         intercalate ", " attributes'' ++ " :: " ++ intercalate ", " names
@@ -165,7 +165,7 @@ data Expr =
 
         -- Right-hand side:
                     | SVec Size Expr -- Name
-                    | FVec [(Offset,Size)] Expr -- This is for non-map args
+                    | FVec [(Offset,Size)] Expr -- This is for non-map args FIXME! bounds i.o range
                     | ZipT [Expr]
                     | UnzipT Expr
                     | Elt Int Expr

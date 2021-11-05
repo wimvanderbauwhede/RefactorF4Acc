@@ -25,7 +25,7 @@ use RefactorF4Acc::Translation::TyTraCL qw(
     _add_TyTraCL_AST_entry
     _emit_TyTraCL_FunctionSigs
     __toTyTraCLType
-     );
+    );
 
 
 use RefactorF4Acc::Translation::TyTra::MemoryReduction::Tests qw( memory_reduction_tests );
@@ -123,7 +123,6 @@ if ($Config{'TEST'} == 0 ) {
     # croak $tytracl_as_hs_comment;    
 
     say $tytracl_str;
-
 
     $tytracl_hs_str .= $tytracl_as_hs_comment;    
     write_out($tytracl_hs_str);

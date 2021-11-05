@@ -321,7 +321,7 @@ fuseStencils ast
                 (nm+m, ast_acc++[(lhs,rhs')])
             ) (0,[]) ast
             
-regroupTuples ast = let            
+regroupTuples ast = let
     -- If the RHS is Elt n, we check if the LHS is in the map `acc`
     -- If so, we add the `(lhs,n)` tuple to the map
         regrouped_tuples_map = foldl (

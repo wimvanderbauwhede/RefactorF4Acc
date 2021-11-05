@@ -138,7 +138,7 @@ Step 1. Derive the intermediate function signatures
 -- We update this map with the infered signatures of intermediate functions
 -- let's be old-school contrarian and use fold
 inferSignaturesMap :: Map.Map Name FSig -> TyTraCLAST -> Map.Map Name FSig
-inferSignaturesMap = foldl inferSignature
+inferSignaturesMap = foldl' inferSignature
 
 inferSignature ::  Map.Map Name FSig -> (Expr,Expr) -> Map.Map Name FSig
 inferSignature functionSignatures ast_tup =

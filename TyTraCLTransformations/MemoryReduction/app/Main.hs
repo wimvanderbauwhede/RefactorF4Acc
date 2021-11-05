@@ -36,7 +36,7 @@ tagged_asts = map (\ast -> (foldl'(\isFold (lhs,rhs) -> case rhs of
                     ) False ast,ast)) ast4
 (fold_asts,maps_asts) = foldl' (\(f_,m_) (is_f,ast) -> if is_f then (f_++[ast],m_) else (f_,m_++[ast])) ([],[]) tagged_asts
 ast5 = removeDuplicateExpressions $ concat maps_asts -- the fold stages must remain separate!
-ast6 = fold_asts++ [ast5] --[ groupMapCalls ast5]
+ast6 = fold_asts ++ [ast5] --[ groupMapCalls ast5]
 
 asts  
     | stage == Original = [ast]
