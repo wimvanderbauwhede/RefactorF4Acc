@@ -1842,7 +1842,7 @@ fortranType (FVec dims dt) = fortranType dt
 fortranType dt = "! No equivalent Fortran type for "++show dt++" !!! "
 
 fortranDim :: [(Int,Int)] -> String
-fortranDim dims = "dimension(" ++ intercalate "," ( map (\(b,e) -> show b ++ ":" ++ show e) dims) ++ ")"
+fortranDim dims = ", dimension(" ++ intercalate "," ( map (\(b,e) -> show b ++ ":" ++ show e) dims) ++ ")"
 
 -- getAccExprs :: Name -> Expr -> [Expr]
 -- getAccExprs acc_name = everything (++) (mkQ [] (getAccExprs' acc_name)) 
