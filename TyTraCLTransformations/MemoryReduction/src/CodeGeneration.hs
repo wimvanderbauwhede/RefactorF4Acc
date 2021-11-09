@@ -1276,7 +1276,7 @@ generateStencilAppl s_exp v_exp@(Vec _ dt) sv_name stencilDefinitions =
         v_decl = mainArgDecls ! v_name
         --  MkFDecl "integer"  (Just [252004]) (Just In) ["wet_0"] )
         v_upper_bound = case dim v_decl of
-            Just vub -> head vub
+            Just vub -> snd $ head vub
             _ -> error $ v_name++" is not a Vector"
         Single lhs_v_name = sv_name
         sv_type = fortranType dt
