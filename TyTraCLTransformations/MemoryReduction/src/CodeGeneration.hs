@@ -1276,7 +1276,7 @@ generateStencilAppl s_exp v_exp@(Vec _ dt) sv_name stencilDefinitions =
         v_decl = mainArgDecls ! v_name
         --  MkFDecl "integer"  (Just [252004]) (Just In) ["wet_0"] )
         v_upper_bound = case dim v_decl of
-            Just vub -> head vub
+            Just vub -> snd $ head vub
             _ -> error $ v_name++" is not a Vector"
         Single lhs_v_name = sv_name
         sv_type = fortranType dt
@@ -1842,7 +1842,7 @@ fortranType (FVec dims dt) = fortranType dt
 fortranType dt = "! No equivalent Fortran type for "++show dt++" !!! "
 
 fortranDim :: [(Int,Int)] -> String
-fortranDim dims = "dimension(" ++ intercalate "," ( map (\(b,e) -> show b ++ ":" ++ show e) dims) ++ ")"
+fortranDim dims = ", dimension(" ++ intercalate "," ( map (\(b,e) -> show b ++ ":" ++ show e) dims) ++ ")"
 
 -- getAccExprs :: Name -> Expr -> [Expr]
 -- getAccExprs acc_name = everything (++) (mkQ [] (getAccExprs' acc_name)) 
