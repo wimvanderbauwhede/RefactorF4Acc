@@ -906,7 +906,12 @@ generateSubDefRApplyT f_exps idx_s rapplyt_fname functionSignatures ast =
         --         in 
         --             (calls_out_args'++[out_args_chunk],out_args_rest)
         --     ) ([], concat calls_out_args) idx_s
-        calls_out_args' = map (\idx_tup -> concatMap (\idx -> calls_out_args !! idx ) idx_tup) idx_s    
+        -- calls_out_args' = map (\idx_tup -> concatMap (\idx -> if idx > length calls_out_args - 1 
+        --     then [] -- error $ show (calls_out_args ,( (idx , idx_tup), idx_s))
+        --     else calls_out_args !! idx ) idx_tup) idx_s    
+        calls_out_args' = map ( concatMap (\idx -> if idx > length calls_out_args - 1 
+            then [] -- error $ show (calls_out_args ,( (idx , idx_tup), idx_s))
+            else calls_out_args !! idx ) ) idx_s    
         fsig_names_tups = zip4 f_exps calls_non_map_args calls_in_args calls_out_args'
 
     in
