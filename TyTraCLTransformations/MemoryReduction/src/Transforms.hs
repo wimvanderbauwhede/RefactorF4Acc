@@ -1,10 +1,22 @@
-module Transforms (splitLhsTuples, substituteVectors, applyRewriteRules, fuseStencils, regroupTuples, removeDuplicateExpressions,  decomposeExpressions) where
+module Transforms (
+    splitLhsTuples, 
+    substituteVectors, 
+    applyRewriteRules, 
+    fuseStencils, 
+    regroupTuples, 
+    removeDuplicateExpressions,  
+    decomposeExpressions,
+    substituteNonUniqueStencilNames,
+    stencilDefinitionsList',
+    stencilNamesToUniqueNames
+) where
 
 import Data.Generics (Data, Typeable, mkQ, mkT, mkM, gmapQ, gmapT, everything, everywhere, everywhere', everywhereM)
 import Control.Monad.State
 import qualified Data.Map.Strict as Map
 import Data.List (intercalate,foldl',nub)
 
+import ASTInstance ( stencilDefinitionsList, ast )
 import TyTraCLAST
 import CallReduction ( reduceCalls )
 import Warning ( warning )
@@ -23,6 +35,7 @@ import Warning ( warning )
 (!) = (Map.!)
 -- ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 
+( stencilDefinitionsList', stencilNamesToUniqueNames ) = removeDuplicateStencilDefs stencilDefinitionsList
 
 -- 1. Replace all LHS Tuple occurrences with multiple expressions using Elt on the RHS. As a result, the LHS will be purely Vec.
 splitLhsTuples :: TyTraCLAST -> TyTraCLAST
@@ -519,7 +532,7 @@ Then we repeat this until it returns False.
 
 remove_duplicate_expressions :: [(Expr,Expr)] -> ([(Expr,Expr)],Map.Map Expr Expr)
 remove_duplicate_expressions ast = let
-        (uniqueNamesForExprs, namesToUniqueNames,ast') = foldl' (\(uniqueNamesForExprs_,namesToUniqueNames_,ast_) (lhsExpr,rhsExpr) ->
+        (_uniqueNamesForExprs, namesToUniqueNames,ast') = foldl' (\(uniqueNamesForExprs_,namesToUniqueNames_,ast_) (lhsExpr,rhsExpr) ->
             if Map.member rhsExpr uniqueNamesForExprs_
                 then 
                     -- There is already an entry for this rhsExp, so skip this line
@@ -851,9 +864,56 @@ pos:r_pos_lst =  pos_lst
 
 -}
 
-data Pos = LHS| RHS
+-- data Pos = LHS| RHS
 -- analyse_exprs_for_stage_args :: Expr -> Expr -> State (Int,Map.Map Expr Expr,Map.Map Expr Expr,[(Expr,Expr)]) Expr
 -- analyse_exprs_for_stage_args lhs exp = do
 --     let 
 --     return exp'
 
+-- make sure the stencil definitions are unique:
+
+
+
+removeDuplicateStencilDefs :: [(String,[Integer])] -> ([(String,[Integer])],Map.Map String String)
+removeDuplicateStencilDefs stencil_defs_list = let
+        (_uniqueNamesForStencils, stencilNamesToUniqueNames,stencil_defs_list') = foldl' (
+            \(uniqueNamesForStencils_,stencilNamesToUniqueNames_,stencil_defs_list_) (stencil_name_,stencil_def_) ->
+            if Map.member stencil_def_ uniqueNamesForStencils_
+                then 
+                    -- There is already an entry for this rhsExp, so skip this line
+                    (
+                        uniqueNamesForStencils_, 
+                        Map.insert stencil_name_ (uniqueNamesForStencils_ ! stencil_def_) stencilNamesToUniqueNames_,
+                        stencil_defs_list_
+                    ) 
+                else 
+                    -- This line is unique, add to the AST
+                    (
+                        Map.insert stencil_def_ stencil_name_ uniqueNamesForStencils_,
+                        stencilNamesToUniqueNames_,
+                        stencil_defs_list_ ++ [(stencil_name_,stencil_def_)]
+                    ) 
+            ) (Map.empty,Map.empty,[]) stencil_defs_list
+    in
+        (stencil_defs_list',stencilNamesToUniqueNames)
+
+
+
+-- Now we must substitute the non-unique names for unique names in the AST
+-- The occurrences are at this stage are all 
+-- Stencil (SVec n (Scalar vt dt stencil_name)) expr 
+-- on the RHS
+-- and all we need is to replace `stencil_name` with `unique_stencil_name`
+
+substituteNonUniqueStencilNames ast stencilNamesToUniqueNames = 
+    map (\(lhsExpr,rhsExpr) -> case rhsExpr of
+        Stencil (SVec n (Scalar vt dt stencil_name)) v -> if Map.member stencil_name stencilNamesToUniqueNames 
+            then 
+                let
+                    stencil_name' = stencilNamesToUniqueNames !  stencil_name
+                    rhsExpr' = Stencil (SVec n (Scalar vt dt stencil_name')) v
+                in 
+                    (lhsExpr,rhsExpr')
+            else (lhsExpr,rhsExpr)
+        _ -> (lhsExpr,rhsExpr)
+    ) ast

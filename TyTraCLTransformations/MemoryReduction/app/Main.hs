@@ -6,7 +6,17 @@ import System.IO ( openFile, hPutStr, hClose, IOMode(..) )
 import Data.List ((\\),foldl')
 import TyTraCLAST 
 import ASTInstance (ast,functionSignaturesList,superkernelName)
-import Transforms (splitLhsTuples, substituteVectors, applyRewriteRules, fuseStencils, regroupTuples, removeDuplicateExpressions, decomposeExpressions) --, groupMapCalls)
+import Transforms (
+    splitLhsTuples, 
+    substituteVectors, 
+    applyRewriteRules, 
+    fuseStencils, 
+    regroupTuples, 
+    removeDuplicateExpressions, 
+    decomposeExpressions,
+    substituteNonUniqueStencilNames,
+    stencilNamesToUniqueNames
+    ) 
 import CodeGeneration (
     inferSignatures, 
     generateFortranCode,
@@ -19,8 +29,10 @@ printTyTraCL = True
 data Stage = Original | SplitLhsTuples | SubstituteVectors | ApplyRewriteRules | FuseStencils | RegroupTuples | DecomposeExpressions | RemoveDuplicateExpressions deriving (Show, Ord, Eq)
 stage = RemoveDuplicateExpressions
 
+ast' :: TyTraCLAST
+ast' = substituteNonUniqueStencilNames ast stencilNamesToUniqueNames
 ast1 :: TyTraCLAST
-ast1 = splitLhsTuples ast
+ast1 = splitLhsTuples ast'
 ast2 :: TyTraCLAST
 ast2 = substituteVectors ast1
 (ast3 :: TyTraCLAST, (_,idSigList)) = applyRewriteRules ast2

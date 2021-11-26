@@ -12,7 +12,8 @@ import Data.List (foldl', intercalate, nub, partition, zip4, unzip4, unzip5, max
 import Data.Bifunctor ( bimap, second )
 
 import TyTraCLAST
-import ASTInstance (functionSignaturesList, stencilDefinitionsList, mainArgDeclsList, origNamesList, scalarisedArgsList, superkernelName)
+import Transforms ( stencilDefinitionsList' )
+import ASTInstance (functionSignaturesList, mainArgDeclsList, origNamesList, scalarisedArgsList, superkernelName)
 import Warning ( warning )
 
 {-# ANN module "HLint: ignore Use camelCase" #-}
@@ -82,7 +83,7 @@ mainArgDecls :: Map.Map Name FDecl
 mainArgDecls =  Map.fromList mainArgDeclsList
 
 stencilDefinitions :: Map.Map Name [Integer]
-stencilDefinitions  =  Map.fromList stencilDefinitionsList
+stencilDefinitions  =  Map.fromList stencilDefinitionsList'
 
 {-
 ("f" => 
@@ -268,7 +269,7 @@ deriveSigApplyT fs functionSignatures =
     in
         [ns,ms,os]
 
-
+-- WV 2021-11-24 This is one possible place for the bug of missing out args 
 deriveSigRApplyT :: [Expr] ->  [[Int]] -> Map.Map Name FSig -> FSig
 deriveSigRApplyT fs idxs functionSignatures =
     let
@@ -277,6 +278,7 @@ deriveSigRApplyT fs idxs functionSignatures =
         -- I need to combine this into a single list. To do so, I have to remove the Tuple and then concat. Easy:
         (nsl, msl, osl) = unzip3 $ map (\[nm,m,o] -> (nm,m,o)) fsigs
         (ns, ms, os) = (Tuple nsl,Tuple msl,Tuple osl)
+
         tmplst = map (\(idx_s, arg) ->
             if length idx_s>1 
                 then
@@ -291,9 +293,62 @@ deriveSigRApplyT fs idxs functionSignatures =
         tmplst' = zip (concatMap snd tmplst) (concatMap fst tmplst)        
         os' = Tuple $ map snd $ sortOn fst tmplst'                
     in
-        -- error $ show os'
-        [ns,ms,os']        
+        -- if Function "f_comp_etann_1_11" [] `elem` fs then
+        --         error $ unlines ["fs: "++show fs,  "idxs: "++show idxs , "osl: "++show osl, "os: "++show os, "os': "++show os', "tmplst: "++show tmplst, "tmplst': "++show tmplst']
+        --     else
+                [ns,ms,os']        
+{-
+fs: [Function "f_comp_etann_1_6" [],Function "f_comp_etann_1_11" [],Id "id_12" [],Id "id_13" []]
+idxs: [[0,2],[1],[3]]
+osl: [SVec 2 (Scalar VO DFloat "sv_un_1_out"),SVec 2 (Scalar VO DFloat "sv_vn_1_out"),Tuple [],Tuple []]
+os: Tuple [SVec 2 (Scalar VO DFloat "sv_un_1_out"),SVec 2 (Scalar VO DFloat "sv_vn_1_out"),Tuple [],Tuple []]
+os': Tuple [SVec 2 (Scalar VO DFloat "sv_un_1_out"),Tuple [],SVec 2 (Scalar VO DFloat "sv_vn_1_out")]
+tmplst: [([SVec 2 (Scalar VO DFloat "sv_un_1_out")],[0,2]),([SVec 2 (Scalar VO DFloat "sv_vn_1_out")],[1]),([Tuple []],[3])]
+tmplst': [(0,SVec 2 (Scalar VO DFloat "sv_un_1_out")),(2,SVec 2 (Scalar VO DFloat "sv_vn_1_out")),(1,Tuple [])]
 
+What seems to ne wrong is that there are only indices for the first 3 elements of the RApplyT tuple
+I would assume that there should be as many lists in idxs as there are elements in the RApplyT tuple
+(
+
+                        (RApplyT [[0,2],[1],[3]] [
+                            Comp 
+                                (MapS (SVec 2 (Scalar VDC DInt "s5")) 
+                                    (Comp (PElt 0) (Function "dyn_shapiro_map_55" []))) 
+                                (MapS (SVec 2 (Scalar VDC DInt "s5")) 
+                                    (RApplyT [[0],[1,4],[2],[3]] [
+                                        Id "id_6" [],
+                                        Comp (PElts [0,1]) (Function "dyn_shapiro_map_49" []),
+                                        Id "id_7" [],
+                                        Id "id_8" []
+                                        ]
+                                    )
+                                ),
+                            Comp 
+                                (MapS (SVec 2 (Scalar VDC DInt "s4")) 
+                                    (Comp (PElt 1) (Function "dyn_shapiro_map_55" []))) 
+                                (MapS (SVec 2 (Scalar VDC DInt "s4")) 
+                                    (RApplyT [[0],[1,4],[2],[3]] [
+                                        Id "id_9" [],
+                                        Comp (PElts [0,1]) (Function "dyn_shapiro_map_49" []),
+                                        Id "id_10" [],
+                                        Id "id_11" []]
+                                        )
+                                ),
+                            Id "id_12" [],
+                            Id "id_13" []
+                            ]
+                        )
+                    )
+                        ]
+                    )
+                ) 
+            ZipT [
+                Stencil (...) (Vec VI (Scalar VDC DFloat "u_0")),
+                Stencil (...) (Vec VI (Scalar VDC DFloat "eta_0")),
+                Stencil (...) (Vec VI (Scalar VDC DInt "wet_0")),
+                Stencil (...) (Vec VI (Scalar VDC DFloat "v_0"))
+                ],
+-}
 -- ----------------------------------------------------------------------------------------
 -- ----------------------------------------------------------------------------------------
 
@@ -881,7 +936,35 @@ generateSubDefApplyT f_exps applyt_fname functionSignatures ast =
                     False
                 ,[],functionSignatures)
 
+{-
+RApply logic:
 
+suppose we have
+
+out_args = (r0,r1,r2,r3,r4) = ApplyT (PElt i1 f1, PElt j1 f2, PElt i3 f1,PElt i2 f1, PElt j2 f2) (v1,v2,v1,v1,v2)
+
+This will become
+
+out_args' = (rr0,rr1) = RApplyT [[0,2,3],[1,4]] (PElts [i1,i3,i2] f1, PElts [j1,j2] f2) (v1,v2)
+
+In code generation, we have
+    pelts_f1_v1 v1 rr0
+    pelts_f2_v2 v2 rr1
+
+So what we need to do is identify the content of rr0 and rr1, which obviously is    
+
+rr0 = (r0,r2,r3)
+rr1 = (r1,r4)
+
+which is what the code below does:
+
+map ( concatMap (\idx -> calls_out_args !! idx ) ) idx_s 
+
+So the problem is that sometimes the signature is missing arguments
+
+A possible reason might be that the argument was an InOut and did not get split. 
+
+-}
 
 generateSubDefRApplyT :: [Expr] -> [[Int]] -> Name -> Map.Map Name FSig -> TyTraCLAST -> (String,[String],Map.Map Name FSig)
 generateSubDefRApplyT f_exps idx_s rapplyt_fname functionSignatures ast = 
@@ -909,8 +992,13 @@ generateSubDefRApplyT f_exps idx_s rapplyt_fname functionSignatures ast =
         -- calls_out_args' = map (\idx_tup -> concatMap (\idx -> if idx > length calls_out_args - 1 
         --     then [] -- error $ show (calls_out_args ,( (idx , idx_tup), idx_s))
         --     else calls_out_args !! idx ) idx_tup) idx_s    
+        -- What we want do here is take the original output arguments used by RApplyT
+        -- and we need to map these to the outputs of every call in RApply, 
+        -- typically we identify with output arg corresponds to which tuple elt in a PElts call
         calls_out_args' = map ( concatMap (\idx -> if idx > length calls_out_args - 1 
-            then [] -- error $ show (calls_out_args ,( (idx , idx_tup), idx_s))
+            then 
+                ["UNDEFINED"] --
+                -- error $ show (calls_out_args ,( (idx , idx_tup), idx_s))
             else calls_out_args !! idx ) ) idx_s    
         fsig_names_tups = zip4 f_exps calls_non_map_args calls_in_args calls_out_args'
 

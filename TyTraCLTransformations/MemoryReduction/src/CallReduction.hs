@@ -39,7 +39,7 @@ I think this needs to be returned from reorder_call_args
 
 RApplyT can take care of that as well: example:
 
-(Comp Pelt i1 f1, Maps Comp Pelt i2 f2, h1, Comp Pelt j1 f1, Maps Comp Pelt j2 f2, Maps Comp Pelt k2 k2, Comp Pelt k1 f1, h2) ::
+(Comp Pelt i1 f1, Maps Comp Pelt i2 f2, h1, Comp Pelt j1 f1, Maps Comp Pelt j2 f2, Maps Comp Pelt k2 f2, Comp Pelt k1 f1, h2) ::
 (b1 -> a1_i1, b2 -> SVec a2_i2, b3 -> c3, b1 -> a1_j1, b2 -> a2_j2, b2 -> a2_k2, b1 -> a1_k1, b4 -> c4)
 
 \(x1,x2,x3,x4,x5,x6,x7,x8) -> (y1 :: a1_i1, y2:: a2_i2, y3::c3, y4::a1_j1, y5::a2_j2, y6::a2_k2, y7::a1_k1, y8::c4) 
@@ -74,40 +74,108 @@ and then using the index sequence to recreate
 -}
 
 reduceCalls :: [Expr] -> [Expr] -> Bool -> ([Expr],[Expr], [[Int]])
-reduceCalls f_s' v_s' False = (f_s', v_s', map (\x ->[x]) $ take (length f_s') [0 .. ])
+reduceCalls f_s' v_s' False = (f_s', v_s', map (\x ->[x]) $ take (length f_s') [0 .. ]) -- UNUSED
 reduceCalls f_s' v_s' True = let
-        idx_s' = take (length f_s') [0 .. ]
+        idx_s' = take (length f_s') [0 .. ] -- so there are at this point as many indices as there are functions
         (f_s,v_s,idx_s)
             | reorderArgs = reorder_call_args f_s' v_s' idx_s'
-            | otherwise = (f_s',v_s', idx_s')
+            | otherwise = (f_s',v_s', idx_s') -- UNUSED
         t_v_s = group_identical_args v_s -- list of tuples (v,count)
         (f_s_g, t_v_s_g, idx_s_g) = group_pelt_terms f_s t_v_s idx_s [] [] [] -- this also needs idx_s and return the grouped version
         v_s_g = map fst t_v_s_g -- the vectors
     in
         (f_s_g, v_s_g, idx_s_g)     
 
--- I think I need erase_maps_svec_names in uniques
 reorder_call_args f_s v_s idx_s = let
         unique_v_s = uniques v_s
         reordered_f_s_v_s_idx_s = map (\unique_v -> filter (\(_,v,_) -> erase_maps_svec_names v == erase_maps_svec_names unique_v) (zip3 f_s v_s idx_s)) unique_v_s 
         flattened_reordered_f_s_v_s_idx_s = foldl' (++) [] reordered_f_s_v_s_idx_s
     in        
         -- error $ show $ 
-        unzip3 flattened_reordered_f_s_v_s_idx_s 
+        -- unzip3 flattened_reordered_f_s_v_s_idx_s 
+        warning (unzip3 flattened_reordered_f_s_v_s_idx_s ) ("DBG:"++ show (unzip3 flattened_reordered_f_s_v_s_idx_s ))
         -- error $ show unique_v_s ++ "\n" ++ show v_s
-        
+{-
+So it looks like the bug is as follows: in f_s, in RApplyT, there are two Comp of MapS calls which have different SVecs s5 and s4
+The corresponding v_s is incorrect because it only has the s5 stencil, not the s4 one; and the index list of the RApplyT
+is also incorrect because it has [[0,2],[1],[3]] but should be [[0],[2],[1],[3]] 
+Now, this is a bit odd as it looks like we are calling both dyn_shapiro_map_55 and dyn_shapiro_map_49 twice, with the different stencils
+But of course *because* the stencils are different, there is nothing we can do about it: we *must* call them separately
+So I think I have erases some stencil info where I shouldn't have
+
+        DBG:
+
+                Comp 
+                    (MapS (SVec 5 (Scalar VDC DInt "s3")) (Function "dyn_shapiro_map_75" [])) 
+                    (MapS (SVec 5 (Scalar VDC DInt "s3")) (RApplyT 
+                        [[0,2],[1],[3]] [
+                            Comp 
+                                (MapS (SVec 2 (Scalar VDC DInt "s5")) (Comp (PElt 0) (Function "dyn_shapiro_map_55" [])) ) 
+                                (MapS (SVec 2 (Scalar VDC DInt "s5")) (RApplyT [[0],[1,4],[2],[3]] [
+                                    Id "id_6" [],
+                                    Comp (PElts [0,1]) (Function "dyn_shapiro_map_49" []),
+                                    Id "id_7" [],
+                                    Id "id_8" []])),
+                            Comp 
+                                (MapS (SVec 2 (Scalar VDC DInt "s4")) (Comp (PElt 1) (Function "dyn_shapiro_map_55" []))) 
+                                (MapS (SVec 2 (Scalar VDC DInt "s4")) (RApplyT [[0],[1,4],[2],[3]] [
+                                    Id "id_9" [],
+                                    Comp (PElts [0,1]) (Function "dyn_shapiro_map_49" []),
+                                    Id "id_10" [],
+                                    Id "id_11" []])),
+                            Id "id_12" [],
+                            Id "id_13" []
+                            ])
+                    )
+
+                Stencil (SVec 5 (Scalar VDC DInt "s3")) (ZipT [
+                    Stencil (SVec 2 (Scalar VDC DInt "s5")) (ZipT [
+                        Vec VI (Scalar VDC DFloat "u_0"),
+                        Stencil (SVec 3 (Scalar VDC DInt "s1")) (Vec VI (Scalar VDC DFloat "eta_0")),
+                        Stencil (SVec 3 (Scalar VDC DInt "s1")) (Vec VI (Scalar VDC DInt "wet_0")),
+                        Vec VI (Scalar VDC DFloat "v_0")
+                        ]),
+                    Stencil (SVec 5 (Scalar VDC DInt "s3")) (Vec VI (Scalar VDC DFloat "h_0")),
+                    Vec VI (Scalar VDC DFloat "eta_0")
+                    ]
+                )
+
+-}
 {-
 First of all we need to create v_s' which is a version of v_s where the 2nd arg of every SVec is  replaced by e.g. Const :
 SVec sz _ -> SVec sz (Const sz) 
 We can do this with everywhere
+
+WV2021-11-25 
+This erasure of SVec in Stencil is definitely incorrect because
+stencil s1 $ map f1 v1
+stencil s2 $ map f1 v1
+becomes
+map (maps s1 f1) (stencil s1 v1)
+map (maps s2 f1) (stencil s2 v1)
+and even though we might write 
+map (maps f1) (stencil s1 v1)
+map (maps f1) (stencil s2 v1)
+we can't write
+map (maps f1) (stencil  v1)
+map (maps f1) (stencil  v1)
+
+All we can do is make sure there are no identical stencils with different names. So that is the first step we should take, before the rewrite rules
+
+We could try and combine the stencils, which might save a few calculations, but I don't think it is worth it
+
+map (maps f1) (stencil s1 v1)
+map (maps f1) (stencil s2 v1)
+
 -}
 erase_maps_svec_names :: Expr -> Expr
-erase_maps_svec_names = everywhere (mkT ( \expr -> case expr of
-            MapS (SVec sz _) f -> MapS (SVec sz (Const sz)) f
-            Stencil (SVec sz _) v -> Stencil (SVec sz (Const sz)) v
-            e -> e
-        )
-    ) 
+erase_maps_svec_names = id
+-- everywhere (mkT ( \expr -> case expr of
+--             MapS (SVec sz _) f -> MapS (SVec sz (Const sz)) f
+--             Stencil (SVec sz _) v -> Stencil (SVec sz (Const sz)) v
+--             e -> e
+--         )
+--     ) 
 {-
 Next we want to group identical arguments, and we need to know how many, so we have [v1,v1,v2,v3,v3] -> [(v1,2),(v2,1),(v3,2)]
 - take the element and put it in the acc: [(v1,1)]
@@ -173,7 +241,7 @@ group_pelt_terms f_s t_v_s idx_s f_s_g t_v_s_g idx_s_g =
                 group_pelt_terms f_s' t_v_s' idx_s' f_s_g' t_v_s_g' idx_s_g'
 
 {-
-We test if the series of expressions that are args of AppluT are Comp PElt ... or Maps of Comp PElt
+We test if the series of expressions that are args of ApplyT are Comp PElt ... or Maps of Comp PElt
 If so, we can group them    
 -}
 is_PElt_series :: [Expr] -> Bool
