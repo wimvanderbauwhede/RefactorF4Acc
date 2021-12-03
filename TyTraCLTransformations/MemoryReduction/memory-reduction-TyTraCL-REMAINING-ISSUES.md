@@ -1,5 +1,90 @@
 # REMAINING ISSUES : Memory (Bandwidth) Reduction for Scientific Computing on GPUs
 
+## 2021-10-14
+
+For the 2-D Shallow Water example, it looks like many of the arguments to pelts and rapplyt functions are missing
+I guess that what happens is that the non-tuple, non-maps args get lost
+
+          call f_pelts_un_1_vn_1_3(u_0(idx), un_1(idx), vn_1(idx))
+     subroutine f_pelts_un_1_vn_1_3(eta_s_0, un_1,      vn_1)
+            call f_comp_un_1_vn_1_2(eta_s_0, un_1, vn_1)
+      subroutine f_comp_un_1_vn_1_2(eta_s_0, un_1, vn_1)
+                call f_rapplyt_un_1_vn_1_1(eta_s_0, u_0, du___dyn_1, wet_s_0, v_0, dv___dyn_1)
+          subroutine f_rapplyt_un_1_vn_1_1(eta_s_0,      du___dyn_1,               dv___dyn_1)
+                  call f_pelts_un_1_vn_1_0(eta_s_0,                                dv___dyn_1)    
+            subroutine f_pelts_un_1_vn_1_0(eta_s_0,      du___dyn_1,               dv___dyn_1)
+                   call dyn_shapiro_map_55(u_0, du___dyn_1, wet_s_0, v_0, dv___dyn_1, un_1, vn_1)
+                call dyn_shapiro_map_49(eta_s_0, du___dyn_1, dv___dyn_1)    
+
+
+-- Inferred function signatures stage 1
+f_comp_un_1_vn_1_2 :: (SVec 3 Float) -> (Float, Float) -- WRONG: this is the last f in a comp which creates f_pelts_un_1_vn_1_3 so (Float,(SVec 3 Float),(SVec 3 Int),Float) -> (Float,Float)
+f_pelts_un_1_vn_1_0 :: SVec 3 Float -> (Float, Float) -- Correct, same as dyn_shapiro_map_49
+f_pelts_un_1_vn_1_3 :: (SVec 3 Float) -> (Float, Float) -- WRONG:  This takes the final zip so it is (Float,(SVec 3 Float),(SVec 3 Int),Float) -> (Float,Float) (In fact it is identical to f_comp_un_1_vn_1_2)
+f_rapplyt_un_1_vn_1_1 :: (SVec 3 Float) -> (Float, Float) -- WRONG: 
+What this should return is the inputs for dyn_shapiro_map_55, i.e. (Float, Float, SVec 3 Int, Float, Float); args are  (Float,(SVec 3 Float),(SVec 3 Float),Float) 
+
+-- Common subexpression elimination
+
+f_pelts_un_1_vn_1_0 = (comp pelts (0, 1)  dyn_shapiro_map_49)
+f_rapplyt_un_1_vn_1_1 = (rapplyt [[0],[1,4],[2],[3]] (id , f_pelts_un_1_vn_1_0, id , id )) 
+f_comp_un_1_vn_1_2 = (comp dyn_shapiro_map_55 f_rapplyt_un_1_vn_1_1)
+f_pelts_un_1_vn_1_3 = (comp pelts (0, 1)  f_comp_un_1_vn_1_2)
+eta_s_0 = stencil s1 eta_0
+wet_s_0 = stencil s1 wet_0
+(un_1, vn_1) = unzipt (map f_pelts_un_1_vn_1_3 zipt (u_0, eta_s_0, wet_s_0, v_0))
+
+=> The reason is that we have erased the Id names and they were used to get the proper signatures!
+So let's assume I have  `Map.insert t [(lhs,n)] acc` so the map `acc` contains `t => [(lhs,n)]`
+where
+      t = (f_expr,v_expr)
+Now I have a `t'` with
+      t' = (f_expr',v_expr')
+for which I know that 
+      (erase_Id_names f_expr,v_expr) == (erase_Id_names f_expr',v_expr')
+                  
+Problem is that I can't use Map.member. Really the only way is to go through all the keys.
+So I did that, see Transforms, but there is still some mistake in the generation of
+
+f_rapplyt_un_1_vn_1_1
+
+f_rapplyt_un_1_vn_1_1 = (rapplyt [[0],[1,4],[2],[3]] (id , f_pelts_un_1_vn_1_0, id , id ))
+                                    
+subroutine f_rapplyt_un_1_vn_1_1(u_0_in, eta_s_0, wet_0_in, v_0_in, u_0_out, du___dyn_1, wet_0_out, v_0_out, dv___dyn_1)
+
+u_0_out = u0_in
+du___dyn_1,dv___dyn_1 = f_pelts_un_1_vn_1_0 eta_s_0
+wet_0_out = wet_0_in
+ v_0_out = v_0_in
+
+=> So the problem is that dv___dyn_1 is missed out
+
+    real :: u_0_in
+    real, dimension(3) :: eta_s_0
+    integer, dimension(3) :: wet_0_in
+    real :: v_0_in
+    real :: u_0_out
+    real :: du___dyn_1
+    integer, dimension(3) :: wet_0_out
+    real :: v_0_out
+    real :: dv___dyn_1
+
+    u_0_out = u_0_in
+
+    call f_pelts_un_1_vn_1_0(eta_s_0, du___dyn_1, wet_0_out)
+    v_0_out = wet_0_in
+
+There is another problem in the rapplyt subdef generation
+
+      calls_out_args = [["u_0_out"],["du___dyn_1"],["wet_0_out"],["v_0_out"],["dv___dyn_1"]]
+        -- So, in the above I really should use `!!` to get the elements
+        -- MemoryReduction-exe: (
+        --     [Id "id_0" [],Function "f_pelts_un_1_vn_1_0" [],Id "id_1" [],Id "id_2" []],
+      idx_s = [[0],[1,4],[2],[3]]
+      map (\idx_tup -> concatMap (\idx -> calls_out_args !! idx ) idx_tup) idx_s
+
+
+
 ## 2021-08-24
 
 There is a bug in the scalariser: if non-map args use indices i,j,k derived from global_id, they are ignored and not declared

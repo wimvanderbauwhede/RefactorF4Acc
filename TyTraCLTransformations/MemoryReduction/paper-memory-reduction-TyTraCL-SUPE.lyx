@@ -242,9 +242,32 @@ Received: date / Accepted: date
 \end_layout
 
 \begin_layout Abstract
-Insert your abstract here.
- Include keywords, PACS and mathematical subject classification numbers
- as needed.
+In this paper we present a novel approach to aggressively reduce memory
+ utilisation of stencil-based legacy scientific Fortran code through a program
+ transformation that trades memory access for computation.
+ The code is first auto-parallelised through automatic program transformation
+ using our approach 
+\begin_inset CommandInset citation
+LatexCommand cite
+key "vanderbauwhede2018domain"
+literal "false"
+
+\end_inset
+
+.
+ We use an internal domain-specific functional language in the compiler
+ for the analysis and program transformation.
+ The key contribution of this paper is a set of type-driven rewrite rules
+ that identify and eliminate the intermediate arrays, with proofs of correctness.
+ The paper also discussing the code generation into Fortran-95 parallelised
+ with OpenMP.
+ We demonstrate the effectiveness of our approach using a real-world exemplar,
+ the Large Eddy Simulator for Urban flows, and show that our algorithm successfu
+lly removes 31 out of 37 intermediate arrays, reducing the memory footprint
+ by a factor of 6.6x.
+ As stencil code is generally memory bandwidth limited, the memory-reduced
+ code can actually be faster than the reference code, as evidenced by a
+ speed-up of 2x for our exemplar.
 \end_layout
 
 \begin_layout Abstract
@@ -395,7 +418,12 @@ legacy code
  Out work aims to develop the tools and techniques to entirely automate
  this porting effort, so that more scientists can benefit from access to
  accelerators and parallel systems for their research.
- We have already reported our work on auto-parallelisation of FORTRAN 77
+ 
+\begin_inset Note Note
+status open
+
+\begin_layout Plain Layout
+We have already reported our work on auto-parallelisation of FORTRAN 77
  code for GPUs in 
 \begin_inset CommandInset citation
 LatexCommand cite
@@ -405,6 +433,11 @@ literal "false"
 \end_inset
 
 .
+\end_layout
+
+\end_inset
+
+
 \end_layout
 
 \begin_layout Standard
@@ -438,31 +471,14 @@ literal "false"
 
 \begin_layout Standard
 This is a hurricane wind similator which simulates pressure and wind speed.
- It is a suitable exemplar to demonstrate our work because the code base
- (in Fortran 77) is complex but not too large (1146 loc) and the structure
- is representative for many finite-difference, iterative solver based simulation
- codes.
+ It is a suitable exemplar to demonstrate our work because the original
+ code base (in FORTRAN 77) is complex but not too large (1146 loc) and the
+ structure is representative for many finite-difference, iterative solver
+ based simulation codes.
  The domain is high-resolution (metre scale) and the time step is very small
  (ms).
- 
-\end_layout
-
-\begin_layout Standard
-[[
-\begin_inset Note Note
-status open
-
-\begin_layout Plain Layout
-REWRITE!
-\end_layout
-
-\end_inset
-
-
-\end_layout
-
-\begin_layout Standard
-Its actual inputs are the wind velocity in 3 dimensions (
+ The actual inputs to the simulation are the wind velocity in three dimensions
+ (
 \emph on
 u,v,w
 \emph default
@@ -474,8 +490,8 @@ p
 \begin_inset space ~
 \end_inset
 
-four arrays for every domain.
- However, the code
+four arrays per domain.
+ However, one part of the code
 \begin_inset Foot
 status open
 
@@ -495,204 +511,54 @@ https://github.com/wimvanderbauwhede/LES
 
 \end_inset
 
- actually uses 15 arrays (Listing 
+, the turbulent flow calculation, actually uses 37 arrays.
+ Of these 37 arrays, only three are actual inputs to the calculation and
+ three computed outputs.
+ The other arrays are intermediate and can actually be replaced by scalar
+ computations.
+ 
+\end_layout
+
+\begin_layout Standard
+The memory reduction approach proposed in this paper allows to eliminates
+ the 31 intermediate arrays entirely, so that the simulation can run on
+ a six times larger domain with the same memory utilisation.
+ (In the rest of the simulator, there are no redundant arrays.) 
+\end_layout
+
+\begin_layout Standard
+To illustrate the impact: the server used in this work has 64 GB of memory.
+ With the given memory, the maximum domain for the original code was 2100
+\begin_inset Formula $\times$
+\end_inset
+
+2100
+\begin_inset Formula $\times$
+\end_inset
+
+90 points, (array size 1.5 GB).
+ After removal of the intermediate arrays, the domain can be up to 5400
+\begin_inset Formula $\times$
+\end_inset
+
+5400
+\begin_inset Formula $\times$
+\end_inset
+
+90 points (array size 9.8 GB).
+ As all redundant array accesses are replaced by register accesses, the
+ resulting code is not only more memory efficient but also faster, as shown
+ in Section 
 \begin_inset CommandInset ref
 LatexCommand ref
-reference "lis:Arrays-used-in"
+reference "sec:Exemplar:-Turbulence-calculation"
 plural "false"
 caps "false"
 noprefix "false"
 
 \end_inset
 
-): 
-\end_layout
-
-\begin_layout Standard
-\begin_inset listings
-lstparams "language=Fortran,float,mathescape=true,escapeinside={~~}"
-inline false
-status open
-
-\begin_layout Plain Layout
-
-real, dimension(im,jm,km) :: p
-\end_layout
-
-\begin_layout Plain Layout
-
-real, dimension(im,jm,km) :: u,v,w
-\end_layout
-
-\begin_layout Plain Layout
-
-real, dimension(im,jm,km) :: usum,vsum,wsum
-\end_layout
-
-\begin_layout Plain Layout
-
-real, dimension(im,jm,km) :: f,g,h
-\end_layout
-
-\begin_layout Plain Layout
-
-real, dimension(im,jm,km) :: fold,gold,hold
-\end_layout
-
-\begin_layout Plain Layout
-
-real, dimension(im,jm,km) :: sm
-\end_layout
-
-\begin_layout Plain Layout
-
-real, dimension(im,jm,km) :: rhs
-\begin_inset Caption Standard
-
-\begin_layout Plain Layout
-Arrays used in the Fortran code of the  Large Eddy Simulator for Urban Flows
-\begin_inset CommandInset label
-LatexCommand label
-name "lis:Arrays-used-in"
-
-\end_inset
-
-
-\end_layout
-
-\end_inset
-
-
-\end_layout
-
-\end_inset
-
-
-\end_layout
-
-\begin_layout Standard
-In this particular case, 11 arrays are intermediate and can actually be
- replaced by scalar computations.
-\end_layout
-
-\begin_layout Standard
-\begin_inset Note Note
-status open
-
-\begin_layout Plain Layout
-In total, the LES uses 57 3-D arrays for the GPU kernels.
- Of these, we really only need 4
-\end_layout
-
-\begin_layout Plain Layout
-Of the 15 listed above, 11 are redundant.
-\end_layout
-
-\begin_layout Plain Layout
-If we just consider a particular component of the simulation, the velocity
- calculation, we see that it uses 30 arrays.
- Of these 30, 27 are redundant.
- 
-\end_layout
-
-\end_inset
-
-
-\end_layout
-
-\begin_layout Standard
-If we could achieve this, the simulation could run on a 4 times larger domain
- with the same memory utilisation.
- 
-\end_layout
-
-\begin_layout Standard
-In the original code, the turbulent flow algorithm uses the following 3-D
- arrays, 37 in total:
-\end_layout
-
-\begin_layout Standard
-u,v,w
-\end_layout
-
-\begin_layout Standard
-f,g,h
-\end_layout
-
-\begin_layout Standard
-diu 1..9 for partial derivatives of the velocity
-\end_layout
-
-\begin_layout Standard
-nou 1..9 for interpolated values
-\end_layout
-
-\begin_layout Standard
-cov 1..9 for convection components
-\end_layout
-
-\begin_layout Standard
-df{u,v,w}1 for updating the force fields with their derivatives 
-\end_layout
-
-\begin_layout Standard
-sm 
-\end_layout
-
-\begin_layout Standard
-Of these 37 arrays, only u,v,w are actual inputs to the calculation and
- f,g,h computed outputs.
- 
-\end_layout
-
-\begin_layout Standard
-Our memory reduction approach eliminates the 31 intermediate arrays entirely.
- In the other algorithms, there are no redundant arrays.
- 
-\end_layout
-
-\begin_layout Standard
-To illustrate the impact: assumong the GPU has 4GB of memory, then the maximum
- domain for the original code was 100 MB, which translates to a domain of
- about 400x400 points.
-\end_layout
-
-\begin_layout Standard
-After removal of the intermediate arrays, the domain can be up to 1000x1000
- points.
-\end_layout
-
-\begin_layout Standard
-As all redundant array accesses are replace by register accesses in the
- GPU, the resulting code is 6x more memory efficient but only 20% slower.
-\end_layout
-
-\begin_layout Standard
-]]
-\end_layout
-
-\begin_layout Standard
-In this paper we present a novel approach to aggressively reduce memory
- utilisation of stencil-based legacy scientific code that has been auto-parallel
-ised for GPUs, through automatic program transformation using our approach
- 
-\begin_inset CommandInset citation
-LatexCommand cite
-key "vanderbauwhede2018domain"
-literal "false"
-
-\end_inset
-
 .
- The problem with accelerators such as GPUs and FPGAs is that they use static
- memory allocation.
- Therefore, memory for intermediate arrays has to be allocated before a
- kernel runs and for the lifetime of all kernels that need access to this
- memory.
- This is quite different from e.g.
- temporary arrays in a subroutine call, where the compiler can allocate
- the memory at need using the dynamic allocation facility of the operating
- system.
 \end_layout
 
 \begin_layout Section
@@ -718,6 +584,11 @@ The idea is to find some similar things but be able to say that nobody has
 
 \begin_layout Itemize
 Def cite the polyhaedral model
+\end_layout
+
+\begin_layout Itemize
+When mentioning Fortran refactoring, maybe mention fortran-src ? https://hackage.
+haskell.org/package/fortran-src 
 \end_layout
 
 \begin_layout Itemize
@@ -758,6 +629,9 @@ https://github.com/wimvanderbauwhede/RefactorF4Acc
 \end_inset
 
 ,
+\end_layout
+
+\begin_layout Plain Layout
 \begin_inset Flex URL
 status open
 
@@ -769,6 +643,9 @@ https://github.com/wimvanderbauwhede/AutoParallel-Fortran
 \end_inset
 
 ,
+\end_layout
+
+\begin_layout Plain Layout
 \begin_inset Flex URL
 status open
 
@@ -792,11 +669,26 @@ https://github.com/tytra-gu/tybec
 \family typewriter
 COMMON
 \family default
- in Fortran) and guarantee type-safety [REF NEW PAPER].
- The next step perform parallelisation using OpenCL.
+ in Fortran) and guarantee type-safety 
+\begin_inset CommandInset citation
+LatexCommand cite
+key "vanderbauwhede2021making"
+literal "false"
+
+\end_inset
+
+.
+ The next step performs autoparallelisation.
  The loops are analysed and categorised for parallelisation potential: dependenc
 y-free loops, parallel reductions and iterative loops that can't be parallelised.
- We have demonstrated the effectiveness of this approach for GPU acceleration
+ The compiler generates Fortran 95 code in form ready for parallelisation.
+ A final step allows OpenCL code generation for CPU, GPUs and other OpenCL-compl
+iant devices.
+ 
+\end_layout
+
+\begin_layout Standard
+We have demonstrated the effectiveness of this approach for GPU acceleration
  
 \begin_inset CommandInset citation
 LatexCommand cite
@@ -867,8 +759,7 @@ An algorithm to identify intermediate arrays
 \end_layout
 
 \begin_layout Itemize
-A series of rewrite-rule-based program transformations to remove intermediate
- arrays
+A set of term rewrite rules to remove intermediate arrays
 \end_layout
 
 \begin_layout Standard
@@ -879,23 +770,6 @@ The key idea underpinning the current work is that we can trade memory storage
  This reduces the memory requirements at the expense of additional computation.
  We demonstrate the effectiveness of the presented approach using the Large
  Eddy Simulator for Urban Flows as exemplar.
-\end_layout
-
-\begin_layout Standard
-\begin_inset Note Note
-status open
-
-\begin_layout Plain Layout
-XXX Experiments will have to show if this is slower and by how much XXX
-\end_layout
-
-\begin_layout Plain Layout
-XXX Approach ??? XXX
-\end_layout
-
-\end_inset
-
-
 \end_layout
 
 \begin_layout Section
@@ -940,7 +814,15 @@ vectors that represent Fortran arrays;
 \end_layout
 
 \begin_layout Itemize
-scalar kernel functions (PURE, ELEMENTAL functions in Fortran terms);
+scalar kernel functions (
+\family sans
+PURE
+\family default
+, 
+\family sans
+ELEMENTAL
+\family default
+ functions in Fortran terms);
 \end_layout
 
 \begin_layout Itemize
@@ -963,7 +845,7 @@ For the purpose of TyTraCL, the kernel functions are opaque: they are defined
 \end_layout
 
 \begin_layout Subsection
-TyTraCL concrete syntax
+TyTraCL syntax and semantics
 \begin_inset CommandInset label
 LatexCommand label
 name "tytracl-concrete-syntax"
@@ -1389,7 +1271,7 @@ To formalise the definition of the
 \family typewriter
 stencil
 \family default
- primitive we express in in Haskell as:
+ primitive we express it in Haskell as:
 \end_layout
 
 \begin_layout Standard
@@ -1446,478 +1328,24 @@ s
  
 \end_layout
 
-\begin_layout Subsection
-TyTraCL Abstract Syntax
-\end_layout
-
-\begin_layout Standard
-\begin_inset CommandInset label
-LatexCommand label
-name "tytracl-abstract-syntax"
-
-\end_inset
-
-
-\end_layout
-
-\begin_layout Standard
-\begin_inset Note Note
-status open
-
-\begin_layout Plain Layout
-TOO DETAILED? Just refer to the source or Appendix and say that we'll use
- the concrete syntax for the rest of the paper
-\end_layout
-
-\end_inset
-
-
-\end_layout
-
 \begin_layout Standard
 We have implemented the TyTraCL program transformations in Haskell.
  The abstract syntax for the untyped TyTraCL language, expressed as a Haskell
  type, is shown in Listing 
 \begin_inset CommandInset ref
 LatexCommand ref
-reference "lis:TyTraCL-AST-data"
+reference "lis:TyTraCL-AST-data-1"
 plural "false"
 caps "false"
 noprefix "false"
 
 \end_inset
 
-.
- 
-\begin_inset Quotes eld
-\end_inset
-
-Untyped
-\begin_inset Quotes erd
-\end_inset
-
- means that we are at this stage not concerned with the concrete types of
- the values contained in the input vectors or scalars.
-\end_layout
-
-\begin_layout Standard
-\begin_inset listings
-lstparams "mathescape=true,escapeinside={~~},language=Haskell"
-inline false
-status open
-
-\begin_layout Plain Layout
-
-type Name = String
-\end_layout
-
-\begin_layout Plain Layout
-
-data VE = VI  | VO  | VS  | VT | VU
-\end_layout
-
-\begin_layout Plain Layout
-
-    deriving (Show, Typeable, Data, Eq)            
-\end_layout
-
-\begin_layout Plain Layout
-
-type TyTraCLAST = [(Expr,Expr)]                      
-\end_layout
-
-\begin_layout Plain Layout
-
-\end_layout
-
-\begin_layout Plain Layout
-
-data Expr =
-\end_layout
-
-\begin_layout Plain Layout
-
--- Left-hand side:
-\end_layout
-
-\begin_layout Plain Layout
-
-          Scalar Name
-\end_layout
-
-\begin_layout Plain Layout
-
-	    | Tuple [Expr] 
-\end_layout
-
-\begin_layout Plain Layout
-
-    	| Vec VE Expr
-\end_layout
-
-\begin_layout Plain Layout
-
-\end_layout
-
-\begin_layout Plain Layout
-
--- Right-hand side:
-\end_layout
-
-\begin_layout Plain Layout
-
-        | SVec Int Expr -- Stencil vector
-\end_layout
-
-\begin_layout Plain Layout
-
-        | ZipT [Expr] -- generalised zip
-\end_layout
-
-\begin_layout Plain Layout
-
-        | UnzipT Expr -- generalised unzip
-\end_layout
-
-\begin_layout Plain Layout
-
-        | Elt Int Expr -- generalised tuple access
-\end_layout
-
-\begin_layout Plain Layout
-
-        | Map Expr Expr
-\end_layout
-
-\begin_layout Plain Layout
-
-        | Fold Expr Expr Expr
-\end_layout
-
-\begin_layout Plain Layout
-
-        | Stencil Expr Expr
-\end_layout
-
-\begin_layout Plain Layout
-
-        | Function Name [Expr] -- [Expr] args that are partially applied
-\end_layout
-
-\begin_layout Plain Layout
-
-        | Id Name [Expr] -- treated as a named for code generation
-\end_layout
-
-\begin_layout Plain Layout
-
-        | ApplyT [Expr] 
-\end_layout
-
-\begin_layout Plain Layout
-
-        | MapS Expr Expr
-\end_layout
-
-\begin_layout Plain Layout
-
-        | Comp Expr Expr -- function composition
-\end_layout
-
-\begin_layout Plain Layout
-
-        | FComp Expr Expr -- fold-map function composition
-\end_layout
-
-\begin_layout Plain Layout
-
-        | SComb Expr Expr
-\end_layout
-
-\begin_layout Plain Layout
-
-            deriving (Show, Typeable, Data, Eq)
-\end_layout
-
-\begin_layout Plain Layout
-
-\begin_inset Caption Standard
-
-\begin_layout Plain Layout
-TyTraCL AST data type in Haskell
-\begin_inset CommandInset label
-LatexCommand label
-name "lis:TyTraCL-AST-data"
-
-\end_inset
-
-
-\end_layout
-
-\end_inset
-
-
-\end_layout
-
-\end_inset
-
-
-\end_layout
-
-\begin_layout Standard
-The property 
-\family typewriter
-VE
-\family default
- encodes if a vector is an input 
-\family typewriter
-VI
-\family default
-, output 
-\family typewriter
-VO
-\family default
-, a vector of stencil vectors 
-\family typewriter
-VS
-\family default
-, or any other temporary 
-\family typewriter
-VT
-\family default
-.
- Initially this value is set to 
-\family typewriter
-VU
-\family default
-, 
-\begin_inset Quotes eld
-\end_inset
-
-Unknown
-\begin_inset Quotes erd
-\end_inset
-
-.
+ in Appendix I.
  
 \end_layout
 
-\begin_layout Standard
-For the 
-\family typewriter
-Function
-\family default
- constructor, 
-\family typewriter
-[Expr]
-\family default
- is a list of non-map/non-fold argument expressions, i.e.
- 
-\end_layout
-
-\begin_layout Standard
-\begin_inset listings
-lstparams "language=Haskell,escapeinside={||},mathescape=true"
-inline false
-status open
-
-\begin_layout Plain Layout
-
-	v|$_{out}$| = map (f x|$_1$| ..
- x|$_m$|) v|$_{in}$|
-\end_layout
-
-\end_inset
-
-
-\end_layout
-
-\begin_layout Standard
-is represented as
-\end_layout
-
-\begin_layout Standard
-\begin_inset listings
-lstparams "mathescape=true,escapeinside={~~},language=Haskell"
-inline false
-status open
-
-\begin_layout Plain Layout
-
-	(Vec VO 
-\begin_inset Quotes eld
-\end_inset
-
-v_out
-\begin_inset Quotes erd
-\end_inset
-
-,Map (Function 
-\begin_inset Quotes eld
-\end_inset
-
-f
-\begin_inset Quotes erd
-\end_inset
-
- [xe~$_1$~,...,xe~$_m$~]) (Vec VI 
-\begin_inset Quotes eld
-\end_inset
-
-v
-\begin_inset Quotes erd
-\end_inset
-
-))
-\end_layout
-
-\end_inset
-
-
-\end_layout
-
-\begin_layout Standard
-where 
-\begin_inset Formula $xe_{i}$
-\end_inset
-
- is the expression corresponding to 
-\begin_inset Formula $x_{i}$
-\end_inset
-
-.
-\end_layout
-
-\begin_layout Standard
-The typical use case is to pass constant arguments and scalars returned
- by 
-\family typewriter
-Fold
-\family default
- operations.
- Furthermore, 
-\family typewriter
-Comp
-\family default
- in the AST is function composition 
-\begin_inset Formula $g\,\circ\,f$
-\end_inset
-
-, and 
-\family typewriter
-FComp
-\family default
- is a convenience primitive which allows to rewrite a 
-\emph on
-fold
-\emph default
- operating on a 
-\emph on
-map
-\emph default
- as a single 
-\emph on
-fold
-\emph default
-:
-\end_layout
-
-\begin_layout Standard
-\begin_inset listings
-lstparams "mathescape=true,escapeinside={~~},language=Haskell"
-inline false
-status open
-
-\begin_layout Plain Layout
-
-	fold g acc (map f v) = fold (g `fcomp` f) acc v
-\end_layout
-
-\end_inset
-
-
-\end_layout
-
-\begin_layout Standard
-The data type FDecl is used to store the full type declaration information
- for the variables in the AST.
- This is used for code generation.
-\end_layout
-
-\begin_layout Subsection
-Argument type declarations
-\end_layout
-
-\begin_layout Standard
-\begin_inset Note Note
-status open
-
-\begin_layout Plain Layout
-TOO DETAILED?
-\end_layout
-
-\end_inset
-
-
-\end_layout
-
-\begin_layout Standard
-The Vector and Scalar types in the TyTraCL AST of Listing 
-\begin_inset CommandInset ref
-LatexCommand ref
-reference "lis:TyTraCL-AST-data"
-plural "false"
-caps "false"
-noprefix "false"
-
-\end_inset
-
- do not contain information about their type or size.
- This information is stored in a separate type called FDecl
-\end_layout
-
-\begin_layout Standard
-\begin_inset listings
-lstparams "mathescape=true,escapeinside={~~},language=Haskell"
-inline false
-status open
-
-\begin_layout Plain Layout
-
-data FDecl = MkFDecl { 
-\end_layout
-
-\begin_layout Plain Layout
-
-	ftype :: String, 
-\end_layout
-
-\begin_layout Plain Layout
-
-	dim :: Maybe [Int], 
-\end_layout
-
-\begin_layout Plain Layout
-
-	intent :: Maybe FIntent, 
-\end_layout
-
-\begin_layout Plain Layout
-
-	names :: [String] 
-\end_layout
-
-\begin_layout Plain Layout
-
-} 
-\end_layout
-
-\end_inset
-
-
-\end_layout
-
-\begin_layout Subsection
+\begin_layout Subsubsection
 TyTraCL semantics
 \begin_inset CommandInset label
 LatexCommand label
@@ -2352,31 +1780,22 @@ A Fortran subroutine takes and returns values via its argurment list.
  and return vector arguments; a foldable kernel subroutine can take vector
  arguments to folded, scalar or vector accumulator arguments which are typically
  readabe and writeable, and any other read-only scalar or vector arguments.
- Our previous analysis has already resolved if an argument is used for input,
- output or both (i.e.
- we infer the Fortran INTENT attribute) 
-\begin_inset Note Note
-status open
-
-\begin_layout Plain Layout
-XXX Could reference the SUPE paper here XXX
-\end_layout
+ Our previous analysis 
+\begin_inset CommandInset citation
+LatexCommand cite
+key "vanderbauwhede2021making"
+literal "false"
 
 \end_inset
 
-, and of course we know which arguments originally were arrays, and which
- of these have stencil accesses.
- 
-\begin_inset Note Note
-status open
-
-\begin_layout Plain Layout
-XXX Stencil detection algorithm has not been published yet XXX
-\end_layout
-
-\end_inset
-
-With this information, it is straightforward to transform the scalarised
+ has already resolved if an argument is used for input, output or both (i.e.
+ we infer the Fortran 
+\family sans
+INTENT
+\family default
+ attribute), and of course we know which arguments originally were arrays,
+ and which of these have stencil accesses.
+ With this information, it is straightforward to transform the scalarised
  Fortran kernel signature into the correct signature for the TyTraCL by
  first grouping the stencil arguments into stencil vectors and then grouping
  the arguments into tuples.
@@ -2857,8 +2276,8 @@ v2 = elt 1 (unzipt expr)
 
 \begin_layout Standard
 As a result, after this normalisation any LHS expression will be an atomic
- expression.
- 
+ expression, as required by the term rewrite rules presented in the next
+ section.
 \end_layout
 
 \begin_layout Subsection
@@ -2910,8 +2329,12 @@ VS
 \emph on
 VO
 \emph default
- vectors on the RHS, by recursive substitution, starting from the last expressio
-n in the list.
+ vectors on the RHS, by recursive substitution (i.e.
+ 
+\begin_inset Formula $\beta$
+\end_inset
+
+ reduction), starting from the last expression in the list.
  The resulting program has only output vectors (or 
 \emph on
 Scalar
@@ -2940,8 +2363,15 @@ Although all intermediate vectors have been removed, this removal so far
 \end_layout
 
 \begin_layout Standard
-We have developed a system of rewrite rules that transforms the program
- into a sequence of dependent 
+We have developed a system of term rewrite rules 
+\begin_inset CommandInset citation
+LatexCommand cite
+key "klop1990term"
+literal "false"
+
+\end_inset
+
+ that transforms the program into a sequence of dependent 
 \emph on
 fold
 \emph default
@@ -2978,14 +2408,14 @@ name "rewrite-rules-theorem"
 Given the AST in normalised form (Section 
 \begin_inset CommandInset ref
 LatexCommand ref
-reference "normalisation"
+reference "normalisation-1"
 plural "false"
 caps "false"
 noprefix "false"
 
 \end_inset
 
-) and the rewrite rules shown in Listing 
+) and the term rewrite rules shown in Listing 
 \begin_inset CommandInset ref
 LatexCommand ref
 reference "lis:Rewrite-rules-to"
@@ -3086,7 +2516,7 @@ noprefix "false"
 \end_layout
 
 \begin_layout Standard
-The lemmas proofs for this theorem can be found in the Appendix.
+The lemmas and proof for this theorem can be found in Appendix II.
 \end_layout
 
 \begin_layout Subsection
@@ -3263,7 +2693,7 @@ literal "false"
 
 ; we use a variant where rather than nested let-expressions there is a single
  let with all bindings in order of dependency.
- 
+ All expressions are given unique names.
 \end_layout
 
 \begin_layout Standard
@@ -3560,7 +2990,7 @@ It is thus again straightforward to derive the types for the intermediate
 \end_layout
 
 \begin_layout Section
-Fortran/OpenCL code generation
+Fortran code generation
 \begin_inset CommandInset label
 LatexCommand label
 name "fortran-opencl-implementation"
@@ -3571,165 +3001,12 @@ name "fortran-opencl-implementation"
 \end_layout
 
 \begin_layout Standard
-To generate imperative code (in our case Fortran 90 or OpenCL C) from the
- TyTraCL program, the main challenge is the generation the code for the
- bodies of the intermediate functions.
+To generate imperative code (in our case Fortran 90, which our toolchain
+ can further transpile to OpenCL C) from the TyTraCL program, the main challenge
+ is the generation the code for the bodies of the intermediate functions.
  For this we need the actual concrete type information for the input and
- output vectors and scalars and the signatures of the kernel functions.
-\end_layout
-
-\begin_layout Standard
-[[
-\end_layout
-
-\begin_layout Standard
-This requires extending the Scalar Expr type variant with a type field DType:
-\end_layout
-
-\begin_layout Standard
-\begin_inset listings
-lstparams "mathescape=true,escapeinside={~~},language=Haskell"
-inline false
-status open
-
-\begin_layout Plain Layout
-
-data DType = 
-\end_layout
-
-\begin_layout Plain Layout
-
-	DInteger 
-\end_layout
-
-\begin_layout Plain Layout
-
-  | DReal 
-\end_layout
-
-\begin_layout Plain Layout
-
-  | DSVec Int DType 
-\end_layout
-
-\begin_layout Plain Layout
-
-  | DTuple [DType]
-\end_layout
-
-\begin_layout Plain Layout
-
-\end_layout
-
-\begin_layout Plain Layout
-
-data Expr =
-\end_layout
-
-\begin_layout Plain Layout
-
--- Left-hand side:
-\end_layout
-
-\begin_layout Plain Layout
-
-          Scalar VE DType Name
-\end_layout
-
-\begin_layout Plain Layout
-
-			...
-\end_layout
-
-\begin_layout Plain Layout
-
-\end_layout
-
-\begin_layout Plain Layout
-
-data FDecl = MkFDecl {
-\end_layout
-
-\begin_layout Plain Layout
-
-  ftype :: String,  
-\end_layout
-
-\begin_layout Plain Layout
-
-  dim :: Maybe [Int],
-\end_layout
-
-\begin_layout Plain Layout
-
-  intent :: Maybe FIntent,
-\end_layout
-
-\begin_layout Plain Layout
-
-  names :: [String] 
-\end_layout
-
-\begin_layout Plain Layout
-
-} 
-\end_layout
-
-\begin_layout Plain Layout
-
-\end_layout
-
-\begin_layout Plain Layout
-
-type FSig = [Expr]
-\end_layout
-
-\begin_layout Plain Layout
-
-\begin_inset Caption Standard
-
-\begin_layout Plain Layout
-Extending the TyTraCL AST with concrete type information
-\begin_inset CommandInset label
-LatexCommand label
-name "lis:Extending-the-TyTraCL"
-
-\end_inset
-
-
-\end_layout
-
-\end_inset
-
-
-\end_layout
-
-\end_inset
-
-
-\end_layout
-
-\begin_layout Standard
-Furthermore, the type FDecl provides the complete type and size information
- of the variables in the AST.
- The functions described by the Function alternative of the Expr type in
- TyTraCL are specified by their name and signature.
- 
-\end_layout
-
-\begin_layout Standard
-Because all functions are scalar, the type FSig is actually more restricted
- than its definition suggests: it represents a tuple of three elements where
- the first element are the arguments that are not mappable or foldable,
- i.e.
- the function to be mapped or folded is the partial application of the named
- function to these arguments; the second and third element represent the
- input and output value of this function.
- All arguments are either Scalar, SVec or a Tuple of these.
-\end_layout
-
-\begin_layout Standard
-]]
+ output vectors and scalars and the signatures of the kernel functions (this
+ information is added to the AST as explained in Appendix I).
 \end_layout
 
 \begin_layout Subsection
@@ -3751,7 +3028,7 @@ enqeueNDRange
 \emph default
  statements for the host code.
  In Fortran, we follow a similar approach but generate a loop around the
- call to the kernel.
+ call to the kernel and parallelise that loop with OpenMP.
  
 \end_layout
 
@@ -4253,27 +3530,92 @@ end subroutine f_comp
 
 \end_layout
 
-\begin_layout Section
-Final code generation
+\begin_layout Subsection
+Function inlining
 \end_layout
 
 \begin_layout Standard
 The code generation from the ANF representation of the TyTraCL program results
- in very large numbers of functions.
- As this form of the program is unnecessarily large, in a final compiler
+ in several levels of function calls.
+ As Fortran compilers do not provide control over inlining, in a final compiler
  pass we aggressively inline all functions that are called in the toplevel
  kernel functions.
  The resulting source code size is of the same order as the original code.
- As our main purpose is to deploy the generated code on accelerators, we
- translate the kernel code to OpenCL as explained in [REF].
+ 
+\end_layout
+
+\begin_layout Standard
+For the exemplar in the following section, the code is parallelised using
+ OpenMP.
+ As the memory-reduced code consists of a single call to a pure function
+ in a single loop, parallelisation with OpenMP is purely a matter of adding
+ 
+\family typewriter
+use omp_lib
+\family default
+ and the 
+\family typewriter
+!$OMP PARALLEL DO
+\family default
+ pragmas to the code.
+ To support large arrays, the static declarations from the original FORTRAN
+ 77 code are replaced by dynamic (heap-based) allocations.
 \end_layout
 
 \begin_layout Section
 Exemplar: Turbulence calculation in the Large Eddy Simulator for Urban Flows
+\begin_inset CommandInset label
+LatexCommand label
+name "sec:Exemplar:-Turbulence-calculation"
+
+\end_inset
+
+
 \end_layout
 
 \begin_layout Standard
-The simulator performs the following actions at every timestep (the number
+The Large Eddy Simulator for Urban Flows
+\begin_inset Foot
+status open
+
+\begin_layout Plain Layout
+\begin_inset Flex URL
+status open
+
+\begin_layout Plain Layout
+
+https://github.com/wimvanderbauwhede/LES
+\end_layout
+
+\end_inset
+
+
+\end_layout
+
+\end_inset
+
+ is a hurricane wind similator which simulates pressure and wind speed.
+ The original code written in single-threaded FORTRAN 77 and is 1,146 lines
+ of code.
+ Its structure is representative for many finite-difference, iterative solver
+ based simulation codes.
+ The domain is high-resolution (metre scale) and the time step is very small
+ (ms).
+ The actual inputs to the simulation are the wind velocity in three dimensions
+ (
+\emph on
+u,v,w
+\emph default
+) and the pressure (
+\emph on
+p
+\emph default
+), i.e.
+\begin_inset space ~
+\end_inset
+
+four arrays per domain.
+ The simulator performs the following actions at every timestep (the number
  in parentheses is the number of full-domain 3-D arrays used):
 \end_layout
 
@@ -4320,40 +3662,39 @@ status open
 
 \begin_layout Plain Layout
 
-real, dimension(im,jm,km) :: u,v,w ! velocity
+real, dimension(im,jm,km) :: u,v,w ! wind velocity
 \end_layout
 
 \begin_layout Plain Layout
 
-real, dimension(im,jm,km) :: f,g,h ! force
+real, dimension(im,jm,km) :: f,g,h ! force fields
 \end_layout
 
 \begin_layout Plain Layout
 
-real, dimension(im,jm,km) :: diu1,diu2,diu3,diu4,diu5,diu6,diu7,diu8,diu9
- ! partial derivatives of the velocity
+real, dimension(im,jm,km) :: diu1,...,diu9 ! partial derivatives of the velocity
 \end_layout
 
 \begin_layout Plain Layout
 
-real, dimension(im,jm,km) :: nou1,nou2,nou3,nou4,nou5,nou6,nou7,nou8,nou9
- ! interpolated values
+real, dimension(im,jm,km) :: nou1,...,nou9 ! interpolated values
 \end_layout
 
 \begin_layout Plain Layout
 
-real, dimension(im,jm,km) :: cov1,cov2,cov3,cov4,cov5,cov6,cov7,cov8,cov9
- ! convection components
+real, dimension(im,jm,km) :: cov1,...,cov9 ! convection components
 \end_layout
 
 \begin_layout Plain Layout
 
-real, dimension(im,jm,km) :: dfu,dfv,dfw ! force field derivatives 
+real, dimension(im,jm,km) :: dfu1,dfv1,dfw1 ! derivatives of the force fields
+ 
 \end_layout
 
 \begin_layout Plain Layout
 
-real, dimension(im,jm,km) :: sm ! eddy viscosity (Smagorinsky model)
+real, dimension(im,jm,km) :: sm ! for calculation of eddy viscosity Smagorinsky
+ model)
 \end_layout
 
 \begin_layout Plain Layout
@@ -4365,7 +3706,7 @@ Arrays used in the turbulent flow calculation code of the Large Eddy Simulator
  for Urban Flows
 \begin_inset CommandInset label
 LatexCommand label
-name "lis:Arrays-used-in-1"
+name "lis:Arrays-used-in-2"
 
 \end_inset
 
@@ -4392,21 +3733,923 @@ Of these 37 arrays, only u,v,w are actual inputs to the calculation and
 \begin_layout Standard
 To illustrate the impact, consider the following real-world simulation scenario.
  To simulate e.g.
- a metropolitan area of 4x8 km with 4 m resolutiom, the domain consists
- of 1000x2000x90 points (the simulator uses 90 points in the vertical direction).
+ a metropolitan area of 8.4x8.4 km with 4 m resolutiom, the domain consists
+ of 2100x2100x90 points (the simulator uses 90 points in the vertical direction).
  Every physical value is stored in a 3-D array of single-precision floating
- point numbers, so in this case each array is about 687MB, and in total
- the turbulent flow calculation would require 24.8GB.
- This does not even fit into the memory of a very recent, high-end GPU such
- as the GeForce RTX 3090 (24GB).
- With our reduction, it only requires 4GB.
- As a result, the simulation domain can be increased to 8x16 km or the resolutio
-n reduced from 4 m to 2 m and be deployed on that same GPU.
+ point numbers, so in this case each array is about 1.5 GB, and in total
+ the turbulent flow calculation would require 56 GB.
+ With our reduction, it only requires 9 GB.
+ As a result, the simulation domain can be increased to 21.6x32.4 km or the
+ resolution reduced from 4 m to 2 m and be deployed on that same server.
  
 \end_layout
 
+\begin_layout Standard
+To evaluate the performance of the memory-reduced code, we used a dual-socket
+ Intel(R) Xeon(R) CPU E5-2640 v2 server which has 8 hyper-threaded cores
+ per socket, so 32 hardware threads in total.
+ The CPU frequency is 2 GHz and the cache is 20 MB.
+ According to the information from /proc/meminfo, The server has 62 GB of
+ available memory.
+ The server runs Ubuntu 18.04.2 LTS.
+\end_layout
+
+\begin_layout Standard
+The compiler used was gfortran 7.4.0 and the OpenMP version was 4.5.
+ The compilation options used were 
+\family typewriter
+-Ofast -flto -fopenmp
+\family default
+.
+ We increased the stack limit to 2 GB using 
+\family typewriter
+ulimit -s 2000000
+\family default
+.
+\end_layout
+
+\begin_layout Standard
+\begin_inset Note Note
+status open
+
+\begin_layout Plain Layout
+model name: Intel(R) Xeon(R) CPU E5-2640 v2 @ 2.00GHz cpu MHz: 2001.372 cache
+ size: 20480 KB siblings: 16 cpu cores: 8
+\end_layout
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+We evaluated the performance of the memory-reduced code as a function of
+ the number of threads and compared it to the reference code, i.e.
+ the auto-parallelised code before memory reduction.
+ Fig 
+\begin_inset CommandInset ref
+LatexCommand ref
+reference "fig:Performance-of-the"
+plural "false"
+caps "false"
+noprefix "false"
+
+\end_inset
+
+ shows the comparison for the maximum array size supported by the reference
+ code, 1.1GB, corresponding to a domain size of 2100
+\begin_inset Formula $\times$
+\end_inset
+
+2100
+\begin_inset Formula $\times$
+\end_inset
+
+90.
+ 
+\end_layout
+
+\begin_layout Standard
+\begin_inset Float figure
+wide false
+sideways false
+status open
+
+\begin_layout Plain Layout
+\align center
+\begin_inset Graphics
+	filename openmp-tests-gpg-cluster-comp-large.pdf
+	width 80col%
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Plain Layout
+\begin_inset Caption Standard
+
+\begin_layout Plain Layout
+Performance of the memory-reduced code and the reference code as a function
+ of the number of threads, for the largest domain supported for the reference
+ code.
+ 
+\begin_inset CommandInset label
+LatexCommand label
+name "fig:Performance-of-the"
+
+\end_inset
+
+
+\end_layout
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Plain Layout
+
+\end_layout
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+We observe that the memory-reduced code is twice as fast as the reference
+ code regardless of the number of threads.
+ Fig 
+\begin_inset CommandInset ref
+LatexCommand ref
+reference "fig:Performance-of-the-1"
+plural "false"
+caps "false"
+noprefix "false"
+
+\end_inset
+
+ shows the comparison for a much smaller array size (a domain of 300
+\begin_inset Formula $\times$
+\end_inset
+
+300
+\begin_inset Formula $\times$
+\end_inset
+
+90 points, or array size 31 MB).
+ 
+\end_layout
+
+\begin_layout Standard
+\begin_inset Float figure
+wide false
+sideways false
+status open
+
+\begin_layout Plain Layout
+\align center
+\begin_inset Graphics
+	filename openmp-tests-gpg-cluster-comp-small.pdf
+	width 80col%
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Plain Layout
+\begin_inset Caption Standard
+
+\begin_layout Plain Layout
+Performance of the memory-reduced code and the reference code as a function
+ of the number of threads, for a small domain.
+\begin_inset CommandInset label
+LatexCommand label
+name "fig:Performance-of-the-1"
+
+\end_inset
+
+
+\end_layout
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Plain Layout
+
+\end_layout
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+Even with this low memory utilisation, the memory-reduced code is 50% faster
+ than the reference regardless of the number of threads.
+\end_layout
+
+\begin_layout Standard
+\begin_inset Float figure
+wide false
+sideways false
+status open
+
+\begin_layout Plain Layout
+\align center
+\begin_inset Graphics
+	filename mem-reduced-openmp-var-size.pdf
+	width 80col%
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Plain Layout
+\begin_inset Caption Standard
+
+\begin_layout Plain Layout
+Performance of the memory-reduced code as a function of the number of threads,
+ for different memory sizes.
+\begin_inset CommandInset label
+LatexCommand label
+name "fig:Performance-of-the-3"
+
+\end_inset
+
+
+\end_layout
+
+\end_inset
+
+
+\end_layout
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+Finally we evaluated the performance as a function of memory size for the
+ optimal number of threads (32).
+ From Fig 
+\begin_inset CommandInset ref
+LatexCommand ref
+reference "fig:Performance-of-the-2"
+plural "false"
+caps "false"
+noprefix "false"
+
+\end_inset
+
+ it is clear that the compute time is linear with the memory size until
+ the memory limit of the system is exceeded.
+ 
+\end_layout
+
+\begin_layout Standard
+\begin_inset Float figure
+wide false
+sideways false
+status open
+
+\begin_layout Plain Layout
+
+\end_layout
+
+\begin_layout Plain Layout
+\align center
+\begin_inset Graphics
+	filename openmp-tests-gpg-cluster-vs-memsize-32-th.pdf
+	width 80col%
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Plain Layout
+\begin_inset Caption Standard
+
+\begin_layout Plain Layout
+Performance of the memory-reduced code as a function of the memory size,
+ for 32 threads.
+\begin_inset CommandInset label
+LatexCommand label
+name "fig:Performance-of-the-2"
+
+\end_inset
+
+
+\end_layout
+
+\end_inset
+
+
+\end_layout
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Section
+Conclusion and future work
+\end_layout
+
+\begin_layout Standard
+In this paper we have presented a novel algorithm for removal of intermediate
+ arrays from stencil-based legacy scientific Fortran code.
+ The algorithm is implemented as a term rewriting system for our compiler-intern
+al domain-specific functional language TyTraCL.
+ For the purpose of thes work, the language has been extended with a number
+ of additional primitives.
+ We have proven the correctness and completion of the rewrite rules, thus
+ proving that the generated program is both correct by construction and
+ achieves its aim of removing all intermdiate arrays.
+ We have presented 
+\end_layout
+
 \begin_layout Section*
-Appendix: Lemmas and Proofs
+Appendix I: TyTraCL Abstract Syntax
+\end_layout
+
+\begin_layout Standard
+We have implemented the TyTraCL program transformations in Haskell.
+ For completeness, the abstract syntax for the untyped TyTraCL language,
+ expressed as a Haskell type, is shown in Listing 
+\begin_inset CommandInset ref
+LatexCommand ref
+reference "lis:TyTraCL-AST-data-1"
+plural "false"
+caps "false"
+noprefix "false"
+
+\end_inset
+
+.
+ 
+\begin_inset Quotes eld
+\end_inset
+
+Untyped
+\begin_inset Quotes erd
+\end_inset
+
+ means that we are at this stage not concerned with the concrete types of
+ the values contained in the input vectors or scalars.
+\end_layout
+
+\begin_layout Standard
+\begin_inset listings
+lstparams "mathescape=true,escapeinside={~~},language=Haskell"
+inline false
+status open
+
+\begin_layout Plain Layout
+
+type Name = String
+\end_layout
+
+\begin_layout Plain Layout
+
+data VE = VI  | VO  | VS  | VT | VU
+\end_layout
+
+\begin_layout Plain Layout
+
+    deriving (Show, Typeable, Data, Eq)            
+\end_layout
+
+\begin_layout Plain Layout
+
+type TyTraCLAST = [(Expr,Expr)]                      
+\end_layout
+
+\begin_layout Plain Layout
+
+\end_layout
+
+\begin_layout Plain Layout
+
+data Expr =
+\end_layout
+
+\begin_layout Plain Layout
+
+-- Left-hand side:
+\end_layout
+
+\begin_layout Plain Layout
+
+          Scalar Name
+\end_layout
+
+\begin_layout Plain Layout
+
+	    | Tuple [Expr] 
+\end_layout
+
+\begin_layout Plain Layout
+
+    	| Vec VE Expr
+\end_layout
+
+\begin_layout Plain Layout
+
+\end_layout
+
+\begin_layout Plain Layout
+
+-- Right-hand side:
+\end_layout
+
+\begin_layout Plain Layout
+
+        | SVec Int Expr -- Stencil vector
+\end_layout
+
+\begin_layout Plain Layout
+
+        | ZipT [Expr] -- generalised zip
+\end_layout
+
+\begin_layout Plain Layout
+
+        | UnzipT Expr -- generalised unzip
+\end_layout
+
+\begin_layout Plain Layout
+
+        | Elt Int Expr -- generalised tuple access
+\end_layout
+
+\begin_layout Plain Layout
+
+        | Map Expr Expr
+\end_layout
+
+\begin_layout Plain Layout
+
+        | Fold Expr Expr Expr
+\end_layout
+
+\begin_layout Plain Layout
+
+        | Stencil Expr Expr
+\end_layout
+
+\begin_layout Plain Layout
+
+        | Function Name [Expr] -- [Expr] args that are partially applied
+\end_layout
+
+\begin_layout Plain Layout
+
+        | Id Name [Expr] -- treated as a named for code generation
+\end_layout
+
+\begin_layout Plain Layout
+
+        | ApplyT [Expr] 
+\end_layout
+
+\begin_layout Plain Layout
+
+        | MapS Expr Expr
+\end_layout
+
+\begin_layout Plain Layout
+
+        | Comp Expr Expr -- function composition
+\end_layout
+
+\begin_layout Plain Layout
+
+        | FComp Expr Expr -- fold-map function composition
+\end_layout
+
+\begin_layout Plain Layout
+
+        | SComb Expr Expr
+\end_layout
+
+\begin_layout Plain Layout
+
+            deriving (Show, Typeable, Data, Eq)
+\end_layout
+
+\begin_layout Plain Layout
+
+\begin_inset Caption Standard
+
+\begin_layout Plain Layout
+TyTraCL AST data type in Haskell
+\begin_inset CommandInset label
+LatexCommand label
+name "lis:TyTraCL-AST-data-1"
+
+\end_inset
+
+
+\end_layout
+
+\end_inset
+
+
+\end_layout
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+The property 
+\family typewriter
+VE
+\family default
+ encodes if a vector is an input 
+\family typewriter
+VI
+\family default
+, output 
+\family typewriter
+VO
+\family default
+, a vector of stencil vectors 
+\family typewriter
+VS
+\family default
+, or any other temporary 
+\family typewriter
+VT
+\family default
+.
+ Initially this value is set to 
+\family typewriter
+VU
+\family default
+, 
+\begin_inset Quotes eld
+\end_inset
+
+Unknown
+\begin_inset Quotes erd
+\end_inset
+
+.
+ 
+\end_layout
+
+\begin_layout Standard
+For the 
+\family typewriter
+Function
+\family default
+ constructor, 
+\family typewriter
+[Expr]
+\family default
+ is a list of non-map/non-fold argument expressions, i.e.
+ 
+\end_layout
+
+\begin_layout Standard
+\begin_inset listings
+lstparams "language=Haskell,escapeinside={||},mathescape=true"
+inline false
+status open
+
+\begin_layout Plain Layout
+
+	v|$_{out}$| = map (f x|$_1$| ..
+ x|$_m$|) v|$_{in}$|
+\end_layout
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+is represented as
+\end_layout
+
+\begin_layout Standard
+\begin_inset listings
+lstparams "mathescape=true,escapeinside={~~},language=Haskell"
+inline false
+status open
+
+\begin_layout Plain Layout
+
+	(Vec VO 
+\begin_inset Quotes eld
+\end_inset
+
+v_out
+\begin_inset Quotes erd
+\end_inset
+
+,Map (Function 
+\begin_inset Quotes eld
+\end_inset
+
+f
+\begin_inset Quotes erd
+\end_inset
+
+ [xe~$_1$~,...,xe~$_m$~]) (Vec VI 
+\begin_inset Quotes eld
+\end_inset
+
+v
+\begin_inset Quotes erd
+\end_inset
+
+))
+\end_layout
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+where 
+\begin_inset Formula $xe_{i}$
+\end_inset
+
+ is the expression corresponding to 
+\begin_inset Formula $x_{i}$
+\end_inset
+
+.
+\end_layout
+
+\begin_layout Standard
+The typical use case is to pass constant arguments and scalars returned
+ by 
+\family typewriter
+Fold
+\family default
+ operations.
+ Furthermore, 
+\family typewriter
+Comp
+\family default
+ in the AST is function composition 
+\begin_inset Formula $g\,\circ\,f$
+\end_inset
+
+, and 
+\family typewriter
+FComp
+\family default
+ is a convenience primitive which allows to rewrite a 
+\emph on
+fold
+\emph default
+ operating on a 
+\emph on
+map
+\emph default
+ as a single 
+\emph on
+fold
+\emph default
+:
+\end_layout
+
+\begin_layout Standard
+\begin_inset listings
+lstparams "mathescape=true,escapeinside={~~},language=Haskell"
+inline false
+status open
+
+\begin_layout Plain Layout
+
+	fold g acc (map f v) = fold (g `fcomp` f) acc v
+\end_layout
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Subsubsection*
+Argument type declarations
+\end_layout
+
+\begin_layout Standard
+The data type FDecl is used to store the full type declaration information
+ for the variables in the AST.
+ This is used for code generation.
+\end_layout
+
+\begin_layout Standard
+The Vector and Scalar types in the TyTraCL AST of Listing 
+\begin_inset CommandInset ref
+LatexCommand ref
+reference "lis:TyTraCL-AST-data-1"
+plural "false"
+caps "false"
+noprefix "false"
+
+\end_inset
+
+ do not contain information about their type or size.
+ This information is stored in a separate type called FDecl
+\end_layout
+
+\begin_layout Standard
+\begin_inset listings
+lstparams "mathescape=true,escapeinside={~~},language=Haskell"
+inline false
+status open
+
+\begin_layout Plain Layout
+
+data FDecl = MkFDecl { 
+\end_layout
+
+\begin_layout Plain Layout
+
+	ftype :: String, 
+\end_layout
+
+\begin_layout Plain Layout
+
+	dim :: Maybe [Int], 
+\end_layout
+
+\begin_layout Plain Layout
+
+	intent :: Maybe FIntent, 
+\end_layout
+
+\begin_layout Plain Layout
+
+	names :: [String] 
+\end_layout
+
+\begin_layout Plain Layout
+
+} 
+\end_layout
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Subsubsection*
+Adding partial type information to the AST
+\end_layout
+
+\begin_layout Standard
+To generate imperative code (in our case Fortran 90 or OpenCL C) from the
+ TyTraCL program, the main challenge is the generation the code for the
+ bodies of the intermediate functions.
+ For this we need the actual concrete type information for the input and
+ output vectors and scalars and the signatures of the kernel functions 
+\end_layout
+
+\begin_layout Standard
+This requires extending the Scalar Expr type variant with a type field DType:
+\end_layout
+
+\begin_layout Standard
+\begin_inset listings
+lstparams "mathescape=true,escapeinside={~~},language=Haskell"
+inline false
+status open
+
+\begin_layout Plain Layout
+
+data DType = 
+\end_layout
+
+\begin_layout Plain Layout
+
+	DInteger 
+\end_layout
+
+\begin_layout Plain Layout
+
+  | DReal 
+\end_layout
+
+\begin_layout Plain Layout
+
+  | DSVec Int DType 
+\end_layout
+
+\begin_layout Plain Layout
+
+  | DTuple [DType]
+\end_layout
+
+\begin_layout Plain Layout
+
+\end_layout
+
+\begin_layout Plain Layout
+
+data Expr =
+\end_layout
+
+\begin_layout Plain Layout
+
+-- Left-hand side:
+\end_layout
+
+\begin_layout Plain Layout
+
+          Scalar VE DType Name
+\end_layout
+
+\begin_layout Plain Layout
+
+			...
+\end_layout
+
+\begin_layout Plain Layout
+
+\end_layout
+
+\begin_layout Plain Layout
+
+data FDecl = MkFDecl {
+\end_layout
+
+\begin_layout Plain Layout
+
+  ftype :: String,  
+\end_layout
+
+\begin_layout Plain Layout
+
+  dim :: Maybe [Int],
+\end_layout
+
+\begin_layout Plain Layout
+
+  intent :: Maybe FIntent,
+\end_layout
+
+\begin_layout Plain Layout
+
+  names :: [String] 
+\end_layout
+
+\begin_layout Plain Layout
+
+} 
+\end_layout
+
+\begin_layout Plain Layout
+
+\end_layout
+
+\begin_layout Plain Layout
+
+type FSig = [Expr]
+\end_layout
+
+\begin_layout Plain Layout
+
+\begin_inset Caption Standard
+
+\begin_layout Plain Layout
+Extending the TyTraCL AST with concrete type information
+\begin_inset CommandInset label
+LatexCommand label
+name "lis:Extending-the-TyTraCL"
+
+\end_inset
+
+
+\end_layout
+
+\end_inset
+
+
+\end_layout
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+Furthermore, the type FDecl provides the complete type and size information
+ of the variables in the AST.
+ The functions described by the Function alternative of the Expr type in
+ TyTraCL are specified by their name and signature.
+ 
+\end_layout
+
+\begin_layout Standard
+Because all functions are scalar, the type FSig is actually more restricted
+ than its definition suggests: it represents a tuple of three elements where
+ the first element are the arguments that are not mappable or foldable,
+ i.e.
+ the function to be mapped or folded is the partial application of the named
+ function to these arguments; the second and third element represent the
+ input and output value of this function.
+ All arguments are either Scalar, SVec or a Tuple of these.
+\end_layout
+
+\begin_layout Section*
+Appendix II: Lemmas and Proofs
 \begin_inset CommandInset label
 LatexCommand label
 name "sec:Appendix:-Lemmas-and"

@@ -1,0 +1,429 @@
+NAME: wave2d
+      call update
+$VAR1 = {
+          'ExpressionAST' => [],
+          'Name' => 'update',
+          'Function' => 0,
+          'ArgMap' => {},
+          'Args' => {
+                      'List' => [],
+                      'Set' => {}
+                    }
+        };
+
+BEFORE
+_create_refactored_subroutine_call(wave2d): call init  
+_create_refactored_subroutine_call(wave2d): call dyn
+_create_refactored_subroutine_call(wave2d): call shapiro
+_create_refactored_subroutine_call(wave2d):       call update
+$VAR1 = 'dt';
+$VAR2 = 'dx';
+$VAR3 = 'dy';
+$VAR4 = 'eps';
+$VAR5 = 'eta';
+$VAR6 = 'etan';
+$VAR7 = 'g';
+$VAR8 = 'h';
+$VAR9 = 'hmin';
+$VAR10 = 'hzero';
+$VAR11 = 'j';
+$VAR12 = 'k';
+$VAR13 = 'u';
+$VAR14 = 'un';
+$VAR15 = 'v';
+$VAR16 = 'vn';
+$VAR17 = 'wet';
+
+VAR dt is in Args for SubroutineCall update
+VAR dx is in Args for SubroutineCall update
+VAR dy is in Args for SubroutineCall update
+VAR eps is in Args for SubroutineCall update
+VAR eta is in Args for SubroutineCall update
+VAR etan is in Args for SubroutineCall update
+VAR g is in Args for SubroutineCall update
+VAR h is in Args for SubroutineCall update
+VAR hmin is in Args for SubroutineCall update
+VAR hzero is in Args for SubroutineCall update
+VAR j is in Args for SubroutineCall update
+VAR k is in Args for SubroutineCall update
+VAR u is in Args for SubroutineCall update
+VAR un is in Args for SubroutineCall update
+VAR v is in Args for SubroutineCall update
+VAR vn is in Args for SubroutineCall update
+VAR wet is in Args for SubroutineCall update
+$VAR1 = [];
+
+      call update => call update()
+
+AFTER
+      call update()
+
+$VAR1 = {
+          'ExpressionAST' => [],
+          'RefactoredArgs' => {
+                                'Set' => {
+                                           'dx' => {
+                                                     'Name' => 'dx',
+                                                     'Type' => 'real',
+                                                     'Attr' => '(kind=)',
+                                                     'Indent' => '      ',
+                                                     'Dim' => [],
+                                                     'StmtCount' => undef,
+                                                     'ArrayOrScalar' => 'Scalar',
+                                                     'IODir' => 'Unknown',
+                                                     'Status' => 0,
+                                                     'CommonBlockName' => 'param',
+                                                     'Container' => 'sub'
+                                                   },
+                                           'eps' => {
+                                                      'Indent' => '      ',
+                                                      'StmtCount' => undef,
+                                                      'Dim' => [],
+                                                      'ArrayOrScalar' => 'Scalar',
+                                                      'Name' => 'eps',
+                                                      'Type' => 'real',
+                                                      'Attr' => '(kind=)',
+                                                      'Container' => 'sub',
+                                                      'IODir' => 'Unknown',
+                                                      'Status' => 0,
+                                                      'CommonBlockName' => 'param'
+                                                    },
+                                           'hzero' => {
+                                                        'Status' => 0,
+                                                        'IODir' => 'Unknown',
+                                                        'CommonBlockName' => 'param',
+                                                        'Container' => 'sub',
+                                                        'InheritedParams' => {
+                                                                               'Set' => {
+                                                                                          'nx' => 1,
+                                                                                          'ny' => 1
+                                                                                        }
+                                                                             },
+                                                        'Type' => 'real',
+                                                        'Name' => 'hzero',
+                                                        'Attr' => '(kind=)',
+                                                        'Indent' => '      ',
+                                                        'Dim' => [
+                                                                   [
+                                                                     '0',
+                                                                     'ny+1'
+                                                                   ],
+                                                                   [
+                                                                     '0',
+                                                                     'nx+1'
+                                                                   ]
+                                                                 ],
+                                                        'StmtCount' => undef,
+                                                        'ArrayOrScalar' => 'Array'
+                                                      },
+                                           'hmin' => {
+                                                       'IODir' => 'Unknown',
+                                                       'Status' => 0,
+                                                       'CommonBlockName' => 'param',
+                                                       'Container' => 'sub',
+                                                       'Type' => 'real',
+                                                       'Name' => 'hmin',
+                                                       'Attr' => '(kind=)',
+                                                       'Indent' => '      ',
+                                                       'Dim' => [],
+                                                       'StmtCount' => undef,
+                                                       'ArrayOrScalar' => 'Scalar'
+                                                     },
+                                           'h' => {
+                                                    'ArrayOrScalar' => 'Array',
+                                                    'Dim' => [
+                                                               [
+                                                                 '0',
+                                                                 'ny+1'
+                                                               ],
+                                                               [
+                                                                 '0',
+                                                                 'nx+1'
+                                                               ]
+                                                             ],
+                                                    'StmtCount' => undef,
+                                                    'Indent' => '      ',
+                                                    'Attr' => '(kind=)',
+                                                    'Name' => 'h',
+                                                    'Type' => 'real',
+                                                    'Container' => 'sub',
+                                                    'InheritedParams' => {
+                                                                           'Set' => {
+                                                                                      'ny' => 1,
+                                                                                      'nx' => 1
+                                                                                    }
+                                                                         },
+                                                    'CommonBlockName' => 'param',
+                                                    'Status' => 0,
+                                                    'IODir' => 'Unknown'
+                                                  },
+                                           'dy' => {
+                                                     'Type' => 'real',
+                                                     'Name' => 'dy',
+                                                     'Attr' => '(kind=)',
+                                                     'Indent' => '      ',
+                                                     'StmtCount' => undef,
+                                                     'Dim' => [],
+                                                     'ArrayOrScalar' => 'Scalar',
+                                                     'Status' => 0,
+                                                     'IODir' => 'Unknown',
+                                                     'CommonBlockName' => 'param',
+                                                     'Container' => 'sub'
+                                                   },
+                                           'etan' => {
+                                                       'Container' => 'sub',
+                                                       'InheritedParams' => {
+                                                                              'Set' => {
+                                                                                         'nx' => 1,
+                                                                                         'ny' => 1
+                                                                                       }
+                                                                            },
+                                                       'CommonBlockName' => 'param',
+                                                       'Status' => 0,
+                                                       'IODir' => 'Unknown',
+                                                       'StmtCount' => undef,
+                                                       'Dim' => [
+                                                                  [
+                                                                    '0',
+                                                                    'ny+1'
+                                                                  ],
+                                                                  [
+                                                                    '0',
+                                                                    'nx+1'
+                                                                  ]
+                                                                ],
+                                                       'ArrayOrScalar' => 'Array',
+                                                       'Indent' => '      ',
+                                                       'Attr' => '(kind=)',
+                                                       'Type' => 'real',
+                                                       'Name' => 'etan'
+                                                     },
+                                           'vn' => {
+                                                     'Attr' => '(kind=)',
+                                                     'Name' => 'vn',
+                                                     'Type' => 'real',
+                                                     'StmtCount' => undef,
+                                                     'Dim' => [
+                                                                [
+                                                                  '0',
+                                                                  'ny+1'
+                                                                ],
+                                                                [
+                                                                  '0',
+                                                                  'nx+1'
+                                                                ]
+                                                              ],
+                                                     'ArrayOrScalar' => 'Array',
+                                                     'Indent' => '      ',
+                                                     'CommonBlockName' => 'param',
+                                                     'Status' => 0,
+                                                     'IODir' => 'Unknown',
+                                                     'Container' => 'sub',
+                                                     'InheritedParams' => {
+                                                                            'Set' => {
+                                                                                       'nx' => 1,
+                                                                                       'ny' => 1
+                                                                                     }
+                                                                          }
+                                                   },
+                                           'u' => {
+                                                    'Container' => 'sub',
+                                                    'InheritedParams' => {
+                                                                           'Set' => {
+                                                                                      'ny' => 1,
+                                                                                      'nx' => 1
+                                                                                    }
+                                                                         },
+                                                    'CommonBlockName' => 'param',
+                                                    'IODir' => 'Unknown',
+                                                    'Status' => 0,
+                                                    'ArrayOrScalar' => 'Array',
+                                                    'Dim' => [
+                                                               [
+                                                                 '0',
+                                                                 'ny+1'
+                                                               ],
+                                                               [
+                                                                 '0',
+                                                                 'nx+1'
+                                                               ]
+                                                             ],
+                                                    'StmtCount' => undef,
+                                                    'Indent' => '      ',
+                                                    'Attr' => '(kind=)',
+                                                    'Type' => 'real',
+                                                    'Name' => 'u'
+                                                  },
+                                           'wet' => {
+                                                      'CommonBlockName' => 'param',
+                                                      'IODir' => 'Unknown',
+                                                      'Status' => 0,
+                                                      'Container' => 'sub',
+                                                      'InheritedParams' => {
+                                                                             'Set' => {
+                                                                                        'nx' => 1,
+                                                                                        'ny' => 1
+                                                                                      }
+                                                                           },
+                                                      'Attr' => '(kind=)',
+                                                      'Type' => 'integer',
+                                                      'Name' => 'wet',
+                                                      'ArrayOrScalar' => 'Array',
+                                                      'StmtCount' => undef,
+                                                      'Dim' => [
+                                                                 [
+                                                                   '0',
+                                                                   'ny+1'
+                                                                 ],
+                                                                 [
+                                                                   '0',
+                                                                   'nx+1'
+                                                                 ]
+                                                               ],
+                                                      'Indent' => '      '
+                                                    },
+                                           'g' => {
+                                                    'CommonBlockName' => 'param',
+                                                    'Status' => 0,
+                                                    'IODir' => 'Unknown',
+                                                    'Container' => 'sub',
+                                                    'Attr' => '(kind=)',
+                                                    'Type' => 'real',
+                                                    'Name' => 'g',
+                                                    'StmtCount' => undef,
+                                                    'Dim' => [],
+                                                    'ArrayOrScalar' => 'Scalar',
+                                                    'Indent' => '      '
+                                                  },
+                                           'eta' => {
+                                                      'IODir' => 'Unknown',
+                                                      'Status' => 0,
+                                                      'CommonBlockName' => 'param',
+                                                      'Container' => 'sub',
+                                                      'InheritedParams' => {
+                                                                             'Set' => {
+                                                                                        'ny' => 1,
+                                                                                        'nx' => 1
+                                                                                      }
+                                                                           },
+                                                      'Name' => 'eta',
+                                                      'Type' => 'real',
+                                                      'Attr' => '(kind=)',
+                                                      'Indent' => '      ',
+                                                      'StmtCount' => undef,
+                                                      'Dim' => [
+                                                                 [
+                                                                   '0',
+                                                                   'ny+1'
+                                                                 ],
+                                                                 [
+                                                                   '0',
+                                                                   'nx+1'
+                                                                 ]
+                                                               ],
+                                                      'ArrayOrScalar' => 'Array'
+                                                    },
+                                           'dt' => {
+                                                     'Container' => 'sub',
+                                                     'IODir' => 'Unknown',
+                                                     'Status' => 0,
+                                                     'CommonBlockName' => 'param',
+                                                     'Indent' => '      ',
+                                                     'Dim' => [],
+                                                     'StmtCount' => undef,
+                                                     'ArrayOrScalar' => 'Scalar',
+                                                     'Name' => 'dt',
+                                                     'Type' => 'real',
+                                                     'Attr' => '(kind=)'
+                                                   },
+                                           'v' => {
+                                                    'CommonBlockName' => 'param',
+                                                    'Status' => 0,
+                                                    'IODir' => 'Unknown',
+                                                    'Container' => 'sub',
+                                                    'InheritedParams' => {
+                                                                           'Set' => {
+                                                                                      'ny' => 1,
+                                                                                      'nx' => 1
+                                                                                    }
+                                                                         },
+                                                    'Attr' => '(kind=)',
+                                                    'Name' => 'v',
+                                                    'Type' => 'real',
+                                                    'ArrayOrScalar' => 'Array',
+                                                    'StmtCount' => undef,
+                                                    'Dim' => [
+                                                               [
+                                                                 '0',
+                                                                 'ny+1'
+                                                               ],
+                                                               [
+                                                                 '0',
+                                                                 'nx+1'
+                                                               ]
+                                                             ],
+                                                    'Indent' => '      '
+                                                  },
+                                           'un' => {
+                                                     'Name' => 'un',
+                                                     'Type' => 'real',
+                                                     'Attr' => '(kind=)',
+                                                     'Indent' => '      ',
+                                                     'ArrayOrScalar' => 'Array',
+                                                     'StmtCount' => undef,
+                                                     'Dim' => [
+                                                                [
+                                                                  '0',
+                                                                  'ny+1'
+                                                                ],
+                                                                [
+                                                                  '0',
+                                                                  'nx+1'
+                                                                ]
+                                                              ],
+                                                     'Status' => 0,
+                                                     'IODir' => 'Unknown',
+                                                     'CommonBlockName' => 'param',
+                                                     'Container' => 'sub',
+                                                     'InheritedParams' => {
+                                                                            'Set' => {
+                                                                                       'ny' => 1,
+                                                                                       'nx' => 1
+                                                                                     }
+                                                                          }
+                                                   },
+                                           'k' => {
+                                                    'Indent' => '      ',
+                                                    'Dim' => [],
+                                                    'StmtCount' => undef,
+                                                    'ArrayOrScalar' => 'Scalar',
+                                                    'Name' => 'k',
+                                                    'Type' => 'integer',
+                                                    'Attr' => '(kind=)',
+                                                    'Container' => 'sub',
+                                                    'Status' => 0,
+                                                    'IODir' => 'Unknown',
+                                                    'CommonBlockName' => 'param'
+                                                  },
+                                           'j' => {
+                                                    'Container' => 'sub',
+                                                    'Status' => 0,
+                                                    'IODir' => 'Unknown',
+                                                    'CommonBlockName' => 'param',
+                                                    'Indent' => '      ',
+                                                    'ArrayOrScalar' => 'Scalar',
+                                                    'StmtCount' => undef,
+                                                    'Dim' => [],
+                                                    'Type' => 'integer',
+                                                    'Name' => 'j',
+                                                    'Attr' => '(kind=)'
+                                                  }
+                                         },
+                                'List' => []
+                              },
+          'Name' => 'update',
+          'Function' => 0,
+          'Args' => $VAR1->{'RefactoredArgs'},
+          'ArgMap' => {}
+        };
+

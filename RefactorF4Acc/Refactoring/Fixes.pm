@@ -59,6 +59,7 @@ if (not exists $Config{'FIXES'}{'_removed_unused_variables'}) { return $stref }
 	# So start with all declared variables, put in $state->{'DeclaredVars'}
 	# Make a list of all variables anywhere in the code via Lhs, Rhs, Args, put in $state->{'ExprVars'}
 	# croak Dumper $stref->{Subroutines}{$f}{RefactoredCode}		;
+	
 	my $pass_action_find_all_used_vars = sub { (my $annline, my $state)=@_;		
 		(my $line,my $info)=@{$annline};
 		
@@ -96,6 +97,18 @@ if (not exists $Config{'FIXES'}{'_removed_unused_variables'}) { return $stref }
 		}
 		elsif ( exists $info->{'VarDecl'} ) {
 			$state->{'DeclaredVars'}{ $info->{'VarDecl'}{'Name'}}=1;
+			# Now check also if the declaration does have any ExprVars
+			if (exists $info->{'ParsedVarDecl'} and
+				exists $info->{'ParsedVarDecl'}{'Attributes'} and
+				exists $info->{'ParsedVarDecl'}{'Attributes'}{'Dim'} ) {
+				for my $dim_str (@{$info->{'ParsedVarDecl'}{'Attributes'}{'Dim'}}) {
+					my $dim_expr_ast=parse_expression($dim_str, $info,{}, '');
+					my $vars = get_vars_from_expression($dim_expr_ast,{});
+					for my $var (keys %{ $vars } ) {
+						$state->{'ExprVars'}{$var}++;	
+					}					
+				}
+			}										
 			$done=1;
 		}
 		elsif ( exists $info->{'Assignment'}  ) {
@@ -172,7 +185,11 @@ if (not exists $Config{'FIXES'}{'_removed_unused_variables'}) { return $stref }
 			$done=1;
 		}
 		if (exists $info->{'HasVars'} and $info->{'HasVars'} == 1 and $done==0) {
-			croak "Line <$line> NOT ANALYSED! ".Dumper($info);
+			if ($DBG) {
+				croak "Line <$line> NOT ANALYSED! ".Dumper($info) 
+			} else {
+				warning( "Line <$line> NOT ANALYSED! ");
+			}
 		}
 
 		

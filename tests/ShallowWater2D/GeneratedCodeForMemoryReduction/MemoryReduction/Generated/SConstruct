@@ -1,0 +1,12 @@
+import os
+
+FC=os.environ.get('FC')
+
+fsources = ['gen_dyn_shapiro_superkernel.f95', 'module_gen_dyn_shapiro_superkernel.f95', '../Scalarized/dyn_shapiro_map_49.f95', '../Scalarized/dyn_shapiro_map_55.f95', '../Scalarized/dyn_shapiro_map_75.f95', '../Scalarized/dyn_shapiro_map_92.f95']
+
+FFLAGS = ['-Wall','-cpp','-O3','-m64','-ffree-form','-ffree-line-length-0','-fconvert=little-endian','-frecord-marker=4']
+
+envF=Environment(F95=FC,LINK=FC,F95FLAGS=FFLAGS,F95PATH=['.' ,'../Scalarized','/usr/local/include'])
+
+envF.Program('gen_dyn_shapiro_superkernel',fsources,LIBS=['m'],LIBPATH=['.' ,'/usr/lib','/usr/local/lib'])
+

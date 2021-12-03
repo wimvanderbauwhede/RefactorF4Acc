@@ -6,6 +6,7 @@ package RefactorF4Acc::Analysis::ArrayAccessPatterns;
 use v5.10;
 use RefactorF4Acc::Config;
 use RefactorF4Acc::Utils;
+use RefactorF4Acc::Utils::Functional qw( max );
 use RefactorF4Acc::Refactoring::Helpers qw(
 	pass_wrapper_subs_in_module
 	stateful_pass
@@ -858,7 +859,7 @@ $state->{'Subroutines'}{ $f }{'StreamVars'}{$array_var}={};
 				$n_accesses > 1 and				 					 
 				#- at least one of these accesses has a non-zero offset
 					$n_nonzeroffsets > 0 and
-				#- all points in the array are processed in order
+				#- all points in the array are processed in a certain order
 					$all_points
 					) {
 				 		$ast_to_emit = $ast_emitter->( $f,  $state,  $ast_to_emit, 'STENCIL',  $block_id,  $array_var,  $rw) if $emit_ast;

@@ -3379,7 +3379,9 @@ sub _parse_f77_par_decl {
 				} else {
 					# say "FOUND PARAM IN: $params_set in $f";
 				}
-				# carp $mpar.':'.Dumper($mpar_rec);
+				if (not defined $mpar_rec) {
+					die "Parameter $mpar is not declared in $f\n";
+				}
 				my $mtype=$mpar_rec->{'Type'};
 				my $mattr=$mpar_rec->{'Attr'};
 				if ($mtype ne 'integer' and $mtype ne 'complex' or not $typed) {

@@ -724,11 +724,11 @@ sub parse_expression_no_context { (my $str)=@_;
             # What I could do is say:
             # if the next token is ':' or the pending op is ':' (12)
             
-            if($str=~/^\s*:/ or $op == 12) {
+            if($str=~/^\s*:/ or (defined $op and $op == 12)) {
                 # Return a blank
                 $expr_ast=[35,'']
             } else { # error
-            carp "STR:<$str>" if not defined $op;
+                carp "STR:<$str>" if not defined $op and $DBG;
             #say "ERR 3";
                 $error=1;
                 return ($expr_ast, $str, $error,0);

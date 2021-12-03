@@ -6,7 +6,17 @@ import System.IO ( openFile, hPutStr, hClose, IOMode(..) )
 import Data.List ((\\),foldl')
 import TyTraCLAST 
 import ASTInstance (ast,functionSignaturesList,superkernelName)
-import Transforms (splitLhsTuples, substituteVectors, applyRewriteRules, fuseStencils, regroupTuples, removeDuplicateExpressions, decomposeExpressions) --, groupMapCalls)
+import Transforms (
+    splitLhsTuples, 
+    substituteVectors, 
+    applyRewriteRules, 
+    fuseStencils, 
+    regroupTuples, 
+    removeDuplicateExpressions, 
+    decomposeExpressions,
+    substituteNonUniqueStencilNames,
+    stencilNamesToUniqueNames
+    ) 
 import CodeGeneration (
     inferSignatures, 
     generateFortranCode,
@@ -19,8 +29,10 @@ printTyTraCL = True
 data Stage = Original | SplitLhsTuples | SubstituteVectors | ApplyRewriteRules | FuseStencils | RegroupTuples | DecomposeExpressions | RemoveDuplicateExpressions deriving (Show, Ord, Eq)
 stage = RemoveDuplicateExpressions
 
+ast' :: TyTraCLAST
+ast' = substituteNonUniqueStencilNames ast stencilNamesToUniqueNames
 ast1 :: TyTraCLAST
-ast1 = splitLhsTuples ast
+ast1 = splitLhsTuples ast'
 ast2 :: TyTraCLAST
 ast2 = substituteVectors ast1
 (ast3 :: TyTraCLAST, (_,idSigList)) = applyRewriteRules ast2
@@ -36,7 +48,7 @@ tagged_asts = map (\ast -> (foldl'(\isFold (lhs,rhs) -> case rhs of
                     ) False ast,ast)) ast4
 (fold_asts,maps_asts) = foldl' (\(f_,m_) (is_f,ast) -> if is_f then (f_++[ast],m_) else (f_,m_++[ast])) ([],[]) tagged_asts
 ast5 = removeDuplicateExpressions $ concat maps_asts -- the fold stages must remain separate!
-ast6 = fold_asts++ [ast5] --[ groupMapCalls ast5]
+ast6 = fold_asts ++ [ast5] --[ groupMapCalls ast5]
 
 asts  
     | stage == Original = [ast]
@@ -68,9 +80,9 @@ main = do
             putStrLn "\n-- Apply rewrite rules"
             mapM_ print ast3
             putStrLn "\n-- Fuse stencils"
-            mapM_ print ast3''    
+            mapM_ print ast3''
             putStrLn "\n-- Regroup tuples"
-            mapM_ print ast3' 
+            mapM_ print ast3'
             putStrLn "\n-- Decompose expressions and infer function signatures"
             mapM_ ( \((x1,x2),ct) -> do                
                 if not (null (x2 \\ functionSignaturesList)) then
@@ -92,7 +104,11 @@ main = do
             mapM_ (putStrLn . ppFSig) functionSignaturesList
             putStrLn "\n-- Original TyTraCL code"
             mapM_ putStrLn $ ppAST ast
-            putStrLn "\n-- Decomposed expressions and inferred function signatures"
+            putStrLn "\n-- Fuse stencils"
+            mapM_ putStrLn $ ppAST ast3''
+            putStrLn "\n-- Regroup tuples"       
+            mapM_ putStrLn $ ppAST ast3'
+            putStrLn "\n-- Decomposed expressions and inferred function signatures"            
             mapM_ (
                  \((x1,x2),ct) -> do
                 if not (null (x2 \\ functionSignaturesList)) then
@@ -109,6 +125,7 @@ main = do
                 -- ) [(( ast5, inferedSignatures),0)]
             putStrLn "\n-- Common subexpression elimination\n"
             mapM_ (putStr . unlines . ppAST) ast6
+
 
         else return ()     
 

@@ -7,12 +7,14 @@ import Data.List (intercalate)
 type Name = String
 type FType = String
 type Size = Int
+type Offset = Int
 -- Vector In   Out  Stencil Temp Don't care
 data VE = VI  | VO  | VS  | VT | VDC deriving (Show, Read, Ord, Typeable, Data, Eq)
 data DType = 
     DInteger | DInt 
   | DReal | DFloat 
   | DSVec Int DType --  to encode SVecs
+  | DFVec [(Int,Int)] DType --  to encode FVecs
   | DTuple [DType] -- to encode Tuple
   | DDC -- Don't Care ; Int and Integer, Real and Float as I can't make up my mind
     deriving (Show, Read, Ord, Typeable, Data, Eq)
@@ -24,15 +26,17 @@ ppFSig (fname,ftypes) = fname ++" :: "++(intercalate " -> " (filter (/="()") (ma
 ppFSigArg (Scalar _ dt _) = ppDType dt
 ppFSigArg (Tuple ts) = "("++(intercalate ", " (filter (/="()") $ map ppFSigArg ts))++")"
 ppFSigArg (SVec sz x) = "SVec "++(show sz)++" "++(ppFSigArg x)
+ppFSigArg (FVec dims x) = "FVec "++(show dims)++" "++(ppFSigArg x)
 
 ppDType DInteger = "Int"
 ppDType DInt = "Int"
 ppDType DReal = "Dloat"
 ppDType DFloat = "Float"
 ppDType (DSVec sz dt) = "SVec "++(show sz)++(ppDType dt)
+ppDType (DFVec dims dt) = "FVec "++(show dims)++(ppDType dt)
 ppDType (DTuple dts) = "("++ (intercalate ", " (map ppDType dts)) ++")"
 ppDType DDC = show DDC
-
+ 
 data FName = Single String | Composite [FName]
   deriving (Ord, Typeable, Data, Eq)
 
@@ -46,39 +50,41 @@ data FIntent = In | Out | InOut | Unknown | NA
 
 data FDecl = MkFDecl {
   ftype :: String,  
-  dim :: Maybe [Int],
+  dim :: Maybe [(Int,Int)],
   intent :: Maybe FIntent,
   names :: [String] 
   } |
 --  deriving (Ord, Typeable, Data, Eq)
  MkFParamDecl {
   ftype :: String,  
-  dim :: Maybe [Int],
+  dim :: Maybe [(Int,Int)], 
   name :: String,
   val :: String 
   }
  deriving (Ord, Read, Typeable, Data, Eq)
 
 errorDecl = MkFDecl "ERROR" Nothing Nothing []
-
+-- e.g. 1 .. 10 has offset of 1, size of: 10 - 1 + 1 = 10
+-- e.g. -1 .. 10 has offset of -1, size of: 10 - -1 + 1 = 12, so we would have -1:12 but it should be sz-1+offset
 instance Show FDecl where  
   show (MkFDecl ftype mdim intent names ) = let
         attributes = [ftype]
         attributes' = case mdim of          
           Just dims -> let
-              dims_str = intercalate "," $ map (\dm ->  "1:"++(show dm)) dims
+              dims_str = intercalate "," $ map (\(dm_off,dm_sz) ->  show dm_off ++ ":" ++ show dm_sz ) dims -- (dm_sz+dm_off-1) ) dims
             in
               attributes++["dimension("++dims_str++")"]
           Nothing -> attributes
         attributes'' = case intent of
-            Just i -> attributes'++["intent("++(show i)++")"]
+            Just i -> attributes'++["intent("++ show i ++")"]
             Nothing -> attributes'
       in
-        (intercalate ", " attributes'') ++ " :: "++ (intercalate ", " names)
+        intercalate ", " attributes'' ++ " :: " ++ intercalate ", " names
   show (MkFParamDecl ftype mdim name val) = let
     maybe_dimstr = case mdim of          
       Just dims -> let
-          dims_str = intercalate "," $ map (\dm ->  "1:"++(show dm)) dims
+          dims_str = intercalate "," $ map (\(dm_off,dm_sz) ->  show dm_off ++ ":" ++ show (dm_sz+dm_off-1) ) dims
+          -- dims_str = intercalate "," $ map (\dm ->  "1:"++(show dm)) dims
         in
           ", dimension("++dims_str++")"
       Nothing -> ""
@@ -159,6 +165,7 @@ data Expr =
 
         -- Right-hand side:
                     | SVec Size Expr -- Name
+                    | FVec [(Offset,Size)] Expr -- This is for non-map args FIXME! bounds i.o range
                     | ZipT [Expr]
                     | UnzipT Expr
                     | Elt Int Expr
@@ -173,8 +180,10 @@ data Expr =
                     | RApplyT [[Int]] [Expr]  -- rapplyt [[i1,i2],i3] (f1,(f2,f3)) -- reorders the outputs after reducing calls
                     | MapS Expr Expr -- maps s f
                     | Comp Expr Expr -- comp f2 f1
+                    | Comps [Expr] -- comps [f2, f1, ...]
                     | FComp Expr Expr -- like comp but to combine a fold and a map, quite a-hoc!
                     | SComb Expr Expr -- scomb s1 s2
+                    | SCombs [Expr] -- scomb [s1, s2, ...]
                     | Nil
                         deriving (Show, Read, Ord, Typeable, Data, Eq)
 
@@ -200,6 +209,7 @@ ppLHSExpr  :: Expr -> String
 ppLHSExpr (Scalar _ _ x) = x
 ppLHSExpr (Vec _ x) = ppLHSExpr x
 ppLHSExpr (SVec _ x) = ppLHSExpr x
+ppLHSExpr (FVec _ x) = ppLHSExpr x
 ppLHSExpr (Function x _) = x
 ppLHSExpr (Tuple xs) = "("++(intercalate ", " (map ppLHSExpr xs))++")"
 ppLHSExpr x = "<TODO:"++(show x)++">"
@@ -209,10 +219,12 @@ ppRHSExpr (Scalar _ _ x) = x
 ppRHSExpr (Vec _ x) = ppRHSExpr x
 -- ppRHSExpr
 ppRHSExpr (SVec _ x) = ppRHSExpr x
+ppRHSExpr (FVec _ x) = ppRHSExpr x
 ppRHSExpr (ZipT xs) = "zipt ("++(intercalate ", " (map ppRHSExpr xs))++")"
 ppRHSExpr (UnzipT x) = "unzipt ("++(ppRHSExpr x)++")"
 ppRHSExpr (Elt idx x) =  "elt "++(show idx)++" "++(ppRHSExpr x)
 ppRHSExpr (PElt idx) = "pelt "++(show idx)++" "
+ppRHSExpr (PElts idxs) = "pelts ("++ (intercalate ", " (map show idxs))++") "
 ppRHSExpr (Map f v) = "map " ++ (ppRHSExpr f) ++ " " ++ (ppRHSExpr v)
 ppRHSExpr (Fold f acc v) = "fold " ++ (ppRHSExpr f)  ++ " " ++ (ppRHSExpr acc) ++ " " ++ (ppRHSExpr v)
 ppRHSExpr (Stencil s v) = "stencil " ++ (ppRHSExpr s)++" "++(ppRHSExpr v)
@@ -222,8 +234,9 @@ ppRHSExpr (Function fname xs) = let
     if null non_map_args then fname else  "("++fname++" " ++ (unwords non_map_args)++")" 
 ppRHSExpr (Id _ _) = "id "
 ppRHSExpr (ApplyT xs)  = "applyt ("++(intercalate ", " (map ppRHSExpr xs))++")"
+ppRHSExpr (RApplyT idxs xs)  = "(rapplyt "++(show idxs)++ " (" ++ (intercalate ", " (map ppRHSExpr xs))++"))"
 ppRHSExpr (MapS s f) = "maps "++(ppRHSExpr s)++" "++ (ppRHSExpr f)
-ppRHSExpr (Comp f2 f1) = "comp "++(ppRHSExpr f2) ++" "++(ppRHSExpr f1)
+ppRHSExpr (Comp f2 f1) = "(comp "++(ppRHSExpr f2) ++" "++(ppRHSExpr f1)++")"
 ppRHSExpr (FComp f2 f1) = "fcomp "++(ppRHSExpr f2) ++" "++(ppRHSExpr f1)
 ppRHSExpr (SComb s1 s2) = "(scomb "++ (ppRHSExpr s1) ++" "++(ppRHSExpr s2)++")"
 
@@ -236,6 +249,7 @@ setName :: FName -> Expr -> Expr
 setName (Single name') (Scalar ve dt name) = Scalar ve dt name'
 setName (Single name') (Vec ve exp) = Vec ve (setName (Single name') exp)
 setName (Single name') (SVec sz exp) = SVec sz (setName (Single name') exp)
+setName (Single name') (FVec dims exp) = FVec dims (setName (Single name') exp)
 -- Tuple [SVec 5 (Scalar VDC DInt "wet_s_0"),SVec 5 (Scalar VDC DFloat "eta_s_0")]
 setName (Single name') (Tuple exps) = Tuple $ map (\(exp,ct) -> setName (Single (name'++"_"++ show ct)) exp) (zip exps [0..])
 setName (Composite names') (Tuple exps) = Tuple $ map (\(exp,name) -> setName name exp) (zip exps names')
@@ -251,6 +265,7 @@ getName :: Expr -> FName
 getName (Scalar ve dt name) = Single name
 getName (Vec ve exp) = getName exp
 getName (SVec sz exp) = getName exp
+getName (FVec _ exp) = getName exp
 -- WV: I want to know if this happens
 -- getName (Tuple exps) = error $ "No unique name to get for "++(show exps)
 getName (Tuple exps) = Composite (map getName exps)

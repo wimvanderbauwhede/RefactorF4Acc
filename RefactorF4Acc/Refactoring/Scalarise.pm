@@ -649,6 +649,8 @@ sub _rename_array_accesses_to_scalars {
                     $state->{'IndexVars'} =
                       { %{ $state->{'IndexVars'} }, %{$rhs_vars} };
                     if (not exists $state->{'IndexVarsToKeep'}{$lhs_var}) {
+                      # Doing this deletes index vars used in non-stream arrays
+                      # The actual bug however is that index vars used in non-stream arrays are not in IndexVarsToKeep
                       $info->{'Deleted'} = 1;
                     # warn "RHS VARS: " . Dumper $rhs_vars;
                       return ( [ [ "! $line", $info ] ], $state );
@@ -660,9 +662,17 @@ sub _rename_array_accesses_to_scalars {
                 } else {
                   # Maybe an index var is read on the RHS
                   my $rhs_vars = $info->{'Rhs'}{'Vars'}{'Set'};
+                  # croak Dumper $rhs_vars if $line =~/dx1/; 
                   for my $index_var (sort keys %{ $state->{'IndexVars'}} ) {
                     if (exists $rhs_vars->{$index_var}) {
                         $state->{'IndexVarsToKeep'}{$index_var}=$state->{'IndexVars'}{$index_var};
+                    }
+                    for my $rhs_var (sort keys %{$rhs_vars}) {
+                      if (exists $rhs_vars->{$rhs_var}{'IndexVars'}
+                      and exists $rhs_vars->{$rhs_var}{'IndexVars'}{$index_var}
+                      ) {
+                        $state->{'IndexVarsToKeep'}{$index_var}=$state->{'IndexVars'}{$index_var};
+                      }
                     }
                   }
                 }

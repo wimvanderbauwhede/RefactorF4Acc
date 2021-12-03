@@ -1,10 +1,22 @@
-module Transforms (splitLhsTuples, substituteVectors, applyRewriteRules, fuseStencils, regroupTuples, removeDuplicateExpressions,  decomposeExpressions) where
+module Transforms (
+    splitLhsTuples, 
+    substituteVectors, 
+    applyRewriteRules, 
+    fuseStencils, 
+    regroupTuples, 
+    removeDuplicateExpressions,  
+    decomposeExpressions,
+    substituteNonUniqueStencilNames,
+    stencilDefinitionsList',
+    stencilNamesToUniqueNames
+) where
 
 import Data.Generics (Data, Typeable, mkQ, mkT, mkM, gmapQ, gmapT, everything, everywhere, everywhere', everywhereM)
 import Control.Monad.State
 import qualified Data.Map.Strict as Map
-import Data.List (intercalate,foldl')
+import Data.List (intercalate,foldl',nub)
 
+import ASTInstance ( stencilDefinitionsList, ast )
 import TyTraCLAST
 import CallReduction ( reduceCalls )
 import Warning ( warning )
@@ -23,6 +35,7 @@ import Warning ( warning )
 (!) = (Map.!)
 -- ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 
+( stencilDefinitionsList', stencilNamesToUniqueNames ) = removeDuplicateStencilDefs stencilDefinitionsList
 
 -- 1. Replace all LHS Tuple occurrences with multiple expressions using Elt on the RHS. As a result, the LHS will be purely Vec.
 splitLhsTuples :: TyTraCLAST -> TyTraCLAST
@@ -282,8 +295,6 @@ rewrite_ast_into_single_map count exp = do
             rewrite_ast_into_single_map count' exp'
         else
             return exp   
--- (Stencil (SVec 3 "s2") (Stencil (SVec 3 "s1") (Vec VI "v_0"))))
--- (Stencil (SComb (SVec 3 "s2") (SVec 3 "s1")) (Vec VI "v_0"))))
 rewrite_ast_sub_expr expr = 
         case expr of 
             -- 1. Map composition
@@ -322,11 +333,13 @@ fuseStencils ast
             in    
                 (nm+m, ast_acc++[(lhs,rhs')])
             ) (0,[]) ast
-
-regroupTuples ast = let            
+            
+regroupTuples ast = let
+    -- If the RHS is Elt n, we check if the LHS is in the map `acc`
+    -- If so, we add the `(lhs,n)` tuple to the map
         regrouped_tuples_map = foldl (
             \acc (lhs,rhs) -> case rhs of
-                Elt n expr -> if Map.member expr acc 
+                Elt n expr -> if Map.member expr acc
                     then 
                         let
                             lst = acc ! expr
@@ -335,7 +348,7 @@ regroupTuples ast = let
                         else 
                             Map.insert expr [(lhs,n)] acc
                 _ -> acc    
-            ) Map.empty ast
+            ) Map.empty ast        
         non_elt_ast = filter (\(lhs,rhs) -> case rhs of
                     Elt _ _ -> False
                     _ -> True
@@ -351,26 +364,74 @@ regroupTuples ast = let
     in            
         tuples_ast ++ non_elt_ast_regrouped_map_tuples
 
+-- This needs to come in place of the expression 
+update_acc_with_erased_Id acc t' lhs n = let
+    (acc', updated') = foldl (\(acc_,updated_) t_ -> let
+                (f_expr,v_expr) = t_
+                (f_expr',v_expr') = t'
+            in
+                if (erase_Id_names f_expr,v_expr) == (erase_Id_names f_expr',v_expr') 
+                    then                        
+                        -- the value at key `t` can be updated
+                        let
+                            lst = acc_ ! t_
+                        in
+                            (Map.adjust (\lst -> lst++[(lhs,n)]) t_ acc_                        
+                            ,True)
+                    else
+                            (acc_,updated_)
+        ) (acc,False) (Map.keys acc)
+    in
+        if updated' then acc' else Map.insert t' [(lhs,n)] acc
+
+-- FIXME: erasing Id names is WRONG!        
 regroupTuplesMap ast = let            
         regrouped_map_tuples_map = foldl (
             \acc (lhs,rhs) -> case rhs of
-                Map (Comp (PElt n) f_expr) v_expr -> let
-                        t = (f_expr,v_expr)
-                  in
-                    if Map.member t acc 
-                      then 
-                        let
-                            lst = acc ! t
-                        in
-                            Map.adjust (\lst -> lst++[(lhs,n)]) t acc
-                      else 
-                            Map.insert t [(lhs,n)] acc
+                Map (Comp (PElt n) f_expr) v_expr -> update_acc_with_erased_Id acc (f_expr,v_expr) lhs n
+                -- let
+                --         t = (erase_Id_names f_expr,v_expr) -- remove this erase_...
+                --   in
+                
+                --       -- replace by update_acc_with_erased_Id
+                --     if Map.member t acc 
+                --       then 
+                --         let
+                --             lst = acc ! t
+                --         in
+                --             Map.adjust (\lst -> lst++[(lhs,n)]) t acc
+                --       else 
+                --             Map.insert t [(lhs,n)] acc
+                -- FIXME: of course there could be even more nested Comp expressions!
+                -- A better approach would probably be to have Comps [exprs]
+                -- and then 
+                -- Map (Comps (PElt n):f_exprs)
+                -- which would then become Comps f_exprs 
+                Map (Comp (Comp (PElt n) f1_expr) f2_expr) v_expr -> update_acc_with_erased_Id acc (Comp f1_expr f2_expr,v_expr) lhs n
+                --     let
+                --         t = (erase_Id_names (Comp f1_expr f2_expr),v_expr) -- remove this erase_...
+                --   in
+                --       -- replace by update_acc_with_erased_Id
+                --     if Map.member t acc 
+                --       then 
+                --         let
+                --             lst = acc ! t
+                --         in
+                --             Map.adjust (\lst -> lst++[(lhs,n)]) t acc
+                --       else 
+                --             Map.insert t [(lhs,n)] acc                            
                 _ -> acc    
             ) Map.empty ast
-        non_map_ast = filter (\(lhs,rhs) -> case rhs of
-                    Map _ _ -> False
-                    _ -> True
-                ) ast
+        regrouped_lhs_exprs = nub $ map fst $ concat (Map.elems regrouped_map_tuples_map)
+        -- This is not right: there can be occurences of Map and even Map Comp without PElt
+        -- non_map_ast' = filter (\(lhs,rhs) -> case rhs of
+        --             Map _ _ -> False
+        --             _ -> True
+        --         ) ast
+        -- So instead we filter the expressions that were grouped.
+        non_grouped_map_ast = filter (
+                \(lhs,rhs) -> lhs `notElem` regrouped_lhs_exprs
+            ) ast                
         tuples_ast = map (\rhs_expr_t -> 
             let
                 (f_expr,v_expr) = rhs_expr_t
@@ -380,10 +441,17 @@ regroupTuplesMap ast = let
                 rhs_expr' = Map (Comp (PElts idxs) f_expr) v_expr
             in 
                 (Tuple lhs_exprs,UnzipT rhs_expr')
-            ) (Map.keys regrouped_map_tuples_map)
+            ) (Map.keys regrouped_map_tuples_map) -- (warning regrouped_map_tuples_map (show regrouped_map_tuples_map)) )
     in            
-        non_map_ast ++ tuples_ast
+        non_grouped_map_ast ++ tuples_ast -- (warning tuples_ast (show tuples_ast))
 
+
+erase_Id_names :: Expr -> Expr
+erase_Id_names = everywhere (mkT ( \expr -> case expr of
+            Id _ e -> Id "id" e
+            e -> e
+        )
+    )         
 {-
         if (exists $unique_names_for_stencils{$stencil_definition}) {
             $stencil_names_to_unique_names{$stencil_name} = $unique_names_for_stencils{$stencil_definition}
@@ -447,8 +515,6 @@ substitute_unique_names namesToUniqueNames (lhs,rhs) = let
     in 
         ((lhs,rhs'),hit)
 
--- TODO!        
--- (ZipT [Vec VS (SVec 2(Scalar DFloat "un_s_0")),Vec VS (SVec 5(Scalar DFloat "h_s_0")),Vec VS (SVec 2(Scalar DFloat "vn_s_0")),Vec VT (Scalar VDC DFloat "eta_1")]) )
 substitute_unique_names_vecs namesToUniqueNames = everywhere (mkT (
     \v_expr ->
         case v_expr of
@@ -466,7 +532,7 @@ Then we repeat this until it returns False.
 
 remove_duplicate_expressions :: [(Expr,Expr)] -> ([(Expr,Expr)],Map.Map Expr Expr)
 remove_duplicate_expressions ast = let
-        (uniqueNamesForExprs, namesToUniqueNames,ast') = foldl' (\(uniqueNamesForExprs_,namesToUniqueNames_,ast_) (lhsExpr,rhsExpr) ->
+        (_uniqueNamesForExprs, namesToUniqueNames,ast') = foldl' (\(uniqueNamesForExprs_,namesToUniqueNames_,ast_) (lhsExpr,rhsExpr) ->
             if Map.member rhsExpr uniqueNamesForExprs_
                 then 
                     -- There is already an entry for this rhsExp, so skip this line
@@ -505,9 +571,18 @@ fuse_stencils (ZipT v_exprs) =
         (if sum ms > 0 then 1 else 0, ZipT v_exprs' )
 fuse_stencils v_expr = (0,v_expr)
 
+-- TODO: If we do this, then wherever there is a match on Comp we need a match on Comps as well
+-- unless we simply remove Comp by Comps
+-- Maybe a better approach would be to do this higher up and *always* *only* have Comps
+fuse_comp (Comp (Comp e1 e2) e3) = Comps [e1,e2,e3]
+fuse_comp (Comp (Comps e1s) (Comps e2s)) = Comps (e1s++e2s)
+fuse_comp (Comp (Comps es) e) = Comps (es++[e])
+fuse_comp (Comp e (Comps es)) = Comps (e:es)
+fuse_comp e = e
 
-    
-
+-- The actual substitution with `everywhere`
+fuse_all_Comp_exprs :: Expr -> Expr
+fuse_all_Comp_exprs  = everywhere (mkT fuse_comp) 
 -- map_checks :: TyTraCLAST -> [Int]
 -- map_checks ast = filter (/=0) $ map  (\(lhs,rhs) -> n_map_subexprs rhs) ast
 
@@ -537,16 +612,10 @@ rewriteZipTMap es =  let
         Map (RApplyT idx_s_g f_s_g) (ZipT v_s_g)
         -- warning (Map (ApplyT f_s) (ZipT v_s)) ("(ApplyT,ZipT): "++ show fv_s) 
 
--- Instead of inserting Id I should insert a Function with a fresh name 
+-- Instead of inserting Id, I should insert a Function with a fresh name 
 -- and put that function in the functionSignaturesList
 -- the dt or (SVec sz dt) is the Expr to be put in the function signature
 
--- rewriteId expr =  case expr of
---     Vec _ dt   -> Map (Id dt) expr
---     Stencil (SVec sz _ )  (Vec _ dt ) -> Map (Id (SVec sz dt)) expr
---     _ -> expr
-
--- TODO PUT THIS IN PLACE AND MAKE THIS MONADIC EVERYWHERE    
 rewriteIdToFunc :: Expr -> State (Int, [(Name, [Expr])]) Expr
 rewriteIdToFunc expr = do
     (ct, fsigs) <- get
@@ -566,14 +635,6 @@ rewriteIdToFunc expr = do
         else
             put (ct, fsigs)            
     return rexp
-
--- scalarFromVec expr =
---     case expr of
---         Vec _ dt   -> dt
---         Stencil (SVec sz _ )  (Vec _ dt ) -> SVec sz dt
---         ZipT es -> Tuple $ map scalarFromVec es
---         _ -> error $ show expr
-
 
 
 get_map :: Expr -> [Expr]
@@ -598,14 +659,6 @@ Fortran from it.
 {-
 4. First decompose the expressions. We rewrite in a variant of ANF: every vector, stencil and function gets a name.
 
-
-( Vec VT (Scalar VDC DFloat "eta_2"), 
-Map (Function "dyn_map_65"  [
-    Scalar VDC DFloat "dt_0",
-    Scalar VDC DFloat "dx_0",
-    Scalar VDC DFloat "dy_0"]) 
-    
-    (ZipT [Vec VS (SVec 2(Scalar DFloat "un_s_0")),Vec VS (SVec 5(Scalar DFloat "h_s_0")),Vec VS (SVec 2(Scalar DFloat "vn_s_0")),Vec VT (Scalar VDC DFloat "eta_1")]) )
 -}
 
 -- This returns the decomposed expressions as a lists of lists
@@ -651,6 +704,7 @@ subsitute_expr lhs exp = do
                       Id _ _ -> ((ct,orig_bindings,added_bindings,var_expr_pairs),exp)
                       Function _ _ -> ((ct,orig_bindings,added_bindings,var_expr_pairs),exp)
                       SVec _ _ -> ((ct,orig_bindings,added_bindings,var_expr_pairs),exp)
+                      FVec _ _ -> ((ct,orig_bindings,added_bindings,var_expr_pairs),exp)
                       SComb _ _ -> ((ct,orig_bindings,added_bindings,var_expr_pairs),exp)
                       PElt _ -> ((ct,orig_bindings,added_bindings,var_expr_pairs),exp)
                       PElts _ -> ((ct,orig_bindings,added_bindings,var_expr_pairs),exp)
@@ -810,9 +864,56 @@ pos:r_pos_lst =  pos_lst
 
 -}
 
-data Pos = LHS| RHS
+-- data Pos = LHS| RHS
 -- analyse_exprs_for_stage_args :: Expr -> Expr -> State (Int,Map.Map Expr Expr,Map.Map Expr Expr,[(Expr,Expr)]) Expr
 -- analyse_exprs_for_stage_args lhs exp = do
 --     let 
 --     return exp'
 
+-- make sure the stencil definitions are unique:
+
+
+
+removeDuplicateStencilDefs :: [(String,[Integer])] -> ([(String,[Integer])],Map.Map String String)
+removeDuplicateStencilDefs stencil_defs_list = let
+        (_uniqueNamesForStencils, stencilNamesToUniqueNames,stencil_defs_list') = foldl' (
+            \(uniqueNamesForStencils_,stencilNamesToUniqueNames_,stencil_defs_list_) (stencil_name_,stencil_def_) ->
+            if Map.member stencil_def_ uniqueNamesForStencils_
+                then 
+                    -- There is already an entry for this rhsExp, so skip this line
+                    (
+                        uniqueNamesForStencils_, 
+                        Map.insert stencil_name_ (uniqueNamesForStencils_ ! stencil_def_) stencilNamesToUniqueNames_,
+                        stencil_defs_list_
+                    ) 
+                else 
+                    -- This line is unique, add to the AST
+                    (
+                        Map.insert stencil_def_ stencil_name_ uniqueNamesForStencils_,
+                        stencilNamesToUniqueNames_,
+                        stencil_defs_list_ ++ [(stencil_name_,stencil_def_)]
+                    ) 
+            ) (Map.empty,Map.empty,[]) stencil_defs_list
+    in
+        (stencil_defs_list',stencilNamesToUniqueNames)
+
+
+
+-- Now we must substitute the non-unique names for unique names in the AST
+-- The occurrences are at this stage are all 
+-- Stencil (SVec n (Scalar vt dt stencil_name)) expr 
+-- on the RHS
+-- and all we need is to replace `stencil_name` with `unique_stencil_name`
+
+substituteNonUniqueStencilNames ast stencilNamesToUniqueNames = 
+    map (\(lhsExpr,rhsExpr) -> case rhsExpr of
+        Stencil (SVec n (Scalar vt dt stencil_name)) v -> if Map.member stencil_name stencilNamesToUniqueNames 
+            then 
+                let
+                    stencil_name' = stencilNamesToUniqueNames !  stencil_name
+                    rhsExpr' = Stencil (SVec n (Scalar vt dt stencil_name')) v
+                in 
+                    (lhsExpr,rhsExpr')
+            else (lhsExpr,rhsExpr)
+        _ -> (lhsExpr,rhsExpr)
+    ) ast

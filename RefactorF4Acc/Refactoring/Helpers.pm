@@ -610,7 +610,8 @@ sub emit_f95_var_decl {
             $const_dim==1 and exists $var_decl_rec->{'ConstDim'}) {
             $dim =$var_decl_rec->{'ConstDim'};
         } elsif ($DBG) {
-            carp "VAR has no ConstDim: ".$var_decl_rec->{'Name'} ;
+            carp "VAR has no ConstDim: ". Dumper($var_decl_rec);# ->{'Name'} 
+            # WV: TODO: created ConstDim here if the InheritedParams allow it
         }
       
       my $is_par = exists $var_decl_rec->{'Parameter'} ? 1 : 0;
