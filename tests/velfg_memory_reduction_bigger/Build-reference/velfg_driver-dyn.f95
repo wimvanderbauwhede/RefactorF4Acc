@@ -129,7 +129,7 @@ integer, parameter :: kp=90
       !print *,iter
     ! Loops over stage calls    
       
-      do state_idx = 1,5
+      do state_idx = 1,3
       state_ptr=states(state_idx)
 !$OMP PARALLEL DO
       do global_id = 1, ip*jp*kp
@@ -147,5 +147,5 @@ integer, parameter :: kp=90
     end do
     call system_clock(timestamp(1), clock_rate)
     print '(f6.3)',(timestamp(1)-timestamp(0))/ real(clock_rate)
-    print *, f(1,1,1)
+!    print *, f(1,1,1)
 end program main  

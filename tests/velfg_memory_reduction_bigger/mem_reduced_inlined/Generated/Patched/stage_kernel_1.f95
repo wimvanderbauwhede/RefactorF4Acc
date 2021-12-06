@@ -9,29 +9,29 @@ pure subroutine stage_kernel_1(u_0,v_0,w_0,f_1,g_1,h_1,global_id)
  integer, parameter :: u0___velfg_map_133_scal=0
  real, parameter :: vn___velfg_map_218_scal=15.83 * 10. ** (-6.)
  real :: covx1___velfg_map_218_scal
- integer :: i___velfg_map_218_scal
- integer :: j___velfg_map_218_scal
- integer :: k___velfg_map_218_scal
+ integer*8 :: i___velfg_map_218_scal
+ integer*8 :: j___velfg_map_218_scal
+ integer*8 :: k___velfg_map_218_scal
  real :: covy1___velfg_map_218_scal
  real :: covz1___velfg_map_218_scal
  real :: covc___velfg_map_218_scal
  real :: df___velfg_map_218_scal
  integer :: j_range___velfg_map_218_scal
  integer :: i_range___velfg_map_218_scal
- integer :: i_rel___velfg_map_218_scal
- integer :: j_rel___velfg_map_218_scal
- integer :: k_rel___velfg_map_218_scal
+ integer*8 :: i_rel___velfg_map_218_scal
+ integer*8 :: j_rel___velfg_map_218_scal
+ integer*8 :: k_rel___velfg_map_218_scal
  real :: dfu1___velfg_map_218
  real :: dfv1___velfg_map_218
  real :: dfw1___velfg_map_218
- integer :: i_vel2___velfg_map_133_scal
- integer :: j_vel2___velfg_map_133_scal
- integer :: k_vel2___velfg_map_133_scal
- integer :: j_vel2_range___velfg_m___9675913f
- integer :: i_vel2_range___velfg_m___a1f7aab8
- integer :: k_vel2_rel___velfg_map_133_scal
- integer :: j_vel2_rel___velfg_map_133_scal
- integer :: i_vel2_rel___velfg_map_133_scal
+ integer*8 :: i_vel2___velfg_map_133_scal
+ integer*8 :: j_vel2___velfg_map_133_scal
+ integer*8 :: k_vel2___velfg_map_133_scal
+ integer*8 :: j_vel2_range___velfg_m___9675913f
+ integer*8 :: i_vel2_range___velfg_m___a1f7aab8
+ integer*8 :: k_vel2_rel___velfg_map_133_scal
+ integer*8 :: j_vel2_rel___velfg_map_133_scal
+ integer*8 :: i_vel2_rel___velfg_map_133_scal
  real :: nou7___velfg_map_133
  real :: diu7___velfg_map_133
  real :: nou8___velfg_map_133
@@ -39,14 +39,14 @@ pure subroutine stage_kernel_1(u_0,v_0,w_0,f_1,g_1,h_1,global_id)
  real :: nou7_1___f_pelts_f_1_g_1_h_1_2
  real :: nou8_1___f_pelts_f_1_g_1_h_1_2
  integer :: i___f_maps_f_1_g_1_h_1_3
- integer :: i_vel2___velfg_map_76_scal
- integer :: j_vel2___velfg_map_76_scal
- integer :: k_vel2___velfg_map_76_scal
- integer :: j_vel2_range___velfg_m___4b6e60e4
- integer :: i_vel2_range___velfg_m___ea66ec4a
- integer :: i_vel2_rel___velfg_map_76_scal
- integer :: j_vel2_rel___velfg_map_76_scal
- integer :: k_vel2_rel___velfg_map_76_scal
+ integer*8 :: i_vel2___velfg_map_76_scal
+ integer*8 :: j_vel2___velfg_map_76_scal
+ integer*8 :: k_vel2___velfg_map_76_scal
+ integer*8 :: j_vel2_range___velfg_m___4b6e60e4
+ integer*8 :: i_vel2_range___velfg_m___ea66ec4a
+ integer*8 :: i_vel2_rel___velfg_map_76_scal
+ integer*8 :: j_vel2_rel___velfg_map_76_scal
+ integer*8 :: k_vel2_rel___velfg_map_76_scal
  real :: nou1___velfg_map_76
  real :: diu1___velfg_map_76
  real :: nou5___velfg_map_76
