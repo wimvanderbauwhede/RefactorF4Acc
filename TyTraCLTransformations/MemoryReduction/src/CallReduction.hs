@@ -170,12 +170,12 @@ map (maps f1) (stencil s2 v1)
 -}
 erase_maps_svec_names :: Expr -> Expr
 erase_maps_svec_names = id
--- everywhere (mkT ( \expr -> case expr of
---             MapS (SVec sz _) f -> MapS (SVec sz (Const sz)) f
---             Stencil (SVec sz _) v -> Stencil (SVec sz (Const sz)) v
---             e -> e
---         )
---     ) 
+    -- everywhere (mkT ( \expr -> case expr of
+    --             MapS (SVec sz _) f -> MapS (SVec sz (Const sz)) f
+    --             Stencil (SVec sz _) v -> Stencil (SVec sz (Const sz)) v
+    --             e -> e
+    --         )
+    --     ) 
 {-
 Next we want to group identical arguments, and we need to know how many, so we have [v1,v1,v2,v3,v3] -> [(v1,2),(v2,1),(v3,2)]
 - take the element and put it in the acc: [(v1,1)]

@@ -24,7 +24,16 @@ use Exporter;
 );
 
 =info
-I want a flexible way to optimise away dead code. Basically, I go through the code and register when I find e.g. a Do or If, and then and EndDo or EndIf. If in between there are only comments, then all that can be removed. Actually, if there are no assignments or subroutine calls, the code can be removed.
+I want a flexible way to optimise away dead code. 
+Basically, I go through the code and register when I find e.g. a Do or If, and then and EndDo or EndIf. 
+If in between there are only comments, then all that can be removed. 
+Actually, if there are no assignments or subroutine calls, the code can be removed.
+
+WV20211208 This does not go far enough. In a subroutine, any non-arg variable assigned to but not read is redundant
+and can be eliminated. So if we find an assignment or a subroutine/function call where the var is Out or InOut,
+we check if that var is used further in the code unit. If not, it is redundant.
+
+I have the basic analysis for this in Refactoring/Fixes.pm
 =cut
 
 

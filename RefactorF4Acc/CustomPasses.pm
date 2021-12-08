@@ -12,6 +12,7 @@ use RefactorF4Acc::Refactoring::Modules qw( add_module_decls );
 #### CUSTOM PASSES ####
 
 use RefactorF4Acc::Refactoring::Scalarise qw( pass_rename_array_accesses_to_scalars );
+use RefactorF4Acc::Refactoring::EliminateDeadCode qw( pass_eliminate_dead_code );
 
 use RefactorF4Acc::Translation::SaC qw( translate_module_to_SaC );
 use RefactorF4Acc::Translation::OpenCLC qw( translate_module_to_C );
@@ -70,6 +71,9 @@ sub run_custom_passes {
 	}	
 	if ($pass =~/rename_array_accesses_to_scalars|scalarize/) {
 		$stref = pass_rename_array_accesses_to_scalars($stref,$code_unit_name);				
+	}
+	if ($pass =~/eliminate_dead_code|dead_code_elimination|dce|DCE/) {
+		$stref = pass_eliminate_dead_code($stref,$code_unit_name);				
 	}
 	if ($pass =~/^\s*memory_reduction/) { # RS 19/11/21 - avoid name clash with "translate_to_OpenCL_memory_reduction"
 		$stref = pass_memory_reduction($stref,$code_unit_name);
