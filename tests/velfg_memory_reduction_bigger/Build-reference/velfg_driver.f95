@@ -3,9 +3,9 @@ program main
     use module_velfg_superkernel, only : velfg_superkernel
     integer :: global_id
     ! Declarations
-    integer, parameter :: niters = 100
-integer, parameter :: ip=450
-integer, parameter :: jp=450
+    integer, parameter :: niters = 10
+integer, parameter :: ip=150*WM
+integer, parameter :: jp=150*WM
 integer, parameter :: kp=90 
 
     real, dimension(0:(ip + 1),(-1):(jp + 1),0:(kp + 1)) :: u
@@ -57,7 +57,7 @@ integer, parameter :: kp=90
       do state_idx = 1,5
       state_ptr=states(state_idx)
 !$OMP PARALLEL DO
-      do global_id = 1, 2025000*3*3
+      do global_id = 1, ip*jp*kp
         call velfg_superkernel(f,g,h,dzn,u,v,w,dx1,dy1,dzs,state_ptr, global_id)
 !        print *, iter,global_id
       end do
@@ -67,5 +67,5 @@ integer, parameter :: kp=90
     end do
     call system_clock(timestamp(1), clock_rate)
     print '(f6.3)',(timestamp(1)-timestamp(0))/ real(clock_rate)
-    print *, f(1,1,1)
+!    print *, f(1,1,1)
 end program main  
