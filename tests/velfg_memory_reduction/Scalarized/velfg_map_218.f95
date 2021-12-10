@@ -9,19 +9,23 @@ subroutine velfg_map_218_scal(dx1,cov1_i_j_k,cov1_ip1_j_k,cov2_i_j_k,cov2_i_jp1_
       cov7_i_j_k,cov7_ip1_j_k,cov8_i_j_k,cov8_i_jp1_k,cov9_i_j_k,cov9_i_j_kp1,diu7_i_j_k, &
       diu7_ip1_j_k,diu8_i_j_k,diu8_i_jp1_k,diu9_i_j_k,diu9_i_j_kp1,dzs,dfw1_i_j_k,f_i_j_k,g_i_j_k, &
       h_i_j_k)
+ integer, parameter :: ip=150
+ integer, parameter :: jp=150
+ integer, parameter :: kp=90
  real, parameter :: vn=15.83 * 10. ** (-6.)
-!    ! Local vars: covx1,i,j,k,covy1,covz1,covc,df
  real :: covx1
+ integer :: i
+ integer :: j
  integer :: k
  real :: covy1
  real :: covz1
  real :: covc
  real :: df
-!    ! ParallelFortran: Synthesised loop variable decls
  integer :: j_range
  integer :: i_range
  integer :: k_rel
-!  READ
+ integer :: j_rel
+ integer :: i_rel
  real, dimension((-1):(ip+1)), intent(in) :: dx1
  real, intent(In) :: cov1_i_j_k
  real, intent(In) :: cov1_ip1_j_k
@@ -62,25 +66,22 @@ subroutine velfg_map_218_scal(dx1,cov1_i_j_k,cov1_ip1_j_k,cov2_i_j_k,cov2_i_jp1_
  real, intent(In) :: diu9_i_j_k
  real, intent(In) :: diu9_i_j_kp1
  real, dimension((-1):(kp+2)), intent(in) :: dzs
-!  WRITTEN
  real, intent(Out) :: f_i_j_k
  real, intent(Out) :: g_i_j_k
  real, intent(Out) :: h_i_j_k
-!  READ & WRITTEN
  real, intent(InOut) :: dfu1_i_j_k
  real, intent(InOut) :: dfv1_i_j_k
  real, intent(InOut) :: dfw1_i_j_k
-!  globalIdDeclaration
  integer :: global_id
-!  globalIdInitialisation
  call get_global_id(global_id,0)
-!  ptrAssignments_fseq
-!    ! ParallelFortran: Synthesised loop variables
  j_range = ((150 - 1) + 1)
  i_range = ((150 - 1) + 1)
  k_rel = (global_id / (j_range * i_range))
  k = (k_rel + 1)
-!    ! ParallelFortran: Original code
+ j_rel = ((global_id - (k_rel * (j_range * i_range))) / i_range)
+ j = (j_rel + 1)
+ i_rel = ((global_id - (k_rel * (j_range * i_range))) - (j_rel * i_range))
+ i = (i_rel + 1)
  covx1 = (dx1(i + 1) * cov1_i_j_k + dx1(i) * cov1_ip1_j_k) / (dx1(i) + dx1(i + 1))
  covy1 = (cov2_i_j_k + cov2_i_jp1_k) / 2.
  covz1 = (cov3_i_j_k + cov3_i_j_kp1) / 2.
@@ -108,9 +109,6 @@ subroutine velfg_map_218_scal(dx1,cov1_i_j_k,cov1_ip1_j_k,cov2_i_j_k,cov2_i_jp1_
  h_i_j_k = (-covc + df)
  end if
 end subroutine velfg_map_218_scal
-!  u,v,w,dx1,dy1,dzn,dzs,
-!  dfu1,dfv1,dfw1,
-!  f,g,h
 
 end module singleton_module_velfg_map_218
 

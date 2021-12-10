@@ -3,8 +3,6 @@ module singleton_module_velfg_superkernel
 contains
 
 subroutine velfg_superkernel_scal(f,g,h,dzn,u,v,w,dx1,dy1,dzs,state_ptr)
-!  use module_velfg_superkernel_init
-!    ! WV manual fix
  real, dimension((-1):(ip + 2),0:(jp + 2),0:(kp + 2)), intent(in) :: cov1
  real, dimension((-1):(ip + 2),0:(jp + 2),0:(kp + 2)), intent(out) :: cov1
  real, dimension((-1):(ip + 2),0:(jp + 2),0:(kp + 2)), intent(in) :: cov1
@@ -24,11 +22,11 @@ subroutine velfg_superkernel_scal(f,g,h,dzn,u,v,w,dx1,dy1,dzs,state_ptr)
  real, dimension(0:(ip + 2),0:(jp + 2),0:(kp + 2)), intent(in) :: cov6
  real, dimension(0:(ip + 2),0:(jp + 2),0:(kp + 2)), intent(out) :: cov6
  real, dimension(0:(ip + 2),0:(jp + 2),0:(kp + 2)), intent(in) :: cov7
- real, dimension(0:(ip + 2),0:(jp + 2),0:(kp + 2)), intent(out) :: cov7
+ real, dimension(0:(ip + 2),0:(jp + 2),0:(kp + 2)) , intent(out):: cov7
  real, dimension(0:(ip + 2),0:(jp + 2),0:(kp + 2)), intent(in) :: cov7
  real, dimension(0:(ip + 2),0:(jp + 2),0:(kp + 2)), intent(in) :: cov8
  real, dimension(0:(ip + 2),0:(jp + 2),0:(kp + 2)), intent(in) :: cov8
- real, dimension(0:(ip + 2),0:(jp + 2),0:(kp + 2)), intent(out) :: cov8
+ real, dimension(0:(ip + 2),0:(jp + 2),0:(kp + 2)) , intent(out):: cov8
  real, dimension(0:(ip + 2),0:(jp + 2),0:(kp + 2)), intent(in) :: cov9
  real, dimension(0:(ip + 2),0:(jp + 2),0:(kp + 2)), intent(in) :: cov9
  real, dimension(0:(ip + 2),0:(jp + 2),0:(kp + 2)), intent(out) :: cov9
@@ -40,28 +38,28 @@ subroutine velfg_superkernel_scal(f,g,h,dzn,u,v,w,dx1,dy1,dzs,state_ptr)
  real, dimension((-1):(ip + 2),0:(jp + 2),0:(kp + 2)), intent(in) :: diu1
  real, dimension(0:(ip + 2),0:(jp + 2),0:(kp + 2)), intent(in) :: diu2
  real, dimension(0:(ip + 2),0:(jp + 2),0:(kp + 2)), intent(in) :: diu2
- real, dimension(0:(ip + 2),0:(jp + 2),0:(kp + 2)), intent(out) :: diu2
+ real, dimension(0:(ip + 2),0:(jp + 2),0:(kp + 2)) , intent(out):: diu2
  real, dimension(0:(ip + 2),0:(jp + 2),0:(kp + 2)), intent(in) :: diu3
  real, dimension(0:(ip + 2),0:(jp + 2),0:(kp + 2)), intent(in) :: diu3
- real, dimension(0:(ip + 2),0:(jp + 2),0:(kp + 2)), intent(out) :: diu3
+ real, dimension(0:(ip + 2),0:(jp + 2),0:(kp + 2)) , intent(out):: diu3
  real, dimension(0:(ip + 2),0:(jp + 2),0:(kp + 2)), intent(in) :: diu4
- real, dimension(0:(ip + 2),0:(jp + 2),0:(kp + 2)), intent(out) :: diu4
+ real, dimension(0:(ip + 2),0:(jp + 2),0:(kp + 2)) , intent(out):: diu4
  real, dimension(0:(ip + 2),0:(jp + 2),0:(kp + 2)), intent(in) :: diu4
  real, dimension((-1):(ip + 2),0:(jp + 2),0:(kp + 2)), intent(in) :: diu5
  real, dimension((-1):(ip + 2),0:(jp + 2),0:(kp + 2)), intent(in) :: diu5
- real, dimension((-1):(ip + 2),0:(jp + 2),0:(kp + 2)), intent(out) :: diu5
+ real, dimension((-1):(ip + 2),0:(jp + 2),0:(kp + 2)) , intent(out):: diu5
  real, dimension(0:(ip + 2),0:(jp + 2),0:(kp + 2)), intent(in) :: diu6
  real, dimension(0:(ip + 2),0:(jp + 2),0:(kp + 2)), intent(in) :: diu6
- real, dimension(0:(ip + 2),0:(jp + 2),0:(kp + 2)), intent(out) :: diu6
+ real, dimension(0:(ip + 2),0:(jp + 2),0:(kp + 2)) , intent(out):: diu6
  real, dimension(0:(ip + 2),0:(jp + 2),0:(kp + 2)), intent(in) :: diu7
- real, dimension(0:(ip + 2),0:(jp + 2),0:(kp + 2)), intent(out) :: diu7
+ real, dimension(0:(ip + 2),0:(jp + 2),0:(kp + 2)) , intent(out):: diu7
  real, dimension(0:(ip + 2),0:(jp + 2),0:(kp + 2)), intent(in) :: diu7
  real, dimension(0:(ip + 2),0:(jp + 2),0:(kp + 2)), intent(in) :: diu8
  real, dimension(0:(ip + 2),0:(jp + 2),0:(kp + 2)), intent(in) :: diu8
- real, dimension(0:(ip + 2),0:(jp + 2),0:(kp + 2)), intent(out) :: diu8
+ real, dimension(0:(ip + 2),0:(jp + 2),0:(kp + 2)) , intent(out):: diu8
  real, dimension(0:(ip + 2),0:(jp + 2),0:(kp + 2)), intent(in) :: diu9
  real, dimension(0:(ip + 2),0:(jp + 2),0:(kp + 2)), intent(in) :: diu9
- real, dimension(0:(ip + 2),0:(jp + 2),0:(kp + 2)), intent(out) :: diu9
+ real, dimension(0:(ip + 2),0:(jp + 2),0:(kp + 2)) , intent(out):: diu9
  real, dimension(0:ip,0:jp,0:kp), intent(out) :: f
  real, dimension(0:ip,0:jp,0:kp), intent(out) :: g
  integer :: global_id
@@ -83,14 +81,14 @@ subroutine velfg_superkernel_scal(f,g,h,dzn,u,v,w,dx1,dy1,dzs,state_ptr)
  integer :: k_vel2
  integer :: k_vel2_rel
  real(kind=4), dimension((-1):(ip + 2),0:(jp + 2),0:(kp + 2)), intent(out) :: nou1
- real(kind=4), dimension(0:(ip + 2),0:(jp + 2),0:(kp + 2)), intent(out) :: nou2
- real(kind=4), dimension(0:(ip + 2),0:(jp + 2),0:(kp + 2)), intent(out) :: nou3
- real(kind=4), dimension(0:(ip + 2),0:(jp + 2),0:(kp + 2)), intent(out) :: nou4
+ real(kind=4), dimension(0:(ip + 2),0:(jp + 2),0:(kp + 2)) , intent(out):: nou2
+ real(kind=4), dimension(0:(ip + 2),0:(jp + 2),0:(kp + 2)) , intent(out):: nou3
+ real(kind=4), dimension(0:(ip + 2),0:(jp + 2),0:(kp + 2)) , intent(out):: nou4
  real(kind=4), dimension((-1):(ip + 2),0:(jp + 2),0:(kp + 2)), intent(out) :: nou5
- real(kind=4), dimension(0:(ip + 2),0:(jp + 2),0:(kp + 2)), intent(out) :: nou6
- real(kind=4), dimension(0:(ip + 2),0:(jp + 2),0:(kp + 2)), intent(out) :: nou7
- real(kind=4), dimension(0:(ip + 2),0:(jp + 2),0:(kp + 2)), intent(out) :: nou8
- real(kind=4), dimension(0:(ip + 2),0:(jp + 2),0:(kp + 2)), intent(out) :: nou9
+ real(kind=4), dimension(0:(ip + 2),0:(jp + 2),0:(kp + 2)) , intent(out):: nou6
+ real(kind=4), dimension(0:(ip + 2),0:(jp + 2),0:(kp + 2)) , intent(out):: nou7
+ real(kind=4), dimension(0:(ip + 2),0:(jp + 2),0:(kp + 2)) , intent(out):: nou8
+ real(kind=4), dimension(0:(ip + 2),0:(jp + 2),0:(kp + 2)) , intent(out):: nou9
  real, dimension(0:(ip + 1),(-1):(jp + 1),0:(kp + 1)), intent(in) :: u
  real, dimension(0:(ip + 1),(-1):(jp + 1),0:(kp + 1)), intent(in) :: u
  real, dimension(0:(ip + 1),(-1):(jp + 1),0:(kp + 1)), intent(in) :: u
@@ -109,6 +107,9 @@ subroutine velfg_superkernel_scal(f,g,h,dzn,u,v,w,dx1,dy1,dzs,state_ptr)
  real, dimension(0:(ip + 1),(-1):(jp + 1),(-1):(kp + 1)), intent(in) :: w
  real, dimension(0:(ip + 1),(-1):(jp + 1),(-1):(kp + 1)), intent(in) :: w
  real, dimension(0:(ip + 1),(-1):(jp + 1),(-1):(kp + 1)), intent(in) :: w
+ integer, parameter :: ip=150
+ integer, parameter :: jp=150
+ integer, parameter :: kp=90
  real, dimension((-1):(kp+2)), intent(in) :: dzn
  real, dimension((-1):(kp+2)), intent(in) :: dzs
  real, dimension((-1):(ip+1)), intent(in) :: dx1
@@ -116,46 +117,45 @@ subroutine velfg_superkernel_scal(f,g,h,dzn,u,v,w,dx1,dy1,dzs,state_ptr)
  real, dimension(0:(ip+1),(-1):(jp+1),0:(kp+1)), intent(in) :: u
  real, dimension(0:(ip+1),(-1):(jp+1),0:(kp+1)), intent(in) :: v
  real, dimension(0:(ip+1),(-1):(jp+1),(-1):(kp+1)), intent(in) :: w
- real, dimension((-1):(ip + 2),0:(jp + 2),0:(kp + 2)), intent(in) :: diu1
+ real, dimension((-1):(ip + 2),0:(jp + 2),0:(kp + 2)) :: diu1
  real, dimension(0:(ip + 2),0:(jp + 2),0:(kp + 2)) :: diu2
- real, dimension(0:(ip + 2),0:(jp + 2),0:(kp + 2)), intent(inout) :: diu3
- real, dimension(0:(ip + 2),0:(jp + 2),0:(kp + 2)), intent(inout) :: diu4
- real, dimension((-1):(ip + 2),0:(jp + 2),0:(kp + 2)), intent(inout) :: diu5
- real, dimension(0:(ip + 2),0:(jp + 2),0:(kp + 2)), intent(inout) :: diu6
- real, dimension(0:(ip + 2),0:(jp + 2),0:(kp + 2)), intent(inout) :: diu7
- real, dimension(0:(ip + 2),0:(jp + 2),0:(kp + 2)), intent(inout) :: diu8
- real, dimension(0:(ip + 2),0:(jp + 2),0:(kp + 2)), intent(inout) :: diu9
+ real, dimension(0:(ip + 2),0:(jp + 2),0:(kp + 2)) :: diu3
+ real, dimension(0:(ip + 2),0:(jp + 2),0:(kp + 2)) :: diu4
+ real, dimension((-1):(ip + 2),0:(jp + 2),0:(kp + 2)) :: diu5
+ real, dimension(0:(ip + 2),0:(jp + 2),0:(kp + 2)) :: diu6
+ real, dimension(0:(ip + 2),0:(jp + 2),0:(kp + 2)) :: diu7
+ real, dimension(0:(ip + 2),0:(jp + 2),0:(kp + 2)) :: diu8
+ real, dimension(0:(ip + 2),0:(jp + 2),0:(kp + 2)) :: diu9
  real, dimension(0:ip,0:jp,0:kp), intent(out) :: f
  real, dimension(0:ip,0:jp,0:kp), intent(out) :: g
  real, dimension(0:ip,0:jp,0:kp), intent(out) :: h
- real, dimension((-1):(ip + 2),0:(jp + 2),0:(kp + 2)), intent(inout) :: cov1
- real, dimension(0:(ip + 2),0:(jp + 2),0:(kp + 2)), intent(inout) :: cov2
- real, dimension(0:(ip + 2),0:(jp + 2),0:(kp + 2)), intent(inout) :: cov3
- real, dimension(0:(ip + 2),0:(jp + 2),0:(kp + 2)), intent(inout) :: cov4
- real, dimension((-1):(ip + 2),0:(jp + 2),0:(kp + 2)), intent(inout) :: cov5
- real, dimension(0:(ip + 2),0:(jp + 2),0:(kp + 2)), intent(inout) :: cov6
- real, dimension(0:(ip + 2),0:(jp + 2),0:(kp + 2)), intent(inout) :: cov7
- real, dimension(0:(ip + 2),0:(jp + 2),0:(kp + 2)), intent(inout) :: cov8
- real, dimension(0:(ip + 2),0:(jp + 2),0:(kp + 2)), intent(inout) :: cov9
- real(kind=4), dimension((-1):(ip + 2),0:(jp + 2),0:(kp + 2)), intent(in) :: nou1
- real(kind=4), dimension((-1):(ip + 2),0:(jp + 2),0:(kp + 2)), intent(inout) :: nou5
- real(kind=4), dimension(0:(ip + 2),0:(jp + 2),0:(kp + 2)), intent(inout) :: nou9
+ real, dimension((-1):(ip + 2),0:(jp + 2),0:(kp + 2)) :: cov1
+ real, dimension(0:(ip + 2),0:(jp + 2),0:(kp + 2)) :: cov2
+ real, dimension(0:(ip + 2),0:(jp + 2),0:(kp + 2)) :: cov3
+ real, dimension(0:(ip + 2),0:(jp + 2),0:(kp + 2)) :: cov4
+ real, dimension((-1):(ip + 2),0:(jp + 2),0:(kp + 2)) :: cov5
+ real, dimension(0:(ip + 2),0:(jp + 2),0:(kp + 2)) :: cov6
+ real, dimension(0:(ip + 2),0:(jp + 2),0:(kp + 2)) :: cov7
+ real, dimension(0:(ip + 2),0:(jp + 2),0:(kp + 2)) :: cov8
+ real, dimension(0:(ip + 2),0:(jp + 2),0:(kp + 2)) :: cov9
+ real(kind=4), dimension((-1):(ip + 2),0:(jp + 2),0:(kp + 2)) :: nou1
+ real(kind=4), dimension((-1):(ip + 2),0:(jp + 2),0:(kp + 2)) :: nou5
+ real(kind=4), dimension(0:(ip + 2),0:(jp + 2),0:(kp + 2)) :: nou9
  real(kind=4), dimension(0:(ip + 2),0:(jp + 2),0:(kp + 2)) :: nou2
- real(kind=4), dimension(0:(ip + 2),0:(jp + 2),0:(kp + 2)), intent(inout) :: nou3
- real(kind=4), dimension(0:(ip + 2),0:(jp + 2),0:(kp + 2)), intent(inout) :: nou4
- real(kind=4), dimension(0:(ip + 2),0:(jp + 2),0:(kp + 2)), intent(inout) :: nou6
- real(kind=4), dimension(0:(ip + 2),0:(jp + 2),0:(kp + 2)), intent(inout) :: nou7
- real(kind=4), dimension(0:(ip + 2),0:(jp + 2),0:(kp + 2)), intent(inout) :: nou8
- real, dimension(0:ip,1:jp,1:kp), intent(inout) :: dfu1
- real, dimension(1:ip,0:jp,1:kp), intent(inout) :: dfv1
- real, dimension(1:ip,1:jp,1:kp), intent(inout) :: dfw1
+ real(kind=4), dimension(0:(ip + 2),0:(jp + 2),0:(kp + 2)) :: nou3
+ real(kind=4), dimension(0:(ip + 2),0:(jp + 2),0:(kp + 2)) :: nou4
+ real(kind=4), dimension(0:(ip + 2),0:(jp + 2),0:(kp + 2)) :: nou6
+ real(kind=4), dimension(0:(ip + 2),0:(jp + 2),0:(kp + 2)) :: nou7
+ real(kind=4), dimension(0:(ip + 2),0:(jp + 2),0:(kp + 2)) :: nou8
+ real, dimension(0:ip,1:jp,1:kp) :: dfu1
+ real, dimension(1:ip,0:jp,1:kp) :: dfv1
+ real, dimension(1:ip,1:jp,1:kp) :: dfw1
  integer :: state
  integer, intent(In) :: state_ptr
  integer, parameter :: st_velfg_map_76=18
  integer, parameter :: st_velfg_map_133=19
  integer, parameter :: st_velfg_map_218=28
  state = state_ptr 
-!  SUPERKERNEL BODY
  select case(state)
  case (st_velfg_map_76)
  call get_global_id(global_id,0)
@@ -196,23 +196,6 @@ call velfg_map_133(dzn,u_i_vel2m1_j_vel2_k_vel2,u_i_vel2m1_j_vel2_k_vel2p1,w_i_v
       diu7_i_vel2_j_vel2_k_vel2,v_i_vel2_j_vel2m1_k_vel2,v_i_vel2_j_vel2m1_k_vel2p1,dy1, &
       nou8_i_vel2_j_vel2_k_vel2,diu8_i_vel2_j_vel2_k_vel2,cov7_i_vel2_j_vel2_k_vel2, &
       cov8_i_vel2_j_vel2_k_vel2)
-!  Looks like these are all boundary calcs which of course don't work correctly right now    
-!     case (ST_velfg_MAP_155)
-!       call velfg_map_155(nou1,diu1,cov1)
-!     case (ST_velfg_MAP_162)
-!       call velfg_map_162(nou2,diu2,cov2)
-!     case (ST_velfg_MAP_172)
-!       call velfg_map_172(nou4,diu4,cov4)
-!     case (ST_velfg_MAP_179)
-!       call velfg_map_179(nou5,diu5,cov5)
-!     case (ST_velfg_MAP_189)
-!       call velfg_map_189(nou7,diu7,cov7)
-!     case (ST_velfg_MAP_196)
-!       call velfg_map_196(nou8,diu8,cov8)
-!     case (ST_velfg_MAP_206)
-!       call velfg_map_206(diu2,diu3)
-!     case (ST_velfg_MAP_212)
-!       call velfg_map_212(diu4,diu6)
  case (st_velfg_map_218)
  call get_global_id(global_id,0)
  j_range = ((150 - 1) + 1)

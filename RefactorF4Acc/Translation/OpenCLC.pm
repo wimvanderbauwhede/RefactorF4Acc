@@ -7,7 +7,7 @@ use RefactorF4Acc::Analysis::ArgumentIODirs qw( determine_argument_io_direction_
 use RefactorF4Acc::Refactoring::Helpers qw( stateful_pass stateful_pass_inplace pass_wrapper_subs_in_module update_arg_var_decl_sourcelines get_annotated_sourcelines);
 use RefactorF4Acc::Refactoring::Fixes qw(
 	_declare_undeclared_variables
-	_removed_unused_variables
+	_remove_unused_variables
 	);
 use RefactorF4Acc::Parser::Expressions qw( @sigils );
 use RefactorF4Acc::Translation::LlvmToTyTraIR qw( generate_llvm_ir_for_TyTra );
@@ -62,7 +62,7 @@ sub translate_module_to_C {  (my $stref, my $module_name, my $ocl) = @_;
 	$stref->{'TranslatedCode'}=[];
 	$Config{'FIXES'}={
 	_declare_undeclared_variables => 1,
-	# _removed_unused_variables => 1
+	# _remove_unused_variables => 1
 	};
 	$stref = pass_wrapper_subs_in_module($stref,$module_name,
 	   # module-specific passes.
@@ -75,7 +75,7 @@ sub translate_module_to_C {  (my $stref, my $module_name, my $ocl) = @_;
 			  \&determine_argument_io_direction_rec,
 			  \&update_arg_var_decl_sourcelines,
 			  \&_declare_undeclared_variables]
-			  ,#,\&_removed_unused_variables],
+			  ,#,\&_remove_unused_variables],
 		  [\&add_OpenCL_address_space_qualifiers],
 		  [\&translate_sub_to_C]
        ],

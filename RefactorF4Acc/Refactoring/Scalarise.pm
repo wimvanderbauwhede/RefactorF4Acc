@@ -20,7 +20,7 @@ use RefactorF4Acc::Translation::TyTra::Common qw(
 );
 use RefactorF4Acc::Refactoring::Fixes qw(
   _declare_undeclared_variables
-  _removed_unused_variables
+  _remove_unused_variables
   _fix_scalar_ptr_args
   _fix_scalar_ptr_args_subcall
   _make_dim_vars_scalar_consts_in_sigs
@@ -72,7 +72,7 @@ sub pass_rename_array_accesses_to_scalars {
     ( my $stref, my $code_unit_name ) = @_;
 
     $Config{'FIXES'}{'remove_redundant_arguments_and_fix_intents'} = 1;
-    $Config{'FIXES'}{'_removed_unused_variables'}                  = 1;
+    $Config{'FIXES'}{'_remove_unused_variables'}                  = 1;
     $stref = pass_wrapper_subs_in_module(
         $stref,
         '',
@@ -100,7 +100,7 @@ sub pass_rename_array_accesses_to_scalars {
             [
                 \&_declare_undeclared_variables,
                 \&_rename_array_accesses_to_scalars,
-                \&_removed_unused_variables,
+                \&_remove_unused_variables,
             ],
 
             # Scalarises the calls to the scalarised routines

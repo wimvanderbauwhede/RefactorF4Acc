@@ -43,7 +43,7 @@ our @ISA = qw(Exporter);
 
 our @EXPORT_OK = qw(
 	&_declare_undeclared_variables
-	&_removed_unused_variables
+	&_remove_unused_variables
 	&_fix_scalar_ptr_args
 	&_fix_scalar_ptr_args_subcall
 	&_make_dim_vars_scalar_consts_in_sigs
@@ -52,13 +52,13 @@ our @EXPORT_OK = qw(
 
 # ================================================================================================================================================
 # This is a FIX
-sub _removed_unused_variables { (my $stref, my $f)=@_;
-if (not exists $Config{'FIXES'}{'_removed_unused_variables'}) { return $stref }
+sub _remove_unused_variables { (my $stref, my $f)=@_;
+if (not exists $Config{'FIXES'}{'_remove_unused_variables'}) { return $stref }
 	# If a variable is assigned but is not and arg and does not occur in any RHS or SubroutineCall, it is unused. 
 	# If a variable is declared but not used in any LHS, RHS  or SubroutineCall, it is unused.
 	# So start with all declared variables, put in $state->{'DeclaredVars'}
 	# Make a list of all variables anywhere in the code via Lhs, Rhs, Args, put in $state->{'ExprVars'}
-	# croak Dumper $stref->{Subroutines}{$f}{RefactoredCode}		;
+	# croak Dumper $stref->{Subroutines}{$f}{RefactoredCode};
 	
 	my $pass_action_find_all_used_vars = sub { (my $annline, my $state)=@_;		
 		(my $line,my $info)=@{$annline};
@@ -269,7 +269,7 @@ if (not exists $Config{'FIXES'}{'_removed_unused_variables'}) { return $stref }
 	
 	$state->{'RemainingArgs'}=[];
 	$state->{'DeletedArgs'}=[];
-	($stref,$state) = stateful_pass_inplace($stref,$f,$pass_action_decls, $state,'_removed_unused_variables() ' . __LINE__  ) ;
+	($stref,$state) = stateful_pass_inplace($stref,$f,$pass_action_decls, $state,'_remove_unused_variables() ' . __LINE__  ) ;
 	
 	# --------------------------------------------------------------------------------------------------------------------------------	
  	# Adapt the Signature in $stref
@@ -279,7 +279,7 @@ if (not exists $Config{'FIXES'}{'_removed_unused_variables'}) { return $stref }
  	map { delete $stref->{'Subroutines'}{$f}{'DeclaredOrigArgs'}{'Set'}{$_} }  @{ $state->{'DeletedArgs'} };
 # croak 'shapiro_map_16: '.Dumper( $stref->{'Subroutines'}{'shapiro_map_16'}{'DeclaredOrigArgs'});
 	return $stref;
-} # END of _removed_unused_variables()
+} # END of _remove_unused_variables()
 # ================================================================================================================================================
 
 # This is a FIX

@@ -288,7 +288,7 @@ sub __merge_specification_computation_parts_into_caller { (my $stref, my $f, my 
 
         my $pass_filter_non_caller_specifications = sub { my ($annline) = @_;
             my ($line, $info) = @{$annline};
-            my $rinfo={%{$info}};;
+            my $rinfo={%{$info}};
             if (exists $info->{'VarDecl'}) {
                 my $var_name = $info->{'VarDecl'}{'Name'};
                 my $subset = in_nested_set($Sf,'Vars', $var_name);
