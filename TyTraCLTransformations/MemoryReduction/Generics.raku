@@ -1,5 +1,5 @@
 use v6;
-our $DBG=False;
+our $DBG=True;
 
 
 role Expr {}
@@ -101,21 +101,22 @@ multi sub matcher (Str \expr) {[]}
 sub everything (\t, \acc,&joiner,&matcher) {
     my $acc_ = acc;
     $acc_ =joiner($acc_,matcher(t));
-    if t ~~ List {
-        say "LIST "~ t.raku if $DBG;
+    if t ~~ Associative {
+        say "ASSOC "~ t.raku if $DBG;
+        for t.values -> \t_elt  {
+            say 'ASSOC ELT EXPR:'~ t_elt.raku if $DBG;
+            $acc_ = everything(t_elt,$acc_,&joiner,&matcher)
+        }
+        return $acc_; 
+    }     
+    elsif t ~~ Iterable {
+        say "ITERABLE "~ t.raku if $DBG;
         for |t -> \t_elt  {
             say "LIST ELT "~ t_elt.raku if $DBG;
             $acc_ = everything(t_elt,$acc_,&joiner,&matcher)
         }
         return $acc_; 
     }
-    elsif t ~~ Map {
-        for t.values -> \t_elt  {
-            say 'ELT EXPR:'~ t_elt.raku if $DBG;
-            $acc_ = everything(t_elt,$acc_,&joiner,&matcher)
-        }
-        return $acc_; 
-    } 
     else {
         for t.^attributes -> \attr {
             
@@ -130,7 +131,10 @@ sub everything (\t, \acc,&joiner,&matcher) {
 
                 # $acc_ =joiner($acc_,matcher($expr));
                 $acc_ = everything(expr,$acc_,&joiner, &matcher);
-            }
+            } 
+            # else {
+            #     say attr.raku;
+            # }
         }
     }
     return $acc_
@@ -183,9 +187,9 @@ say $ast_;
 my $testje = [1,[2,3,4,[5,6,7]],[8,9,[10,11,[12]]]];
 
 sub tmatcher (\expr) {
-    given (expr) {
+    given expr {
         when List {
-            if (expr[0] % 2 == 0) {                
+            if expr[0] % 2 == 0 {                
                     return [expr]                
             }            
         }

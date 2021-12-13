@@ -1,6 +1,11 @@
 package RefactorF4Acc::Analysis::DeadCodeElimination;
 
 use RefactorF4Acc::Config;
+use RefactorF4Acc::Utils qw( sub_func_incl_mod );
+use RefactorF4Acc::Refactoring::Helpers qw(
+  get_annotated_sourcelines
+);
+
 # 
 #   (c) 2010-2017 Wim Vanderbauwhede <wim@dcs.gla.ac.uk>
 #   
