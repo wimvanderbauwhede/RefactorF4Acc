@@ -1,4 +1,4 @@
-# Rename array accesses to scalars to transform loops into streams
+# Eliminate redundant expressions and blocks
 package RefactorF4Acc::Refactoring::EliminateDeadCode;
 use v5.10;
 use RefactorF4Acc::Config;
@@ -6,6 +6,7 @@ use RefactorF4Acc::Utils;
 use RefactorF4Acc::Refactoring::Helpers qw(
   pass_wrapper_subs_in_module
   stateless_pass
+  get_annotated_sourcelines
 );
 use RefactorF4Acc::Refactoring::Fixes qw(
   _remove_unused_variables
@@ -43,7 +44,7 @@ sub pass_eliminate_dead_code {
     ( my $stref, my $code_unit_name ) = @_;
 
     $Config{'FIXES'}{'remove_redundant_arguments_and_fix_intents'} = 1;
-    $Config{'FIXES'}{'_remove_unused_variables'}                  = 1;
+    $Config{'FIXES'}{'_remove_unused_variables'}                  = 1;    
     $stref = pass_wrapper_subs_in_module(
         $stref,
         '',
@@ -82,13 +83,14 @@ sub _eliminate_dead_code { (my $stref, my $f)=@_;
     my $pass__eliminate_dead_code = sub {  my ($annline) = @_;
             my ($line, $info) = @{$annline};
             if (exists $info->{'DeadCode'}) {
+                say "REMOVING dead code: $line" if $DBG;
                 $info->{'Deleted'} = 1;
             }
             return [[$line,$info]]
     };
     my $annlines = get_annotated_sourcelines( $stref, $f );
     my $new_annlines = stateless_pass($annlines, $pass__eliminate_dead_code, 'pass__eliminate_dead_code', 0);
-    my $Sf->{'RefactoredCode'} = $new_annlines;
+    $Sf->{'RefactoredCode'} = $new_annlines;
     return $stref;
 } # END of _eliminate_dead_code
 

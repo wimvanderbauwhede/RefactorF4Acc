@@ -52,14 +52,29 @@ our @EXPORT_OK = qw(
 
 # ================================================================================================================================================
 # This is a FIX
+# Better dead code elimination:
+
+# - AssignedVars and ExprVars keep a list of the line numbers 
+# - For every assigned local var, if it is used before the next assignment OR before the end of the code unit, we need to keep the assignment.
+
+# - We also need to distinguish Args between In, Out and InOut. 
+#	- See if we can get this from $info, else look up
+# - For In args: only assignments followed by a read before the next assignment OR the end of the code unit are kept. So this is the same as a local variable
+# - For Out args: 
+#	- any read before an assignment is actually an error; 
+#	- any assignment followed by an assignment without a read in between can be removed. 
+# - The difference with a local var and In is that a final assignment is kept
+
 sub _remove_unused_variables { (my $stref, my $f)=@_;
 if (not exists $Config{'FIXES'}{'_remove_unused_variables'}) { return $stref }
 	# If a variable is assigned but is not and arg and does not occur in any RHS or SubroutineCall, it is unused. 
 	# If a variable is declared but not used in any LHS, RHS  or SubroutineCall, it is unused.
-	# So start with all declared variables, put in $state->{'DeclaredVars'}
-	# Make a list of all variables anywhere in the code via Lhs, Rhs, Args, put in $state->{'ExprVars'}
-	# croak Dumper $stref->{Subroutines}{$f}{RefactoredCode};
 	
+	# The algorithm is iterative, see below
+
+	# Step 1
+	# Start with all declared variables, put in $state->{'DeclaredVars'}
+	# Make a list of all variables anywhere in the code via Lhs, Rhs, Args, put in $state->{'ExprVars'}	
 	my $pass_action_find_all_used_vars = sub { (my $annline, my $state)=@_;		
 		(my $line,my $info)=@{$annline};
 		
@@ -118,7 +133,7 @@ if (not exists $Config{'FIXES'}{'_remove_unused_variables'}) { return $stref }
 				$annline=['! '.$line, {%{$info},'Deleted'=>1}];
 				delete $state->{'UnusedVars'}{$var};
 				delete $state->{'AssignedVars'}{$var};	
-				# I should now also remove all vars		
+				# Remove all vars in the LHS expr from ExprVars
 				if (exists $info->{'Lhs'}{'IndexVars'}) {
 					for my $var (keys %{ $info->{'Lhs'}{'IndexVars'}{'Set'} }) {
  						$state->{'ExprVars'}{$var}--;	
@@ -159,16 +174,27 @@ if (not exists $Config{'FIXES'}{'_remove_unused_variables'}) { return $stref }
 			$done=1;
 		}
 		elsif ( exists $info->{'SubroutineCall'} ) {
+			# FIXME
+			# I think this is wrong because if they are Out or InOut then it is an assignment			
 #			$state->{'ExprVars'} ={%{$state->{'ExprVars'}},%{ } };
 			for my $var (keys %{ $info->{'SubroutineCall'}{'Args'}{'Set'} }) {
  				$state->{'ExprVars'}{$var}++;	
 			}			
 			$done=1;
-		}		
+		}	
+		elsif ( exists $info->{'Do'} ) {
+			my $iter_var = $info->{'Do'}{'Iterator'};
+			$state->{'AssignedVars'}{$iter_var}++;
+			my @range_vars = @{$info->{'Do'}{'Range'}{'Vars'}};
+			for my $var (@range_vars) {
+				say "ADDING $var to ExprVars in DO" if $DBG;
+ 				$state->{'ExprVars'}{$var}++; 					
+			}		
+			$done=1;				
+		}
 		if ((exists $info->{'If'} or exists $info->{'ElseIf'})
 			and not $skip_if) {						
-			my $cond_expr_ast=$info->{'Cond'}{'AST'};#= $ast;parse_expression($info->{'Cond'}{'Expr'}, $info,$stref, $f);
-#				$state->{'ExprVars'} ={%{$state->{'ExprVars'}},%{ $info->{'Cond'}{'Vars'}{'Set'} } }; 
+			my $cond_expr_ast=$info->{'Cond'}{'AST'};
 			for my $var (keys %{ $info->{'Cond'}{'Vars'}{'Set'} }) {
 				say "ADDING $var to ExprVars in IF" if $DBG;
  				$state->{'ExprVars'}{$var}++;
@@ -176,7 +202,6 @@ if (not exists $Config{'FIXES'}{'_remove_unused_variables'}) { return $stref }
 			}						
 			for my $var ( @{ $info->{'Cond'}{'Vars'}{'List'} } ) {					
 				if (exists  $info->{'Cond'}{'Vars'}{'Set'}{$var}{'IndexVars'} ) {								
-#						$state->{'ExprVars'} ={%{$state->{'ExprVars'}},%{  } };
 					for my $var (keys %{ $info->{'Cond'}{'Vars'}{'Set'}{$var}{'IndexVars'} }) {
 						$state->{'ExprVars'}{$var}++;	
 					}
@@ -186,16 +211,24 @@ if (not exists $Config{'FIXES'}{'_remove_unused_variables'}) { return $stref }
 		}
 		if (exists $info->{'HasVars'} and $info->{'HasVars'} == 1 and $done==0) {
 			if ($DBG) {
-				croak "Line <$line> NOT ANALYSED! ".Dumper($info) 
+				croak "_remove_unused_variables: Line <$line> NOT ANALYSED! ".Dumper($info) 
 			} else {
-				warning( "Line <$line> NOT ANALYSED! ");
+				warning( "_remove_unused_variables: Line <$line> NOT ANALYSED! ");
 			}
 		}
 
 		
 		return ([$annline],$state);
 	};
-		
+
+# DeclaredVars: from declarations in the code unit
+# UndeclaredVars: currently unused. 
+# Args: code unit arguments
+# AssignedVars: Variables on the LHS (TODO or In/InOut in a function or subroutine)
+# UnusedDeclaredVars: declared but unused, used to removed such declarations
+# UnusedVars: any var assigned to but not used as arg or in an expression
+# 
+
 	my $state= {
 		'DeclaredVars'=>{},
 		'UndeclaredVars'=>{},
@@ -205,14 +238,17 @@ if (not exists $Config{'FIXES'}{'_remove_unused_variables'}) { return $stref }
 		'UnusedVars'=>{},
 		'UnusedDeclaredVars'=>{}
 	};
+# 	
 	do {
 		$state->{ExprVars}={};
 		$state->{AssignedVars}={};
         # The pass finds ExprVars and AssignedVars
  		($stref,$state) = stateful_pass_inplace($stref,$f,$pass_action_find_all_used_vars, $state,'_find_all_unused_variables() ' . __LINE__  ) ;
+
+	# Step 2
  	# Once we have these lists, we can now check if there are any variables that occur on an Lhs an are not used anywhere
  	# We simply check for every AssignedVar if it is used as an ExprVar or as an Arg 	
-    
+		
 	 	for my $var (keys %{ $state->{'AssignedVars'} }) {
 	 		if (not exists $state->{'ExprVars'}{$var} and not exists $state->{'Args'}{$var}) {
 	 			say "VAR $var is unused in $f" if $DBG;
@@ -220,8 +256,7 @@ if (not exists $Config{'FIXES'}{'_remove_unused_variables'}) { return $stref }
 	 		} 
 	 	}
 	} until scalar keys %{ $state->{'UnusedVars'} } ==0; 
-#	croak Dumper($stref->{'Subroutines'}{$f}{'DeclaredOrigArgs'}{'Set'});
-# OK HERE: croak 'shapiro_map_16: '.Dumper( $stref->{'Subroutines'}{'shapiro_map_16'}{'DeclaredOrigArgs'});
+
 	# --------------------------------------------------------------------------------------------------------------------------------
  	# So now we have removed all assignments. 
  	# Now we need to check which vars are declared but not used and remove those declarations. 
@@ -275,10 +310,11 @@ if (not exists $Config{'FIXES'}{'_remove_unused_variables'}) { return $stref }
  	# Adapt the Signature in $stref
  	$stref->{'Subroutines'}{$f}{'DeletedArgs'} =$state->{'DeletedArgs'};
  	$stref->{'Subroutines'}{$f}{'DeclaredOrigArgs'}{'List'}=dclone($state->{'RemainingArgs'});
-	#  croak Dumper $state->{'DeletedArgs'} ;
+	
  	map { delete $stref->{'Subroutines'}{$f}{'DeclaredOrigArgs'}{'Set'}{$_} }  @{ $state->{'DeletedArgs'} };
-# croak 'shapiro_map_16: '.Dumper( $stref->{'Subroutines'}{'shapiro_map_16'}{'DeclaredOrigArgs'});
+die;
 	return $stref;
+	
 } # END of _remove_unused_variables()
 # ================================================================================================================================================
 
