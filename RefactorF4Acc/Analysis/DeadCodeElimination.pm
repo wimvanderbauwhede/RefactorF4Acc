@@ -1,5 +1,5 @@
 package RefactorF4Acc::Analysis::DeadCodeElimination;
-
+use v5.10;
 use RefactorF4Acc::Config;
 use RefactorF4Acc::Utils qw( sub_func_incl_mod );
 use RefactorF4Acc::Refactoring::Helpers qw(
@@ -51,10 +51,11 @@ sub analyse_for_dead_code {
         my $do_block_counter=0;
         my $maybe_dead_code = 0;
     
-    my $mod_sub_or_func = sub_func_incl_mod( $f, $stref );
-    for my $annline ( @{ $stref->{$mod_sub_or_func}{$f}{'AnnLines'} } ) {
+    
+    my $annlines = get_annotated_sourcelines($stref,$f);
+    for my $annline ( @{$annlines} ) {
         ( my $line, my $info ) = @{$annline};
-        
+        # say "LINE: $line";
         if (exists $info->{'If'} ) {
             $if_block_counter++;    
             if (!$maybe_dead_code) { 
@@ -67,13 +68,18 @@ sub analyse_for_dead_code {
             if (!$maybe_dead_code) { 
                 $maybe_dead_code = 1;
             }    
+            # if ($do_block_counter>1){
+            #     say "LINE: $line ".$info->{'LineID'};
+            #     push @{$dead_code_stack}, $annline;
+            # }
         }    
         
         if (exists $info->{'EndIf'} ) {
             $if_block_counter--;
             if ($if_block_counter==0) {
                 if (@{$dead_code_stack} > 0) {
-                    for my $dead_code_info (@{$dead_code_stack}) {
+                    for my $dead_code_annline (@{$dead_code_stack}) {
+                        my $dead_code_info = $dead_code_annline->[1];
                         $dead_code_regions->{$dead_code_info->{'LineID'}}= $dead_code_info;
                     }
                     $dead_code_stack=[];
@@ -81,20 +87,28 @@ sub analyse_for_dead_code {
             }        
         }    
         
-        if (exists $info->{'Do'} ) {
+        if (exists $info->{'EndDo'} ) {
             $do_block_counter--;   
             if ($do_block_counter==0) {
+                push @{$dead_code_stack}, $annline;
                 if (@{$dead_code_stack} > 0) {
-                    for my $dead_code_info (@{$dead_code_stack}) {
+                    for my $dead_code_annline (@{$dead_code_stack}) {
+                        say "STACK: ". $dead_code_annline->[0] if $DBG;
+                        my $dead_code_info = $dead_code_annline->[1];
                         $dead_code_regions->{$dead_code_info->{'LineID'}}= $dead_code_info;
                     }
                     $dead_code_stack=[];
                 }
-            }             
+            } 
+            # else {            
+            #     say "LINE: $line ".$info->{'LineID'}; 
+            #     push @{$dead_code_stack}, $annline;            
+            # }             
         }    
         
-        if (not exists $info->{'Assignment'} and not exists $info->{'SubroutineCall'}) {
-            push @{$dead_code_stack}, $info;
+        if (not exists $info->{'Assignment'} and not exists $info->{'SubroutineCall'} and $maybe_dead_code) {
+            say "MAYBE DEAD LINE: $line ".$info->{'LineID'} if $DBG;
+            push @{$dead_code_stack}, $annline;
         } else {
             $dead_code_stack=[];
             $maybe_dead_code = 0;
@@ -102,14 +116,17 @@ sub analyse_for_dead_code {
     }
     
     # So when we encounter a line with LineID in $dead_code_regions, we label it with 'DeadCode' so we can remove it later
-    for my $annline ( @{ $stref->{$mod_sub_or_func}{$f}{'AnnLines'} } ) {
+    for my $annline ( @{ $annlines } ) {
         ( my $line, my $info ) = @{$annline};
         if (exists $dead_code_regions->{$info->{'LineID'}}) {
             $info->{'DeadCode'}=1;
+            say "DEAD CODE LINE: $line on ".$info->{'LineID'}  if $DBG;
         }
         push @{$refactored_annlines},[$line,$info];
     }
 #    return $refactored_annlines; # Or maybe we assign this to a slot in $stref
+
+    my $mod_sub_or_func = sub_func_incl_mod( $f, $stref );
     $stref->{$mod_sub_or_func}{$f}{'AnnLines'} = $refactored_annlines;    
     return $stref;
 } 

@@ -6,6 +6,7 @@ use RefactorF4Acc::Utils;
 use RefactorF4Acc::Refactoring::Helpers qw( 
 	pass_wrapper_subs_in_module 
 	stateful_pass_inplace 
+	stateful_pass
 	stateful_pass_reverse_inplace 
 	stateless_pass_inplace  
 	emit_f95_var_decl 
@@ -251,7 +252,8 @@ sub _remove_unused_variables { (my $stref, my $f)=@_;
 		}	
 		elsif ( exists $info->{'Do'} ) {
 			my $iter_var = $info->{'Do'}{'Iterator'};
-			$state->{'AssignedVars'}{$iter_var}++;
+			$state->{'AssignedVars'}{$iter_var}{'Counter'}++;
+			push @{$state->{'AssignedVars'}{$iter_var}{'LineIDs'}}, $info->{'LineID'};
 			my @range_vars = @{$info->{'Do'}{'Range'}{'Vars'}};
 			for my $var (@range_vars) {
 				say "ADDING $var to ExprVars in DO" if $DBG;
@@ -330,66 +332,103 @@ sub _remove_unused_variables { (my $stref, my $f)=@_;
 	 	}
 		 
 	} until scalar keys %{ $state->{'UnusedVars'} } ==0; 
-	
+	# die Dumper($state);
 # This step removes writes to variables that are not subsequently read. 
-	# do {
-		$state->{ExprVars}={};
-		$state->{AssignedVars}={};
-        # The pass finds ExprVars and AssignedVars
- 		($stref,$state) = stateful_pass_inplace($stref,$f,$pass_action_find_all_used_vars, $state,'_find_all_unused_variables() ' . __LINE__  ) ;
-# die Dumper $state;
-	# Step 2
+# I don't think it needs to be iterative	
+		# $state->{ExprVars}={};
+		# $state->{AssignedVars}={};
+        # # The pass finds ExprVars and AssignedVars
+ 		# ($stref,$state) = stateful_pass_inplace($stref,$f,$pass_action_find_all_used_vars, $state,'_find_all_unused_variables() ' . __LINE__  ) ;
+
+	# Step 3
  	# Once we have these lists, we can now check if there are any variables that occur on an Lhs an are not used anywhere
  	# We simply check for every AssignedVar if it is used as an ExprVar or as an Arg 	
 		
 	
-	 	for my $var (keys %{ $state->{'AssignedVars'} }) {
-			say "VAR $var " if $DBG;#.Dumper($state->{'AssignedVars'});
-			my $remove = _remove_or_keep($var, $state);
-			for my $l_id (sort keys %{$remove}) {
-				say "REMOVING assignment line $l_id for var $var";
-				my @line_ids = grep {$_ != $l_id } @{$state->{'AssignedVars'}{$var}{'LineIDs'}};
-				$state->{'AssignedVars'}{$var}{'LineIDs'} = [@line_ids];
-				$state->{'AssignedVars'}{$var}{'Counter'}--;
-				# remove the LineID 
-				$state->{'UnusedLines'}{$l_id}++;
-				for my $rhs_var (keys %{ $state->{'ExprVars'} }) {
-						my @rhs_var_on_line = grep {$_==$l_id} @{$state->{'ExprVars'}{$rhs_var}{'LineIDs'}};
-						if (@rhs_var_on_line) {
-							say "REMOVING assignment line $l_id for RHS var $rhs_var";
-							my @rhs_line_ids = grep {$_ != $l_id } @{$state->{'ExprVars'}{$rhs_var}{'LineIDs'}};
-							$state->{'ExprVars'}{$rhs_var}{'LineIDs'} = [@rhs_line_ids];
-							$state->{'ExprVars'}{$rhs_var}{'Counter'}--;
-							
-						}
+	for my $var (keys %{ $state->{'AssignedVars'} }) {
+		say "VAR $var " if $DBG;#.Dumper($state->{'AssignedVars'});
+		# This function decides which lines for a given variable can be removed because they are useless assignments
+		my $remove = _remove_or_keep($var, $state);
+		# This part, which might be in its own function, actually removes the lines from $state
+		for my $l_id (sort keys %{$remove}) {
+			say "REMOVING assignment line $l_id for var $var" if $DBG;
+			# Remove the LineID  from LineIDs
+			my @line_ids = grep {$_ != $l_id } @{$state->{'AssignedVars'}{$var}{'LineIDs'}};				
+			$state->{'AssignedVars'}{$var}{'LineIDs'} = [@line_ids];
+			# Decrement the counter
+			$state->{'AssignedVars'}{$var}{'Counter'}--;
+			if ($state->{'AssignedVars'}{$var}{'Counter'}==0) {
+				$state->{'UnusedDeclaredVars'}{$var}=1;
+			}
+			# Add this LineID to UnusedLines
+			$state->{'UnusedLines'}{$l_id}++;
+			# Now we need to check all vars on the RHS of the assignment
+			# and remove the LineID from ExprVars
+			for my $rhs_var (keys %{ $state->{'ExprVars'} }) {
+				# Check if $rhs_var occurs on that line by grepping $l_id in LineIDs
+				my @rhs_var_on_line = grep {$_==$l_id} @{$state->{'ExprVars'}{$rhs_var}{'LineIDs'}};
+				# If rhs_var occurs on line $l_id
+				if (@rhs_var_on_line) {
+					say "REMOVING assignment line $l_id for RHS var $rhs_var" if $DBG;
+					# Remove the LineID  from LineIDs
+					my @rhs_line_ids = grep {$_ != $l_id } @{$state->{'ExprVars'}{$rhs_var}{'LineIDs'}};
+					$state->{'ExprVars'}{$rhs_var}{'LineIDs'} = [@rhs_line_ids];
+					# Decrement the counter
+					$state->{'ExprVars'}{$rhs_var}{'Counter'}--;							
 				}
 			}
-	 	}
-		 # ExprVars with Counter==0 are unused, remove their assignments too
-		for my $rhs_var (keys %{ $state->{'AssignedVars'} }) {
-			say "RHS VAR: $rhs_var";
-			if (exists $state->{'ExprVars'}{$rhs_var} and
-				exists $state->{'ExprVars'}{$rhs_var}{'Counter'} and  
-				$state->{'ExprVars'}{$rhs_var}{'Counter'}==0) {					
-					delete $state->{'ExprVars'}{$rhs_var};
-					if (exists $state->{'AssignedVars'}{$rhs_var}
-						and exists $state->{'AssignedVars'}{$rhs_var}{'LineIDs'}
-						and scalar @{$state->{'AssignedVars'}{$rhs_var}{'LineIDs'}}>0					
-					) {
-						my $rhs_var_assignment_l_id = $state->{'AssignedVars'}{$rhs_var}{'LineIDs'}[0];
-						say "REMOVING assignment line $rhs_var_assignment_l_id for RHS var $rhs_var";
-						if (not exists $state->{'UnusedLines'}{ $rhs_var_assignment_l_id}) {
-							$state->{'UnusedLines'}{ $rhs_var_assignment_l_id}++;
-						}
-						delete $state->{'AssignedVars'}{$rhs_var};
-						$state->{'UnusedVars'}{$rhs_var}=1;
+		}
+	}
+	# ExprVars with Counter==0 are unused, remove their assignments too
+	for my $rhs_var (keys %{ $state->{'AssignedVars'} }) {
+		# say "RHS VAR: $rhs_var";
+		if (exists $state->{'ExprVars'}{$rhs_var} and
+			exists $state->{'ExprVars'}{$rhs_var}{'Counter'} and  
+			$state->{'ExprVars'}{$rhs_var}{'Counter'}==0) {					
+				delete $state->{'ExprVars'}{$rhs_var};
+				if (exists $state->{'AssignedVars'}{$rhs_var}
+					and exists $state->{'AssignedVars'}{$rhs_var}{'LineIDs'}
+					and scalar @{$state->{'AssignedVars'}{$rhs_var}{'LineIDs'}}>0					
+				) {
+					my $rhs_var_assignment_l_id = $state->{'AssignedVars'}{$rhs_var}{'LineIDs'}[0];
+					say "REMOVING assignment line $rhs_var_assignment_l_id for RHS var $rhs_var" if $DBG;
+					if (not exists $state->{'UnusedLines'}{ $rhs_var_assignment_l_id}) {
+						$state->{'UnusedLines'}{ $rhs_var_assignment_l_id}++;
 					}
+					delete $state->{'AssignedVars'}{$rhs_var};
+					$state->{'UnusedVars'}{$rhs_var}=1;
+					$state->{'UnusedDeclaredVars'}{$rhs_var}=1;
 				}
-		 }
-		
-	# } until scalar keys %{ $state->{'UnusedVars'} } ==0; 
-	die Dumper $state;
+			}
+		}
+
+	# die Dumper $state;
+	
+	# At this point we have a list of all lines to be removed. So now we should mark all these lines as Deleted
+	
 	# --------------------------------------------------------------------------------------------------------------------------------
+
+	my $pass_action_delete_unused_lines = sub { (my $annline, my $state)=@_;		
+		(my $line,my $info)=@{$annline};
+		if (not exists $info->{'LineID'}) {
+			say "NO LineID: $line";
+		} else {
+ 			if (exists $state->{'UnusedLines'}{$info->{'LineID'}}) {
+				say "DELETED: $line" if $DBG;
+				# Control blocks will be eliminated in a later pass
+				if (not exists $info->{'Do'} and
+					not exists $info->{'IfThen'} and
+					not exists $info->{'Select'} 
+				){
+					$info->{'Deleted'}=1;
+				}
+		 	}
+		}
+		return ([[$line,$info]],$state);
+	};
+	my $annlines_3 = $Sf->{'RefactoredCode'};
+	(my $annlines_4,$state) = stateful_pass($annlines_3 ,$pass_action_delete_unused_lines, $state,'_delete_unused_lines() ' . __LINE__  ) ;
+	# --------------------------------------------------------------------------------------------------------------------------------		
  	# So now we have removed all assignments. 
  	# Now we need to check which vars are declared but not used and remove those declarations. 
  	for my $var (keys %{ $state->{'DeclaredVars'} }) { 		
@@ -404,7 +443,7 @@ sub _remove_unused_variables { (my $stref, my $f)=@_;
  	
  	# Now we should remove these declarations
 
-	my $pass_action_decls = sub { (my $annline, my $state)=@_;		
+	my $pass_action_remove_decls = sub { (my $annline, my $state)=@_;		
 		(my $line,my $info)=@{$annline};		
 		my $rline=$line;
 		my $rlines=[];
@@ -431,12 +470,13 @@ sub _remove_unused_variables { (my $stref, my $f)=@_;
 			$state->{'RemainingArgs'}=$new_args;
 			$info->{'Signature'}{'Args'}{'Set'} = { map {$_=>1} @{$new_args} };			
 		}
+		
 		return ([$annline],$state);
 	}; 	
 	
 	$state->{'RemainingArgs'}=[];
 	$state->{'DeletedArgs'}=[];
-	($stref,$state) = stateful_pass_inplace($stref,$f,$pass_action_decls, $state,'_remove_unused_variables() ' . __LINE__  ) ;
+	(my $annlines_5,$state) = stateful_pass($annlines_4,$pass_action_remove_decls, $state,'_remove_unused_decls() ' . __LINE__  ) ;
 	
 	# --------------------------------------------------------------------------------------------------------------------------------	
  	# Adapt the Signature in $stref
@@ -444,7 +484,8 @@ sub _remove_unused_variables { (my $stref, my $f)=@_;
  	$stref->{'Subroutines'}{$f}{'DeclaredOrigArgs'}{'List'}=dclone($state->{'RemainingArgs'});
 	
  	map { delete $stref->{'Subroutines'}{$f}{'DeclaredOrigArgs'}{'Set'}{$_} }  @{ $state->{'DeletedArgs'} };
-die;
+	# die show_annlines( $annlines_5);
+	$stref->{'Subroutines'}{$f}{'RefactoredCode'} = $annlines_5;
 	return $stref;
 	
 } # END of _remove_unused_variables()
@@ -495,7 +536,7 @@ sub _remove_or_keep { my ($var, $state) = @_;
 		} 
 	}
 	return $remove;
-}
+} # END of _remove_or_keep
 
 # This is a FIX
 sub _declare_undeclared_variables { (my $stref, my $f)=@_;
