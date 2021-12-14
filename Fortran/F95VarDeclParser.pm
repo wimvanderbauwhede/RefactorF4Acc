@@ -41,7 +41,10 @@ sub parse_F95_var_decl {
 #carp Dumper($matches);
 	my $pt = getParseTree($matches);
 	print 'PARSE TREE:'.Dumper($pt),"\n" if $VV;
-#carp $str .' => <'.Dumper($pt).'>';	
+    #carp $str .' => <'.Dumper($pt).'>';	
+    if(ref($pt) ne 'HASH') {
+            die "Fortran::F95VarDeclParser::parse_F95_var_decl('$str'): Parse error\n";
+    }
 	my $typetup = $pt->{TypeTup};
 #	carp "TYPE TUPLE:".Dumper( $typetup );
 	if (exists $typetup->{'Type'}{'Opt'}) {

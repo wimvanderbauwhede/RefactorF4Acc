@@ -2,7 +2,7 @@ module module_test4
 
 contains
 
-   subroutine test4(in, out, global_id)
+   subroutine test4(u,f, global_id)
       implicit none
       real, dimension(1:9000), intent(in) :: u
       real, dimension(1:9000), intent(out) :: f
@@ -16,7 +16,7 @@ contains
 
       do s_idx_1 = 1, 2
       do s_idx_2 = 1, 2
-         svec_u_1(s_idx_1, s_idx_2) = u_0(global_id + s5(s_idx_1) + s3(s_idx_2))
+         svec_u_1(s_idx_1, s_idx_2) = u(global_id + s5(s_idx_1) + s3(s_idx_2))
       end do
       end do
 
@@ -25,7 +25,7 @@ contains
 ! Dead code Begin
       do s_idx_1 = 1, 2
       do s_idx_2 = 1, 2
-         svec_u_1(s_idx_1, s_idx_2) = u_0(global_id + s5(s_idx_1) + s3(s_idx_2))
+         svec_u_1(s_idx_1, s_idx_2) = u(global_id + s5(s_idx_1) + s3(s_idx_2))
       end do
       end do
 ! Dead code End

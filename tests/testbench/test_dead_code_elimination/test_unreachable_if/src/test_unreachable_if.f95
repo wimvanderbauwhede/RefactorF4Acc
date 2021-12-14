@@ -2,9 +2,9 @@ module module_unreachable_if
 
 contains
 
-   subroutine unreachable_if(in, out)
+   subroutine test_unreachable_if(u,f)
       implicit none
-      parameter, integer :: k = 9000
+      integer, parameter :: k = 9000
 
       real, dimension(1:9000), intent(in) :: u
       real, dimension(1:9000), intent(out) :: f
@@ -19,7 +19,7 @@ contains
       do global_id = 1, 5000
          do s_idx_1 = 1, 2
          do s_idx_2 = 1, 5
-            svec_u_1(s_idx_1, s_idx_2) = u_0(global_id + s5(s_idx_1) + s3(s_idx_2))
+            svec_u_1(s_idx_1, s_idx_2) = u(global_id + s5(s_idx_1) + s3(s_idx_2))
 
             ! Not sure if we want to analyse unreachable branches.
 ! Dead Code Begin
@@ -38,7 +38,7 @@ contains
       end do
 
 
-   end subroutine unreachable_if
+   end subroutine test_unreachable_if
 
 end module module_unreachable_if
 

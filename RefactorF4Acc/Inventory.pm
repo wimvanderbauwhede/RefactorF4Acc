@@ -189,6 +189,30 @@ sub find_subroutines_functions_and_includes {
         $stref=_process_src($src,$stref) ;#if not $incl ;
         say "Done _process_src($src)" if $V;   
     }
+    my $top = $Config{'TOP'};
+    my $TOP_not_found = 1;
+    if (exists $stref->{'Modules'}) {
+        if (not exists $stref->{'Modules'}{$top} ) {            
+            for my $mod_name (sort keys %{$stref->{'Modules'}}) {
+                if (exists $stref->{'Modules'}{$mod_name}{'Subroutines'}{$top} ) {
+                    $TOP_not_found = 0;
+                    last
+                };
+            }
+        } else {
+            $TOP_not_found = 0;
+        }
+    }
+    if (exists $stref->{'Subroutines'}) {
+        if (exists $stref->{'Subroutines'}{$top} ) {
+            $TOP_not_found = 0;
+        }
+    }
+
+    if ($TOP_not_found) {
+        die "Could not find the TOP code unit '$top', maybe a typo?\n";
+    }
+        
     # die;
     if (!$incl) {
     _find_external_modules($stref);
