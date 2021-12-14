@@ -57,6 +57,56 @@ our @EXPORT_OK = qw(
 # - AssignedVars and ExprVars keep a list of the line numbers 
 # - For every assigned local var, if it is used before the next assignment OR before the end of the code unit, we need to keep the assignment.
 
+# v = 1
+# w = v
+# v = 2
+# => keep all
+# write_line_id = 1
+# next_write_line_id = 3
+# read_line_id = 2
+
+# v = 1
+# v = v+1
+# w = v
+# v = 2
+# => keep all
+# write_line_id = 1
+# next_write_line_id = 2
+# read_line_id = 2
+
+
+# v = 1
+# w = v
+# v = v+2
+# => keep first two if w is used later and last if v is used later or Out/InOut arg
+# write_line_id = 1
+# next_write_line_id = 3
+# read_line_id = 2
+
+# v = 1
+# v = 2
+# => last if used later or Out/InOut arg so REMOVE
+# write_line_id = 1
+# next_write_line_id = 2
+# read_line_id = -1
+
+# v = v+1
+# v = 2
+# => last if used later or Out/InOut arg so REMOVE
+# write_line_id = 1
+# next_write_line_id = 2
+# read_line_id = 1
+
+# v = 1
+# v = v+2
+# => keep all
+
+# write_line_id = 1
+# next_write_line_id = 2
+# read_line_id = 2
+
+
+
 # - We also need to distinguish Args between In, Out and InOut. 
 #	- See if we can get this from $info, else look up
 # - For In args: only assignments followed by a read before the next assignment OR the end of the code unit are kept. So this is the same as a local variable
@@ -66,7 +116,8 @@ our @EXPORT_OK = qw(
 # - The difference with a local var and In is that a final assignment is kept
 
 sub _remove_unused_variables { (my $stref, my $f)=@_;
-if (not exists $Config{'FIXES'}{'_remove_unused_variables'}) { return $stref }
+	if (not exists $Config{'FIXES'}{'_remove_unused_variables'}) { return $stref }
+	my $Sf = $stref->{'Subroutines'}{$f};
 	# If a variable is assigned but is not and arg and does not occur in any RHS or SubroutineCall, it is unused. 
 	# If a variable is declared but not used in any LHS, RHS  or SubroutineCall, it is unused.
 	
@@ -77,14 +128,14 @@ if (not exists $Config{'FIXES'}{'_remove_unused_variables'}) { return $stref }
 	# Make a list of all variables anywhere in the code via Lhs, Rhs, Args, put in $state->{'ExprVars'}	
 	my $pass_action_find_all_used_vars = sub { (my $annline, my $state)=@_;		
 		(my $line,my $info)=@{$annline};
-		
+		# say $line."\t".$info->{LineID};
 		my $rline=$line;
 		my $rlines=[];
 		my $skip_if=0;
 		my $done=0;
 		
- 		if ( exists $info->{'Signature'} ) {			 
- 			$state->{'Args'} = $info->{'Signature'}{'Args'}{'Set'}; 
+ 		if ( exists $info->{'Signature'} ) {			 			 
+ 			$state->{'Args'} = $info->{'Signature'}{'Args'}{'Set'}; 			 
 			 $done=1;
  		}
  		elsif (exists $info->{'Select'})  {
@@ -92,26 +143,36 @@ if (not exists $Config{'FIXES'}{'_remove_unused_variables'}) { return $stref }
  			my $select_expr_ast=parse_expression($select_expr_str, $info,{}, '');
  			my $vars = get_vars_from_expression($select_expr_ast,{});
  			for my $var (keys %{ $vars } ) {
- 				$state->{'ExprVars'}{$var}++;	
+ 				$state->{'ExprVars'}{$var}{'Counter'}++;	
+				push @{$state->{'ExprVars'}{$var}{'LineIDs'}}, $info->{'LineID'};
  			}
 			 $done=1;
  		} 		
 		elsif (exists $info->{'CaseVals'})  {
 			for my $val (@{ $info->{'CaseVals'} }) {
 				if ($val=~/^[a-z]\w*/) {
- 					$state->{'ExprVars'}{$val}++;
+ 					$state->{'ExprVars'}{$val}{'Counter'}++;	
+					push @{$state->{'ExprVars'}{$val}{'LineIDs'}}, $info->{'LineID'};
  				} else  {
 					my $case_expr_ast=parse_expression($val, $info,{}, '');
  					my $vars = get_vars_from_expression($case_expr_ast,{});
  					for my $var (keys %{ $vars } ) {
- 						$state->{'ExprVars'}{$var}++;	
+ 						$state->{'ExprVars'}{$var}{'Counter'}++;	
+						push @{$state->{'ExprVars'}{$var}{'LineIDs'}}, $info->{'LineID'};
  					}
  				}		
 			}
 			$done=1;
 		}
 		elsif ( exists $info->{'VarDecl'} ) {
-			$state->{'DeclaredVars'}{ $info->{'VarDecl'}{'Name'}}=1;
+			my $varname = $info->{'VarDecl'}{'Name'};
+			# Add intent to Args
+			my $subset = in_nested_set( $Sf, 'Args', $varname );
+			if ($subset) {
+                my $decl = get_var_record_from_set($Sf->{$subset},$varname);				
+				$state->{'Args'}{$varname} = $decl->{'IODir'};
+			}
+			$state->{'DeclaredVars'}{ $varname }=1;
 			# Now check also if the declaration does have any ExprVars
 			if (exists $info->{'ParsedVarDecl'} and
 				exists $info->{'ParsedVarDecl'}{'Attributes'} and
@@ -120,13 +181,14 @@ if (not exists $Config{'FIXES'}{'_remove_unused_variables'}) { return $stref }
 					my $dim_expr_ast=parse_expression($dim_str, $info,{}, '');
 					my $vars = get_vars_from_expression($dim_expr_ast,{});
 					for my $var (keys %{ $vars } ) {
-						$state->{'ExprVars'}{$var}++;	
+ 						$state->{'ExprVars'}{$var}{'Counter'}++;	
+						push @{$state->{'ExprVars'}{$var}{'LineIDs'}}, $info->{'LineID'};
 					}					
 				}
 			}										
 			$done=1;
 		}
-		elsif ( exists $info->{'Assignment'}  ) {
+		elsif ( exists $info->{'Assignment'}  ) { 
 			my $var = $info->{'Lhs'}{'VarName'};
 			if (exists $state->{'UnusedVars'}{$var}) {				
 				say "REMOVED ASSIGNMENT $line in $f" if $DBG;
@@ -136,8 +198,8 @@ if (not exists $Config{'FIXES'}{'_remove_unused_variables'}) { return $stref }
 				# Remove all vars in the LHS expr from ExprVars
 				if (exists $info->{'Lhs'}{'IndexVars'}) {
 					for my $var (keys %{ $info->{'Lhs'}{'IndexVars'}{'Set'} }) {
- 						$state->{'ExprVars'}{$var}--;	
-		 				if ( $state->{'ExprVars'}{$var} == 0) {
+ 						$state->{'ExprVars'}{$var}{'Counter'}--;	
+		 				if ( $state->{'ExprVars'}{$var}{'Counter'} == 0) {
 		 					delete $state->{'ExprVars'}{$var};
 		 					carp "DELETE ExprVar $var in IF"  if $DBG;
 		 				}	 						
@@ -145,28 +207,33 @@ if (not exists $Config{'FIXES'}{'_remove_unused_variables'}) { return $stref }
 				}
 				$skip_if=1;							
 			} else {
-				$state->{'AssignedVars'}{$var}=1;				
+				$state->{'AssignedVars'}{$var}{'Counter'}++;
+				push @{$state->{'AssignedVars'}{$var}{'LineIDs'}}, $info->{'LineID'};
 				if (exists $info->{'Lhs'}{'IndexVars'}) {
 #					$state->{'ExprVars'} ={%{$state->{'ExprVars'}}, };
 					for my $var (keys %{ $info->{'Lhs'}{'IndexVars'}{'Set'} }) {
- 						$state->{'ExprVars'}{$var}++;	
+ 						$state->{'ExprVars'}{$var}{'Counter'}++;	
+						push @{$state->{'ExprVars'}{$var}{'LineIDs'}}, $info->{'LineID'};
  					}
 				}
 #				$state->{'ExprVars'} ={ %{ $state->{'ExprVars'} }, };
 				for my $var (keys %{$info->{'Rhs'}{'Vars'}{'Set'} }) {
- 						$state->{'ExprVars'}{$var}++;	
+ 						$state->{'ExprVars'}{$var}{'Counter'}++;	
+						push @{$state->{'ExprVars'}{$var}{'LineIDs'}}, $info->{'LineID'};
  					}
 				for my $var (keys %{  $info->{'Rhs'}{'Vars'}{'Set'} } ) {
 					if (exists $info->{'Rhs'}{'Vars'}{'Set'}{$var}{'Vars'}) {
 #						$state->{'ExprVars'} ={%{$state->{'ExprVars'}},%{ $info->{'Rhs'}{'Vars'}{'Set'}{$var}{'Vars'} }};
 						for my $var (keys %{ $info->{'Rhs'}{'Vars'}{'Set'}{$var}{'Vars'} }) {
- 							$state->{'ExprVars'}{$var}++;	
+ 							$state->{'ExprVars'}{$var}{'Counter'}++;	
+							push @{$state->{'ExprVars'}{$var}{'LineIDs'}}, $info->{'LineID'};
  						}
 					}
 					if (exists $info->{'Rhs'}{'Vars'}{'Set'}{$var}{'IndexVars'}) {
 #						$state->{'ExprVars'} ={%{$state->{'ExprVars'}},%{  }};
 						for my $var (keys %{ $info->{'Rhs'}{'Vars'}{'Set'}{$var}{'IndexVars'} }) {
- 							$state->{'ExprVars'}{$var}++;	
+ 							$state->{'ExprVars'}{$var}{'Counter'}++;	
+							push @{$state->{'ExprVars'}{$var}{'LineIDs'}}, $info->{'LineID'};
  						}						
 					}			
 				}
@@ -174,11 +241,11 @@ if (not exists $Config{'FIXES'}{'_remove_unused_variables'}) { return $stref }
 			$done=1;
 		}
 		elsif ( exists $info->{'SubroutineCall'} ) {
-			# FIXME
-			# I think this is wrong because if they are Out or InOut then it is an assignment			
-#			$state->{'ExprVars'} ={%{$state->{'ExprVars'}},%{ } };
+			# TODO
+			# If the intent is Out or InOut then it is an assignment			
 			for my $var (keys %{ $info->{'SubroutineCall'}{'Args'}{'Set'} }) {
- 				$state->{'ExprVars'}{$var}++;	
+ 				$state->{'ExprVars'}{$var}{'Counter'}++;	
+				push @{$state->{'ExprVars'}{$var}{'LineIDs'}}, $info->{'LineID'};
 			}			
 			$done=1;
 		}	
@@ -188,7 +255,8 @@ if (not exists $Config{'FIXES'}{'_remove_unused_variables'}) { return $stref }
 			my @range_vars = @{$info->{'Do'}{'Range'}{'Vars'}};
 			for my $var (@range_vars) {
 				say "ADDING $var to ExprVars in DO" if $DBG;
- 				$state->{'ExprVars'}{$var}++; 					
+ 				$state->{'ExprVars'}{$var}{'Counter'}++;	
+				push @{$state->{'ExprVars'}{$var}{'LineIDs'}}, $info->{'LineID'};
 			}		
 			$done=1;				
 		}
@@ -197,13 +265,15 @@ if (not exists $Config{'FIXES'}{'_remove_unused_variables'}) { return $stref }
 			my $cond_expr_ast=$info->{'Cond'}{'AST'};
 			for my $var (keys %{ $info->{'Cond'}{'Vars'}{'Set'} }) {
 				say "ADDING $var to ExprVars in IF" if $DBG;
- 				$state->{'ExprVars'}{$var}++;
+ 				$state->{'ExprVars'}{$var}{'Counter'}++;	
+				push @{$state->{'ExprVars'}{$var}{'LineIDs'}}, $info->{'LineID'};
  					
 			}						
 			for my $var ( @{ $info->{'Cond'}{'Vars'}{'List'} } ) {					
 				if (exists  $info->{'Cond'}{'Vars'}{'Set'}{$var}{'IndexVars'} ) {								
 					for my $var (keys %{ $info->{'Cond'}{'Vars'}{'Set'}{$var}{'IndexVars'} }) {
-						$state->{'ExprVars'}{$var}++;	
+						$state->{'ExprVars'}{$var}{'Counter'}++;	
+						push @{$state->{'ExprVars'}{$var}{'LineIDs'}}, $info->{'LineID'};
 					}
 				}				
 			}
@@ -236,9 +306,10 @@ if (not exists $Config{'FIXES'}{'_remove_unused_variables'}) { return $stref }
 		'AssignedVars'=>{},
 		'Args'=>{},
 		'UnusedVars'=>{},
-		'UnusedDeclaredVars'=>{}
+		'UnusedDeclaredVars'=>{},
+		'UnusedLines' =>{}
 	};
-# 	
+# This step removes variables that are entirely unused, i.e. assigned but never read	
 	do {
 		$state->{ExprVars}={};
 		$state->{AssignedVars}={};
@@ -249,14 +320,75 @@ if (not exists $Config{'FIXES'}{'_remove_unused_variables'}) { return $stref }
  	# Once we have these lists, we can now check if there are any variables that occur on an Lhs an are not used anywhere
  	# We simply check for every AssignedVar if it is used as an ExprVar or as an Arg 	
 		
+	
 	 	for my $var (keys %{ $state->{'AssignedVars'} }) {
+			 
 	 		if (not exists $state->{'ExprVars'}{$var} and not exists $state->{'Args'}{$var}) {
 	 			say "VAR $var is unused in $f" if $DBG;
 	 			$state->{'UnusedVars'}{$var}=1;
 	 		} 
 	 	}
+		 
 	} until scalar keys %{ $state->{'UnusedVars'} } ==0; 
-
+	
+# This step removes writes to variables that are not subsequently read. 
+	# do {
+		$state->{ExprVars}={};
+		$state->{AssignedVars}={};
+        # The pass finds ExprVars and AssignedVars
+ 		($stref,$state) = stateful_pass_inplace($stref,$f,$pass_action_find_all_used_vars, $state,'_find_all_unused_variables() ' . __LINE__  ) ;
+# die Dumper $state;
+	# Step 2
+ 	# Once we have these lists, we can now check if there are any variables that occur on an Lhs an are not used anywhere
+ 	# We simply check for every AssignedVar if it is used as an ExprVar or as an Arg 	
+		
+	
+	 	for my $var (keys %{ $state->{'AssignedVars'} }) {
+			say "VAR $var " if $DBG;#.Dumper($state->{'AssignedVars'});
+			my $remove = _remove_or_keep($var, $state);
+			for my $l_id (sort keys %{$remove}) {
+				say "REMOVING assignment line $l_id for var $var";
+				my @line_ids = grep {$_ != $l_id } @{$state->{'AssignedVars'}{$var}{'LineIDs'}};
+				$state->{'AssignedVars'}{$var}{'LineIDs'} = [@line_ids];
+				$state->{'AssignedVars'}{$var}{'Counter'}--;
+				# remove the LineID 
+				$state->{'UnusedLines'}{$l_id}++;
+				for my $rhs_var (keys %{ $state->{'ExprVars'} }) {
+						my @rhs_var_on_line = grep {$_==$l_id} @{$state->{'ExprVars'}{$rhs_var}{'LineIDs'}};
+						if (@rhs_var_on_line) {
+							say "REMOVING assignment line $l_id for RHS var $rhs_var";
+							my @rhs_line_ids = grep {$_ != $l_id } @{$state->{'ExprVars'}{$rhs_var}{'LineIDs'}};
+							$state->{'ExprVars'}{$rhs_var}{'LineIDs'} = [@rhs_line_ids];
+							$state->{'ExprVars'}{$rhs_var}{'Counter'}--;
+							
+						}
+				}
+			}
+	 	}
+		 # ExprVars with Counter==0 are unused, remove their assignments too
+		for my $rhs_var (keys %{ $state->{'AssignedVars'} }) {
+			say "RHS VAR: $rhs_var";
+			if (exists $state->{'ExprVars'}{$rhs_var} and
+				exists $state->{'ExprVars'}{$rhs_var}{'Counter'} and  
+				$state->{'ExprVars'}{$rhs_var}{'Counter'}==0) {					
+					delete $state->{'ExprVars'}{$rhs_var};
+					if (exists $state->{'AssignedVars'}{$rhs_var}
+						and exists $state->{'AssignedVars'}{$rhs_var}{'LineIDs'}
+						and scalar @{$state->{'AssignedVars'}{$rhs_var}{'LineIDs'}}>0					
+					) {
+						my $rhs_var_assignment_l_id = $state->{'AssignedVars'}{$rhs_var}{'LineIDs'}[0];
+						say "REMOVING assignment line $rhs_var_assignment_l_id for RHS var $rhs_var";
+						if (not exists $state->{'UnusedLines'}{ $rhs_var_assignment_l_id}) {
+							$state->{'UnusedLines'}{ $rhs_var_assignment_l_id}++;
+						}
+						delete $state->{'AssignedVars'}{$rhs_var};
+						$state->{'UnusedVars'}{$rhs_var}=1;
+					}
+				}
+		 }
+		
+	# } until scalar keys %{ $state->{'UnusedVars'} } ==0; 
+	die Dumper $state;
 	# --------------------------------------------------------------------------------------------------------------------------------
  	# So now we have removed all assignments. 
  	# Now we need to check which vars are declared but not used and remove those declarations. 
@@ -318,10 +450,57 @@ die;
 } # END of _remove_unused_variables()
 # ================================================================================================================================================
 
+sub _remove_or_keep { my ($var, $state) = @_;
+	my $keep={};
+	my $end_idx = scalar(@{$state->{'AssignedVars'}{$var}{'LineIDs'}})-1;
+	for my $idx (0 .. $end_idx) {
+		my $write_line_id = $state->{'AssignedVars'}{$var}{'LineIDs'}[$idx];
+		
+		if ($idx < $end_idx ) {
+		my $next_write_line_id = $state->{'AssignedVars'}{$var}{'LineIDs'}[$idx+1] ;
+			
+		for my $read_line_id ( @{$state->{'ExprVars'}{$var}{'LineIDs'}} ) {
+			if ($read_line_id>$write_line_id and $read_line_id<=$next_write_line_id) {
+				say "KEEP assignment to $var at $write_line_id" if $DBG;
+				# $remove=0;
+				$keep->{$write_line_id}=1;
+			} 
+			# else {
+			# 	say "REMOVE assignment to $var at $write_line_id: $read_line_id>$write_line_id and $read_line_id<=$next_write_line_id" if $DBG;
+			# 	# $remove->{$write_line_id}=1;
+			# }
+		}
+		} else {
+			# There is no further assignment
+			for my $read_line_id ( @{$state->{'ExprVars'}{$var}{'LineIDs'}} ) {
+				if ($read_line_id>$write_line_id ) {
+					say "KEEP assignment to $var at $write_line_id" if $DBG;
+					$keep->{$write_line_id}=1;
+				} 
+				# else {
+				# 	say "REMOVE assignment to $var at $write_line_id: $read_line_id>$write_line_id " if $DBG;
+				# 	# $remove->{$write_line_id}=1;
+				# }
+			}	
+			if (exists $state->{'Args'}{$var} and $state->{'Args'}{$var} eq 'out') {
+					say "KEEP assignment to ARG $var at $write_line_id" if $DBG;
+					$keep->{$write_line_id}=1;				
+			}
+		}
+	}
+	my $remove = {map {$_=>1} @{$state->{'AssignedVars'}{$var}{'LineIDs'}}};
+	for my $l_id (sort keys %{$keep}) {
+		if (exists $remove->{$l_id}) {
+			delete $remove->{$l_id};
+		} 
+	}
+	return $remove;
+}
+
 # This is a FIX
 sub _declare_undeclared_variables { (my $stref, my $f)=@_;
 if (not exists $Config{'FIXES'}{'_declare_undeclared_variables'}) { return $stref }
-
+	
 	# If a variable is assigned but is not and arg and does not occur in any RHS or SubroutineCall, it is unused. 
 	# If a variable is declared but not used in any LHS, RHS  or SubroutineCall, it is unused.
 	# So start with all declared variables, put in $state->{'DeclaredVars'}

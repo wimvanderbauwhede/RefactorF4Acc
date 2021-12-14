@@ -31,6 +31,7 @@ use Exporter;
     &sub_func_incl_mod
     &show_annlines
     &pp_annlines
+    &pp_info
     &write_out
     &get_maybe_args_globs
     &type_via_implicits
@@ -244,7 +245,25 @@ sub pp_annlines {
     }
     return \@pp_annlines;
 }
- # -----------------------------------------------------------------------------
+# -----------------------------------------------------------------------------
+sub pp_info { my ($info, $full) = @_;
+    local $Data::Dumper::Indent = 0;
+    local $Data::Dumper::Terse  = 1;
+    my $pp_info='';
+    for my $k (keys %{ $info }) {
+        if ( not ref( $info->{$k} ) ) {
+            $pp_info.=  $k.'=>'.$info->{$k}.';';
+        }  else {
+            if ($full){
+                $pp_info.=  $k.'=>'.Dumper($info->{$k}).';';
+            } else {
+                $pp_info.= "$k;"
+            }
+        }
+    }
+    return $pp_info;
+}
+# -----------------------------------------------------------------------------
 sub get_maybe_args_globs {
     ( my $stref, my $f ) = @_;
     my $Sf         = $stref->{'Subroutines'}{$f};
