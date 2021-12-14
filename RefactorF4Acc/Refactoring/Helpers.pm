@@ -607,10 +607,18 @@ sub emit_f95_var_decl {
       my $is_array = (exists $var_decl_rec->{'ArrayOrScalar'} and $var_decl_rec->{'ArrayOrScalar'} eq 'Array') ? 1 : 0;
       my $dim = $var_decl_rec->{'Dim'}; 
         if ($is_array and 
-            $const_dim==1 and exists $var_decl_rec->{'ConstDim'}) {
+            $const_dim==1 and exists $var_decl_rec->{'ConstDim'}
+            ) {
             $dim =$var_decl_rec->{'ConstDim'};
+        } elsif (exists $var_decl_rec->{'Val'} 
+            and $var_decl_rec->{'Val'}=~/^(\(\/|\[)/
+        ) {
+            my $const_array_sz = scalar split(/\s*\,\s*/,$var_decl_rec->{'Val'});
+            $dim = [[1,$const_array_sz]];
+            $var_decl_rec->{'ConstDim'} = $dim;
         } elsif ($DBG) {
             carp "VAR has no ConstDim: ". Dumper($var_decl_rec);# ->{'Name'} 
+            
             # WV: TODO: created ConstDim here if the InheritedParams allow it
         }
       

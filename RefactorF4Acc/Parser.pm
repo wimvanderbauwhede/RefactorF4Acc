@@ -4306,8 +4306,8 @@ sub _parse_assignment {
 	# That returns a href and we can just turn that into a list as usual
     # WV 2021-04-18 LHS can also an array without index 
 	
-    my $lhs_vars = get_vars_from_expression($lhs_ast);
-    (my $lhs_varname, my $lhs_var_attrs)  =  each %{ $lhs_vars } ;
+    my $lhs_vars_set = get_vars_from_expression($lhs_ast);
+    (my $lhs_varname, my $lhs_var_attrs)  =  each %{ $lhs_vars_set } ;
 	my $lhs_index_vars={'List'=>[],'Set'=>{}};
 	if (exists $lhs_var_attrs->{'IndexVars'}) {
 		for my $maybe_idx_var (sort keys %{ $lhs_var_attrs->{'IndexVars'} } ) {
@@ -4335,6 +4335,9 @@ sub _parse_assignment {
 #	( my $rhs_args, my $rhs_vars ) =
 #	  @{ get_args_vars_from_expression($rhs_ast) };
     my $rhs_vars_set  = get_vars_from_expression($rhs_ast) ;
+	
+	# There is a bit of a problem here with nested arrays e.g. u(s(idx))
+	# s is the index for u, but it is nested
 	#	say 'RHS_ARGS:'.Dumper($rhs_args);
 	my $rhs_all_vars = {
 		'Set'  => $rhs_vars_set,
@@ -4348,7 +4351,11 @@ sub _parse_assignment {
 			'VarName'       => $lhs_varname,
 			'IndexVars'     => $lhs_index_vars,
 			'ArrayOrScalar' => $lhs_var_attrs->{'Type'},
-			'ExpressionAST' => $lhs_ast
+			'ExpressionAST' => $lhs_ast,
+			'Vars' => {
+				'Set' => $lhs_vars_set,
+				'List' => [ sort keys %{ $lhs_vars_set } ]
+			}
 		};
 	} else {
 		croak 'SHOULD NOT HAPPEN: '.Dumper($lhs_ast) if $DBG;

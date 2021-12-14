@@ -198,11 +198,11 @@ sub _remove_unused_variables { (my $stref, my $f)=@_;
 				delete $state->{'AssignedVars'}{$var};	
 				# Remove all vars in the LHS expr from ExprVars
 				if (exists $info->{'Lhs'}{'IndexVars'}) {
-					for my $var (keys %{ $info->{'Lhs'}{'IndexVars'}{'Set'} }) {
- 						$state->{'ExprVars'}{$var}{'Counter'}--;	
-		 				if ( $state->{'ExprVars'}{$var}{'Counter'} == 0) {
-		 					delete $state->{'ExprVars'}{$var};
-		 					carp "DELETE ExprVar $var in IF"  if $DBG;
+					for my $idx_var (keys %{ $info->{'Lhs'}{'IndexVars'}{'Set'} }) {
+ 						$state->{'ExprVars'}{$idx_var}{'Counter'}--;	
+		 				if ( $state->{'ExprVars'}{$idx_var}{'Counter'} == 0) {
+		 					delete $state->{'ExprVars'}{$idx_var};
+		 					carp "DELETE ExprVar $idx_var (LHS index var)"  if $DBG;
 		 				}	 						
  					}
 				}
@@ -212,8 +212,9 @@ sub _remove_unused_variables { (my $stref, my $f)=@_;
 				push @{$state->{'AssignedVars'}{$var}{'LineIDs'}}, $info->{'LineID'};
 				if (exists $info->{'Lhs'}{'IndexVars'}) {
 #					$state->{'ExprVars'} ={%{$state->{'ExprVars'}}, };
-					for my $var (keys %{ $info->{'Lhs'}{'IndexVars'}{'Set'} }) {
+					for my $var (keys %{ $info->{'Lhs'}{'IndexVars'}{'Set'} }) {						
  						$state->{'ExprVars'}{$var}{'Counter'}++;	
+						# say "VAR $var Counter ".$state->{'ExprVars'}{$var}{'Counter'};
 						push @{$state->{'ExprVars'}{$var}{'LineIDs'}}, $info->{'LineID'};
  					}
 				}
@@ -222,21 +223,30 @@ sub _remove_unused_variables { (my $stref, my $f)=@_;
  						$state->{'ExprVars'}{$var}{'Counter'}++;	
 						push @{$state->{'ExprVars'}{$var}{'LineIDs'}}, $info->{'LineID'};
  					}
+					 
 				for my $var (keys %{  $info->{'Rhs'}{'Vars'}{'Set'} } ) {
-					if (exists $info->{'Rhs'}{'Vars'}{'Set'}{$var}{'Vars'}) {
-#						$state->{'ExprVars'} ={%{$state->{'ExprVars'}},%{ $info->{'Rhs'}{'Vars'}{'Set'}{$var}{'Vars'} }};
-						for my $var (keys %{ $info->{'Rhs'}{'Vars'}{'Set'}{$var}{'Vars'} }) {
- 							$state->{'ExprVars'}{$var}{'Counter'}++;	
-							push @{$state->{'ExprVars'}{$var}{'LineIDs'}}, $info->{'LineID'};
- 						}
+					# carp Dumper $info->{'Rhs'}{'Vars'}{'Set'} ;
+					my $rhs_vars = _get_all_vars_from_assignment_rec($info->{'Rhs'}{'Vars'}{'Set'});
+					for my $rhs_var (sort keys %{$rhs_vars}) {
+ 							$state->{'ExprVars'}{$rhs_var}{'Counter'}++;	
+							push @{$state->{'ExprVars'}{$rhs_var}{'LineIDs'}}, $info->{'LineID'};
 					}
-					if (exists $info->{'Rhs'}{'Vars'}{'Set'}{$var}{'IndexVars'}) {
-#						$state->{'ExprVars'} ={%{$state->{'ExprVars'}},%{  }};
-						for my $var (keys %{ $info->{'Rhs'}{'Vars'}{'Set'}{$var}{'IndexVars'} }) {
- 							$state->{'ExprVars'}{$var}{'Counter'}++;	
-							push @{$state->{'ExprVars'}{$var}{'LineIDs'}}, $info->{'LineID'};
- 						}						
-					}			
+					# carp Dumper $rhs_vars;
+# 					if (exists $info->{'Rhs'}{'Vars'}{'Set'}{$var}{'Vars'}) {
+# #						$state->{'ExprVars'} ={%{$state->{'ExprVars'}},%{ $info->{'Rhs'}{'Vars'}{'Set'}{$var}{'Vars'} }};
+# 						for my $var (keys %{ $info->{'Rhs'}{'Vars'}{'Set'}{$var}{'Vars'} }) {
+#  							$state->{'ExprVars'}{$var}{'Counter'}++;	
+# 							push @{$state->{'ExprVars'}{$var}{'LineIDs'}}, $info->{'LineID'};
+#  						}
+# 					}
+# 					if (exists $info->{'Rhs'}{'Vars'}{'Set'}{$var}{'IndexVars'}) {
+# #						$state->{'ExprVars'} ={%{$state->{'ExprVars'}},%{  }};
+# 						for my $var (keys %{ $info->{'Rhs'}{'Vars'}{'Set'}{$var}{'IndexVars'} }) {
+#  							$state->{'ExprVars'}{$var}{'Counter'}++;	
+# 							 say "VAR $var Counter ".$state->{'ExprVars'}{$var}{'Counter'};
+# 							push @{$state->{'ExprVars'}{$var}{'LineIDs'}}, $info->{'LineID'};
+#  						}						
+# 					}			
 				}
 			}
 			$done=1;
@@ -251,6 +261,14 @@ sub _remove_unused_variables { (my $stref, my $f)=@_;
 			$done=1;
 		}	
 		elsif ( exists $info->{'Do'} ) {
+
+			# my $var = $info->{'Lhs'}{'VarName'};
+			# if (exists $state->{'UnusedVars'}{$var}) {				
+			# 	say "REMOVED ASSIGNMENT $line in $f" if $DBG;
+			# 	$annline=['! '.$line, {%{$info},'Deleted'=>1}];
+			# 	delete $state->{'UnusedVars'}{$var};
+			# 	delete $state->{'AssignedVars'}{$var};	
+
 			my $iter_var = $info->{'Do'}{'Iterator'};
 			$state->{'AssignedVars'}{$iter_var}{'Counter'}++;
 			push @{$state->{'AssignedVars'}{$iter_var}{'LineIDs'}}, $info->{'LineID'};
@@ -312,6 +330,7 @@ sub _remove_unused_variables { (my $stref, my $f)=@_;
 		'UnusedLines' =>{}
 	};
 # This step removes variables that are entirely unused, i.e. assigned but never read	
+	my $dbg_ctr=-1;
 	do {
 		$state->{ExprVars}={};
 		$state->{AssignedVars}={};
@@ -331,7 +350,7 @@ sub _remove_unused_variables { (my $stref, my $f)=@_;
 	 		} 
 	 	}
 		 
-	} until scalar keys %{ $state->{'UnusedVars'} } ==0; 
+	} until scalar keys %{ $state->{'UnusedVars'} } ==0 or --$dbg_ctr==0; 
 	# die Dumper($state);
 # This step removes writes to variables that are not subsequently read. 
 # I don't think it needs to be iterative	
@@ -537,6 +556,45 @@ sub _remove_or_keep { my ($var, $state) = @_;
 	}
 	return $remove;
 } # END of _remove_or_keep
+
+
+sub _get_all_vars_from_assignment_rec { my ($rec) = @_;
+# $rec = $info->{'Rhs'|'Lhs'}{'Vars'}{'Set'}
+my $vars={};
+for my $var (sort keys %{$rec}) {
+	$vars->{$var}=$rec->{$var}{'Type'};
+	if (exists $rec->{$var}{'IndexVars'}) {
+		$vars = {%{$vars},%{ _get_all_vars_from_assignment_rec($rec->{$var}{'IndexVars'})}};
+	}
+}
+return $vars;
+}
+# 	$VAR1 = {
+#   'IndexVars' => {
+#     's3' => {
+#       'Type' => 'Array',
+#       'IndexVars' => {
+#         's_idx_2' => {
+#           'Type' => 'Scalar'
+#         }
+#       }
+#     },
+#     's5' => {
+#       'Type' => 'Array',
+#       'IndexVars' => {
+#         's_idx_1' => {
+#           'Type' => 'Scalar'
+#         }
+#       }
+#     },
+#     'global_id' => {
+#       'Type' => 'Scalar'
+#     }
+#   },
+#   'Type' => 'Array'
+# };
+
+
 
 # This is a FIX
 sub _declare_undeclared_variables { (my $stref, my $f)=@_;

@@ -1409,41 +1409,42 @@ sub _traverse_ast_with_stateful_action { (my $ast, my $acc, my $f) = @_;
 #        }
 # }
 sub find_vars_in_ast { my ( $ast, $vars)=@_;	
-
-  return {} unless ref($ast) eq 'ARRAY';
-  if(scalar @{$ast}==0) {
-      return {};
-  }
-  if ( ($ast->[0] & 0xFF) == 1 or
-       ($ast->[0] & 0xFF) == 10 ) { # array var or function/subroutine call
-       
-    if (($ast->[0] & 0xFF) == 10) { 
-        my $mvar = $ast->[1];
-        $vars->{$mvar}={'Type'=>'Array'};
-        my $index_vars={};
-        $index_vars =  find_vars_in_ast($ast->[2],$index_vars);
-        for my $idx_var (keys %{ $index_vars }) {
-            if ($index_vars->{$idx_var}{'Type'} eq 'Array') {
-                delete $index_vars->{$idx_var};
-            }
-        }                   
-        $vars->{$mvar}{'IndexVars'} = $index_vars;
-    } else {      
-        $vars = find_vars_in_ast($ast->[2], $vars);
+# carp 'AST:'.Dumper($ast);
+    return {} unless ref($ast) eq 'ARRAY';
+    if(scalar @{$ast}==0) {        
+        return {};
     }
-  } elsif (($ast->[0] & 0xFF) == 2) { # scalar variable
-    my $mvar = $ast->[1]; 
-    if (not exists $Config{'Macros'}{uc($mvar)} ) {
-        $vars->{$mvar}={'Type'=>'Scalar'} ;
-    }      
-  } elsif (($ast->[0] & 0xFF) > 28) { # constants
-    # constants
-  } else { # other operators    
-    for my $idx (1 .. scalar @{$ast}-1) {
-        $vars = find_vars_in_ast($ast->[$idx],$vars);        
-    }
-  }	
-
+    if ( ($ast->[0] & 0xFF) == 1 or
+        ($ast->[0] & 0xFF) == 10 ) { # array var or function/subroutine call
+        
+        if (($ast->[0] & 0xFF) == 10) { 
+            my $mvar = $ast->[1];
+            $vars->{$mvar}={'Type'=>'Array'};
+            my $index_vars={};
+            $index_vars =  find_vars_in_ast($ast->[2],$index_vars);
+            # for my $idx_var (keys %{ $index_vars }) {
+            #     if ($index_vars->{$idx_var}{'Type'} eq 'Array') {
+            #         say "INDEX IS ARRAY: $idx_var";
+            #         delete $index_vars->{$idx_var};
+            #     }
+            # }                   
+            $vars->{$mvar}{'IndexVars'} = $index_vars;
+        } else {      
+            $vars = find_vars_in_ast($ast->[2], $vars);
+        }
+    } elsif (($ast->[0] & 0xFF) == 2) { # scalar variable
+        my $mvar = $ast->[1]; 
+        if (not exists $Config{'Macros'}{uc($mvar)} ) {
+            $vars->{$mvar}={'Type'=>'Scalar'} ;
+        }      
+    } elsif (($ast->[0] & 0xFF) > 28) { # constants
+        # constants
+    } else { # other operators    
+        for my $idx (1 .. scalar @{$ast}-1) {
+            $vars = find_vars_in_ast($ast->[$idx],$vars);        
+        }
+    }	
+# carp 'VARS:'. Dumper $vars;
     return $vars;
 } # END of find_vars_in_ast
 
