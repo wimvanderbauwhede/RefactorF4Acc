@@ -123,8 +123,12 @@ sub _remove_unused_variables { (my $stref, my $f)=@_;
 	# If a variable is assigned but is not and arg and does not occur in any RHS or SubroutineCall, it is unused. 
 	# If a variable is declared but not used in any LHS, RHS  or SubroutineCall, it is unused.
 	my $annlines_1 = get_annotated_sourcelines($stref,$f);
+
+	# ----------------------------------------------------------------------------------------------------
 # The stack tells us about the nesting of the ifs
-# The seq is a list of the 
+# The seq is a list of the blocks (if, elsif, else) in an if-statement
+# The blocks are numbered using a running counter
+# I renumber the LineIDs to make sure they are contiguous
 
 	my $pass_action_mark_if_blocks = sub { (my $annline, my $state)=@_;		
 		(my $line,my $info)=@{$annline};
@@ -206,12 +210,15 @@ sub _remove_unused_variables { (my $stref, my $f)=@_;
 	};
 
 	$if_block_state->{'IfBlocks'}{0}{'StartLineID'}=1;
-	
 
 	(my $annlines_2,$if_block_state) = stateful_pass($annlines_1 ,$pass_action_mark_if_blocks, $if_block_state,'_mark_if_blocks() ' . __LINE__  ) ;
 
-	$if_block_state->{'IfBlocks'}{0}{'EndLineID'}= $if_block_state->{'LineCounter'} ;#scalar @{$annlines_1};
+	$if_block_state->{'IfBlocks'}{0}{'EndLineID'}= $if_block_state->{'LineCounter'};
+# ----------------------------------------------------------------------------------------------------
+	# All we need to keep from the $if_block_state is IfBlocks
 
+	# This pass is purely for debugging
+	if ($DBG) {
 	my $pass_action_show_if_blocks = sub { (my $annline, my $state)=@_;		
 		(my $line,my $info)=@{$annline};
 		my $if_block_id = $info->{'IfBlockID'};
@@ -226,24 +233,26 @@ sub _remove_unused_variables { (my $stref, my $f)=@_;
 	};		
  
 	stateful_pass($annlines_1 ,$pass_action_show_if_blocks, $if_block_state,'_show_if_blocks() ' . __LINE__  ) ;	
-	die;
-	# The algorithm is iterative, see below
-
+	}
+	
+# ----------------------------------------------------------------------------------------------------
+say "\npass_action_find_all_used_vars\n" if $DBG;
+	# The algorithm is iterative, see below; but it would be better to have a separate pass for creating the lists
 
 	# Step 1
 	# Start with all declared variables, put in $state->{'DeclaredVars'}
 	# Make a list of all variables anywhere in the code via Lhs, Rhs, Args, put in $state->{'ExprVars'}	
 	my $pass_action_find_all_used_vars = sub { (my $annline, my $state)=@_;		
 		(my $line,my $info)=@{$annline};
-		# say $line."\t".$info->{LineID};
+		
 		my $rline=$line;
 		my $rlines=[];
 		my $skip_if=0;
 		my $done=0;
-		# say "LINE $line BlockID ".($info->{'BlockID'}//0);#.(Dumper $info->{'Block'});
+		
  		if ( exists $info->{'Signature'} ) {			 			 
  			$state->{'Args'} = $info->{'Signature'}{'Args'}{'Set'}; 			 
-			 $done=1;
+			$done=1;
  		}
  		elsif (exists $info->{'Select'})  {
  			my $select_expr_str = $info->{'CaseVar'}; 
@@ -297,64 +306,56 @@ sub _remove_unused_variables { (my $stref, my $f)=@_;
 		}
 		elsif ( exists $info->{'Assignment'}  ) { 
 			my $var = $info->{'Lhs'}{'VarName'};
-			if (exists $state->{'UnusedVars'}{$var}) {				
-				say "REMOVED ASSIGNMENT $line in $f" if $DBG;
-				$annline=['! '.$line, {%{$info},'Deleted'=>1}];
-				delete $state->{'UnusedVars'}{$var};
-				delete $state->{'AssignedVars'}{$var};	
-				# Remove all vars in the LHS expr from ExprVars
-				if (exists $info->{'Lhs'}{'IndexVars'}) {
-					for my $idx_var (keys %{ $info->{'Lhs'}{'IndexVars'}{'Set'} }) {
- 						$state->{'ExprVars'}{$idx_var}{'Counter'}--;	
-		 				if ( $state->{'ExprVars'}{$idx_var}{'Counter'} == 0) {
-		 					delete $state->{'ExprVars'}{$idx_var};
-		 					carp "DELETE ExprVar $idx_var (LHS index var)"  if $DBG;
-		 				}	 						
- 					}
-				}
-				$skip_if=1;							
-			} else {
-				$state->{'AssignedVars'}{$var}{'Counter'}++;
+			# if (exists $state->{'UnusedVars'}{$var}) {				
+			# 	say "REMOVED ASSIGNMENT $line in $f" if $DBG;
+			# 	$annline=['! '.$line, {%{$info},'Deleted'=>1}];
+			# 	delete $state->{'UnusedVars'}{$var};
+			# 	delete $state->{'AssignedVars'}{$var};	
+			# 	# Remove all vars in the LHS expr from ExprVars
+			# 	if (exists $info->{'Lhs'}{'IndexVars'}) {
+			# 		for my $idx_var (keys %{ $info->{'Lhs'}{'IndexVars'}{'Set'} }) {
+ 			# 			$state->{'ExprVars'}{$idx_var}{'Counter'}--;	
+		 	# 			if ( $state->{'ExprVars'}{$idx_var}{'Counter'} == 0) {
+		 	# 				delete $state->{'ExprVars'}{$idx_var};
+		 	# 				carp "DELETE ExprVar $idx_var (LHS index var)"  if $DBG;
+		 	# 			}	 						
+ 			# 		}
+			# 	}
+			# 	$skip_if=1;							
+			# } else {
+				say "ADDING $var to AssignedVars (line ".$info->{'LineID'}.")" if $DBG;
+				$state->{'AssignedVars'}{$var}{'Counter'}++;				
 				push @{$state->{'AssignedVars'}{$var}{'LineIDs'}}, $info->{'LineID'};
+				my $if_block_id = $info->{'IfBlockID'};
+				$state->{'IfBlocks'}{$if_block_id}{'AssignedVars'}{$var}{'Counter'}++;				
+				push @{$state->{'IfBlocks'}{$if_block_id}{'AssignedVars'}{$var}{'LineIDs'}}, $info->{'LineID'};
+				my %index_vars=();
 				if (exists $info->{'Lhs'}{'IndexVars'}) {
-#					$state->{'ExprVars'} ={%{$state->{'ExprVars'}}, };
-					for my $var (keys %{ $info->{'Lhs'}{'IndexVars'}{'Set'} }) {						
- 						$state->{'ExprVars'}{$var}{'Counter'}++;	
-						# say "VAR $var Counter ".$state->{'ExprVars'}{$var}{'Counter'};
-						push @{$state->{'ExprVars'}{$var}{'LineIDs'}}, $info->{'LineID'};
+					for my $index_var (keys %{ $info->{'Lhs'}{'IndexVars'}{'Set'} }) {
+						$index_vars{$index_var}=1;
+ 						$state->{'ExprVars'}{$index_var}{'Counter'}++;
+						# say "VAR $index_var Counter ".$state->{'ExprVars'}{$index_var}{'Counter'};
+						push @{$state->{'ExprVars'}{$index_var}{'LineIDs'}}, $info->{'LineID'};
  					}
 				}
-#				$state->{'ExprVars'} ={ %{ $state->{'ExprVars'} }, };
-				for my $var (keys %{$info->{'Rhs'}{'Vars'}{'Set'} }) {
- 						$state->{'ExprVars'}{$var}{'Counter'}++;	
-						push @{$state->{'ExprVars'}{$var}{'LineIDs'}}, $info->{'LineID'};
- 					}
+
+				# for my $var (keys %{$info->{'Rhs'}{'Vars'}{'Set'} }) {
+ 				# 		$state->{'ExprVars'}{$var}{'Counter'}++;	
+				# 		push @{$state->{'ExprVars'}{$var}{'LineIDs'}}, $info->{'LineID'};
+				# 		say "ADDING RHS1 $var to ExprVars (line ".$info->{'LineID'}.")" if $DBG;
+ 				# 	}
 					 
-				for my $var (keys %{  $info->{'Rhs'}{'Vars'}{'Set'} } ) {
-					# carp Dumper $info->{'Rhs'}{'Vars'}{'Set'} ;
-					my $rhs_vars = _get_all_vars_from_assignment_rec($info->{'Rhs'}{'Vars'}{'Set'});
-					for my $rhs_var (sort keys %{$rhs_vars}) {
- 							$state->{'ExprVars'}{$rhs_var}{'Counter'}++;	
-							push @{$state->{'ExprVars'}{$rhs_var}{'LineIDs'}}, $info->{'LineID'};
+				# for my $var (keys %{  $info->{'Rhs'}{'Vars'}{'Set'} } ) {
+				my $rhs_vars = _get_all_vars_from_assignment_rec($info->{'Rhs'}{'Vars'}{'Set'});
+				for my $rhs_var (sort keys %{$rhs_vars}) {
+					if (not exists $index_vars{$rhs_var}) {
+						$state->{'ExprVars'}{$rhs_var}{'Counter'}++;	
+						push @{$state->{'ExprVars'}{$rhs_var}{'LineIDs'}}, $info->{'LineID'};
+						say "ADDING RHS $rhs_var to ExprVars (line ".$info->{'LineID'}.")" if $DBG;
 					}
-					# carp Dumper $rhs_vars;
-# 					if (exists $info->{'Rhs'}{'Vars'}{'Set'}{$var}{'Vars'}) {
-# #						$state->{'ExprVars'} ={%{$state->{'ExprVars'}},%{ $info->{'Rhs'}{'Vars'}{'Set'}{$var}{'Vars'} }};
-# 						for my $var (keys %{ $info->{'Rhs'}{'Vars'}{'Set'}{$var}{'Vars'} }) {
-#  							$state->{'ExprVars'}{$var}{'Counter'}++;	
-# 							push @{$state->{'ExprVars'}{$var}{'LineIDs'}}, $info->{'LineID'};
-#  						}
-# 					}
-# 					if (exists $info->{'Rhs'}{'Vars'}{'Set'}{$var}{'IndexVars'}) {
-# #						$state->{'ExprVars'} ={%{$state->{'ExprVars'}},%{  }};
-# 						for my $var (keys %{ $info->{'Rhs'}{'Vars'}{'Set'}{$var}{'IndexVars'} }) {
-#  							$state->{'ExprVars'}{$var}{'Counter'}++;	
-# 							 say "VAR $var Counter ".$state->{'ExprVars'}{$var}{'Counter'};
-# 							push @{$state->{'ExprVars'}{$var}{'LineIDs'}}, $info->{'LineID'};
-#  						}						
-# 					}			
 				}
-			}
+				# }
+			# }
 			$done=1;
 		}
 		elsif ( exists $info->{'SubroutineCall'} ) {
@@ -367,17 +368,12 @@ sub _remove_unused_variables { (my $stref, my $f)=@_;
 			$done=1;
 		}	
 		elsif ( exists $info->{'Do'} ) {
-
-			# my $var = $info->{'Lhs'}{'VarName'};
-			# if (exists $state->{'UnusedVars'}{$var}) {				
-			# 	say "REMOVED ASSIGNMENT $line in $f" if $DBG;
-			# 	$annline=['! '.$line, {%{$info},'Deleted'=>1}];
-			# 	delete $state->{'UnusedVars'}{$var};
-			# 	delete $state->{'AssignedVars'}{$var};	
-
 			my $iter_var = $info->{'Do'}{'Iterator'};
 			$state->{'AssignedVars'}{$iter_var}{'Counter'}++;
 			push @{$state->{'AssignedVars'}{$iter_var}{'LineIDs'}}, $info->{'LineID'};
+			my $if_block_id = $info->{'IfBlockID'};
+			$state->{'IfBlocks'}{$if_block_id}{'AssignedVars'}{$iter_var}{'Counter'}++;
+			push @{$state->{'IfBlocks'}{$if_block_id}{'AssignedVars'}{$iter_var}{'LineIDs'}}, $info->{'LineID'};			
 			my @range_vars = @{$info->{'Do'}{'Range'}{'Vars'}};
 			for my $var (@range_vars) {
 				say "ADDING $var to ExprVars in DO" if $DBG;
@@ -390,15 +386,18 @@ sub _remove_unused_variables { (my $stref, my $f)=@_;
 			and not $skip_if) {						
 			my $cond_expr_ast=$info->{'Cond'}{'AST'};
 			for my $var (keys %{ $info->{'Cond'}{'Vars'}{'Set'} }) {
-				say "ADDING $var to ExprVars in IF" if $DBG;
+				say "ADDING $var to ExprVars in IF (line ".$info->{'LineID'}.")" if $DBG;
  				$state->{'ExprVars'}{$var}{'Counter'}++;	
-				push @{$state->{'ExprVars'}{$var}{'LineIDs'}}, $info->{'LineID'}; 					
+				push @{$state->{'ExprVars'}{$var}{'LineIDs'}}, $info->{'LineID'};
 			}						
 			for my $var ( @{ $info->{'Cond'}{'Vars'}{'List'} } ) {					
-				if (exists  $info->{'Cond'}{'Vars'}{'Set'}{$var}{'IndexVars'} ) {								
-					for my $var (keys %{ $info->{'Cond'}{'Vars'}{'Set'}{$var}{'IndexVars'} }) {
-						$state->{'ExprVars'}{$var}{'Counter'}++;	
-						push @{$state->{'ExprVars'}{$var}{'LineIDs'}}, $info->{'LineID'};
+				if (exists  $info->{'Cond'}{'Vars'}{'Set'}{$var}{'IndexVars'}
+				and scalar keys %{ $info->{'Cond'}{'Vars'}{'Set'}{$var}{'IndexVars'} } > 0
+				) {								
+					for my $index_var (keys %{ $info->{'Cond'}{'Vars'}{'Set'}{$var}{'IndexVars'} }) {
+						$state->{'ExprVars'}{$index_var}{'Counter'}++;	
+						push @{$state->{'ExprVars'}{$index_var}{'LineIDs'}}, $info->{'LineID'};
+						say "ADDING index var $index_var to ExprVars in IF (line ".$info->{'LineID'}.")" if $DBG;
 					}
 				}				
 			}
@@ -411,10 +410,9 @@ sub _remove_unused_variables { (my $stref, my $f)=@_;
 				warning( "_remove_unused_variables: Line <$line> NOT ANALYSED! ");
 			}
 		}
-
-		
+		# say "LINE: $line ".Dumper($state->{'ExprVars'}{'global_id'});
 		return ([$annline],$state);
-	};
+	}; # END of pass_action_find_all_used_vars
 
 # DeclaredVars: from declarations in the code unit
 # UndeclaredVars: currently unused. 
@@ -434,20 +432,62 @@ sub _remove_unused_variables { (my $stref, my $f)=@_;
 		'UnusedDeclaredVars'=>{},
 		'UnusedLines' =>{}
 	};
+
+	$state->{'IfBlocks'} = $if_block_state->{'IfBlocks'};
+	(my $annlines_2b,$state) = stateful_pass($annlines_2,$pass_action_find_all_used_vars, $state,'_find_all_used_variables() ' . __LINE__  ) ;
+	# die;
+	# die Dumper $state;
+# ----------------------------------------------------------------------------------------------------
+say "\npass_action_remove_unused_vars\n" if $DBG;
+	my $pass_action_remove_unused_vars = sub { (my $annline, my $state)=@_;		
+		(my $line,my $info)=@{$annline};
+				
+		if ( exists $info->{'Assignment'}  ) { 
+			my $var = $info->{'Lhs'}{'VarName'};
+			if (exists $state->{'UnusedVars'}{$var}) {				
+				say "REMOVED ASSIGNMENT $line in $f" if $DBG;
+				$annline=['! '.$line, {%{$info},'Deleted'=>1}];
+				delete $state->{'UnusedVars'}{$var};
+				delete $state->{'AssignedVars'}{$var};	
+				# Remove all vars in the LHS expr from ExprVars
+				if (exists $info->{'Lhs'}{'IndexVars'}) {
+					for my $idx_var (keys %{ $info->{'Lhs'}{'IndexVars'}{'Set'} }) {
+ 						$state->{'ExprVars'}{$idx_var}{'Counter'}--;	
+		 				if ( $state->{'ExprVars'}{$idx_var}{'Counter'} == 0) {
+		 					delete $state->{'ExprVars'}{$idx_var};
+		 					carp "DELETE ExprVar $idx_var (LHS index var)"  if $DBG;
+		 				}	 						
+ 					}
+				}		
+			} 
+		}
+		# elsif ( exists $info->{'SubroutineCall'} ) {
+		# 	# TODO
+		# 	# If the intent is Out or InOut then it is an assignment			
+		# 	for my $var (keys %{ $info->{'SubroutineCall'}{'Args'}{'Set'} }) {
+ 		# 		$state->{'ExprVars'}{$var}{'Counter'}++;	
+		# 		push @{$state->{'ExprVars'}{$var}{'LineIDs'}}, $info->{'LineID'};
+		# 	}			
+		# 	$done=1;
+		# }	
+
+		return ([$annline],$state);
+	}; # END of pass_action_remove_unused_vars
+
 # This step removes variables that are entirely unused, i.e. assigned but never read	
-	$Sf->{'RefactoredCode'}=$annlines_2;
+	# $Sf->{'RefactoredCode'}=$annlines_2;
 	my $dbg_ctr=-1;
 	do {
-		$state->{ExprVars}={};
+		# $state->{ExprVars}={};
 		$state->{AssignedVars}={};
         # The pass finds ExprVars and AssignedVars
- 		($stref,$state) = stateful_pass_inplace($stref,$f,$pass_action_find_all_used_vars, $state,'_find_all_unused_variables() ' . __LINE__  ) ;
-
+ 		($annlines_2b,$state) = stateful_pass($annlines_2b,$pass_action_remove_unused_vars, $state,'_remove_all_unused_variables() ' . __LINE__  ) ;
+# ----------------------------------------------------------------------------------------------------
 	# Step 2
  	# Once we have these lists, we can now check if there are any variables that occur on an Lhs an are not used anywhere
  	# We simply check for every AssignedVar if it is used as an ExprVar or as an Arg 	
 		
-	
+		
 	 	for my $var (keys %{ $state->{'AssignedVars'} }) {
 			 
 	 		if (not exists $state->{'ExprVars'}{$var} and not exists $state->{'Args'}{$var}) {
@@ -457,7 +497,8 @@ sub _remove_unused_variables { (my $stref, my $f)=@_;
 	 	}
 		 
 	} until scalar keys %{ $state->{'UnusedVars'} } ==0 or --$dbg_ctr==0; 
-	# die Dumper($state);
+	die Dumper($state);
+# ----------------------------------------------------------------------------------------------------	
 # This step removes writes to variables that are not subsequently read. 
 
 		# $state->{ExprVars}={};
