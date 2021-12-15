@@ -11,9 +11,9 @@ contains
       integer, dimension(1:5), parameter :: s3 = (/13, 145, 156, 157, 168/)
       integer, dimension(1:2), parameter :: s5 = (/145, 289/)
       real, dimension(1:2, 1:5) :: svec_u_1
-!  Dead Code Begin
+!  Dead Code 1 Begin
       real, dimension(1:2, 1:5) :: svec_u_2
-!  Dead Code End
+!  Dead Code 1 End
       integer :: s_idx_1, s_idx_2
       if (global_id>0) then
       do s_idx_1 = 1, 2
@@ -21,13 +21,13 @@ contains
          svec_u_1(s_idx_1, s_idx_2) = u(global_id + s5(s_idx_1) + s3(s_idx_2))
       end do
       end do
-!  Dead Code Begin
+!  Dead Code 2 Begin
       do s_idx_1 = 1, 2
       do s_idx_2 = 1, 5
          svec_u_2(s_idx_1, s_idx_2) = u(global_id + s5(s_idx_1) + s3(s_idx_2))
       end do
       end do
-!  Dead Code End
+!  Dead Code 2 End
       else
          svec_u_1(1,1) = 0
       end if

@@ -11,6 +11,7 @@ use RefactorF4Acc::Refactoring::Helpers qw(
 	stateless_pass_inplace  
 	emit_f95_var_decl 
 	splice_additional_lines_cond_inplace  
+	get_annotated_sourcelines
 	);
 
 use RefactorF4Acc::Refactoring::Subroutines::Emitters qw( emit_subroutine_sig emit_subroutine_call );
@@ -121,8 +122,113 @@ sub _remove_unused_variables { (my $stref, my $f)=@_;
 	my $Sf = $stref->{'Subroutines'}{$f};
 	# If a variable is assigned but is not and arg and does not occur in any RHS or SubroutineCall, it is unused. 
 	# If a variable is declared but not used in any LHS, RHS  or SubroutineCall, it is unused.
+	my $annlines_1 = get_annotated_sourcelines($stref,$f);
+# The stack tells us about the nesting of the ifs
+# The seq is a list of the 
+
+	my $pass_action_mark_if_blocks = sub { (my $annline, my $state)=@_;		
+		(my $line,my $info)=@{$annline};
+		my $counter = $state->{'Counter'};# 0;
+		my @stack = @{$state->{'Stack'}};#();
+		my $blockid='UNKNOWN';
+		my $current_blockid=$state->{'CurrentBlockID'};# 0;
+		my @seq  = @{$state->{'Seq'}};
+
+		$info->{'LineID'} = ++$state->{'LineCounter'};
+
+		if (exists $info->{'IfThen'} and not exists $info->{'ElseIf'}) {
+			push @stack,  $current_blockid; #$counter;
+			# say $line.' PUSH STACK:' .Dumper( \@stack);
+			
+			++$counter;
+			push @{$seq[$stack[-1]]}, $counter;			
+			# say $line.' PUSH SEQ: '.$stack[-1]. ':' .Dumper( $seq[$stack[-1]]);
+			$blockid=$counter;
+			$current_blockid=$counter;
+			$state->{'IfBlocks'}{$blockid}{'StartLineID'}=$info->{'LineID'};
+		}
+		# elsif (exists $info->{'ElseIf'}) {
+		# 	++$counter;
+		# 	$blockid=$counter;	
+		# 	$current_blockid=$counter;
+		# 	push @{$seq[$stack[-1]]}, $counter;
+		# 	my $if_blockid = $stack[0]+1; # Assuming the stack contains the current blocks as first elt, and its count was incremented after the push
+		# 	$state->{'IfBlocks'}{$if_blockid}{'EndLineID'}=$info->{'LineID'};
+		# 	$state->{'IfBlocks'}{$blockid}{'StartLineID'}=$info->{'LineID'};
+		# }
+		elsif (exists $info->{'Else'} or exists $info->{'ElseIf'}) {
+			++$counter;
+			$blockid=$counter;	
+			$current_blockid=$counter;
+			# say ' ELSE: STACK:' .Dumper( \@stack);
+			# say ' ELSE: SEQ:' .Dumper( \@seq);	
+			my $if_blockid = $seq[$stack[-1]][-1];
+			# say "$line PREV BLOCK ID: $if_blockid";
+			push @{$seq[$stack[-1]]}, $counter;			
+			# say ' ELSE: SEQ:' .Dumper( \@seq);
+			# my $if_blockid = $stack[0]+1; # Assuming the stack contains the current blocks as first elt, and its count was incremented after the push
+			
+			$state->{'IfBlocks'}{$if_blockid}{'EndLineID'}=$info->{'LineID'};
+			$state->{'IfBlocks'}{$blockid}{'StartLineID'}=$info->{'LineID'};			
+		}
+		elsif (exists $info->{'EndIf'}) {
+			# say 'ENDIF: SEQ:' .Dumper( \@seq);
+			# say 'ENDIF: STACK:' .Dumper( \@stack);
+			my $cur_blockid = $seq[$stack[-1]][-1];			
+			my $encl_blockid = pop @stack;	
+			# say $line.' POP STACK:' .Dumper( \@stack);
+			# say 'CURRENT BLOCK:' .$cur_blockid;
+			# say 'ENCLOSING BLOCK:' .$encl_blockid;
+			$blockid = $cur_blockid;
+			$state->{'IfBlocks'}{$cur_blockid}{'EndLineID'}=$info->{'LineID'};
+			$seq[$encl_blockid]=[];
+			$current_blockid = $encl_blockid;
+		} else { # anything else, label it
+			$blockid=$current_blockid;
+		}
+		$state->{'CurrentBlockID'}=$current_blockid;
+		$info->{'IfBlockID'}=$blockid;
+		$state->{'Counter'} = $counter ;
+		$state->{'Stack'} = [@stack];
+		$state->{'Seq'} = [@seq];
+		# say 'SEQ:'.Dumper( \@seq);
+		say $line."\tCurrent: $current_blockid".' STACK: [' .join(',',@stack).']';
+		return ([[$line,$info]],$state);
+	};		
+
+ 	my $if_block_state ={
+		'Counter'=> 0,
+		'LineCounter'=> 0,
+		'Stack'=>[],
+		'Seq'=>[[0]],
+		'IfBlocks'=>{},
+		'CurrentBlockID'=>0
+	};
+
+	$if_block_state->{'IfBlocks'}{0}{'StartLineID'}=1;
 	
+
+	(my $annlines_2,$if_block_state) = stateful_pass($annlines_1 ,$pass_action_mark_if_blocks, $if_block_state,'_mark_if_blocks() ' . __LINE__  ) ;
+
+	$if_block_state->{'IfBlocks'}{0}{'EndLineID'}= $if_block_state->{'LineCounter'} ;#scalar @{$annlines_1};
+
+	my $pass_action_show_if_blocks = sub { (my $annline, my $state)=@_;		
+		(my $line,my $info)=@{$annline};
+		my $if_block_id = $info->{'IfBlockID'};
+		my $start = $state->{'IfBlocks'}{$if_block_id}{'StartLineID'}//'UNKNOWN';
+		my $end = $state->{'IfBlocks'}{$if_block_id}{'EndLineID'}//'UNKNOWN';
+		my $fid = substr($info->{'LineID'}.'    ',0,3);
+		my $fline = substr($line.( ' ' x 100), 0,50);
+		say "LINE: $fid\t$fline\tIfBlockID: ".$info->{'IfBlockID'}
+		."\tStart: $start"
+		."\tEnd: $end";
+		return ([[$line,$info]],$state);
+	};		
+ 
+	stateful_pass($annlines_1 ,$pass_action_show_if_blocks, $if_block_state,'_show_if_blocks() ' . __LINE__  ) ;	
+	die;
 	# The algorithm is iterative, see below
+
 
 	# Step 1
 	# Start with all declared variables, put in $state->{'DeclaredVars'}
@@ -134,7 +240,7 @@ sub _remove_unused_variables { (my $stref, my $f)=@_;
 		my $rlines=[];
 		my $skip_if=0;
 		my $done=0;
-		
+		# say "LINE $line BlockID ".($info->{'BlockID'}//0);#.(Dumper $info->{'Block'});
  		if ( exists $info->{'Signature'} ) {			 			 
  			$state->{'Args'} = $info->{'Signature'}{'Args'}{'Set'}; 			 
 			 $done=1;
@@ -286,8 +392,7 @@ sub _remove_unused_variables { (my $stref, my $f)=@_;
 			for my $var (keys %{ $info->{'Cond'}{'Vars'}{'Set'} }) {
 				say "ADDING $var to ExprVars in IF" if $DBG;
  				$state->{'ExprVars'}{$var}{'Counter'}++;	
-				push @{$state->{'ExprVars'}{$var}{'LineIDs'}}, $info->{'LineID'};
- 					
+				push @{$state->{'ExprVars'}{$var}{'LineIDs'}}, $info->{'LineID'}; 					
 			}						
 			for my $var ( @{ $info->{'Cond'}{'Vars'}{'List'} } ) {					
 				if (exists  $info->{'Cond'}{'Vars'}{'Set'}{$var}{'IndexVars'} ) {								
@@ -330,6 +435,7 @@ sub _remove_unused_variables { (my $stref, my $f)=@_;
 		'UnusedLines' =>{}
 	};
 # This step removes variables that are entirely unused, i.e. assigned but never read	
+	$Sf->{'RefactoredCode'}=$annlines_2;
 	my $dbg_ctr=-1;
 	do {
 		$state->{ExprVars}={};
@@ -353,7 +459,7 @@ sub _remove_unused_variables { (my $stref, my $f)=@_;
 	} until scalar keys %{ $state->{'UnusedVars'} } ==0 or --$dbg_ctr==0; 
 	# die Dumper($state);
 # This step removes writes to variables that are not subsequently read. 
-# I don't think it needs to be iterative	
+
 		# $state->{ExprVars}={};
 		# $state->{AssignedVars}={};
         # # The pass finds ExprVars and AssignedVars
@@ -509,6 +615,59 @@ sub _remove_unused_variables { (my $stref, my $f)=@_;
 	
 } # END of _remove_unused_variables()
 # ================================================================================================================================================
+# This needs to be refined to work with If blocks. 
+# ct = 0, []
+# This needs to become a stateful_pass
+sub _mark_if_blocks { my ($info, $state) = @_;
+my $counter = $state->{'Counter'};# 0;
+my @stack = $state->{'Stack'};#();
+my $blockid;# = $state->{'IfBlockID'}; #0;
+if (exists $info->{'IfThen'}) {
+	push @stack, $counter;
+	++$counter;
+	$blockid=$counter;
+}
+elsif (exists $info->{'ElseIf'}) {
+	++$counter;
+	$blockid=$counter;	
+}
+elsif (exists $info->{'Else'}) {
+	++$counter;
+	$blockid=$counter;	
+}
+elsif (exists $info->{'EndIf'}) {
+	$blockid = pop @stack;	
+} else { # anything else, label it
+	$blockid=$counter;
+}
+$info->{'IfBlockID'}=$blockid;
+$state->{'Counter'} = $counter ;
+$state->{'Stack'} = [@stack];
+# $state->{'IfBlockID'} = $blockid;
+return ($info,$state);
+}
+# $state->{$ifblockid}{'ExprVars'}
+
+# if push 0;ct++ => 1,[0]
+# 	v1 = ct=1 
+#	if push 1; ct++ => 2; [1,0]
+#		v2 =  ct=2; [1,0]
+#		if push ct; ct++ => 3; [2,1,0]
+#			v5 = ct=3 => 3; [2,1,0]
+#		end if --3  ct=3; pop => 2; [1,0]
+#		v3 = --2 => 2; [1,0]
+#	else if ct++ => 4; [1,0]
+#		v3 = --4 => 4; [1,0]
+#	else if --5 ct++ => 5; [1,0]
+#		v3 = --5 => 5; [1,0]
+#	end if --5 ct=5; pop => 1; [0]
+#	v4 = --1
+# else ct++ => 6; [0]
+# v5 = --6 => 6; [0]
+# end if ct=6; pop => 0; []
+# v6 = ... => 0,[]
+# So essentially we must tag every assignment and do/end do with the if block ID
+# But this is not the same ID as BlockID because of the else 
 
 sub _remove_or_keep { my ($var, $state) = @_;
 	my $keep={};
@@ -525,10 +684,6 @@ sub _remove_or_keep { my ($var, $state) = @_;
 				# $remove=0;
 				$keep->{$write_line_id}=1;
 			} 
-			# else {
-			# 	say "REMOVE assignment to $var at $write_line_id: $read_line_id>$write_line_id and $read_line_id<=$next_write_line_id" if $DBG;
-			# 	# $remove->{$write_line_id}=1;
-			# }
 		}
 		} else {
 			# There is no further assignment
@@ -537,10 +692,6 @@ sub _remove_or_keep { my ($var, $state) = @_;
 					say "KEEP assignment to $var at $write_line_id" if $DBG;
 					$keep->{$write_line_id}=1;
 				} 
-				# else {
-				# 	say "REMOVE assignment to $var at $write_line_id: $read_line_id>$write_line_id " if $DBG;
-				# 	# $remove->{$write_line_id}=1;
-				# }
 			}	
 			if (exists $state->{'Args'}{$var} and $state->{'Args'}{$var} eq 'out') {
 					say "KEEP assignment to ARG $var at $write_line_id" if $DBG;

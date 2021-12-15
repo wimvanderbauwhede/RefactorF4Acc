@@ -56,13 +56,32 @@ sub analyse_for_dead_code {
     for my $annline ( @{$annlines} ) {
         ( my $line, my $info ) = @{$annline};
         # say "LINE: $line";
-        if (exists $info->{'If'} ) {
+        if (exists $info->{'If'} ) { 
             $if_block_counter++;    
             if (!$maybe_dead_code) { 
                 $maybe_dead_code = 1;
             }    
         }    
-        
+         if (exists $info->{'Else'} or exists $info->{'ElseIf'}) {
+            say "LINE:$line";
+             # This should behave as a combination between end if and if
+             
+            $if_block_counter--;
+            if ($if_block_counter==0) {
+                if (@{$dead_code_stack} > 0) {
+                    croak Dumper $dead_code_stack;
+                    for my $dead_code_annline (@{$dead_code_stack}) {
+                        my $dead_code_info = $dead_code_annline->[1];
+                        $dead_code_regions->{$dead_code_info->{'LineID'}}= $dead_code_info;
+                    }
+                    $dead_code_stack=[];
+                }
+            }
+            $if_block_counter++;    
+            if (!$maybe_dead_code) { 
+                $maybe_dead_code = 1;
+            }    
+         }
         if (exists $info->{'Do'} ) {
             $do_block_counter++;    
             if (!$maybe_dead_code) { 
@@ -90,6 +109,7 @@ sub analyse_for_dead_code {
         if (exists $info->{'EndDo'} ) {
             $do_block_counter--;   
             if ($do_block_counter==0) {
+                say "MAYBE FINAL DEAD LINE: $line ".$info->{'LineID'} if $DBG;
                 push @{$dead_code_stack}, $annline;
                 if (@{$dead_code_stack} > 0) {
                     for my $dead_code_annline (@{$dead_code_stack}) {
@@ -99,11 +119,8 @@ sub analyse_for_dead_code {
                     }
                     $dead_code_stack=[];
                 }
+                # $maybe_dead_code = 0; # WV: check
             } 
-            # else {            
-            #     say "LINE: $line ".$info->{'LineID'}; 
-            #     push @{$dead_code_stack}, $annline;            
-            # }             
         }    
         
         if (not exists $info->{'Assignment'} and not exists $info->{'SubroutineCall'} and $maybe_dead_code) {
