@@ -1126,12 +1126,28 @@ sub add_to_C_build_sources {
 
 sub __C_array_size { (my $dims) = @_;
 	my $array_size=1;
+	my $array_size_str="1";
+	my $use_str_flag=0;
+
 	for my $dim (@{$dims}) {
 		my $lb=$dim->[0];
 		my $ub=$dim->[1];
 		my $dim_size = eval("$ub-$lb+1");
-		$array_size*=$dim_size;
+
+		# RS 15/12/21: Return array size as expression if it contains variables
+		if ($use_str_flag or not defined $dim_size) {
+			$array_size_str = $array_size_str . " * ($ub-$lb+1)";
+			$use_str_flag = 1;
+		}
+		else {
+			$array_size*=$dim_size;
+		}
 	}
+
+	if ($use_str_flag) {
+		return $array_size_str;
+	}
+
 	return $array_size;
 }
 
