@@ -11,6 +11,7 @@ contains
       real :: v2
       real :: v3
       real :: v4
+      real :: v5
 
       v2=0.0
       if (global_id>1) then
@@ -21,19 +22,23 @@ contains
               v2=u(1)+v1
           end if
           v1 = v2
+          v3=3.0
+          v5=3.0
           if (u(0)>1.0) then
               v3=u(0)+1.0
           else
               v3=0.0
           end if
-
+          v5=4.0
+           v3=v1
       else if (global_id>0) then
           v4=1.0
+          v5=5.0
       else
           v4=0.0
       end if
 
-      f(global_id) = u(global_id)/2.0
+      f(global_id) = u(global_id)/2.0+v3+v4
 
    end subroutine test7
 

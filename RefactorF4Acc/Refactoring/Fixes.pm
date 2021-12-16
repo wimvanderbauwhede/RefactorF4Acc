@@ -487,20 +487,17 @@ say "\npass_action_remove_unused_vars\n" if $DBG;
  	# Once we have these lists, we can now check if there are any variables that occur on an Lhs an are not used anywhere
  	# We simply check for every AssignedVar if it is used as an ExprVar or as an Arg 	
 		
-		
 	 	for my $var (keys %{ $state->{'AssignedVars'} }) {
-			 
 	 		if (not exists $state->{'ExprVars'}{$var} and not exists $state->{'Args'}{$var}) {
 	 			say "VAR $var is unused in $f" if $DBG;
 	 			$state->{'UnusedVars'}{$var}=1;
 	 		} 
-	 	}
-		 
+	 	}		 
 	} until scalar keys %{ $state->{'UnusedVars'} } ==0 or --$dbg_ctr==0; 
-	die Dumper($state);
+	# die Dumper($state);
 # ----------------------------------------------------------------------------------------------------	
 # This step removes writes to variables that are not subsequently read. 
-
+say "\nremove writes to variables that are not subsequently read\n" if $DBG;
 		# $state->{ExprVars}={};
 		# $state->{AssignedVars}={};
         # # The pass finds ExprVars and AssignedVars
@@ -510,64 +507,69 @@ say "\npass_action_remove_unused_vars\n" if $DBG;
  	# Once we have these lists, we can now check if there are any variables that occur on an Lhs an are not used anywhere
  	# We simply check for every AssignedVar if it is used as an ExprVar or as an Arg 	
 		
-	
-	for my $var (keys %{ $state->{'AssignedVars'} }) {
+	for my $block_id ( sort keys %{ $state->{'IfBlocks'} } ) {
+	for my $var (keys %{ $state->{'IfBlocks'}{$block_id}{'AssignedVars'} }) {
 		say "VAR $var " if $DBG;#.Dumper($state->{'AssignedVars'});
 		# This function decides which lines for a given variable can be removed because they are useless assignments
-		my $remove = _remove_or_keep($var, $state);
+		my $remove = _remove_or_keep($block_id, $var, $state);
+		carp Dumper($remove);
 		# This part, which might be in its own function, actually removes the lines from $state
-		for my $l_id (sort keys %{$remove}) {
-			say "REMOVING assignment line $l_id for var $var" if $DBG;
-			# Remove the LineID  from LineIDs
-			my @line_ids = grep {$_ != $l_id } @{$state->{'AssignedVars'}{$var}{'LineIDs'}};				
-			$state->{'AssignedVars'}{$var}{'LineIDs'} = [@line_ids];
-			# Decrement the counter
-			$state->{'AssignedVars'}{$var}{'Counter'}--;
-			if ($state->{'AssignedVars'}{$var}{'Counter'}==0) {
-				$state->{'UnusedDeclaredVars'}{$var}=1;
-			}
-			# Add this LineID to UnusedLines
-			$state->{'UnusedLines'}{$l_id}++;
-			# Now we need to check all vars on the RHS of the assignment
-			# and remove the LineID from ExprVars
-			for my $rhs_var (keys %{ $state->{'ExprVars'} }) {
-				# Check if $rhs_var occurs on that line by grepping $l_id in LineIDs
-				my @rhs_var_on_line = grep {$_==$l_id} @{$state->{'ExprVars'}{$rhs_var}{'LineIDs'}};
-				# If rhs_var occurs on line $l_id
-				if (@rhs_var_on_line) {
-					say "REMOVING assignment line $l_id for RHS var $rhs_var" if $DBG;
-					# Remove the LineID  from LineIDs
-					my @rhs_line_ids = grep {$_ != $l_id } @{$state->{'ExprVars'}{$rhs_var}{'LineIDs'}};
-					$state->{'ExprVars'}{$rhs_var}{'LineIDs'} = [@rhs_line_ids];
-					# Decrement the counter
-					$state->{'ExprVars'}{$rhs_var}{'Counter'}--;							
+		if (scalar keys %{$remove}>0) {
+			for my $l_id (sort keys %{$remove}) {
+				say "REMOVING assignment line $l_id for var $var" if $DBG;
+				# Remove the LineID  from LineIDs
+				my @line_ids = grep {$_ != $l_id } @{$state->{'IfBlocks'}{$block_id}{'AssignedVars'}{$var}{'LineIDs'}};				
+				$state->{'IfBlocks'}{$block_id}{'AssignedVars'}{$var}{'LineIDs'} = [@line_ids];
+				# Decrement the counter
+				$state->{'IfBlocks'}{$block_id}{'AssignedVars'}{$var}{'Counter'}--;
+				if ($state->{'IfBlocks'}{$block_id}{'AssignedVars'}{$var}{'Counter'}==0) {
+					$state->{'UnusedDeclaredVars'}{$var}=1;
+				}
+				# Add this LineID to UnusedLines
+				$state->{'UnusedLines'}{$l_id}++;
+				# Now we need to check all vars on the RHS of the assignment
+				# and remove the LineID from ExprVars
+				for my $rhs_var (keys %{ $state->{'ExprVars'} }) {
+					# Check if $rhs_var occurs on that line by grepping $l_id in LineIDs
+					my @rhs_var_on_line = grep {$_==$l_id} @{$state->{'ExprVars'}{$rhs_var}{'LineIDs'}};
+					# If rhs_var occurs on line $l_id
+					if (@rhs_var_on_line) {
+						say "REMOVING assignment line $l_id for RHS var $rhs_var" if $DBG;
+						# Remove the LineID  from LineIDs
+						my @rhs_line_ids = grep {$_ != $l_id } @{$state->{'ExprVars'}{$rhs_var}{'LineIDs'}};
+						$state->{'ExprVars'}{$rhs_var}{'LineIDs'} = [@rhs_line_ids];
+						# Decrement the counter
+						$state->{'ExprVars'}{$rhs_var}{'Counter'}--;							
+					}
 				}
 			}
 		}
 	}
 	# ExprVars with Counter==0 are unused, remove their assignments too
-	for my $rhs_var (keys %{ $state->{'AssignedVars'} }) {
+	for my $rhs_var (keys %{ $state->{'IfBlocks'}{$block_id}{'AssignedVars'} }) {
 		# say "RHS VAR: $rhs_var";
 		if (exists $state->{'ExprVars'}{$rhs_var} and
 			exists $state->{'ExprVars'}{$rhs_var}{'Counter'} and  
-			$state->{'ExprVars'}{$rhs_var}{'Counter'}==0) {					
-				delete $state->{'ExprVars'}{$rhs_var};
-				if (exists $state->{'AssignedVars'}{$rhs_var}
-					and exists $state->{'AssignedVars'}{$rhs_var}{'LineIDs'}
-					and scalar @{$state->{'AssignedVars'}{$rhs_var}{'LineIDs'}}>0					
-				) {
-					my $rhs_var_assignment_l_id = $state->{'AssignedVars'}{$rhs_var}{'LineIDs'}[0];
-					say "REMOVING assignment line $rhs_var_assignment_l_id for RHS var $rhs_var" if $DBG;
-					if (not exists $state->{'UnusedLines'}{ $rhs_var_assignment_l_id}) {
-						$state->{'UnusedLines'}{ $rhs_var_assignment_l_id}++;
-					}
-					delete $state->{'AssignedVars'}{$rhs_var};
-					$state->{'UnusedVars'}{$rhs_var}=1;
-					$state->{'UnusedDeclaredVars'}{$rhs_var}=1;
+			$state->{'ExprVars'}{$rhs_var}{'Counter'}==0
+		) {					
+			delete $state->{'ExprVars'}{$rhs_var};
+			if (exists $state->{'IfBlocks'}{$block_id}{'AssignedVars'}{$rhs_var}
+				and exists $state->{'IfBlocks'}{$block_id}{'AssignedVars'}{$rhs_var}{'LineIDs'}
+				and scalar @{$state->{'IfBlocks'}{$block_id}{'AssignedVars'}{$rhs_var}{'LineIDs'}}>0					
+			) {
+				my $rhs_var_assignment_l_id = $state->{'IfBlocks'}{$block_id}{'AssignedVars'}{$rhs_var}{'LineIDs'}[0];
+				say "REMOVING assignment line $rhs_var_assignment_l_id for RHS var $rhs_var" if $DBG;
+				if (not exists $state->{'UnusedLines'}{ $rhs_var_assignment_l_id}) {
+					$state->{'UnusedLines'}{ $rhs_var_assignment_l_id}++;
 				}
+				delete $state->{'IfBlocks'}{$block_id}{'AssignedVars'}{$rhs_var};
+				$state->{'UnusedVars'}{$rhs_var}=1;
+				$state->{'UnusedDeclaredVars'}{$rhs_var}=1;
 			}
 		}
-
+	} # Assigned variables
+	# die Dumper $state;
+	} # If blocks
 	# die Dumper $state;
 	
 	# At this point we have a list of all lines to be removed. So now we should mark all these lines as Deleted
@@ -593,7 +595,10 @@ say "\npass_action_remove_unused_vars\n" if $DBG;
 		return ([[$line,$info]],$state);
 	};
 	my $annlines_3 = $Sf->{'RefactoredCode'};
-	(my $annlines_4,$state) = stateful_pass($annlines_3 ,$pass_action_delete_unused_lines, $state,'_delete_unused_lines() ' . __LINE__  ) ;
+	(my $annlines_4,$state) = stateful_pass($annlines_3 ,$pass_action_delete_unused_lines, $state,'_delete_unused_lines() ' . __LINE__  );
+
+	die;
+	# die Dumper $state;
 	# --------------------------------------------------------------------------------------------------------------------------------		
  	# So now we have removed all assignments. 
  	# Now we need to check which vars are declared but not used and remove those declarations. 
@@ -660,32 +665,33 @@ say "\npass_action_remove_unused_vars\n" if $DBG;
 # ct = 0, []
 # This needs to become a stateful_pass
 sub _mark_if_blocks { my ($info, $state) = @_;
-my $counter = $state->{'Counter'};# 0;
-my @stack = $state->{'Stack'};#();
-my $blockid;# = $state->{'IfBlockID'}; #0;
-if (exists $info->{'IfThen'}) {
-	push @stack, $counter;
-	++$counter;
-	$blockid=$counter;
-}
-elsif (exists $info->{'ElseIf'}) {
-	++$counter;
-	$blockid=$counter;	
-}
-elsif (exists $info->{'Else'}) {
-	++$counter;
-	$blockid=$counter;	
-}
-elsif (exists $info->{'EndIf'}) {
-	$blockid = pop @stack;	
-} else { # anything else, label it
-	$blockid=$counter;
-}
-$info->{'IfBlockID'}=$blockid;
-$state->{'Counter'} = $counter ;
-$state->{'Stack'} = [@stack];
-# $state->{'IfBlockID'} = $blockid;
-return ($info,$state);
+	my $counter = $state->{'Counter'};# 0;
+	my @stack = $state->{'Stack'};#();
+	my $blockid;# = $state->{'IfBlockID'}; #0;
+	if (exists $info->{'IfThen'}) {
+		push @stack, $counter;
+		++$counter;
+		$blockid=$counter;
+	}
+	elsif (exists $info->{'ElseIf'}) {
+		++$counter;
+		$blockid=$counter;	
+	}
+	elsif (exists $info->{'Else'}) {
+		++$counter;
+		$blockid=$counter;	
+	}
+	elsif (exists $info->{'EndIf'}) {
+		$blockid = pop @stack;	
+	} 
+	else { # anything else, label it
+		$blockid=$counter;
+	}
+	$info->{'IfBlockID'}=$blockid;
+	$state->{'Counter'} = $counter ;
+	$state->{'Stack'} = [@stack];
+	# $state->{'IfBlockID'} = $blockid;
+	return ($info,$state);
 }
 # $state->{$ifblockid}{'ExprVars'}
 
@@ -710,42 +716,48 @@ return ($info,$state);
 # So essentially we must tag every assignment and do/end do with the if block ID
 # But this is not the same ID as BlockID because of the else 
 
-sub _remove_or_keep { my ($var, $state) = @_;
+sub _remove_or_keep { my ($block_id, $var, $state) = @_;
 	my $keep={};
-	my $end_idx = scalar(@{$state->{'AssignedVars'}{$var}{'LineIDs'}})-1;
-	for my $idx (0 .. $end_idx) {
-		my $write_line_id = $state->{'AssignedVars'}{$var}{'LineIDs'}[$idx];
-		
-		if ($idx < $end_idx ) {
-		my $next_write_line_id = $state->{'AssignedVars'}{$var}{'LineIDs'}[$idx+1] ;
-			
-		for my $read_line_id ( @{$state->{'ExprVars'}{$var}{'LineIDs'}} ) {
-			if ($read_line_id>$write_line_id and $read_line_id<=$next_write_line_id) {
-				say "KEEP assignment to $var at $write_line_id" if $DBG;
-				# $remove=0;
-				$keep->{$write_line_id}=1;
-			} 
-		}
-		} else {
-			# There is no further assignment
-			for my $read_line_id ( @{$state->{'ExprVars'}{$var}{'LineIDs'}} ) {
-				if ($read_line_id>$write_line_id ) {
-					say "KEEP assignment to $var at $write_line_id" if $DBG;
-					$keep->{$write_line_id}=1;
-				} 
-			}	
-			if (exists $state->{'Args'}{$var} and $state->{'Args'}{$var} eq 'out') {
-					say "KEEP assignment to ARG $var at $write_line_id" if $DBG;
-					$keep->{$write_line_id}=1;				
+	my $remove={};
+	# for my $block_id ( sort keys %{ $state->{'IfBlocks'} } ) {
+		my $start = $state->{'IfBlocks'}{$block_id}{'StartLineID'};
+		my $end = $state->{'IfBlocks'}{$block_id}{'EndLineID'};
+		say $var . Dumper($state->{'IfBlocks'}{$block_id});
+		my $end_idx = scalar(@{$state->{'IfBlocks'}{$block_id}{'AssignedVars'}{$var}{'LineIDs'}})-1;
+		for my $idx (0 .. $end_idx) {
+			my $write_line_id = $state->{'IfBlocks'}{$block_id}{'AssignedVars'}{$var}{'LineIDs'}[$idx];		
+			if ($idx < $end_idx ) {
+				my $next_write_line_id = $state->{'IfBlocks'}{$block_id}{'AssignedVars'}{$var}{'LineIDs'}[$idx+1];				
+				for my $read_line_id ( @{$state->{'ExprVars'}{$var}{'LineIDs'}} ) {
+					if ($read_line_id>=$start and $read_line_id<=$end) {
+					if ($read_line_id>$write_line_id and $read_line_id<=$next_write_line_id) {
+						say "KEEP assignment to $var at $write_line_id" if $DBG;
+						# $remove=0;
+						$keep->{$write_line_id}=1;
+					} 
+					}
+				}
+			} else {
+				# There is no further assignment
+				for my $read_line_id ( @{$state->{'ExprVars'}{$var}{'LineIDs'}} ) {
+					if ($read_line_id>$write_line_id ) {
+						say "KEEP assignment to $var at $write_line_id" if $DBG;
+						$keep->{$write_line_id}=1;
+					} 
+				}	
+				if (exists $state->{'Args'}{$var} and $state->{'Args'}{$var} eq 'out') {
+						say "KEEP assignment to ARG $var at $write_line_id" if $DBG;
+						$keep->{$write_line_id}=1;				
+				}
 			}
 		}
-	}
-	my $remove = {map {$_=>1} @{$state->{'AssignedVars'}{$var}{'LineIDs'}}};
-	for my $l_id (sort keys %{$keep}) {
-		if (exists $remove->{$l_id}) {
-			delete $remove->{$l_id};
-		} 
-	}
+		$remove = {map {$_=>1} @{$state->{'IfBlocks'}{$block_id}{'AssignedVars'}{$var}{'LineIDs'}}};
+		for my $l_id (sort keys %{$keep}) {
+			if (exists $remove->{$l_id}) {
+				delete $remove->{$l_id};
+			} 
+		}
+	# }
 	return $remove;
 } # END of _remove_or_keep
 
