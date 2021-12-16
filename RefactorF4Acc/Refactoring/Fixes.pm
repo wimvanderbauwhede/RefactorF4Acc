@@ -521,20 +521,19 @@ sub _remove_unused_variables { (my $stref, my $f)=@_;
 	$state->{'IfBlocks'}{$block_id}{'AssignedVars'} has all vars in a block. 
 	So what we need to check for every variable is if it is assigned in every block
 =cut	
-	sub _if_exprs_for_vars { my ($state, $block_id) = @_;
-		my $if_is_expr_for={};
-		for my $var (sort keys %{ $state->{'IfBlocks'}{$block_id}{'AssignedVars'} }) {
-			$if_is_expr_for->{$var} = 1;
+	sub _if_is_expr_for_var { my ($state, $block_id, $var) = @_;
+		if (exists $state->{'IfBlocks'}{$block_id}{'AssignedVars'}{$var} ) {
 			for my $seq_id (@{$state->{'IfBlocks'}{$block_id}{'Seq'}} ) {
 				next if $seq_id ==  $block_id;
 				if (not exists $state->{'IfBlocks'}{$seq_id}{'AssignedVars'}{$var}) {
-					delete $if_is_expr_for->{$var} ;
-					last;
+					return 0
 				}
 			}			
+			say "BLOCK $block_id:".' IF IS EXPR FOR '.$var if $DBG;
+			return 1;
+		} else {
+			return 0
 		}
-		say "BLOCK $block_id:".' IF IS EXPR FOR:'.Dumper($if_is_expr_for) if $DBG;
-		return $if_is_expr_for;
 	}
 =pod	
 	To use this information, what we need to do in _remove_or_keep is to find the children of an if-block, 
@@ -544,13 +543,20 @@ sub _remove_unused_variables { (my $stref, my $f)=@_;
 =cut
 
 		
-	for my $block_id ( sort keys %{ $state->{'IfBlocks'} } ) {
-		for my $child_block_id (@{$state->{'IfBlocks'}{$block_id}{'Children'}}) {
-			my $if_is_expr_for=_if_exprs_for_vars($state, $child_block_id);
-		}
-		# So at this point we know which of the child blocks are expressions for which variables.
-
+	for my $block_id ( sort keys %{ $state->{'IfBlocks'} } ) {				
 		for my $var (sort keys %{ $state->{'IfBlocks'}{$block_id}{'AssignedVars'} }) {
+			for my $child_block_id (@{$state->{'IfBlocks'}{$block_id}{'Children'}}) {
+				my $if_is_expr_for_var=_if_is_expr_for_var($state, $child_block_id, $var);
+			}
+=pod		
+	So at this point we know which of the child blocks are expressions for which variables.
+	How do we include these in the analysis? 
+	If the child if statement is an expression for $var, it is equivalent to a single assignment. 
+	But how to deal with reads in those blocks?
+	Any read before the assignment means the parent assignment can't be removed
+	So we should actually use the EndLineID of the statement as the location of the expression assignment
+		
+=cut			
 			say "VAR $var " if $DBG;#.Dumper($state->{'AssignedVars'});
 			# This function decides which lines for a given variable can be removed because they are useless assignments
 			my $remove = _remove_or_keep($block_id, $var, $state);
