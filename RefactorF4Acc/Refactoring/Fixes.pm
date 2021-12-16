@@ -123,12 +123,16 @@ sub _remove_unused_variables { (my $stref, my $f)=@_;
 	# If a variable is assigned but is not and arg and does not occur in any RHS or SubroutineCall, it is unused. 
 	# If a variable is declared but not used in any LHS, RHS  or SubroutineCall, it is unused.
 	my $annlines_1 = get_annotated_sourcelines($stref,$f);
-
+    local $Data::Dumper::Indent = 0;
+    local $Data::Dumper::Terse  = 1;
 	# ----------------------------------------------------------------------------------------------------
 # The stack tells us about the nesting of the ifs
 # The seq is a list of the blocks (if, elsif, else) in an if-statement
 # The blocks are numbered using a running counter
 # I renumber the LineIDs to make sure they are contiguous
+# Seq will be used to identify if statements that are effectively expressions, 
+# i.e. they every var is assigned in every branch (TODO)
+	say "\nmark_if_blocks\n" if $DBG;
 
 	my $pass_action_mark_if_blocks = sub { (my $annline, my $state)=@_;		
 		(my $line,my $info)=@{$annline};
@@ -141,25 +145,18 @@ sub _remove_unused_variables { (my $stref, my $f)=@_;
 		$info->{'LineID'} = ++$state->{'LineCounter'};
 
 		if (exists $info->{'IfThen'} and not exists $info->{'ElseIf'}) {
-			push @stack,  $current_blockid; #$counter;
-			# say $line.' PUSH STACK:' .Dumper( \@stack);
 			
+			push @stack,  $current_blockid; #$counter;
+			# say $line.' PUSH STACK:' .Dumper( \@stack);			
 			++$counter;
-			push @{$seq[$stack[-1]]}, $counter;			
+			push @{$seq[$stack[-1]]}, $counter;
 			# say $line.' PUSH SEQ: '.$stack[-1]. ':' .Dumper( $seq[$stack[-1]]);
 			$blockid=$counter;
+			push @{$state->{'IfBlocks'}{$current_blockid}{'Children'}},$blockid;
 			$current_blockid=$counter;
 			$state->{'IfBlocks'}{$blockid}{'StartLineID'}=$info->{'LineID'};
+			$state->{'IfBlocks'}{$blockid}{'Children'}=[];
 		}
-		# elsif (exists $info->{'ElseIf'}) {
-		# 	++$counter;
-		# 	$blockid=$counter;	
-		# 	$current_blockid=$counter;
-		# 	push @{$seq[$stack[-1]]}, $counter;
-		# 	my $if_blockid = $stack[0]+1; # Assuming the stack contains the current blocks as first elt, and its count was incremented after the push
-		# 	$state->{'IfBlocks'}{$if_blockid}{'EndLineID'}=$info->{'LineID'};
-		# 	$state->{'IfBlocks'}{$blockid}{'StartLineID'}=$info->{'LineID'};
-		# }
 		elsif (exists $info->{'Else'} or exists $info->{'ElseIf'}) {
 			++$counter;
 			$blockid=$counter;	
@@ -173,13 +170,17 @@ sub _remove_unused_variables { (my $stref, my $f)=@_;
 			# my $if_blockid = $stack[0]+1; # Assuming the stack contains the current blocks as first elt, and its count was incremented after the push
 			
 			$state->{'IfBlocks'}{$if_blockid}{'EndLineID'}=$info->{'LineID'};
-			$state->{'IfBlocks'}{$blockid}{'StartLineID'}=$info->{'LineID'};			
+			$state->{'IfBlocks'}{$blockid}{'StartLineID'}=$info->{'LineID'};
+			$state->{'IfBlocks'}{$blockid}{'Children'}=[];
 		}
 		elsif (exists $info->{'EndIf'}) {
-			# say 'ENDIF: SEQ:' .Dumper( \@seq);
+			say 'ENDIF: SEQ:' .Dumper( $seq[$stack[-1]]);
+			for my $seq_block_id (@{$seq[$stack[-1]]}) {
+				$state->{'IfBlocks'}{$seq_block_id}{'Seq'} = dclone($seq[$stack[-1]]);
+			}
 			# say 'ENDIF: STACK:' .Dumper( \@stack);
-			my $cur_blockid = $seq[$stack[-1]][-1];			
-			my $encl_blockid = pop @stack;	
+			my $cur_blockid = $seq[$stack[-1]][-1];
+			my $encl_blockid = pop @stack;
 			# say $line.' POP STACK:' .Dumper( \@stack);
 			# say 'CURRENT BLOCK:' .$cur_blockid;
 			# say 'ENCLOSING BLOCK:' .$encl_blockid;
@@ -187,6 +188,7 @@ sub _remove_unused_variables { (my $stref, my $f)=@_;
 			$state->{'IfBlocks'}{$cur_blockid}{'EndLineID'}=$info->{'LineID'};
 			$seq[$encl_blockid]=[];
 			$current_blockid = $encl_blockid;
+
 		} else { # anything else, label it
 			$blockid=$current_blockid;
 		}
@@ -195,8 +197,8 @@ sub _remove_unused_variables { (my $stref, my $f)=@_;
 		$state->{'Counter'} = $counter ;
 		$state->{'Stack'} = [@stack];
 		$state->{'Seq'} = [@seq];
-		# say 'SEQ:'.Dumper( \@seq);
-		say $line."\tCurrent: $current_blockid".' STACK: [' .join(',',@stack).']';
+		# say 'LINE:' .$line.' SEQ:'.Dumper( \@seq);
+		# say $line."\tCurrent: $current_blockid".' STACK: [' .join(',',@stack).']';
 		return ([[$line,$info]],$state);
 	};		
 
@@ -204,8 +206,8 @@ sub _remove_unused_variables { (my $stref, my $f)=@_;
 		'Counter'=> 0,
 		'LineCounter'=> 0,
 		'Stack'=>[],
-		'Seq'=>[[0]],
-		'IfBlocks'=>{},
+		'Seq'=>[[]],
+		'IfBlocks'=>{0=>{'Seq'=>[0]}},
 		'CurrentBlockID'=>0
 	};
 
@@ -218,25 +220,31 @@ sub _remove_unused_variables { (my $stref, my $f)=@_;
 	# All we need to keep from the $if_block_state is IfBlocks
 
 	# This pass is purely for debugging
+
 	if ($DBG) {
+	say "\nshow_if_blocks\n";
 	my $pass_action_show_if_blocks = sub { (my $annline, my $state)=@_;		
 		(my $line,my $info)=@{$annline};
 		my $if_block_id = $info->{'IfBlockID'};
 		my $start = $state->{'IfBlocks'}{$if_block_id}{'StartLineID'}//'UNKNOWN';
 		my $end = $state->{'IfBlocks'}{$if_block_id}{'EndLineID'}//'UNKNOWN';
+		my $seq = join(',',@{$state->{'IfBlocks'}{$if_block_id}{'Seq'}});
+		my $children = join(',',@{$state->{'IfBlocks'}{$if_block_id}{'Children'}});
 		my $fid = substr($info->{'LineID'}.'    ',0,3);
 		my $fline = substr($line.( ' ' x 100), 0,50);
 		say "LINE: $fid\t$fline\tIfBlockID: ".$info->{'IfBlockID'}
 		."\tStart: $start"
-		."\tEnd: $end";
+		."\tEnd: $end"
+		."\tSeq: [$seq]"
+		."\tChildren: [$children]";
 		return ([[$line,$info]],$state);
 	};		
  
 	stateful_pass($annlines_1 ,$pass_action_show_if_blocks, $if_block_state,'_show_if_blocks() ' . __LINE__  ) ;	
 	}
-	
+	# die;
 # ----------------------------------------------------------------------------------------------------
-say "\npass_action_find_all_used_vars\n" if $DBG;
+	say "\npass_action_find_all_used_vars\n" if $DBG;
 	# The algorithm is iterative, see below; but it would be better to have a separate pass for creating the lists
 
 	# Step 1
@@ -420,7 +428,6 @@ say "\npass_action_find_all_used_vars\n" if $DBG;
 # AssignedVars: Variables on the LHS (TODO or In/InOut in a function or subroutine)
 # UnusedDeclaredVars: declared but unused, used to removed such declarations
 # UnusedVars: any var assigned to but not used as arg or in an expression
-# 
 
 	my $state= {
 		'DeclaredVars'=>{},
@@ -434,11 +441,12 @@ say "\npass_action_find_all_used_vars\n" if $DBG;
 	};
 
 	$state->{'IfBlocks'} = $if_block_state->{'IfBlocks'};
-	(my $annlines_2b,$state) = stateful_pass($annlines_2,$pass_action_find_all_used_vars, $state,'_find_all_used_variables() ' . __LINE__  ) ;
+	(my $annlines_3,$state) = stateful_pass($annlines_2,$pass_action_find_all_used_vars, $state,'_find_all_used_variables() ' . __LINE__  ) ;
 	# die;
 	# die Dumper $state;
 # ----------------------------------------------------------------------------------------------------
-say "\npass_action_remove_unused_vars\n" if $DBG;
+# This step removes variables that are entirely unused, i.e. assigned but never read	
+	say "\npass_action_remove_unused_vars\n" if $DBG;
 	my $pass_action_remove_unused_vars = sub { (my $annline, my $state)=@_;		
 		(my $line,my $info)=@{$annline};
 				
@@ -474,14 +482,12 @@ say "\npass_action_remove_unused_vars\n" if $DBG;
 		return ([$annline],$state);
 	}; # END of pass_action_remove_unused_vars
 
-# This step removes variables that are entirely unused, i.e. assigned but never read	
-	# $Sf->{'RefactoredCode'}=$annlines_2;
 	my $dbg_ctr=-1;
 	do {
 		# $state->{ExprVars}={};
-		$state->{AssignedVars}={};
+		# $state->{AssignedVars}={};
         # The pass finds ExprVars and AssignedVars
- 		($annlines_2b,$state) = stateful_pass($annlines_2b,$pass_action_remove_unused_vars, $state,'_remove_all_unused_variables() ' . __LINE__  ) ;
+ 		($annlines_3,$state) = stateful_pass($annlines_3,$pass_action_remove_unused_vars, $state,'_remove_all_unused_variables() ' . __LINE__  ) ;
 # ----------------------------------------------------------------------------------------------------
 	# Step 2
  	# Once we have these lists, we can now check if there are any variables that occur on an Lhs an are not used anywhere
@@ -496,86 +502,122 @@ say "\npass_action_remove_unused_vars\n" if $DBG;
 	} until scalar keys %{ $state->{'UnusedVars'} } ==0 or --$dbg_ctr==0; 
 	# die Dumper($state);
 # ----------------------------------------------------------------------------------------------------	
-# This step removes writes to variables that are not subsequently read. 
-say "\nremove writes to variables that are not subsequently read\n" if $DBG;
-		# $state->{ExprVars}={};
-		# $state->{AssignedVars}={};
-        # # The pass finds ExprVars and AssignedVars
- 		# ($stref,$state) = stateful_pass_inplace($stref,$f,$pass_action_find_all_used_vars, $state,'_find_all_unused_variables() ' . __LINE__  ) ;
+	# This step removes writes to variables that are not subsequently read. 
+	say "\nremove writes to variables that are not subsequently read\n" if $DBG;
+=pod 
+	TODO: Currently, this is on a per-block basis, so in the following example
 
-	# Step 3
- 	# Once we have these lists, we can now check if there are any variables that occur on an Lhs an are not used anywhere
- 	# We simply check for every AssignedVar if it is used as an ExprVar or as an Arg 	
+	v=1
+	if cond then
+		v=2
+	else
+		v=3
+	end if
+
+	v=1 will not be eliminated
+
+	Conceptually, it is simple: we should check if an assignment to a variable occurs in all branches of an if-elsif-else
+	That means that we need to keep the information about which blocks belong together, this is stored in $state->{'IfBlocks'}{$block_id}{'Seq'}
+	$state->{'IfBlocks'}{$block_id}{'AssignedVars'} has all vars in a block. 
+	So what we need to check for every variable is if it is assigned in every block
+=cut	
+	sub _if_exprs_for_vars { my ($state, $block_id) = @_;
+		my $if_is_expr_for={};
+		for my $var (sort keys %{ $state->{'IfBlocks'}{$block_id}{'AssignedVars'} }) {
+			$if_is_expr_for->{$var} = 1;
+			for my $seq_id (@{$state->{'IfBlocks'}{$block_id}{'Seq'}} ) {
+				next if $seq_id ==  $block_id;
+				if (not exists $state->{'IfBlocks'}{$seq_id}{'AssignedVars'}{$var}) {
+					delete $if_is_expr_for->{$var} ;
+					last;
+				}
+			}			
+		}
+		say "BLOCK $block_id:".' IF IS EXPR FOR:'.Dumper($if_is_expr_for) if $DBG;
+		return $if_is_expr_for;
+	}
+=pod	
+	To use this information, what we need to do in _remove_or_keep is to find the children of an if-block, 
+	check if they are expressions for the current var and include them in the analysis
+	So we need to know the block ids of the children of the current if block
+	The first block_id of every child if statement is stored in $state->{'IfBlocks'}{$block_id}{'Children'}
+=cut
+
 		
 	for my $block_id ( sort keys %{ $state->{'IfBlocks'} } ) {
-	for my $var (keys %{ $state->{'IfBlocks'}{$block_id}{'AssignedVars'} }) {
-		say "VAR $var " if $DBG;#.Dumper($state->{'AssignedVars'});
-		# This function decides which lines for a given variable can be removed because they are useless assignments
-		my $remove = _remove_or_keep($block_id, $var, $state);
-		carp Dumper($remove);
-		# This part, which might be in its own function, actually removes the lines from $state
-		if (scalar keys %{$remove}>0) {
-			for my $l_id (sort keys %{$remove}) {
-				say "REMOVING assignment line $l_id for var $var" if $DBG;
-				# Remove the LineID  from LineIDs
-				my @line_ids = grep {$_ != $l_id } @{$state->{'IfBlocks'}{$block_id}{'AssignedVars'}{$var}{'LineIDs'}};				
-				$state->{'IfBlocks'}{$block_id}{'AssignedVars'}{$var}{'LineIDs'} = [@line_ids];
-				# Decrement the counter
-				$state->{'IfBlocks'}{$block_id}{'AssignedVars'}{$var}{'Counter'}--;
-				if ($state->{'IfBlocks'}{$block_id}{'AssignedVars'}{$var}{'Counter'}==0) {
-					$state->{'UnusedDeclaredVars'}{$var}=1;
-				}
-				# Add this LineID to UnusedLines
-				$state->{'UnusedLines'}{$l_id}++;
-				# Now we need to check all vars on the RHS of the assignment
-				# and remove the LineID from ExprVars
-				for my $rhs_var (keys %{ $state->{'ExprVars'} }) {
-					# Check if $rhs_var occurs on that line by grepping $l_id in LineIDs
-					my @rhs_var_on_line = grep {$_==$l_id} @{$state->{'ExprVars'}{$rhs_var}{'LineIDs'}};
-					# If rhs_var occurs on line $l_id
-					if (@rhs_var_on_line) {
-						say "REMOVING assignment line $l_id for RHS var $rhs_var" if $DBG;
-						# Remove the LineID  from LineIDs
-						my @rhs_line_ids = grep {$_ != $l_id } @{$state->{'ExprVars'}{$rhs_var}{'LineIDs'}};
-						$state->{'ExprVars'}{$rhs_var}{'LineIDs'} = [@rhs_line_ids];
-						# Decrement the counter
-						$state->{'ExprVars'}{$rhs_var}{'Counter'}--;							
+		for my $child_block_id (@{$state->{'IfBlocks'}{$block_id}{'Children'}}) {
+			my $if_is_expr_for=_if_exprs_for_vars($state, $child_block_id);
+		}
+		# So at this point we know which of the child blocks are expressions for which variables.
+
+		for my $var (sort keys %{ $state->{'IfBlocks'}{$block_id}{'AssignedVars'} }) {
+			say "VAR $var " if $DBG;#.Dumper($state->{'AssignedVars'});
+			# This function decides which lines for a given variable can be removed because they are useless assignments
+			my $remove = _remove_or_keep($block_id, $var, $state);
+			# carp Dumper($remove);
+			# This part, which might be in its own function, actually removes the lines from $state
+			if (scalar keys %{$remove}>0) {
+				for my $l_id (sort keys %{$remove}) {
+					say "REMOVING assignment line $l_id for var $var" if $DBG;
+					# Remove the LineID  from LineIDs
+					my @line_ids = grep {$_ != $l_id } @{$state->{'IfBlocks'}{$block_id}{'AssignedVars'}{$var}{'LineIDs'}};				
+					$state->{'IfBlocks'}{$block_id}{'AssignedVars'}{$var}{'LineIDs'} = [@line_ids];
+					# Decrement the counter
+					$state->{'IfBlocks'}{$block_id}{'AssignedVars'}{$var}{'Counter'}--;
+					if ($state->{'IfBlocks'}{$block_id}{'AssignedVars'}{$var}{'Counter'}==0) {
+						$state->{'UnusedDeclaredVars'}{$var}=1;
+					}
+					# Add this LineID to UnusedLines
+					$state->{'UnusedLines'}{$l_id}++;
+					# Now we need to check all vars on the RHS of the assignment
+					# and remove the LineID from ExprVars
+					for my $rhs_var (keys %{ $state->{'ExprVars'} }) {
+						# Check if $rhs_var occurs on that line by grepping $l_id in LineIDs
+						my @rhs_var_on_line = grep {$_==$l_id} @{$state->{'ExprVars'}{$rhs_var}{'LineIDs'}};
+						# If rhs_var occurs on line $l_id
+						if (@rhs_var_on_line) {
+							say "REMOVING assignment line $l_id for RHS var $rhs_var" if $DBG;
+							# Remove the LineID  from LineIDs
+							my @rhs_line_ids = grep {$_ != $l_id } @{$state->{'ExprVars'}{$rhs_var}{'LineIDs'}};
+							$state->{'ExprVars'}{$rhs_var}{'LineIDs'} = [@rhs_line_ids];
+							# Decrement the counter
+							$state->{'ExprVars'}{$rhs_var}{'Counter'}--;							
+						}
 					}
 				}
 			}
 		}
-	}
-	# ExprVars with Counter==0 are unused, remove their assignments too
-	for my $rhs_var (keys %{ $state->{'IfBlocks'}{$block_id}{'AssignedVars'} }) {
-		# say "RHS VAR: $rhs_var";
-		if (exists $state->{'ExprVars'}{$rhs_var} and
-			exists $state->{'ExprVars'}{$rhs_var}{'Counter'} and  
-			$state->{'ExprVars'}{$rhs_var}{'Counter'}==0
-		) {					
-			delete $state->{'ExprVars'}{$rhs_var};
-			if (exists $state->{'IfBlocks'}{$block_id}{'AssignedVars'}{$rhs_var}
-				and exists $state->{'IfBlocks'}{$block_id}{'AssignedVars'}{$rhs_var}{'LineIDs'}
-				and scalar @{$state->{'IfBlocks'}{$block_id}{'AssignedVars'}{$rhs_var}{'LineIDs'}}>0					
-			) {
-				my $rhs_var_assignment_l_id = $state->{'IfBlocks'}{$block_id}{'AssignedVars'}{$rhs_var}{'LineIDs'}[0];
-				say "REMOVING assignment line $rhs_var_assignment_l_id for RHS var $rhs_var" if $DBG;
-				if (not exists $state->{'UnusedLines'}{ $rhs_var_assignment_l_id}) {
-					$state->{'UnusedLines'}{ $rhs_var_assignment_l_id}++;
+		# ExprVars with Counter==0 are unused, remove their assignments too
+		for my $rhs_var (keys %{ $state->{'IfBlocks'}{$block_id}{'AssignedVars'} }) {
+			# say "RHS VAR: $rhs_var";
+			if (exists $state->{'ExprVars'}{$rhs_var} and
+				exists $state->{'ExprVars'}{$rhs_var}{'Counter'} and  
+				$state->{'ExprVars'}{$rhs_var}{'Counter'}==0
+			) {					
+				delete $state->{'ExprVars'}{$rhs_var};
+				if (exists $state->{'IfBlocks'}{$block_id}{'AssignedVars'}{$rhs_var}
+					and exists $state->{'IfBlocks'}{$block_id}{'AssignedVars'}{$rhs_var}{'LineIDs'}
+					and scalar @{$state->{'IfBlocks'}{$block_id}{'AssignedVars'}{$rhs_var}{'LineIDs'}}>0					
+				) {
+					my $rhs_var_assignment_l_id = $state->{'IfBlocks'}{$block_id}{'AssignedVars'}{$rhs_var}{'LineIDs'}[0];
+					say "REMOVING assignment line $rhs_var_assignment_l_id for RHS var $rhs_var" if $DBG;
+					if (not exists $state->{'UnusedLines'}{ $rhs_var_assignment_l_id}) {
+						$state->{'UnusedLines'}{ $rhs_var_assignment_l_id}++;
+					}
+					delete $state->{'IfBlocks'}{$block_id}{'AssignedVars'}{$rhs_var};
+					$state->{'UnusedVars'}{$rhs_var}=1;
+					$state->{'UnusedDeclaredVars'}{$rhs_var}=1;
 				}
-				delete $state->{'IfBlocks'}{$block_id}{'AssignedVars'}{$rhs_var};
-				$state->{'UnusedVars'}{$rhs_var}=1;
-				$state->{'UnusedDeclaredVars'}{$rhs_var}=1;
 			}
-		}
-	} # Assigned variables
+		} # Assigned variables
 	# die Dumper $state;
 	} # If blocks
-	# die Dumper $state;
+	die "\nSTATE:\n".Dumper( $state);
 	
 	# At this point we have a list of all lines to be removed. So now we should mark all these lines as Deleted
 	
 	# --------------------------------------------------------------------------------------------------------------------------------
-
+	say "\ndelete_unused_lines\n" if $DBG;
 	my $pass_action_delete_unused_lines = sub { (my $annline, my $state)=@_;		
 		(my $line,my $info)=@{$annline};
 		if (not exists $info->{'LineID'}) {
@@ -594,17 +636,16 @@ say "\nremove writes to variables that are not subsequently read\n" if $DBG;
 		}
 		return ([[$line,$info]],$state);
 	};
-	my $annlines_3 = $Sf->{'RefactoredCode'};
+	# my $annlines_3 = $Sf->{'RefactoredCode'};
 	(my $annlines_4,$state) = stateful_pass($annlines_3 ,$pass_action_delete_unused_lines, $state,'_delete_unused_lines() ' . __LINE__  );
 
-	die;
-	# die Dumper $state;
+	# die;
+	# die "\nSTATE:\n".Dumper( $state);
 	# --------------------------------------------------------------------------------------------------------------------------------		
  	# So now we have removed all assignments. 
  	# Now we need to check which vars are declared but not used and remove those declarations. 
  	for my $var (keys %{ $state->{'DeclaredVars'} }) { 		
  		if (not exists $state->{'ExprVars'}{$var} 
-# 		and not exists $state->{'Args'}{$var} 
  		and not exists $state->{'AssignedVars'}{$var}
 		 ) { 			
  			say "VAR $var is declared but unused in $f" if $DBG;
@@ -655,8 +696,9 @@ say "\nremove writes to variables that are not subsequently read\n" if $DBG;
  	$stref->{'Subroutines'}{$f}{'DeclaredOrigArgs'}{'List'}=dclone($state->{'RemainingArgs'});
 	
  	map { delete $stref->{'Subroutines'}{$f}{'DeclaredOrigArgs'}{'Set'}{$_} }  @{ $state->{'DeletedArgs'} };
-	# die show_annlines( $annlines_5);
+	die show_annlines( $annlines_5);
 	$stref->{'Subroutines'}{$f}{'RefactoredCode'} = $annlines_5;
+	# die;
 	return $stref;
 	
 } # END of _remove_unused_variables()

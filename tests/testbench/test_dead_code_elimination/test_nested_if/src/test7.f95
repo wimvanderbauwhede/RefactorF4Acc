@@ -26,8 +26,13 @@ contains
           v5=3.0
           if (u(0)>1.0) then
               v3=u(0)+1.0
+          else if (u(1)>1.0) then
+              v3=1.0
           else
               v3=0.0
+              if (v1==v2) then
+                  v3=v2
+              end if
           end if
           v5=4.0
            v3=v1
@@ -36,8 +41,17 @@ contains
           v5=5.0
       else
           v4=0.0
+          if (u(0)>1.0) then
+              v1=u(1)
+          else
+              v2=u(1)+v1
+          end if          
       end if
-
+      if (u(0)>1.0) then
+          v2=u(1)
+      else
+          v2=u(1)+v1
+      end if
       f(global_id) = u(global_id)/2.0+v3+v4
 
    end subroutine test7
