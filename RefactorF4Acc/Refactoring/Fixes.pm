@@ -520,6 +520,12 @@ sub _remove_unused_variables { (my $stref, my $f)=@_;
 	That means that we need to keep the information about which blocks belong together, this is stored in $state->{'IfBlocks'}{$block_id}{'Seq'}
 	$state->{'IfBlocks'}{$block_id}{'AssignedVars'} has all vars in a block. 
 	So what we need to check for every variable is if it is assigned in every block
+	But that is not enough: we need to look at the reads as well.
+	So I think there is really only one good way:
+	- Generate all paths through the if statements
+	- For each path, eliminate as usual
+	- If a variable is eliminated for all branches, then it can be actually eliminated
+	- This should be done recursively, because e.g. in the example above, v can be eliminated regardless of what happens in outside blocks.
 =cut	
 	sub _if_is_expr_for_var { my ($state, $block_id, $var) = @_;
 		if (exists $state->{'IfBlocks'}{$block_id}{'AssignedVars'}{$var} ) {
@@ -535,14 +541,67 @@ sub _remove_unused_variables { (my $stref, my $f)=@_;
 			return 0
 		}
 	}
-=pod	
-	To use this information, what we need to do in _remove_or_keep is to find the children of an if-block, 
-	check if they are expressions for the current var and include them in the analysis
-	So we need to know the block ids of the children of the current if block
-	The first block_id of every child if statement is stored in $state->{'IfBlocks'}{$block_id}{'Children'}
-=cut
 
+=pod
+So the approach is as follows:
+- We have already eliminated on a per-block basis
+- Then we start from block 0, and descend down to the leaves
+- Then we should build the path in reverse from the leaves
+
+module Main where
+
+lsts = [[0],[1],[2,3],[4,5,6]]
+
+--so, take the first list; call f on each elt and the remainder
+f :: [[Int]] -> [String]
+f [lst] = map show lst
+f lst = let
+    xs:xxs = lst -- [0,1] [[2,3]]
+      in
+        concatMap (\x -> map (\y -> (show x) ++ ":"++y) (f xxs)) xs
+
+main = do
+    print $ f lsts
+
+=cut
+# [0 =>[1]=>[1,7,8]
+	# [1]=>[2,5] => [2,3,4],[5,6]
+	# [2] => []
+# So the 	
+	
+sub _build_paths {my ($state, $b_id, $paths, $path_id) = @_; # 0,{},'0'; 1,{},'0:1'; 2,{},'0:1:2'
+	if (scalar @{$state->{IfBlocks}{$b_id}{Children}} >0 ) {
+		for my $ch_id ( @{$state->{IfBlocks}{$b_id}{Children}}) { # 1; 2,5
+		say "CH $ch_id";
+			my $seq = $state->{'IfBlocks'}{$ch_id}{'Seq'}; 
+			for my $ch_b_id ( @{$seq}) { # 1,7,8; 2,3,4
+			say "CHB $ch_b_id";
+				my $l_path_id =$path_id.':'.$ch_b_id; #'0:1'; #'0:1:2'
+				($paths, my $prev_path_id) = _build_paths($state, $ch_b_id, $paths, $l_path_id);
+				# post action here: 
+				say 'path id: '.$prev_path_id;
+				push @{$paths->{$prev_path_id}{'AssignedVars'}}, 
+					$state->{'IfBlocks'}{$ch_b_id}{'AssignedVars'};
+				# push @{$paths->{$path_id}{'ExprVars'}}, 
+				# 	   	$state->{'IfBlocks'}{$ch_b_id}{'ExprVars'};
+			}
+		}
+		# Here we have to do something as well
+		say "END of for";
+	}	
+	else {
+		# leaf reached
+		# If this leaf is the last in a seq, it is the end of a path
+		$paths->{$path_id}{'AssignedVars'}=[];
+		$paths->{$path_id}{'ExprVars'}=[];	
+		say "LEAF: $path_id";
 		
+	}
+	# Should we return something here?
+	return ($paths, $path_id);
+}
+my $paths = _build_paths($state, 0, {}, '0');
+		die;
 	for my $block_id ( sort keys %{ $state->{'IfBlocks'} } ) {				
 		for my $var (sort keys %{ $state->{'IfBlocks'}{$block_id}{'AssignedVars'} }) {
 			for my $child_block_id (@{$state->{'IfBlocks'}{$block_id}{'Children'}}) {
