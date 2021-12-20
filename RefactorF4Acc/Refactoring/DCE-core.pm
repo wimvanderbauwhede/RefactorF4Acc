@@ -1,8 +1,9 @@
-package RefactorF4Acc::Refactoring::Fixes;
-# Fixes must be explicitly enabled in $Config{'FIXES'}
+package RefactorF4Acc::Refactoring::DCE::Core;
+# Core functionality for Dead Code Elimination
 use v5.10;
 use RefactorF4Acc::Config;
 use RefactorF4Acc::Utils;
+use RefactorF4Acc::Utils::Functional qw( init foldl null head );
 use RefactorF4Acc::Refactoring::Helpers qw( 
 	pass_wrapper_subs_in_module 
 	stateful_pass_inplace 
@@ -44,510 +45,127 @@ use Exporter;
 our @ISA = qw(Exporter);
 
 our @EXPORT_OK = qw(
-	&_declare_undeclared_variables
-	&_remove_unused_variables
-	&_fix_scalar_ptr_args
-	&_fix_scalar_ptr_args_subcall
-	&_make_dim_vars_scalar_consts_in_sigs
-	&remove_redundant_arguments_and_fix_intents
 );
 
 # ================================================================================================================================================
-# This is a FIX
-# Better dead code elimination:
-
-# - AssignedVars and ExprVars keep a list of the line numbers 
-# - For every assigned local var, if it is used before the next assignment OR before the end of the code unit, we need to keep the assignment.
-
-# v = 1
-# w = v
-# v = 2
-# => keep all
-# write_line_id = 1
-# next_write_line_id = 3
-# read_line_id = 2
-
-# v = 1
-# v = v+1
-# w = v
-# v = 2
-# => keep all
-# write_line_id = 1
-# next_write_line_id = 2
-# read_line_id = 2
-
-
-# v = 1
-# w = v
-# v = v+2
-# => keep first two if w is used later and last if v is used later or Out/InOut arg
-# write_line_id = 1
-# next_write_line_id = 3
-# read_line_id = 2
-
-# v = 1
-# v = 2
-# => last if used later or Out/InOut arg so REMOVE
-# write_line_id = 1
-# next_write_line_id = 2
-# read_line_id = -1
-
-# v = v+1
-# v = 2
-# => last if used later or Out/InOut arg so REMOVE
-# write_line_id = 1
-# next_write_line_id = 2
-# read_line_id = 1
-
-# v = 1
-# v = v+2
-# => keep all
-
-# write_line_id = 1
-# next_write_line_id = 2
-# read_line_id = 2
-
-
-
-# - We also need to distinguish Args between In, Out and InOut. 
-#	- See if we can get this from $info, else look up
-# - For In args: only assignments followed by a read before the next assignment OR the end of the code unit are kept. So this is the same as a local variable
-# - For Out args: 
-#	- any read before an assignment is actually an error; 
-#	- any assignment followed by an assignment without a read in between can be removed. 
-# - The difference with a local var and In is that a final assignment is kept
-
-sub _remove_unused_variables { (my $stref, my $f)=@_;
-	if (not exists $Config{'FIXES'}{'_remove_unused_variables'}) { return $stref }
-	my $Sf = $stref->{'Subroutines'}{$f};
-	# If a variable is assigned but is not and arg and does not occur in any RHS or SubroutineCall, it is unused. 
-	# If a variable is declared but not used in any LHS, RHS  or SubroutineCall, it is unused.
-	my $annlines_1 = get_annotated_sourcelines($stref,$f);
-    # local $Data::Dumper::Indent = 0;
-    # local $Data::Dumper::Terse  = 1;
-	# ----------------------------------------------------------------------------------------------------
-# The stack tells us about the nesting of the ifs
-# The seq is a list of the blocks (if, elsif, else) in an if-statement
-# The blocks are numbered using a running counter
-# I renumber the LineIDs to make sure they are contiguous
-# Seq will be used to identify if statements that are effectively expressions, 
-# i.e. they every var is assigned in every branch (TODO)
-	say "\nmark_if_blocks\n" if $DBG;
-
-	my $pass_action_mark_if_blocks = sub { (my $annline, my $state)=@_;		
-		(my $line,my $info)=@{$annline};
-		my $counter = $state->{'Counter'};# 0;
-		my @stack = @{$state->{'Stack'}};#();
-		my $blockid='UNKNOWN';
-		my $current_blockid=$state->{'CurrentBlockID'};# 0;
-		my @seq  = @{$state->{'Branches'}};
-
-		$info->{'LineID'} = ++$state->{'LineCounter'};
-
-		if (exists $info->{'IfThen'} and not exists $info->{'ElseIf'}) {
-			
-			push @stack,  $current_blockid; #$counter;
-			# say $line.' PUSH STACK:' .Dumper( \@stack);			
-			++$counter;
-			push @{$seq[$stack[-1]]}, $counter;
-			# say $line.' PUSH SEQ: '.$stack[-1]. ':' .Dumper( $seq[$stack[-1]]);
-			$blockid=$counter;
-			push @{$state->{'IfStatements'}{$current_blockid}{'Children'}},$blockid;
-			$current_blockid=$counter;
-			$state->{'IfStatements'}{$blockid}{'StartLineID'}=$info->{'LineID'};
-			$state->{'IfStatements'}{$blockid}{'Children'}=[];
-		}
-		elsif (exists $info->{'Else'} or exists $info->{'ElseIf'}) {
-			++$counter;
-			$blockid=$counter;	
-			$current_blockid=$counter;
-			# say ' ELSE: STACK:' .Dumper( \@stack);
-			# say ' ELSE: SEQ:' .Dumper( \@seq);	
-			my $if_blockid = $seq[$stack[-1]][-1];
-			# say "$line PREV BLOCK ID: $if_blockid";
-			push @{$seq[$stack[-1]]}, $counter;			
-			# say ' ELSE: SEQ:' .Dumper( \@seq);
-			# my $if_blockid = $stack[0]+1; # Assuming the stack contains the current blocks as first elt, and its count was incremented after the push
-			
-			$state->{'IfStatements'}{$if_blockid}{'EndLineID'}=$info->{'LineID'};
-			$state->{'IfStatements'}{$blockid}{'StartLineID'}=$info->{'LineID'};
-			$state->{'IfStatements'}{$blockid}{'Children'}=[];
-		}
-		elsif (exists $info->{'EndIf'}) {
-			say 'ENDIF: SEQ:' .Dumper( $seq[$stack[-1]]);
-			for my $seq_block_id (@{$seq[$stack[-1]]}) {
-				$state->{'IfStatements'}{$seq_block_id}{'Branches'} = dclone($seq[$stack[-1]]);
-			}
-			# say 'ENDIF: STACK:' .Dumper( \@stack);
-			my $cur_blockid = $seq[$stack[-1]][-1];
-			my $encl_blockid = pop @stack;
-			# say $line.' POP STACK:' .Dumper( \@stack);
-			# say 'CURRENT BLOCK:' .$cur_blockid;
-			# say 'ENCLOSING BLOCK:' .$encl_blockid;
-			$blockid = $cur_blockid;
-			$state->{'IfStatements'}{$cur_blockid}{'EndLineID'}=$info->{'LineID'};
-			$seq[$encl_blockid]=[];
-			$current_blockid = $encl_blockid;
-
-		} else { # anything else, label it
-			$blockid=$current_blockid;
-		}
-		$state->{'CurrentBlockID'}=$current_blockid;
-		$info->{'IfBlockID'}=$blockid;
-		$state->{'Counter'} = $counter ;
-		$state->{'Stack'} = [@stack];
-		$state->{'Branches'} = [@seq];
-		# say 'LINE:' .$line.' SEQ:'.Dumper( \@seq);
-		# say $line."\tCurrent: $current_blockid".' STACK: [' .join(',',@stack).']';
-		return ([[$line,$info]],$state);
-	};		
-
- 	my $if_block_state ={
-		'Counter'=> 0,
-		'LineCounter'=> 0,
-		'Stack'=>[],
-		'Branches'=>[[]],
-		'IfStatements'=>{
-			0=>{
-				'Branches'=>[0],
-				'Children'=>[],
-			}
-		},
-		'CurrentBlockID'=>0
-	};
-
-	$if_block_state->{'IfStatements'}{0}{'StartLineID'}=1;
-
-	(my $annlines_2,$if_block_state) = stateful_pass($annlines_1 ,$pass_action_mark_if_blocks, $if_block_state,'_mark_if_blocks() ' . __LINE__  ) ;
-
-	$if_block_state->{'IfStatements'}{0}{'EndLineID'}= $if_block_state->{'LineCounter'};
-# ----------------------------------------------------------------------------------------------------
-	# All we need to keep from the $if_block_state is IfBlocks
-
-	# This pass is purely for debugging
-
-	if ($DBG) {
-	say "\nshow_if_blocks\n";
-	my $pass_action_show_if_blocks = sub { (my $annline, my $state)=@_;		
-		(my $line,my $info)=@{$annline};
-		my $if_block_id = $info->{'IfBlockID'};
-		my $start = $state->{'IfStatements'}{$if_block_id}{'StartLineID'}//'UNKNOWN';
-		my $end = $state->{'IfStatements'}{$if_block_id}{'EndLineID'}//'UNKNOWN';
-		my $seq = join(',',@{$state->{'IfStatements'}{$if_block_id}{'Branches'}});
-		my $children = join(',',@{$state->{'IfStatements'}{$if_block_id}{'Children'}});
-		my $fid = substr($info->{'LineID'}.'    ',0,3);
-		my $fline = substr($line.( ' ' x 100), 0,50);
-		say "LINE: $fid\t$fline\tIfBlockID: ".$info->{'IfBlockID'}
-		."\tStart: $start"
-		."\tEnd: $end"
-		."\tSeq: [$seq]"
-		."\tChildren: [$children]";
-		return ([[$line,$info]],$state);
-	};		
- 
-	stateful_pass($annlines_1 ,$pass_action_show_if_blocks, $if_block_state,'_show_if_blocks() ' . __LINE__  ) ;	
-	}
-	# die;
-# ----------------------------------------------------------------------------------------------------
-	say "\npass_action_find_all_used_vars\n" if $DBG;
-	# The algorithm is iterative, see below; but it would be better to have a separate pass for creating the lists
-
-	# Step 1
-	# Start with all declared variables, put in $state->{'DeclaredVars'}
-	# Make a list of all variables anywhere in the code via Lhs, Rhs, Args, put in $state->{'ExprVars'}	
-	my $pass_action_find_all_used_vars = sub { (my $annline, my $state)=@_;		
-		(my $line,my $info)=@{$annline};
-		
-		my $rline=$line;
-		my $rlines=[];
-		my $skip_if=0;
-		my $done=0;
-		
- 		if ( exists $info->{'Signature'} ) {			 			 
- 			$state->{'Args'} = $info->{'Signature'}{'Args'}{'Set'}; 			 
-			$done=1;
- 		}
- 		elsif (exists $info->{'Select'})  {
- 			my $select_expr_str = $info->{'CaseVar'}; 
- 			my $select_expr_ast=parse_expression($select_expr_str, $info,{}, '');
- 			my $vars = get_vars_from_expression($select_expr_ast,{});
- 			for my $var (keys %{ $vars } ) {
- 				$state->{'ExprVars'}{$var}{'Counter'}++;	
-				push @{$state->{'ExprVars'}{$var}{'LineIDs'}}, $info->{'LineID'};
- 			}
-			 $done=1;
- 		} 		
-		elsif (exists $info->{'CaseVals'})  {
-			for my $val (@{ $info->{'CaseVals'} }) {
-				if ($val=~/^[a-z]\w*/) {
- 					$state->{'ExprVars'}{$val}{'Counter'}++;	
-					push @{$state->{'ExprVars'}{$val}{'LineIDs'}}, $info->{'LineID'};
- 				} else  {
-					my $case_expr_ast=parse_expression($val, $info,{}, '');
- 					my $vars = get_vars_from_expression($case_expr_ast,{});
- 					for my $var (keys %{ $vars } ) {
- 						$state->{'ExprVars'}{$var}{'Counter'}++;	
-						push @{$state->{'ExprVars'}{$var}{'LineIDs'}}, $info->{'LineID'};
- 					}
- 				}		
-			}
-			$done=1;
-		}
-		elsif ( exists $info->{'VarDecl'} ) {
-			my $varname = $info->{'VarDecl'}{'Name'};
-			# Add intent to Args
-			my $subset = in_nested_set( $Sf, 'Args', $varname );
-			if ($subset) {
-                my $decl = get_var_record_from_set($Sf->{$subset},$varname);				
-				$state->{'Args'}{$varname} = $decl->{'IODir'};
-			}
-			$state->{'DeclaredVars'}{ $varname }=1;
-			# Now check also if the declaration does have any ExprVars
-			if (exists $info->{'ParsedVarDecl'} and
-				exists $info->{'ParsedVarDecl'}{'Attributes'} and
-				exists $info->{'ParsedVarDecl'}{'Attributes'}{'Dim'} ) {
-				for my $dim_str (@{$info->{'ParsedVarDecl'}{'Attributes'}{'Dim'}}) {
-					my $dim_expr_ast=parse_expression($dim_str, $info,{}, '');
-					my $vars = get_vars_from_expression($dim_expr_ast,{});
-					for my $var (keys %{ $vars } ) {
- 						$state->{'ExprVars'}{$var}{'Counter'}++;	
-						push @{$state->{'ExprVars'}{$var}{'LineIDs'}}, $info->{'LineID'};
-					}					
-				}
-			}										
-			$done=1;
-		}
-		elsif ( exists $info->{'Assignment'}  ) { 
-			my $var = $info->{'Lhs'}{'VarName'};
-			# if (exists $state->{'UnusedVars'}{$var}) {				
-			# 	say "REMOVED ASSIGNMENT $line in $f" if $DBG;
-			# 	$annline=['! '.$line, {%{$info},'Deleted'=>1}];
-			# 	delete $state->{'UnusedVars'}{$var};
-			# 	delete $state->{'AssignedVars'}{$var};	
-			# 	# Remove all vars in the LHS expr from ExprVars
-			# 	if (exists $info->{'Lhs'}{'IndexVars'}) {
-			# 		for my $idx_var (keys %{ $info->{'Lhs'}{'IndexVars'}{'Set'} }) {
- 			# 			$state->{'ExprVars'}{$idx_var}{'Counter'}--;	
-		 	# 			if ( $state->{'ExprVars'}{$idx_var}{'Counter'} == 0) {
-		 	# 				delete $state->{'ExprVars'}{$idx_var};
-		 	# 				carp "DELETE ExprVar $idx_var (LHS index var)"  if $DBG;
-		 	# 			}	 						
- 			# 		}
-			# 	}
-			# 	$skip_if=1;							
-			# } else {
-				say "ADDING $var to AssignedVars (line ".$info->{'LineID'}.")" if $DBG;
-				$state->{'AssignedVars'}{$var}{'Counter'}++;				
-				push @{$state->{'AssignedVars'}{$var}{'LineIDs'}}, $info->{'LineID'};
-				my $if_block_id = $info->{'IfBlockID'};
-				$state->{'IfStatements'}{$if_block_id}{'AssignedVars'}{$var}{'Counter'}++;				
-				push @{$state->{'IfStatements'}{$if_block_id}{'AssignedVars'}{$var}{'LineIDs'}}, $info->{'LineID'};
-				my %index_vars=();
-				if (exists $info->{'Lhs'}{'IndexVars'}) {
-					for my $index_var (keys %{ $info->{'Lhs'}{'IndexVars'}{'Set'} }) {
-						$index_vars{$index_var}=1;
- 						$state->{'ExprVars'}{$index_var}{'Counter'}++;
-						# say "VAR $index_var Counter ".$state->{'ExprVars'}{$index_var}{'Counter'};
-						push @{$state->{'ExprVars'}{$index_var}{'LineIDs'}}, $info->{'LineID'};
- 					}
-				}
-
-				# for my $var (keys %{$info->{'Rhs'}{'Vars'}{'Set'} }) {
- 				# 		$state->{'ExprVars'}{$var}{'Counter'}++;	
-				# 		push @{$state->{'ExprVars'}{$var}{'LineIDs'}}, $info->{'LineID'};
-				# 		say "ADDING RHS1 $var to ExprVars (line ".$info->{'LineID'}.")" if $DBG;
- 				# 	}
-					 
-				# for my $var (keys %{  $info->{'Rhs'}{'Vars'}{'Set'} } ) {
-				my $rhs_vars = _get_all_vars_from_assignment_rec($info->{'Rhs'}{'Vars'}{'Set'});
-				for my $rhs_var (sort keys %{$rhs_vars}) {
-					if (not exists $index_vars{$rhs_var}) {
-						$state->{'ExprVars'}{$rhs_var}{'Counter'}++;	
-						push @{$state->{'ExprVars'}{$rhs_var}{'LineIDs'}}, $info->{'LineID'};
-						say "ADDING RHS $rhs_var to ExprVars (line ".$info->{'LineID'}.")" if $DBG;
-					}
-				}
-				# }
-			# }
-			$done=1;
-		}
-		elsif ( exists $info->{'SubroutineCall'} ) {
-			# TODO
-			# If the intent is Out or InOut then it is an assignment			
-			for my $var (keys %{ $info->{'SubroutineCall'}{'Args'}{'Set'} }) {
- 				$state->{'ExprVars'}{$var}{'Counter'}++;	
-				push @{$state->{'ExprVars'}{$var}{'LineIDs'}}, $info->{'LineID'};
-			}			
-			$done=1;
-		}	
-		elsif ( exists $info->{'Do'} ) {
-			my $iter_var = $info->{'Do'}{'Iterator'};
-			$state->{'AssignedVars'}{$iter_var}{'Counter'}++;
-			push @{$state->{'AssignedVars'}{$iter_var}{'LineIDs'}}, $info->{'LineID'};
-			my $if_block_id = $info->{'IfBlockID'};
-			$state->{'IfStatements'}{$if_block_id}{'AssignedVars'}{$iter_var}{'Counter'}++;
-			push @{$state->{'IfStatements'}{$if_block_id}{'AssignedVars'}{$iter_var}{'LineIDs'}}, $info->{'LineID'};			
-			my @range_vars = @{$info->{'Do'}{'Range'}{'Vars'}};
-			for my $var (@range_vars) {
-				say "ADDING $var to ExprVars in DO" if $DBG;
- 				$state->{'ExprVars'}{$var}{'Counter'}++;	
-				push @{$state->{'ExprVars'}{$var}{'LineIDs'}}, $info->{'LineID'};
-			}		
-			$done=1;				
-		}
-		if ((exists $info->{'If'} or exists $info->{'ElseIf'})
-			and not $skip_if) {						
-			my $cond_expr_ast=$info->{'Cond'}{'AST'};
-			for my $var (keys %{ $info->{'Cond'}{'Vars'}{'Set'} }) {
-				say "ADDING $var to ExprVars in IF (line ".$info->{'LineID'}.")" if $DBG;
- 				$state->{'ExprVars'}{$var}{'Counter'}++;	
-				push @{$state->{'ExprVars'}{$var}{'LineIDs'}}, $info->{'LineID'};
-			}						
-			for my $var ( @{ $info->{'Cond'}{'Vars'}{'List'} } ) {					
-				if (exists  $info->{'Cond'}{'Vars'}{'Set'}{$var}{'IndexVars'}
-				and scalar keys %{ $info->{'Cond'}{'Vars'}{'Set'}{$var}{'IndexVars'} } > 0
-				) {								
-					for my $index_var (keys %{ $info->{'Cond'}{'Vars'}{'Set'}{$var}{'IndexVars'} }) {
-						$state->{'ExprVars'}{$index_var}{'Counter'}++;	
-						push @{$state->{'ExprVars'}{$index_var}{'LineIDs'}}, $info->{'LineID'};
-						say "ADDING index var $index_var to ExprVars in IF (line ".$info->{'LineID'}.")" if $DBG;
-					}
-				}				
-			}
-			$done=1;
-		}
-		if (exists $info->{'HasVars'} and $info->{'HasVars'} == 1 and $done==0) {
-			if ($DBG) {
-				croak "_remove_unused_variables: Line <$line> NOT ANALYSED! ".Dumper($info) 
-			} else {
-				warning( "_remove_unused_variables: Line <$line> NOT ANALYSED! ");
-			}
-		}
-		# say "LINE: $line ".Dumper($state->{'ExprVars'}{'global_id'});
-		return ([$annline],$state);
-	}; # END of pass_action_find_all_used_vars
-
-# DeclaredVars: from declarations in the code unit
-# UndeclaredVars: currently unused. 
-# Args: code unit arguments
-# AssignedVars: Variables on the LHS (TODO or In/InOut in a function or subroutine)
-# UnusedDeclaredVars: declared but unused, used to removed such declarations
-# UnusedVars: any var assigned to but not used as arg or in an expression
-
-	my $state= {
-		'DeclaredVars'=>{},
-		'UndeclaredVars'=>{},
-		'ExprVars'=>{},
-		'AssignedVars'=>{},
-		'Args'=>{},
-		'UnusedVars'=>{},
-		'UnusedDeclaredVars'=>{},
-		'UnusedLines' =>{}
-	};
-
-	$state->{'IfStatements'} = $if_block_state->{'IfStatements'};
-	(my $annlines_3,$state) = stateful_pass($annlines_2,$pass_action_find_all_used_vars, $state,'_find_all_used_variables() ' . __LINE__  ) ;
-	# die;
-	# die Dumper $state;
-# ----------------------------------------------------------------------------------------------------
-# This step removes variables that are entirely unused, i.e. assigned but never read	
-	say "\npass_action_remove_unused_vars\n" if $DBG;
-	my $pass_action_remove_unused_vars = sub { (my $annline, my $state)=@_;		
-		(my $line,my $info)=@{$annline};
-				
-		if ( exists $info->{'Assignment'}  ) { 
-			my $var = $info->{'Lhs'}{'VarName'};
-			if (exists $state->{'UnusedVars'}{$var}) {				
-				say "REMOVED ASSIGNMENT $line in $f" if $DBG;
-				$annline=['! '.$line, {%{$info},'Deleted'=>1}];
-				delete $state->{'UnusedVars'}{$var};
-				delete $state->{'AssignedVars'}{$var};	
-				# Remove all vars in the LHS expr from ExprVars
-				if (exists $info->{'Lhs'}{'IndexVars'}) {
-					for my $idx_var (keys %{ $info->{'Lhs'}{'IndexVars'}{'Set'} }) {
- 						$state->{'ExprVars'}{$idx_var}{'Counter'}--;	
-		 				if ( $state->{'ExprVars'}{$idx_var}{'Counter'} == 0) {
-		 					delete $state->{'ExprVars'}{$idx_var};
-		 					carp "DELETE ExprVar $idx_var (LHS index var)"  if $DBG;
-		 				}	 						
- 					}
-				}		
-			} 
-		}
-		# elsif ( exists $info->{'SubroutineCall'} ) {
-		# 	# TODO
-		# 	# If the intent is Out or InOut then it is an assignment			
-		# 	for my $var (keys %{ $info->{'SubroutineCall'}{'Args'}{'Set'} }) {
- 		# 		$state->{'ExprVars'}{$var}{'Counter'}++;	
-		# 		push @{$state->{'ExprVars'}{$var}{'LineIDs'}}, $info->{'LineID'};
-		# 	}			
-		# 	$done=1;
-		# }	
-
-		return ([$annline],$state);
-	}; # END of pass_action_remove_unused_vars
-
-	my $dbg_ctr=-1;
-	do {
-		# $state->{ExprVars}={};
-		# $state->{AssignedVars}={};
-        # The pass finds ExprVars and AssignedVars
- 		($annlines_3,$state) = stateful_pass($annlines_3,$pass_action_remove_unused_vars, $state,'_remove_all_unused_variables() ' . __LINE__  ) ;
-# ----------------------------------------------------------------------------------------------------
-	# Step 2
- 	# Once we have these lists, we can now check if there are any variables that occur on an Lhs an are not used anywhere
- 	# We simply check for every AssignedVar if it is used as an ExprVar or as an Arg 	
-		
-	 	for my $var (keys %{ $state->{'AssignedVars'} }) {
-	 		if (not exists $state->{'ExprVars'}{$var} and not exists $state->{'Args'}{$var}) {
-	 			say "VAR $var is unused in $f" if $DBG;
-	 			$state->{'UnusedVars'}{$var}=1;
-	 		} 
-	 	}		 
-	} until scalar keys %{ $state->{'UnusedVars'} } ==0 or --$dbg_ctr==0; 
-	# die Dumper($state);
-# ----------------------------------------------------------------------------------------------------	
-	# This step removes writes to variables that are not subsequently read. 
-	say "\nremove writes to variables that are not subsequently read\n" if $DBG;
-=pod 
-	TODO: Currently, this is on a per-block basis, so in the following example
-
-	v=1
-	if cond then
-		v=2
-	else
-		v=3
-	end if
-
-	v=1 will not be eliminated
-
-	Conceptually, it is simple: we should check if an assignment to a variable occurs in all branches of an if-elsif-else
-	That means that we need to keep the information about which blocks belong together, this is stored in $state->{'IfStatements'}{$block_id}{'Branches'}
-	$state->{'IfStatements'}{$block_id}{'AssignedVars'} has all vars in a block. 
-	So what we need to check for every variable is if it is assigned in every block
-	But that is not enough: we need to look at the reads as well.
-	So I think there is really only one good way:
-	- Generate all paths through the if statements
-	- For each path, eliminate as usual
-	- If a variable is eliminated for all branches, then it can be actually eliminated
-	- This should be done recursively, because e.g. in the example above, v can be eliminated regardless of what happens in outside blocks.
-=cut	
-	sub _if_is_expr_for_var { my ($state, $block_id, $var) = @_;
-		if (exists $state->{'IfStatements'}{$block_id}{'AssignedVars'}{$var} ) {
-			for my $seq_id (@{$state->{'IfStatements'}{$block_id}{'Branches'}} ) {
-				next if $seq_id ==  $block_id;
-				if (not exists $state->{'IfStatements'}{$seq_id}{'AssignedVars'}{$var}) {
-					return 0
-				}
-			}			
-			say "BLOCK $block_id:".' IF IS EXPR FOR '.$var if $DBG;
-			return 1;
-		} else {
-			return 0
-		}
-	}
 
 =pod
+ 	my $state ={
+		'IfStatements'=>{
+			$block_id => {
+				'Branches'=>[$branch_id,...],
+				'Children'=>[$child_block_id,...],
+			}
+		},
+	};
+
+To have a structure more like the Haskell one:
+
+my $if_statement = {
+    'branches' => 
+    [
+        {
+            'branchId' => $int,        
+            'children' => [$if_statement,...]
+        }, ...
+    ]
+}
+=cut
+
+    sub _traverse_if_statement {my ($state, $st_id) = @_; 
+        my $seq = $state->{'IfStatements'}{$st_id}{'Branches'}; 
+        my $branches = [];
+        for my $b_id ( @{$seq}) {
+            my $children = [];
+            if (scalar  @{$state->{'IfStatements'}{$b_id}{'Children'}} > 0 ) {
+                for my $ch_id ( @{$state->{'IfStatements'}{$b_id}{'Children'}}) {
+                    push @{ $children }, _traverse_if_statement($state, $ch_id);
+                }
+            } 
+            push @{$branches},{
+                'branchId' => $b_id,
+                'children' => $children
+            }            
+        }
+        return {
+            'branches' => $branches
+        }
+    }
+
+=pod
+- If there are no children, the subtree becomes the child
+- If there is one child, append the subtree to it with append_subtree_to_child
+- If there are multiple children, do append the subtree to the last child
+    That is the new subtree, append it to the next child etc., using append_subtree_to_children_and_fold
+=cut
+# append_subtree_to_branch :: IfStatement -> Branch -> Branch
+sub append_subtree_to_branch { my ($s, $b) = @_;
+    my @children = @{$b->{'children'}};
+    if (scalar @children == 0) {
+        $b->{'children'}=[$s];
+    } 
+    elsif (scalar @children == 1 ) {
+            my $c = $children[0];
+            my $c_ = append_subtree_to_child( $s, $c);
+            $b->{'children'}=[$c_];        
+    } else {
+            my $c_ = append_subtree_to_children_and_fold($s,\@children);
+            $b->{'children'}=[$c_];        
+    }
+    return $b;
+}
+
+# Append s to all terminals of c, just a map over append_subtree_to_branch
+# append_subtree_to_child :: IfStatement -> IfStatement -> IfStatement
+sub append_subtree_to_child { my ($s,$c) = @_;
+        my $branches_ = map {append_subtree_to_branch($s,$_)} @{$c->{'branches'}};
+        $c->{'branches'} = $branches_;
+        return $c;
+}
+=pod
+If there is at least one child, call append_subtree_to_child and
+call append_subtree_to_children_and_fold recursively
+=cut      
+# append_subtree_to_children_and_fold :: IfStatement -> [IfStatement] -> IfStatement
+sub append_subtree_to_children_and_fold {my ($s,$cs) = @_; 
+    if (scalar @{$cs}) { return $s
+    } else {
+            my $c_ = $cs->[-1];
+            my $cs_ = init( $cs);
+            my $s_ = append_subtree_to_child( $s, $c_);        
+            append_subtree_to_children_and_fold( $s_ ,$cs_);
+    }
+}
+
+=pod
+So now a little traversal to list all paths
+This was very tricky and it shouldn't have been
+Why does I need init?
+
+We accumulate the path to a leaf node by appending all branch ids
+Then we append this to the path list, and continue with the path without the terminal id
+to climb back up in the branch of the tree
+
+But that is not enough, if we don't do 'init' of the returned path, we get repetition
+=cut
+# list_all_paths :: [Branch] -> ([Int],[[Int]]) -> ([Int],[[Int]])
+sub list_all_paths { my ($bs, $path, $pathlist) = @_;
+    foldl( sub { my ($p_pl, $b) = @_;
+            my ($p,$pl) = @{$p_pl};         
+            my $c = head(   $b->{'children'});
+            my $bs_ =  $c->{'branches'};
+            my $p_=[@{$p},[ $b->{'branchId'}]];
+        
+            if (null($bs_)) {
+                 return ($p, [@{$pl},[$p_]]); # p not p_ because we go back up
+            } else {                    
+                my ($p__,$pl_) = list_all_paths( $bs_, $p_,$pl);                    
+                return ( init( $p__),$pl_); # This 'init' is trial-and-error
+            }
+     }, [$path,$pathlist], $bs); 
+}
+=pod
+
 This Haskell code is the solution to the key problem:
 We turn the nested if statements into a tree and do a path traversal
 That way we have every possible path through the code
@@ -717,7 +335,7 @@ main = do
 
 
 
-
+=cut	
 sub _build_paths {my ($state, $st_id, $paths, $path_id) = @_; # 0,{},'0'; 1,{},'0:1'; 2,{},'0:1:2'
 
 		my $seq = $state->{'IfStatements'}{$st_id}{'Branches'}; 
@@ -760,31 +378,7 @@ sub _build_paths {my ($state, $st_id, $paths, $path_id) = @_; # 0,{},'0'; 1,{},'
 	return ($paths, $path_id);
 }
 my $paths = _build_paths($state, 0, [], 0);
-=cut
-
-sub _traverse_if_statement {my ($state, $st_id) = @_; 
-	my $seq = $state->{'IfStatements'}{$st_id}{'Branches'}; 
-	my $branches = [];
-	for my $b_id ( @{$seq}) {
-		my $children = [];
-		if (scalar  @{$state->{'IfStatements'}{$b_id}{'Children'}} > 0 ) {
-			for my $ch_id ( @{$state->{'IfStatements'}{$b_id}{'Children'}}) {
-				push @{ $children }, _traverse_if_statement($state, $ch_id);
-			}
-		} 
-		push @{$branches},{
-			'branchId' => $b_id,
-			'children' => $children
-		}            
-	}
-	return {
-		'branches' => $branches
-	}
-}
-
-my $if_statements = _traverse_if_statement($state, 0);
-	die Dumper $if_statements;
-
+		die;
 	for my $block_id ( sort keys %{ $state->{'IfStatements'} } ) {				
 		for my $var (sort keys %{ $state->{'IfStatements'}{$block_id}{'AssignedVars'} }) {
 			for my $child_block_id (@{$state->{'IfStatements'}{$block_id}{'Children'}}) {
@@ -796,7 +390,8 @@ my $if_statements = _traverse_if_statement($state, 0);
 	If the child if statement is an expression for $var, it is equivalent to a single assignment. 
 	But how to deal with reads in those blocks?
 	Any read before the assignment means the parent assignment can't be removed
-	So we should actually use the EndLineID of the statement as the location of the expression assignment		
+	So we should actually use the EndLineID of the statement as the location of the expression assignment
+		
 =cut			
 			say "VAR $var " if $DBG;#.Dumper($state->{'AssignedVars'});
 			# This function decides which lines for a given variable can be removed because they are useless assignments

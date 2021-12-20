@@ -53,6 +53,7 @@ use Exporter;
     &unzip 
     &head 
     &tail 
+    &init
     &fst 
     &snd 
     &filter 
@@ -405,6 +406,16 @@ sub tail { my ($lst)=@_;
         return \@lst_;
     } else {
         croak "tail of empty list: ".Dumper($lst);
+    }
+}
+
+sub init { my ($lst)=@_;
+    my @lst_ = @{$lst};
+    if (scalar @lst_>0) {
+        pop @lst_;
+        return \@lst_;
+    } else {
+        croak "init of empty list: ".Dumper($lst);
     }
 }
 
