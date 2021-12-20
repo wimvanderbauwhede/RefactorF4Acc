@@ -18,6 +18,11 @@ contains
           v1=0.0
           if (u(0)>1.0) then
               v1=u(1)
+              if (global_id>2) then
+                  v1=u(2)
+              else
+                  v1=v1+1
+              end if
           else
               v2=u(1)+v1
           end if

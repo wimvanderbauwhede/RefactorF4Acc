@@ -140,7 +140,7 @@ sub _remove_unused_variables { (my $stref, my $f)=@_;
 		my @stack = @{$state->{'Stack'}};#();
 		my $blockid='UNKNOWN';
 		my $current_blockid=$state->{'CurrentBlockID'};# 0;
-		my @seq  = @{$state->{'Seq'}};
+		my @seq  = @{$state->{'Branches'}};
 
 		$info->{'LineID'} = ++$state->{'LineCounter'};
 
@@ -176,7 +176,7 @@ sub _remove_unused_variables { (my $stref, my $f)=@_;
 		elsif (exists $info->{'EndIf'}) {
 			say 'ENDIF: SEQ:' .Dumper( $seq[$stack[-1]]);
 			for my $seq_block_id (@{$seq[$stack[-1]]}) {
-				$state->{'IfBlocks'}{$seq_block_id}{'Seq'} = dclone($seq[$stack[-1]]);
+				$state->{'IfBlocks'}{$seq_block_id}{'Branches'} = dclone($seq[$stack[-1]]);
 			}
 			# say 'ENDIF: STACK:' .Dumper( \@stack);
 			my $cur_blockid = $seq[$stack[-1]][-1];
@@ -196,7 +196,7 @@ sub _remove_unused_variables { (my $stref, my $f)=@_;
 		$info->{'IfBlockID'}=$blockid;
 		$state->{'Counter'} = $counter ;
 		$state->{'Stack'} = [@stack];
-		$state->{'Seq'} = [@seq];
+		$state->{'Branches'} = [@seq];
 		# say 'LINE:' .$line.' SEQ:'.Dumper( \@seq);
 		# say $line."\tCurrent: $current_blockid".' STACK: [' .join(',',@stack).']';
 		return ([[$line,$info]],$state);
@@ -206,8 +206,8 @@ sub _remove_unused_variables { (my $stref, my $f)=@_;
 		'Counter'=> 0,
 		'LineCounter'=> 0,
 		'Stack'=>[],
-		'Seq'=>[[]],
-		'IfBlocks'=>{0=>{'Seq'=>[0]}},
+		'Branches'=>[[]],
+		'IfBlocks'=>{0=>{'Branches'=>[0]}},
 		'CurrentBlockID'=>0
 	};
 
@@ -228,7 +228,7 @@ sub _remove_unused_variables { (my $stref, my $f)=@_;
 		my $if_block_id = $info->{'IfBlockID'};
 		my $start = $state->{'IfBlocks'}{$if_block_id}{'StartLineID'}//'UNKNOWN';
 		my $end = $state->{'IfBlocks'}{$if_block_id}{'EndLineID'}//'UNKNOWN';
-		my $seq = join(',',@{$state->{'IfBlocks'}{$if_block_id}{'Seq'}});
+		my $seq = join(',',@{$state->{'IfBlocks'}{$if_block_id}{'Branches'}});
 		my $children = join(',',@{$state->{'IfBlocks'}{$if_block_id}{'Children'}});
 		my $fid = substr($info->{'LineID'}.'    ',0,3);
 		my $fline = substr($line.( ' ' x 100), 0,50);
@@ -517,7 +517,7 @@ sub _remove_unused_variables { (my $stref, my $f)=@_;
 	v=1 will not be eliminated
 
 	Conceptually, it is simple: we should check if an assignment to a variable occurs in all branches of an if-elsif-else
-	That means that we need to keep the information about which blocks belong together, this is stored in $state->{'IfBlocks'}{$block_id}{'Seq'}
+	That means that we need to keep the information about which blocks belong together, this is stored in $state->{'IfBlocks'}{$block_id}{'Branches'}
 	$state->{'IfBlocks'}{$block_id}{'AssignedVars'} has all vars in a block. 
 	So what we need to check for every variable is if it is assigned in every block
 	But that is not enough: we need to look at the reads as well.
@@ -529,7 +529,7 @@ sub _remove_unused_variables { (my $stref, my $f)=@_;
 =cut	
 	sub _if_is_expr_for_var { my ($state, $block_id, $var) = @_;
 		if (exists $state->{'IfBlocks'}{$block_id}{'AssignedVars'}{$var} ) {
-			for my $seq_id (@{$state->{'IfBlocks'}{$block_id}{'Seq'}} ) {
+			for my $seq_id (@{$state->{'IfBlocks'}{$block_id}{'Branches'}} ) {
 				next if $seq_id ==  $block_id;
 				if (not exists $state->{'IfBlocks'}{$seq_id}{'AssignedVars'}{$var}) {
 					return 0
@@ -543,64 +543,218 @@ sub _remove_unused_variables { (my $stref, my $f)=@_;
 	}
 
 =pod
-So the approach is as follows:
-- We have already eliminated on a per-block basis
-- Then we start from block 0, and descend down to the leaves
-- Then we should build the path in reverse from the leaves
+This Haskell code is the solution to the key problem:
+We turn the nested if statements into a tree and do a path traversal
+That way we have every possible path through the code
+So we can construct the sequences of assignments and reads from these paths.
+We need to make ExprVars per-block like AssignedVars
 
 module Main where
 
-lsts = [[0],[1],[2,3],[4,5,6]]
+import Data.List (foldl')
 
---so, take the first list; call f on each elt and the remainder
-f :: [[Int]] -> [String]
-f [lst] = map show lst
-f lst = let
-    xs:xxs = lst -- [0,1] [[2,3]]
-      in
-        concatMap (\x -> map (\y -> (show x) ++ ":"++y) (f xxs)) xs
+data IfStatement = IfStatement {
+    branches :: [Branch]
+} deriving Show
+
+data Branch = Branch {
+    branchId :: Int,
+    children :: [IfStatement]
+} deriving Show
+
+{-
+- If there are no children, the subtree becomes the child
+- If there is one child, append the subtree to it with append_subtree_to_child
+- If there are multiple children, do append the subtree to the last child
+    That is the new subtree, append it to the next child etc., using append_subtree_to_children_and_fold
+-}
+append_subtree_to_branch :: IfStatement -> Branch -> Branch
+append_subtree_to_branch s b
+    | null $ children b = b{children=[s]}
+    | length (children b) == 1 = let
+            c = head (children b)
+            c' = append_subtree_to_child s c
+        in
+            b{children=[c']}
+    | otherwise = let
+            c' = append_subtree_to_children_and_fold s (children b) 
+        in
+            b{children=[c']}
+
+-- Append s to all terminals of c, just a map over append_subtree_to_branch
+append_subtree_to_child :: IfStatement -> IfStatement -> IfStatement
+append_subtree_to_child s c = let
+        branches' = map (append_subtree_to_branch s) (branches c)
+    in
+        c {
+            branches = branches'
+        }
+
+{-
+If there is at least one child, call append_subtree_to_child and
+call append_subtree_to_children_and_fold recursively
+-}        
+append_subtree_to_children_and_fold :: IfStatement -> [IfStatement] -> IfStatement
+append_subtree_to_children_and_fold s cs 
+    | null cs = s
+    | otherwise = let
+            c' = last cs
+            cs' = init cs
+            s' = append_subtree_to_child s c'
+        in
+            append_subtree_to_children_and_fold s' cs'
+            
+{-
+So now a little traversal to list all paths
+This was very tricky and it shouldn't have been
+Why does I need init?
+
+We accumulate the path to a leaf node by appending all branch ids
+Then we append this to the path list, and continue with the path without the terminal id
+to climb back up in the branch of the tree
+
+But that is not enough, if we don't do 'init' of the returned path, we get repetition
+
+-}
+list_all_paths :: [Branch] -> ([Int],[[Int]]) -> ([Int],[[Int]])
+list_all_paths bs (path, pathlist) = 
+    foldl' (\(p,pl) b -> 
+        let
+            c = head $ children b
+            bs' = branches c
+            p'=p++[branchId b]
+        in
+            if null bs'
+                then (p, pl++[p']) -- p not p' because we go back up
+                else
+                    let
+                        ( p'',pl') = list_all_paths bs' (p',pl)
+                    in 
+                        ( init p'',pl') -- This 'init' is trial-and-error
+        ) (path,pathlist) bs        
+
+--nested_if_nodata :: [(Int,[a])]
+--This does not work, as we need a mutually recursive type
+--but it shows how we could write it in Perl
+-- nested_if_nodata = [
+--    (0, [
+--             [
+--                 (1, []),
+--                 (2, [ [ (3, []), (4, []) ] ]),
+--                 (5, [])
+--             ],
+--             [
+--                 (6, []),
+--                 (7, [ [ (8, []) ] ])
+--             ]
+--        ]
+--    )
+--  ]
+
+-- 0 1 6 7
+-- 0 1 8 9
+-- 0 1 8 10
+-- 0 1 8 11
+-- 0 2 3 6 7
+-- 0 2 3 8 9
+-- 0 2 3 8 10
+-- 0 2 3 8 11
+-- 0 2 4 6 7
+-- 0 2 4 8 9
+-- 0 2 4 8 10
+-- 0 2 4 8 11
+-- 
+nested_if ::IfStatement 
+nested_if = IfStatement [
+        Branch 0 [
+            IfStatement [
+                Branch 1 [],
+                Branch 2 [
+                    IfStatement [
+                        Branch 3 [],
+                        Branch 4 []                        
+                     ]
+                 ],
+                Branch 5 []
+             ],
+            IfStatement [
+                Branch 6 [
+                    IfStatement [
+                        Branch 7 [
+                            IfStatement [
+                                Branch 8 [                                    
+                                ]
+                            ]        
+                        ]
+                    ]
+                ],
+                Branch 9 [
+                    IfStatement [
+                        Branch 10 [],
+                        Branch 11 [],
+                        Branch 12 []
+                    ]
+                ]
+             ]
+         ]
+    ]
+
+                        
+
 
 main = do
-    print $ f lsts
+    print nested_if
+    let
+        tree = append_subtree_to_children_and_fold (IfStatement True []) [nested_if]
+        paths_tup = list_all_paths ( branches tree) ([],[])
+    print (snd paths_tup)
 
-=cut
-# [0 =>[1]=>[1,7,8]
-	# [1]=>[2,5] => [2,3,4],[5,6]
-	# [2] => []
-# So the 	
-	
-sub _build_paths {my ($state, $b_id, $paths, $path_id) = @_; # 0,{},'0'; 1,{},'0:1'; 2,{},'0:1:2'
-	if (scalar @{$state->{IfBlocks}{$b_id}{Children}} >0 ) {
-		for my $ch_id ( @{$state->{IfBlocks}{$b_id}{Children}}) { # 1; 2,5
-		say "CH $ch_id";
-			my $seq = $state->{'IfBlocks'}{$ch_id}{'Seq'}; 
-			for my $ch_b_id ( @{$seq}) { # 1,7,8; 2,3,4
-			say "CHB $ch_b_id";
-				my $l_path_id =$path_id.':'.$ch_b_id; #'0:1'; #'0:1:2'
-				($paths, my $prev_path_id) = _build_paths($state, $ch_b_id, $paths, $l_path_id);
+
+
+
+=cut	
+sub _build_paths {my ($state, $st_id, $paths, $path_id) = @_; # 0,{},'0'; 1,{},'0:1'; 2,{},'0:1:2'
+
+		my $seq = $state->{'IfBlocks'}{$st_id}{'Branches'}; 
+		# say Dumper $seq;
+		for my $b_id ( @{$seq}) { # 1,7,8; 2,3,4
+			say "\t" x $path_id,"BRANCH ID $b_id";
+			push @{$paths}, $b_id;
+			if (scalar @{$state->{'IfBlocks'}{$b_id}{'Children'}} >0 ) {
+				for my $ch_id ( @{$state->{'IfBlocks'}{$b_id}{'Children'}}) { # 1; 2,5
+				# push @{$paths}, $ch_id;
+				say "\t" x ($path_id+1),"CHILD STMT $ch_id";
+			
+			
+			
+			
+				# my $l_path_id =$path_id.':'.$ch_b_id; #'0:1'; #'0:1:2'
+				($paths, my $prev_path_id) = _build_paths($state, $ch_id, $paths, $path_id+2);
 				# post action here: 
-				say 'path id: '.$prev_path_id;
-				push @{$paths->{$prev_path_id}{'AssignedVars'}}, 
-					$state->{'IfBlocks'}{$ch_b_id}{'AssignedVars'};
+				# say 'path id: '.$prev_path_id;
+				# push @{$paths->{$prev_path_id}{'AssignedVars'}}, 
+				# 	$state->{'IfBlocks'}{$ch_b_id}{'AssignedVars'};
 				# push @{$paths->{$path_id}{'ExprVars'}}, 
 				# 	   	$state->{'IfBlocks'}{$ch_b_id}{'ExprVars'};
 			}
 		}
 		# Here we have to do something as well
-		say "END of for";
-	}	
-	else {
-		# leaf reached
-		# If this leaf is the last in a seq, it is the end of a path
-		$paths->{$path_id}{'AssignedVars'}=[];
-		$paths->{$path_id}{'ExprVars'}=[];	
-		say "LEAF: $path_id";
-		
+		# say "END of for";
+	
+		else {
+			# leaf reached
+			# say Dumper $paths;
+			# If this leaf is the last in a seq, it is the end of a path
+			# $paths->{$path_id}{'AssignedVars'}=[];
+			# $paths->{$path_id}{'ExprVars'}=[];	
+			# say "LEAF: $path_id";
+			
+		}
 	}
 	# Should we return something here?
 	return ($paths, $path_id);
 }
-my $paths = _build_paths($state, 0, {}, '0');
+my $paths = _build_paths($state, 0, [], 0);
 		die;
 	for my $block_id ( sort keys %{ $state->{'IfBlocks'} } ) {				
 		for my $var (sort keys %{ $state->{'IfBlocks'}{$block_id}{'AssignedVars'} }) {
