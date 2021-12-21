@@ -152,10 +152,10 @@ sub _remove_unused_variables { (my $stref, my $f)=@_;
 			push @{$seq[$stack[-1]]}, $counter;
 			# say $line.' PUSH SEQ: '.$stack[-1]. ':' .Dumper( $seq[$stack[-1]]);
 			$blockid=$counter;
-			push @{$state->{'IfStatements'}{$current_blockid}{'Children'}},$blockid;
+			push @{$state->{'IfBlocks'}{$current_blockid}{'Children'}},$blockid;
 			$current_blockid=$counter;
-			$state->{'IfStatements'}{$blockid}{'StartLineID'}=$info->{'LineID'};
-			$state->{'IfStatements'}{$blockid}{'Children'}=[];
+			$state->{'IfBlocks'}{$blockid}{'StartLineID'}=$info->{'LineID'};
+			$state->{'IfBlocks'}{$blockid}{'Children'}=[];
 		}
 		elsif (exists $info->{'Else'} or exists $info->{'ElseIf'}) {
 			++$counter;
@@ -169,14 +169,14 @@ sub _remove_unused_variables { (my $stref, my $f)=@_;
 			# say ' ELSE: SEQ:' .Dumper( \@seq);
 			# my $if_blockid = $stack[0]+1; # Assuming the stack contains the current blocks as first elt, and its count was incremented after the push
 			
-			$state->{'IfStatements'}{$if_blockid}{'EndLineID'}=$info->{'LineID'};
-			$state->{'IfStatements'}{$blockid}{'StartLineID'}=$info->{'LineID'};
-			$state->{'IfStatements'}{$blockid}{'Children'}=[];
+			$state->{'IfBlocks'}{$if_blockid}{'EndLineID'}=$info->{'LineID'};
+			$state->{'IfBlocks'}{$blockid}{'StartLineID'}=$info->{'LineID'};
+			$state->{'IfBlocks'}{$blockid}{'Children'}=[];
 		}
 		elsif (exists $info->{'EndIf'}) {
 			say 'ENDIF: SEQ:' .Dumper( $seq[$stack[-1]]);
 			for my $seq_block_id (@{$seq[$stack[-1]]}) {
-				$state->{'IfStatements'}{$seq_block_id}{'Branches'} = dclone($seq[$stack[-1]]);
+				$state->{'IfBlocks'}{$seq_block_id}{'Branches'} = dclone($seq[$stack[-1]]);
 			}
 			# say 'ENDIF: STACK:' .Dumper( \@stack);
 			my $cur_blockid = $seq[$stack[-1]][-1];
@@ -185,7 +185,7 @@ sub _remove_unused_variables { (my $stref, my $f)=@_;
 			# say 'CURRENT BLOCK:' .$cur_blockid;
 			# say 'ENCLOSING BLOCK:' .$encl_blockid;
 			$blockid = $cur_blockid;
-			$state->{'IfStatements'}{$cur_blockid}{'EndLineID'}=$info->{'LineID'};
+			$state->{'IfBlocks'}{$cur_blockid}{'EndLineID'}=$info->{'LineID'};
 			$seq[$encl_blockid]=[];
 			$current_blockid = $encl_blockid;
 
@@ -207,7 +207,7 @@ sub _remove_unused_variables { (my $stref, my $f)=@_;
 		'LineCounter'=> 0,
 		'Stack'=>[],
 		'Branches'=>[[]],
-		'IfStatements'=>{
+		'IfBlocks'=>{
 			0=>{
 				'Branches'=>[0],
 				'Children'=>[],
@@ -216,11 +216,11 @@ sub _remove_unused_variables { (my $stref, my $f)=@_;
 		'CurrentBlockID'=>0
 	};
 
-	$if_block_state->{'IfStatements'}{0}{'StartLineID'}=1;
+	$if_block_state->{'IfBlocks'}{0}{'StartLineID'}=1;
 
 	(my $annlines_2,$if_block_state) = stateful_pass($annlines_1 ,$pass_action_mark_if_blocks, $if_block_state,'_mark_if_blocks() ' . __LINE__  ) ;
 
-	$if_block_state->{'IfStatements'}{0}{'EndLineID'}= $if_block_state->{'LineCounter'};
+	$if_block_state->{'IfBlocks'}{0}{'EndLineID'}= $if_block_state->{'LineCounter'};
 # ----------------------------------------------------------------------------------------------------
 	# All we need to keep from the $if_block_state is IfBlocks
 
@@ -231,10 +231,10 @@ sub _remove_unused_variables { (my $stref, my $f)=@_;
 	my $pass_action_show_if_blocks = sub { (my $annline, my $state)=@_;		
 		(my $line,my $info)=@{$annline};
 		my $if_block_id = $info->{'IfBlockID'};
-		my $start = $state->{'IfStatements'}{$if_block_id}{'StartLineID'}//'UNKNOWN';
-		my $end = $state->{'IfStatements'}{$if_block_id}{'EndLineID'}//'UNKNOWN';
-		my $seq = join(',',@{$state->{'IfStatements'}{$if_block_id}{'Branches'}});
-		my $children = join(',',@{$state->{'IfStatements'}{$if_block_id}{'Children'}});
+		my $start = $state->{'IfBlocks'}{$if_block_id}{'StartLineID'}//'UNKNOWN';
+		my $end = $state->{'IfBlocks'}{$if_block_id}{'EndLineID'}//'UNKNOWN';
+		my $seq = join(',',@{$state->{'IfBlocks'}{$if_block_id}{'Branches'}});
+		my $children = join(',',@{$state->{'IfBlocks'}{$if_block_id}{'Children'}});
 		my $fid = substr($info->{'LineID'}.'    ',0,3);
 		my $fline = substr($line.( ' ' x 100), 0,50);
 		say "LINE: $fid\t$fline\tIfBlockID: ".$info->{'IfBlockID'}
@@ -340,8 +340,8 @@ sub _remove_unused_variables { (my $stref, my $f)=@_;
 				$state->{'AssignedVars'}{$var}{'Counter'}++;				
 				push @{$state->{'AssignedVars'}{$var}{'LineIDs'}}, $info->{'LineID'};
 				my $if_block_id = $info->{'IfBlockID'};
-				$state->{'IfStatements'}{$if_block_id}{'AssignedVars'}{$var}{'Counter'}++;				
-				push @{$state->{'IfStatements'}{$if_block_id}{'AssignedVars'}{$var}{'LineIDs'}}, $info->{'LineID'};
+				$state->{'IfBlocks'}{$if_block_id}{'AssignedVars'}{$var}{'Counter'}++;				
+				push @{$state->{'IfBlocks'}{$if_block_id}{'AssignedVars'}{$var}{'LineIDs'}}, $info->{'LineID'};
 				my %index_vars=();
 				if (exists $info->{'Lhs'}{'IndexVars'}) {
 					for my $index_var (keys %{ $info->{'Lhs'}{'IndexVars'}{'Set'} }) {
@@ -385,8 +385,8 @@ sub _remove_unused_variables { (my $stref, my $f)=@_;
 			$state->{'AssignedVars'}{$iter_var}{'Counter'}++;
 			push @{$state->{'AssignedVars'}{$iter_var}{'LineIDs'}}, $info->{'LineID'};
 			my $if_block_id = $info->{'IfBlockID'};
-			$state->{'IfStatements'}{$if_block_id}{'AssignedVars'}{$iter_var}{'Counter'}++;
-			push @{$state->{'IfStatements'}{$if_block_id}{'AssignedVars'}{$iter_var}{'LineIDs'}}, $info->{'LineID'};			
+			$state->{'IfBlocks'}{$if_block_id}{'AssignedVars'}{$iter_var}{'Counter'}++;
+			push @{$state->{'IfBlocks'}{$if_block_id}{'AssignedVars'}{$iter_var}{'LineIDs'}}, $info->{'LineID'};			
 			my @range_vars = @{$info->{'Do'}{'Range'}{'Vars'}};
 			for my $var (@range_vars) {
 				say "ADDING $var to ExprVars in DO" if $DBG;
@@ -445,7 +445,7 @@ sub _remove_unused_variables { (my $stref, my $f)=@_;
 		'UnusedLines' =>{}
 	};
 
-	$state->{'IfStatements'} = $if_block_state->{'IfStatements'};
+	$state->{'IfBlocks'} = $if_block_state->{'IfBlocks'};
 	(my $annlines_3,$state) = stateful_pass($annlines_2,$pass_action_find_all_used_vars, $state,'_find_all_used_variables() ' . __LINE__  ) ;
 	# die;
 	# die Dumper $state;
@@ -522,8 +522,8 @@ sub _remove_unused_variables { (my $stref, my $f)=@_;
 	v=1 will not be eliminated
 
 	Conceptually, it is simple: we should check if an assignment to a variable occurs in all branches of an if-elsif-else
-	That means that we need to keep the information about which blocks belong together, this is stored in $state->{'IfStatements'}{$block_id}{'Branches'}
-	$state->{'IfStatements'}{$block_id}{'AssignedVars'} has all vars in a block. 
+	That means that we need to keep the information about which blocks belong together, this is stored in $state->{'IfBlocks'}{$block_id}{'Branches'}
+	$state->{'IfBlocks'}{$block_id}{'AssignedVars'} has all vars in a block. 
 	So what we need to check for every variable is if it is assigned in every block
 	But that is not enough: we need to look at the reads as well.
 	So I think there is really only one good way:
@@ -533,10 +533,10 @@ sub _remove_unused_variables { (my $stref, my $f)=@_;
 	- This should be done recursively, because e.g. in the example above, v can be eliminated regardless of what happens in outside blocks.
 =cut	
 	sub _if_is_expr_for_var { my ($state, $block_id, $var) = @_;
-		if (exists $state->{'IfStatements'}{$block_id}{'AssignedVars'}{$var} ) {
-			for my $seq_id (@{$state->{'IfStatements'}{$block_id}{'Branches'}} ) {
+		if (exists $state->{'IfBlocks'}{$block_id}{'AssignedVars'}{$var} ) {
+			for my $seq_id (@{$state->{'IfBlocks'}{$block_id}{'Branches'}} ) {
 				next if $seq_id ==  $block_id;
-				if (not exists $state->{'IfStatements'}{$seq_id}{'AssignedVars'}{$var}) {
+				if (not exists $state->{'IfBlocks'}{$seq_id}{'AssignedVars'}{$var}) {
 					return 0
 				}
 			}			
@@ -720,13 +720,13 @@ main = do
 
 sub _build_paths {my ($state, $st_id, $paths, $path_id) = @_; # 0,{},'0'; 1,{},'0:1'; 2,{},'0:1:2'
 
-		my $seq = $state->{'IfStatements'}{$st_id}{'Branches'}; 
+		my $seq = $state->{'IfBlocks'}{$st_id}{'Branches'}; 
 		# say Dumper $seq;
 		for my $b_id ( @{$seq}) { # 1,7,8; 2,3,4
 			say "\t" x $path_id,"BRANCH ID $b_id";
 			push @{$paths}, $b_id;
-			if (scalar @{$state->{'IfStatements'}{$b_id}{'Children'}} >0 ) {
-				for my $ch_id ( @{$state->{'IfStatements'}{$b_id}{'Children'}}) { # 1; 2,5
+			if (scalar @{$state->{'IfBlocks'}{$b_id}{'Children'}} >0 ) {
+				for my $ch_id ( @{$state->{'IfBlocks'}{$b_id}{'Children'}}) { # 1; 2,5
 				# push @{$paths}, $ch_id;
 				say "\t" x ($path_id+1),"CHILD STMT $ch_id";
 			
@@ -738,9 +738,9 @@ sub _build_paths {my ($state, $st_id, $paths, $path_id) = @_; # 0,{},'0'; 1,{},'
 				# post action here: 
 				# say 'path id: '.$prev_path_id;
 				# push @{$paths->{$prev_path_id}{'AssignedVars'}}, 
-				# 	$state->{'IfStatements'}{$ch_b_id}{'AssignedVars'};
+				# 	$state->{'IfBlocks'}{$ch_b_id}{'AssignedVars'};
 				# push @{$paths->{$path_id}{'ExprVars'}}, 
-				# 	   	$state->{'IfStatements'}{$ch_b_id}{'ExprVars'};
+				# 	   	$state->{'IfBlocks'}{$ch_b_id}{'ExprVars'};
 			}
 		}
 		# Here we have to do something as well
@@ -763,12 +763,12 @@ my $paths = _build_paths($state, 0, [], 0);
 =cut
 
 sub _traverse_if_statement {my ($state, $st_id) = @_; 
-	my $seq = $state->{'IfStatements'}{$st_id}{'Branches'}; 
+	my $seq = $state->{'IfBlocks'}{$st_id}{'Branches'}; 
 	my $branches = [];
 	for my $b_id ( @{$seq}) {
 		my $children = [];
-		if (scalar  @{$state->{'IfStatements'}{$b_id}{'Children'}} > 0 ) {
-			for my $ch_id ( @{$state->{'IfStatements'}{$b_id}{'Children'}}) {
+		if (scalar  @{$state->{'IfBlocks'}{$b_id}{'Children'}} > 0 ) {
+			for my $ch_id ( @{$state->{'IfBlocks'}{$b_id}{'Children'}}) {
 				push @{ $children }, _traverse_if_statement($state, $ch_id);
 			}
 		} 
@@ -785,9 +785,9 @@ sub _traverse_if_statement {my ($state, $st_id) = @_;
 my $if_statements = _traverse_if_statement($state, 0);
 	die Dumper $if_statements;
 
-	for my $block_id ( sort keys %{ $state->{'IfStatements'} } ) {				
-		for my $var (sort keys %{ $state->{'IfStatements'}{$block_id}{'AssignedVars'} }) {
-			for my $child_block_id (@{$state->{'IfStatements'}{$block_id}{'Children'}}) {
+	for my $block_id ( sort keys %{ $state->{'IfBlocks'} } ) {				
+		for my $var (sort keys %{ $state->{'IfBlocks'}{$block_id}{'AssignedVars'} }) {
+			for my $child_block_id (@{$state->{'IfBlocks'}{$block_id}{'Children'}}) {
 				my $if_is_expr_for_var=_if_is_expr_for_var($state, $child_block_id, $var);
 			}
 =pod		
@@ -807,11 +807,11 @@ my $if_statements = _traverse_if_statement($state, 0);
 				for my $l_id (sort keys %{$remove}) {
 					say "REMOVING assignment line $l_id for var $var" if $DBG;
 					# Remove the LineID  from LineIDs
-					my @line_ids = grep {$_ != $l_id } @{$state->{'IfStatements'}{$block_id}{'AssignedVars'}{$var}{'LineIDs'}};				
-					$state->{'IfStatements'}{$block_id}{'AssignedVars'}{$var}{'LineIDs'} = [@line_ids];
+					my @line_ids = grep {$_ != $l_id } @{$state->{'IfBlocks'}{$block_id}{'AssignedVars'}{$var}{'LineIDs'}};				
+					$state->{'IfBlocks'}{$block_id}{'AssignedVars'}{$var}{'LineIDs'} = [@line_ids];
 					# Decrement the counter
-					$state->{'IfStatements'}{$block_id}{'AssignedVars'}{$var}{'Counter'}--;
-					if ($state->{'IfStatements'}{$block_id}{'AssignedVars'}{$var}{'Counter'}==0) {
+					$state->{'IfBlocks'}{$block_id}{'AssignedVars'}{$var}{'Counter'}--;
+					if ($state->{'IfBlocks'}{$block_id}{'AssignedVars'}{$var}{'Counter'}==0) {
 						$state->{'UnusedDeclaredVars'}{$var}=1;
 					}
 					# Add this LineID to UnusedLines
@@ -835,23 +835,23 @@ my $if_statements = _traverse_if_statement($state, 0);
 			}
 		}
 		# ExprVars with Counter==0 are unused, remove their assignments too
-		for my $rhs_var (keys %{ $state->{'IfStatements'}{$block_id}{'AssignedVars'} }) {
+		for my $rhs_var (keys %{ $state->{'IfBlocks'}{$block_id}{'AssignedVars'} }) {
 			# say "RHS VAR: $rhs_var";
 			if (exists $state->{'ExprVars'}{$rhs_var} and
 				exists $state->{'ExprVars'}{$rhs_var}{'Counter'} and  
 				$state->{'ExprVars'}{$rhs_var}{'Counter'}==0
 			) {					
 				delete $state->{'ExprVars'}{$rhs_var};
-				if (exists $state->{'IfStatements'}{$block_id}{'AssignedVars'}{$rhs_var}
-					and exists $state->{'IfStatements'}{$block_id}{'AssignedVars'}{$rhs_var}{'LineIDs'}
-					and scalar @{$state->{'IfStatements'}{$block_id}{'AssignedVars'}{$rhs_var}{'LineIDs'}}>0					
+				if (exists $state->{'IfBlocks'}{$block_id}{'AssignedVars'}{$rhs_var}
+					and exists $state->{'IfBlocks'}{$block_id}{'AssignedVars'}{$rhs_var}{'LineIDs'}
+					and scalar @{$state->{'IfBlocks'}{$block_id}{'AssignedVars'}{$rhs_var}{'LineIDs'}}>0					
 				) {
-					my $rhs_var_assignment_l_id = $state->{'IfStatements'}{$block_id}{'AssignedVars'}{$rhs_var}{'LineIDs'}[0];
+					my $rhs_var_assignment_l_id = $state->{'IfBlocks'}{$block_id}{'AssignedVars'}{$rhs_var}{'LineIDs'}[0];
 					say "REMOVING assignment line $rhs_var_assignment_l_id for RHS var $rhs_var" if $DBG;
 					if (not exists $state->{'UnusedLines'}{ $rhs_var_assignment_l_id}) {
 						$state->{'UnusedLines'}{ $rhs_var_assignment_l_id}++;
 					}
-					delete $state->{'IfStatements'}{$block_id}{'AssignedVars'}{$rhs_var};
+					delete $state->{'IfBlocks'}{$block_id}{'AssignedVars'}{$rhs_var};
 					$state->{'UnusedVars'}{$rhs_var}=1;
 					$state->{'UnusedDeclaredVars'}{$rhs_var}=1;
 				}
@@ -1008,15 +1008,15 @@ sub _mark_if_blocks { my ($info, $state) = @_;
 sub _remove_or_keep { my ($block_id, $var, $state) = @_;
 	my $keep={};
 	my $remove={};
-	# for my $block_id ( sort keys %{ $state->{'IfStatements'} } ) {
-		my $start = $state->{'IfStatements'}{$block_id}{'StartLineID'};
-		my $end = $state->{'IfStatements'}{$block_id}{'EndLineID'};
-		say $var . Dumper($state->{'IfStatements'}{$block_id});
-		my $end_idx = scalar(@{$state->{'IfStatements'}{$block_id}{'AssignedVars'}{$var}{'LineIDs'}})-1;
+	# for my $block_id ( sort keys %{ $state->{'IfBlocks'} } ) {
+		my $start = $state->{'IfBlocks'}{$block_id}{'StartLineID'};
+		my $end = $state->{'IfBlocks'}{$block_id}{'EndLineID'};
+		say $var . Dumper($state->{'IfBlocks'}{$block_id});
+		my $end_idx = scalar(@{$state->{'IfBlocks'}{$block_id}{'AssignedVars'}{$var}{'LineIDs'}})-1;
 		for my $idx (0 .. $end_idx) {
-			my $write_line_id = $state->{'IfStatements'}{$block_id}{'AssignedVars'}{$var}{'LineIDs'}[$idx];		
+			my $write_line_id = $state->{'IfBlocks'}{$block_id}{'AssignedVars'}{$var}{'LineIDs'}[$idx];		
 			if ($idx < $end_idx ) {
-				my $next_write_line_id = $state->{'IfStatements'}{$block_id}{'AssignedVars'}{$var}{'LineIDs'}[$idx+1];				
+				my $next_write_line_id = $state->{'IfBlocks'}{$block_id}{'AssignedVars'}{$var}{'LineIDs'}[$idx+1];				
 				for my $read_line_id ( @{$state->{'ExprVars'}{$var}{'LineIDs'}} ) {
 					if ($read_line_id>=$start and $read_line_id<=$end) {
 					if ($read_line_id>$write_line_id and $read_line_id<=$next_write_line_id) {
@@ -1040,7 +1040,7 @@ sub _remove_or_keep { my ($block_id, $var, $state) = @_;
 				}
 			}
 		}
-		$remove = {map {$_=>1} @{$state->{'IfStatements'}{$block_id}{'AssignedVars'}{$var}{'LineIDs'}}};
+		$remove = {map {$_=>1} @{$state->{'IfBlocks'}{$block_id}{'AssignedVars'}{$var}{'LineIDs'}}};
 		for my $l_id (sort keys %{$keep}) {
 			if (exists $remove->{$l_id}) {
 				delete $remove->{$l_id};

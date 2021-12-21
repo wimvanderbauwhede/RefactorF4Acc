@@ -47,6 +47,7 @@ use Exporter;
     &insert 
     &mapf 
     &foldl 
+    &foldr
     &fold 
     &foldAnd 
     &foldOr 
@@ -54,6 +55,7 @@ use Exporter;
     &head 
     &tail 
     &init
+    &last_
     &fst 
     &snd 
     &filter 
@@ -348,6 +350,14 @@ sub foldl {
 	return $acc;
 }    
 
+sub foldr {
+	( my $f, my $acc, my $ls ) = @_;
+	for my $elt ( reverse @{$ls} ) {
+		$acc = $f->( $acc, $elt );
+	}
+	return $acc;
+}   
+
 sub fold {
     foldl(@_);
 } 
@@ -419,6 +429,14 @@ sub init { my ($lst)=@_;
     }
 }
 
+sub last_ { my ($lst)=@_;
+    my @lst_ = @{$lst};
+    if (scalar @lst_>0) {
+        return $lst_[-1];
+    } else {
+        croak "last of empty list: ".Dumper($lst);
+    }
+}
 
 sub fst { (my $tup_ref) = @_; 
     return $tup_ref->[0];

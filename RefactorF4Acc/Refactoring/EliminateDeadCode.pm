@@ -8,11 +8,12 @@ use RefactorF4Acc::Refactoring::Helpers qw(
   stateless_pass
   get_annotated_sourcelines
 );
-use RefactorF4Acc::Refactoring::Fixes qw(
-  _remove_unused_variables
+use RefactorF4Acc::Refactoring::Fixes qw(  
   remove_redundant_arguments_and_fix_intents
 );
-
+use RefactorF4Acc::Refactoring::RemoveRedundantAssignments qw(
+  remove_redundant_assignments  
+);
 use RefactorF4Acc::Analysis::DeadCodeElimination qw( analyse_for_dead_code );
 
 #
@@ -63,7 +64,7 @@ sub pass_eliminate_dead_code {
     # This is mostly to work around bugs in the AutoParallelFortran compiler
     # All Fixes are off by default, list them in $Config{'FIXES'} to enable them
             [ \&remove_redundant_arguments_and_fix_intents ],
-            [ \&_remove_unused_variables ],
+            [ \&remove_redundant_assignments ],
             [ \&analyse_for_dead_code],
             [ \&_eliminate_dead_code]            
         ]
