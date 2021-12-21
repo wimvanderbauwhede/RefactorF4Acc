@@ -79,6 +79,7 @@ sub zip { ( my $aref, my $bref ) = @_;
     return \@zip_ab;
 } # END of zip
 # -----------------------------------------------------------------------------
+# This is the union of the sets that are lists
 sub union {
     ( my $aref, my $bref ) = @_;
     croak("union()") if $DBG and not (defined $aref and defined $bref);    

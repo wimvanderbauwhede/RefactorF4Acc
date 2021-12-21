@@ -3,7 +3,7 @@ package RefactorF4Acc::Refactoring::RemoveRedundantAssignments;
 use v5.10;
 use RefactorF4Acc::Config;
 use RefactorF4Acc::Utils;
-use RefactorF4Acc::Utils::Functional qw( init last_ foldl null head fst snd );
+use RefactorF4Acc::Utils::Functional qw( init last_ foldl null head fst snd union);
 use RefactorF4Acc::Refactoring::Helpers qw( 
 	pass_wrapper_subs_in_module 
 	get_annotated_sourcelines	 
@@ -251,7 +251,7 @@ The final data structure that matter is:
  
 	stateful_pass($annlines_1 ,$pass_action_show_if_blocks, $if_block_state,'_show_if_blocks() ' . __LINE__  ) ;	
 	}
-	# die;
+	
 # ----------------------------------------------------------------------------------------------------
 	say "\npass_action_find_all_used_vars\n" if $DBG;	
 =pod
@@ -514,6 +514,7 @@ The final data structure that matter is:
 	(my $annlines_3,$state) = stateful_pass($annlines_2,$pass_action_find_all_used_vars, $state,'_find_all_used_variables() ' . __LINE__  ) ;
 	# die;
 	# die Dumper $state;
+	
 # ----------------------------------------------------------------------------------------------------
 =pod
 =head1 Step 3: Remove variables that are entirely unused, i.e. assigned but never read. This is an iterative pass.
@@ -581,7 +582,7 @@ This the most complex part because of the nesting and sequencing of if-statement
     my $paths_tup = list_all_paths($if_statements_as_tree->{'branches'}, [],[]);
     my $all_paths = snd($paths_tup);
     # die;
-	die Dumper $all_paths;# $if_statements_as_tree;
+	# die Dumper $all_paths;# $if_statements_as_tree;
 =pod
 	For every path through a conditional statement, we check which variables can be removed at which lines.
 	Only lines that can be removed for all paths actually get removed
@@ -605,7 +606,12 @@ This the most complex part because of the nesting and sequencing of if-statement
 
 =cut
 
-
+	for my $var (sort keys %{ $state->{'AssignedVars'} }) {
+		say "VAR $var ";# if $DBG;
+		my $remove =_remove_or_keep_across_paths($var, $state, $all_paths);
+		say Dumper $remove;	
+	}
+	die;
 	for my $block_id ( sort keys %{ $state->{'IfBlocks'} } ) {				
 		for my $var (sort keys %{ $state->{'IfBlocks'}{$block_id}{'AssignedVars'} }) {
 			# for my $child_block_id (@{$state->{'IfBlocks'}{$block_id}{'Children'}}) {
@@ -836,7 +842,7 @@ sub _remove_or_keep { my ($var, $state) = @_;
 	my $keep={};
 	my $remove={};
 		
-	my $end_idx = scalar(@{$state->{'AssignedVars'}{$var}{'LineIDs'}})-1;
+	my $end_idx = scalar(@{ $state->{'AssignedVars'}{$var}{'LineIDs'} })-1;
 	# Loop through the list of all lineIDs for a given $var
 	for my $idx (0 .. $end_idx) {
 		my $write_line_id = $state->{'AssignedVars'}{$var}{'LineIDs'}[$idx];		
@@ -873,14 +879,97 @@ sub _remove_or_keep { my ($var, $state) = @_;
 		} 
 	}
 	# The result is a set of LineIDs that can be removed for $var
-	return $remove;
+	return ($remove,$keep);
 } # END of _remove_or_keep
 
+=pod
 
+1: v=1
+2: if
+3: v=2
+4: else
+5: v=3
+6: end if
+
+=> paths: 0,1 and 0,2
+
+Lists: 1,3 and 1,5
+Result: 1 can be removed in both paths
+{1=>0},{1=>0}
+
+1: 
+2: if
+3: v=2
+4: else
+5: v=3
+6: end if
+7: v=1
+
+=> paths: 0,1 and 0,2
+Lists: 3,7 and 5,7
+Result: 
+In path [0,1] 3 can be removed {3=>1}
+In path [0,2] 5 can be removed {5=>2}
+The result *should* be that 3 and 5 are removed
+The current result will be that nothing is removed
+ 
+2: if
+3: v=2
+4: w=v
+5: v=3
+6: else
+7: v=3
+8: end if
+9: v=1
+
+The paths are [[3,5,9],[4]] and [[7,9],[]]
+The first path results in  
+v=2
+w=v
+v=3
+v=1
+so 5 can be removed
+The second path results in 
+7 can be removed
+
+1: w=0
+2: if
+3: 	v=2
+4: 	w=v
+5: 	v=3
+6: else
+7: 	v=3
+8: end if
+9: v=1
+10: z=w
+
+So for w:
+[1,4],[10]
+[1],[10]
+The result is that 1 can be removed in path 1, but not in path 2
+which means we'd get
+remove = {1} and keep = {1}
+So the rule is:
+- if a variable occurs in several paths, it must be removed in all of these paths
+- in other words, if it is kept in a single path then we must keep it
+
+So I think that we have: if a var line id is in remove for any path and not in keep for any path, it can be removed
+So what we do is we go through all line ids and all paths
+
+for my $line_id (@all_line_ids) {
+	my $all_removes = fold union list_of_removes
+	my $all_keeps = fold union list_of_keeps
+	if (exists $all_removes->{$line_id} and not exists $all_keeps->{$line_id} ) {
+		# $var can be removed
+	}
+}
+
+=cut
 
 
 sub _remove_or_keep_across_paths { my ($var, $state, $paths) = @_;
 	my $remove_per_path = [];
+	my $keep_per_path = [];
 	for my $path (@{$paths}) {
 		my @assignedVarsLineIDs = ();
 		my @exprVarsLineIDs = ();
@@ -897,27 +986,46 @@ sub _remove_or_keep_across_paths { my ($var, $state, $paths) = @_;
 			@exprVarsLineIDs = (@exprVarsLineIDs,@exprVarsLineIDsBlock);
 		}
 		my $path_state ={
-			'AssignedVars'=>{$var => \@assignedVarsLineIDs},
-			'ExprVars'=>{$var => \@exprVarsLineIDs},
+			'AssignedVars'=>{$var => { 'LineIDs' => \@assignedVarsLineIDs}},
+			'ExprVars'=>{$var => { 'LineIDs' => \@exprVarsLineIDs}},
 			'Args' => $state->{'Args'}
 		};
 		
-		my $remove = _remove_or_keep($var, $path_state);
+		(my $remove, my $keep) = _remove_or_keep($var, $path_state);
+		# die Dumper({'REMOVE'=>$remove,'KEEP'=> $keep}) if $var eq 'v1';
 		push @{$remove_per_path},$remove;
+		push @{$keep_per_path},$keep;
 	} 
+	# die Dumper({'REMOVE'=>$remove_per_path,'KEEP'=> $keep_per_path}) if $var eq 'v1';
 	my $remove_across_paths ={};
 	if (scalar @{$paths} == 1) {
 		$remove_across_paths = $remove_per_path->[0];
 	}
 	else {	
-		my $acc = shift @{$remove_per_path};
-		$remove_across_paths =  foldl(\&intersection, $acc, $remove_per_path);
+
+		for my $line_id (@{$state->{'AssignedVars'}{$var}{'LineIDs'}}) {
+			my $acc_remove = shift @{$remove_per_path};
+			my $all_removes = foldl(\&set_union,$acc_remove, $remove_per_path);
+			my $all_keeps =[];
+			if (scalar @{$keep_per_path}) {
+				my $acc_keep = shift @{$keep_per_path};
+				$all_keeps = foldl(\&set_union,$acc_keep, $keep_per_path);
+			} else {
+				$all_keeps = $keep_per_path->[0]
+			}
+			# die Dumper({'REMOVE'=>$all_removes,'KEEP'=> $all_keeps}) if $var eq 'v6';
+			if (exists $all_removes->{$line_id} and not exists $all_keeps->{$line_id} ) {
+				$remove_across_paths->{$line_id}=1;
+			}
+		}
 	}
-	
+
 	return $remove_across_paths
 } # END of _remove_or_keep_across_paths
 
-
+sub set_union { my ($a_set, $b_set) = @_;
+	return {%{$a_set}, %{$b_set}}
+}
 
 
 
@@ -934,8 +1042,8 @@ return $vars;
 }
 
 sub _add_var_to_state { my ($var, $state, $info,$rwVars)=@_;
-	$state->{'ExprVars'}{$var}{'Counter'}++;	
-	push @{$state->{'ExprVars'}{$var}{'LineIDs'}}, $info->{'LineID'};	
+	$state->{$rwVars}{$var}{'Counter'}++;	
+	push @{$state->{$rwVars}{$var}{'LineIDs'}}, $info->{'LineID'};	
 	my $if_block_id = $info->{'IfBlockID'};
 	$state->{'IfBlocks'}{$if_block_id}{$rwVars}{$var}{'Counter'}++;				
 	push @{$state->{'IfBlocks'}{$if_block_id}{$rwVars}{$var}{'LineIDs'}}, $info->{'LineID'};

@@ -12,21 +12,26 @@ contains
       real :: v3
       real :: v4
       real :: v5
+      real :: v6
 
       v2=0.0
+      v6=1.
       if (global_id>1) then
           v1=0.0
           if (u(0)>1.0) then
               v1=u(1)
+              v6=2.
               if (global_id>2) then
                   v1=u(2)
               else
                   v1=v1+1
               end if
           else
+              v6=3
               v2=u(1)+v1
           end if
-          v1 = v2
+          v6=4
+          v1 = v2+v6
           v3=3.0
           v5=3.0
           if (u(0)>1.0) then
