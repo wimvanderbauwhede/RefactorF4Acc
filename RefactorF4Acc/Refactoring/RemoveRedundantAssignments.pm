@@ -114,12 +114,13 @@ sub remove_redundant_assignments { (my $stref, my $f)=@_;
     # $Data::Dumper::Deepcopy = 1;
 	# ----------------------------------------------------------------------------------------------------
 =pod
-The stack tells us about the nesting of the ifs
-The seq is a list of the blocks (if, elsif, else) in an if-statement
+=head1 Step 1 Mark the C<if> blocks in the code unit
+
+
+The Stack tells us about the nesting of the ifs
+The Branches is a list of the blocks (if, elsif, else) in an if-statement
 The blocks are numbered using a running counter
 I renumber the LineIDs to make sure they are contiguous
-Branches is used to identify if statements that are effectively expressions, 
-i.e. they every var is assigned in every branch (TODO)
 
 The final data structure that matter is:
 
@@ -254,7 +255,7 @@ The final data structure that matter is:
 # ----------------------------------------------------------------------------------------------------
 	say "\npass_action_find_all_used_vars\n" if $DBG;	
 =pod
-	Step 1 Find all used variables
+=head1 Step 2 Find all used variables
 
 	Start with all declared variables, put in $state->{'DeclaredVars'}
 	Make a list of all variables anywhere in the code via Lhs, Rhs, Args, put in $state->{'ExprVars'}	
@@ -514,7 +515,9 @@ The final data structure that matter is:
 	# die;
 	# die Dumper $state;
 # ----------------------------------------------------------------------------------------------------
-# This step removes variables that are entirely unused, i.e. assigned but never read	
+=pod
+=head1 Step 3: Remove variables that are entirely unused, i.e. assigned but never read. This is an iterative pass.
+=cut
 	say "\npass_action_remove_unused_vars\n" if $DBG;
 	my $pass_action_remove_unused_vars = sub { (my $annline, my $state)=@_;		
 		(my $line,my $info)=@{$annline};
@@ -553,14 +556,8 @@ The final data structure that matter is:
 
 	my $dbg_ctr=-1;
 	do {
-		# $state->{ExprVars}={};
-		# $state->{AssignedVars}={};
-        # The pass finds ExprVars and AssignedVars
- 		($annlines_3,$state) = stateful_pass($annlines_3,$pass_action_remove_unused_vars, $state,'_remove_all_unused_variables() ' . __LINE__  ) ;
-# ----------------------------------------------------------------------------------------------------
-	# Step 2
- 	# Once we have these lists, we can now check if there are any variables that occur on an Lhs an are not used anywhere
- 	# We simply check for every AssignedVar if it is used as an ExprVar or as an Arg 	
+ 		($annlines_3,$state) = stateful_pass($annlines_3,$pass_action_remove_unused_vars, $state,'_remove_all_unused_variables() ' . __LINE__  ) ; 	
+ 		# Check for every AssignedVar if it is used as an ExprVar or as an Arg 	
 		
 	 	for my $var (keys %{ $state->{'AssignedVars'} }) {
 	 		if (not exists $state->{'ExprVars'}{$var} and not exists $state->{'Args'}{$var}) {
@@ -569,31 +566,51 @@ The final data structure that matter is:
 	 		} 
 	 	}		 
 	} until scalar keys %{ $state->{'UnusedVars'} } ==0 or --$dbg_ctr==0; 
-	# die Dumper($state);
+	
 # ----------------------------------------------------------------------------------------------------	
-	# This step removes writes to variables that are not subsequently read. 
 	say "\nremove writes to variables that are not subsequently read\n" if $DBG;
-
+=pod
+=head1 Step 4: Remove writes to variables that are not subsequently read. 
+This the most complex part because of the nesting and sequencing of if-statements 
+=cut	
+# Step 4a: Change to a more suitable datastructure
     my $if_statements = _convert_if_statement_datastructure($state, 0);     
+# Step 4b: Change that datastructure so that it becomes a tree, see explanation with the function	
     my $if_statements_as_tree = append_subtree_to_children_and_fold( {}, [$if_statements]);
+# Step 4c: Get all paths through the if blocks	
     my $paths_tup = list_all_paths($if_statements_as_tree->{'branches'}, [],[]);
     my $all_paths = snd($paths_tup);
     # die;
 	die Dumper $all_paths;# $if_statements_as_tree;
+=pod
+	For every path through a conditional statement, we check which variables can be removed at which lines.
+	Only lines that can be removed for all paths actually get removed
+
+	What we need to do is create a list of the LineIDs for all AssignedVars and for all ExprVars
+	Then we do _remove_or_keep based on these lists.
+	$remove must be a function of the path
+	Finally, we take the &intersection of all those $remove->{$path} sets
+	- We don't need the $path and in fact that is a contiguous index anyway
+	- So we can simply have push @remove_per_path, $remove
+	- If there is only one element, we are done.
+	for every $var in AssignedVars
+	for my $path (@{$all_paths}) {
+		- create the lists of LineIDs as a 
+		- call _remove_or_keep
+	}
+	my $intersection = $remove
+	- Otherwise:
+	my $acc = shift @remove_per_path;
+	my $intersection = foldl(&intersection, $acc, \@remove_per_path);
+
+=cut
+
 
 	for my $block_id ( sort keys %{ $state->{'IfBlocks'} } ) {				
 		for my $var (sort keys %{ $state->{'IfBlocks'}{$block_id}{'AssignedVars'} }) {
 			# for my $child_block_id (@{$state->{'IfBlocks'}{$block_id}{'Children'}}) {
 			# 	my $if_is_expr_for_var=_if_is_expr_for_var($state, $child_block_id, $var);
 			# }
-=pod		
-	So at this point we know which of the child blocks are expressions for which variables.
-	How do we include these in the analysis? 
-	If the child if statement is an expression for $var, it is equivalent to a single assignment. 
-	But how to deal with reads in those blocks?
-	Any read before the assignment means the parent assignment can't be removed
-	So we should actually use the EndLineID of the statement as the location of the expression assignment		
-=cut			
 			say "VAR $var " if $DBG;#.Dumper($state->{'AssignedVars'});
 			# This function decides which lines for a given variable can be removed because they are useless assignments
 			my $remove = _remove_or_keep($block_id, $var, $state);
@@ -768,50 +785,141 @@ The final data structure that matter is:
 # So essentially we must tag every assignment and do/end do with the if block ID
 # But this is not the same ID as BlockID because of the else 
 
-sub _remove_or_keep { my ($block_id, $var, $state) = @_;
+sub _remove_or_keep_per_block { my ($block_id, $var, $state) = @_;
 	my $keep={};
 	my $remove={};
-	# for my $block_id ( sort keys %{ $state->{'IfBlocks'} } ) {
-		my $start = $state->{'IfBlocks'}{$block_id}{'StartLineID'};
-		my $end = $state->{'IfBlocks'}{$block_id}{'EndLineID'};
-		say $var . Dumper($state->{'IfBlocks'}{$block_id});
-		my $end_idx = scalar(@{$state->{'IfBlocks'}{$block_id}{'AssignedVars'}{$var}{'LineIDs'}})-1;
-		for my $idx (0 .. $end_idx) {
-			my $write_line_id = $state->{'IfBlocks'}{$block_id}{'AssignedVars'}{$var}{'LineIDs'}[$idx];		
-			if ($idx < $end_idx ) {
-				my $next_write_line_id = $state->{'IfBlocks'}{$block_id}{'AssignedVars'}{$var}{'LineIDs'}[$idx+1];				
-				for my $read_line_id ( @{$state->{'ExprVars'}{$var}{'LineIDs'}} ) {
-					if ($read_line_id>=$start and $read_line_id<=$end) {
-                        if ($read_line_id>$write_line_id and $read_line_id<=$next_write_line_id) {
-                            say "KEEP assignment to $var at $write_line_id" if $DBG;
-                            # $remove=0;
-                            $keep->{$write_line_id}=1;
-                        } 
-					}
-				}
-			} else {
-				# There is no further assignment
-				for my $read_line_id ( @{$state->{'ExprVars'}{$var}{'LineIDs'}} ) {
-					if ($read_line_id>$write_line_id ) {
+	
+	my $start = $state->{'IfBlocks'}{$block_id}{'StartLineID'};
+	my $end = $state->{'IfBlocks'}{$block_id}{'EndLineID'};
+	say $var . Dumper($state->{'IfBlocks'}{$block_id});
+	my $end_idx = scalar(@{$state->{'IfBlocks'}{$block_id}{'AssignedVars'}{$var}{'LineIDs'}})-1;
+	# Loop through the list of all lineIDs for a given $var
+	for my $idx (0 .. $end_idx) {
+		my $write_line_id = $state->{'IfBlocks'}{$block_id}{'AssignedVars'}{$var}{'LineIDs'}[$idx];		
+		if ($idx < $end_idx ) {
+			my $next_write_line_id = $state->{'IfBlocks'}{$block_id}{'AssignedVars'}{$var}{'LineIDs'}[$idx+1];				
+			for my $read_line_id ( @{$state->{'ExprVars'}{$var}{'LineIDs'}} ) {
+				if ($read_line_id>=$start and $read_line_id<=$end) {
+					if ($read_line_id>$write_line_id and $read_line_id<=$next_write_line_id) {
 						say "KEEP assignment to $var at $write_line_id" if $DBG;
+						# $remove=0;
 						$keep->{$write_line_id}=1;
 					} 
-				}	
-				if (exists $state->{'Args'}{$var} and $state->{'Args'}{$var} eq 'out') {
-                    say "KEEP assignment to ARG $var at $write_line_id" if $DBG;
-                    $keep->{$write_line_id}=1;				
 				}
 			}
+		} else {
+			# There is no further assignment
+			for my $read_line_id ( @{$state->{'ExprVars'}{$var}{'LineIDs'}} ) {
+				if ($read_line_id>$write_line_id ) {
+					say "KEEP assignment to $var at $write_line_id" if $DBG;
+					$keep->{$write_line_id}=1;
+				} 
+			}	
+			if (exists $state->{'Args'}{$var} and $state->{'Args'}{$var} eq 'out') {
+				say "KEEP assignment to ARG $var at $write_line_id" if $DBG;
+				$keep->{$write_line_id}=1;				
+			}
 		}
-		$remove = {map {$_=>1} @{$state->{'IfBlocks'}{$block_id}{'AssignedVars'}{$var}{'LineIDs'}}};
-		for my $l_id (sort keys %{$keep}) {
-			if (exists $remove->{$l_id}) {
-				delete $remove->{$l_id};
-			} 
+	}
+	$remove = {map {$_=>1} @{$state->{'IfBlocks'}{$block_id}{'AssignedVars'}{$var}{'LineIDs'}}};
+	for my $l_id (sort keys %{$keep}) {
+		if (exists $remove->{$l_id}) {
+			delete $remove->{$l_id};
+		} 
+	}
+
+	return $remove;
+} # END of _remove_or_keep_per_block
+
+
+sub _remove_or_keep { my ($var, $state) = @_;
+	my $keep={};
+	my $remove={};
+		
+	my $end_idx = scalar(@{$state->{'AssignedVars'}{$var}{'LineIDs'}})-1;
+	# Loop through the list of all lineIDs for a given $var
+	for my $idx (0 .. $end_idx) {
+		my $write_line_id = $state->{'AssignedVars'}{$var}{'LineIDs'}[$idx];		
+		if ($idx < $end_idx ) {
+			my $next_write_line_id = $state->{'AssignedVars'}{$var}{'LineIDs'}[$idx+1];				
+			for my $read_line_id ( @{$state->{'ExprVars'}{$var}{'LineIDs'}} ) {				
+				if ($read_line_id>$write_line_id and $read_line_id<=$next_write_line_id) {
+					say "KEEP assignment to $var at $write_line_id" if $DBG;
+					# $remove=0;
+					$keep->{$write_line_id}=1;
+				} 				
+			}
+		} else {
+			# There is no further assignment
+			for my $read_line_id ( @{$state->{'ExprVars'}{$var}{'LineIDs'}} ) {
+				if ($read_line_id>$write_line_id ) {
+					say "KEEP assignment to $var at $write_line_id" if $DBG;
+					$keep->{$write_line_id}=1;
+				} 
+			}	
+			if (exists $state->{'Args'}{$var} and $state->{'Args'}{$var} eq 'out') {
+				say "KEEP assignment to ARG $var at $write_line_id" if $DBG;
+				$keep->{$write_line_id}=1;				
+			}
 		}
-	# }
+	}
+
+	# $remove is a set of all LineIDs for $var
+	$remove = { map {$_=>1} @{$state->{'AssignedVars'}{$var}{'LineIDs'}} };
+	# Now we delete the LineIDs that will be kept
+	for my $l_id (sort keys %{$keep}) {
+		if (exists $remove->{$l_id}) {
+			delete $remove->{$l_id};
+		} 
+	}
+	# The result is a set of LineIDs that can be removed for $var
 	return $remove;
 } # END of _remove_or_keep
+
+
+
+
+sub _remove_or_keep_across_paths { my ($var, $state, $paths) = @_;
+	my $remove_per_path = [];
+	for my $path (@{$paths}) {
+		my @assignedVarsLineIDs = ();
+		my @exprVarsLineIDs = ();
+		for my $block_id (@{$path}) {
+			my @assignedVarsLineIDsBlock = 
+			exists $state->{'IfBlocks'}{$block_id}{'AssignedVars'}{$var} 
+			? @{$state->{'IfBlocks'}{$block_id}{'AssignedVars'}{$var}{'LineIDs'}}
+			: () ;
+			my @exprVarsLineIDsBlock = 
+			exists $state->{'IfBlocks'}{$block_id}{'ExprVars'}{$var} 
+			? @{$state->{'IfBlocks'}{$block_id}{'ExprVars'}{$var}{'LineIDs'}}
+			: () ;
+			@assignedVarsLineIDs = (@assignedVarsLineIDs,@assignedVarsLineIDsBlock);
+			@exprVarsLineIDs = (@exprVarsLineIDs,@exprVarsLineIDsBlock);
+		}
+		my $path_state ={
+			'AssignedVars'=>{$var => \@assignedVarsLineIDs},
+			'ExprVars'=>{$var => \@exprVarsLineIDs},
+			'Args' => $state->{'Args'}
+		};
+		
+		my $remove = _remove_or_keep($var, $path_state);
+		push @{$remove_per_path},$remove;
+	} 
+	my $remove_across_paths ={};
+	if (scalar @{$paths} == 1) {
+		$remove_across_paths = $remove_per_path->[0];
+	}
+	else {	
+		my $acc = shift @{$remove_per_path};
+		$remove_across_paths =  foldl(\&intersection, $acc, $remove_per_path);
+	}
+	
+	return $remove_across_paths
+} # END of _remove_or_keep_across_paths
+
+
+
+
 
 sub _get_all_vars_from_assignment_rec { my ($rec) = @_;
 # $rec = $info->{'Rhs'|'Lhs'}{'Vars'}{'Set'}
