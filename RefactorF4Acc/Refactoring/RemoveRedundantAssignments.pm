@@ -6,20 +6,12 @@ use RefactorF4Acc::Utils;
 use RefactorF4Acc::Utils::Functional qw( init last_ foldl null head fst snd );
 use RefactorF4Acc::Refactoring::Helpers qw( 
 	pass_wrapper_subs_in_module 
-	stateful_pass_inplace 
+	get_annotated_sourcelines	 
 	stateful_pass
-	stateful_pass_reverse_inplace 
-	stateless_pass_inplace  
-	emit_f95_var_decl 
-	splice_additional_lines_cond_inplace  
-	get_annotated_sourcelines
 	);
 
-use RefactorF4Acc::Refactoring::Subroutines::Emitters qw( emit_subroutine_sig emit_subroutine_call );
-use RefactorF4Acc::Analysis::ArgumentIODirs qw( determine_argument_io_direction_rec );
 use RefactorF4Acc::Parser::Expressions qw(
-	parse_expression
-	emit_expr_from_ast
+	parse_expression	
 	get_vars_from_expression
 	);
 
@@ -121,12 +113,28 @@ sub remove_redundant_assignments { (my $stref, my $f)=@_;
     # local $Data::Dumper::Terse  = 1;
     # $Data::Dumper::Deepcopy = 1;
 	# ----------------------------------------------------------------------------------------------------
-# The stack tells us about the nesting of the ifs
-# The seq is a list of the blocks (if, elsif, else) in an if-statement
-# The blocks are numbered using a running counter
-# I renumber the LineIDs to make sure they are contiguous
-# Seq will be used to identify if statements that are effectively expressions, 
-# i.e. they every var is assigned in every branch (TODO)
+=pod
+The stack tells us about the nesting of the ifs
+The seq is a list of the blocks (if, elsif, else) in an if-statement
+The blocks are numbered using a running counter
+I renumber the LineIDs to make sure they are contiguous
+Branches is used to identify if statements that are effectively expressions, 
+i.e. they every var is assigned in every branch (TODO)
+
+The final data structure that matter is:
+
+ 	my $state = {
+		'IfBlocks'=>{
+			$block_id => {
+				'Branches'=>[$branch_id,...],
+				'Children'=>[$child_block_id,...],
+				'StartLineId'=>$start_line_id,
+				'EndLineId'=>$end_line_id
+			}
+		},
+	};
+
+=cut
 	say "\nmark_if_blocks\n" if $DBG;
 
 	my $pass_action_mark_if_blocks = sub { (my $annline, my $state)=@_;		
@@ -244,12 +252,63 @@ sub remove_redundant_assignments { (my $stref, my $f)=@_;
 	}
 	# die;
 # ----------------------------------------------------------------------------------------------------
-	say "\npass_action_find_all_used_vars\n" if $DBG;
-	# The algorithm is iterative, see below; but it would be better to have a separate pass for creating the lists
+	say "\npass_action_find_all_used_vars\n" if $DBG;	
+=pod
+	Step 1 Find all used variables
 
-	# Step 1
-	# Start with all declared variables, put in $state->{'DeclaredVars'}
-	# Make a list of all variables anywhere in the code via Lhs, Rhs, Args, put in $state->{'ExprVars'}	
+	Start with all declared variables, put in $state->{'DeclaredVars'}
+	Make a list of all variables anywhere in the code via Lhs, Rhs, Args, put in $state->{'ExprVars'}	
+
+ 	my $state = {
+		 'Args' => { 
+			$var_1 => $decl_1->{'IODir'} ,
+			$var_2 => ...
+		 } 
+		 'DeclaredVars' => {
+			 $var_1 => 1,
+			 $var_2 => ...
+		 }
+		 'AssignedVars' => {
+			$var_1 => {
+				'Counter' => $ctr,
+				'LineIDs' => [$line_id_1,...]
+			},
+			$var_2 => ...			 
+		 }
+		 'ExprVars' => {
+			$var_1 => {
+				'Counter' => $ctr,
+				'LineIDs' => [$line_id_1,...]
+			},
+			$var_2 => ...
+		 },
+
+				$state->{'IfBlocks'}{$if_block_id}{'AssignedVars'}{$var}{'Counter'}++;				
+				push @{$state->{'IfBlocks'}{$if_block_id}{'AssignedVars'}{$var}{'LineIDs'}}, $info->{'LineID'};
+		'IfBlocks'=>{
+			$block_id => {
+				'Branches'=>[$branch_id,...],
+				'Children'=>[$child_block_id,...],
+				'StartLineId'=>$start_line_id,
+				'EndLineId'=>$end_line_id,
+				'AssignedVars' => {
+					$var_1 => {
+						'Counter' => $ctr,
+						'LineIDs' => [$line_id_1,...]
+					},
+					$var_2 => ...			 
+				},
+				'ExprVars' => {
+					$var_1 => {
+						'Counter' => $ctr,
+						'LineIDs' => [$line_id_1,...]
+					},
+					$var_2 => ...			 
+				}				
+			}
+		},
+	};
+=cut
 	my $pass_action_find_all_used_vars = sub { (my $annline, my $state)=@_;		
 		(my $line,my $info)=@{$annline};
 		
@@ -259,7 +318,7 @@ sub remove_redundant_assignments { (my $stref, my $f)=@_;
 		my $done=0;
 		
  		if ( exists $info->{'Signature'} ) {			 			 
- 			$state->{'Args'} = $info->{'Signature'}{'Args'}{'Set'}; 			 
+ 			$state->{'Args'} = $info->{'Signature'}{'Args'}{'Set'};
 			$done=1;
  		}
  		elsif (exists $info->{'Select'})  {
@@ -267,8 +326,9 @@ sub remove_redundant_assignments { (my $stref, my $f)=@_;
  			my $select_expr_ast=parse_expression($select_expr_str, $info,{}, '');
  			my $vars = get_vars_from_expression($select_expr_ast,{});
  			for my $var (keys %{ $vars } ) {
- 				$state->{'ExprVars'}{$var}{'Counter'}++;	
-				push @{$state->{'ExprVars'}{$var}{'LineIDs'}}, $info->{'LineID'};
+ 				# $state->{'ExprVars'}{$var}{'Counter'}++;	
+				# push @{$state->{'ExprVars'}{$var}{'LineIDs'}}, $info->{'LineID'};
+				$state = _add_var_to_state($var,$state,$info,'ExprVars');
  			}
 			 $done=1;
  		} 		
@@ -281,8 +341,9 @@ sub remove_redundant_assignments { (my $stref, my $f)=@_;
 					my $case_expr_ast=parse_expression($val, $info,{}, '');
  					my $vars = get_vars_from_expression($case_expr_ast,{});
  					for my $var (keys %{ $vars } ) {
- 						$state->{'ExprVars'}{$var}{'Counter'}++;	
-						push @{$state->{'ExprVars'}{$var}{'LineIDs'}}, $info->{'LineID'};
+ 						# $state->{'ExprVars'}{$var}{'Counter'}++;	
+						# push @{$state->{'ExprVars'}{$var}{'LineIDs'}}, $info->{'LineID'};
+						$state = _add_var_to_state($var,$state,$info,'ExprVars');
  					}
  				}		
 			}
@@ -305,8 +366,9 @@ sub remove_redundant_assignments { (my $stref, my $f)=@_;
 					my $dim_expr_ast=parse_expression($dim_str, $info,{}, '');
 					my $vars = get_vars_from_expression($dim_expr_ast,{});
 					for my $var (keys %{ $vars } ) {
- 						$state->{'ExprVars'}{$var}{'Counter'}++;	
-						push @{$state->{'ExprVars'}{$var}{'LineIDs'}}, $info->{'LineID'};
+ 						# $state->{'ExprVars'}{$var}{'Counter'}++;	
+						# push @{$state->{'ExprVars'}{$var}{'LineIDs'}}, $info->{'LineID'};
+						$state = _add_var_to_state($var,$state,$info,'ExprVars');
 					}					
 				}
 			}										
@@ -332,18 +394,19 @@ sub remove_redundant_assignments { (my $stref, my $f)=@_;
 			# 	$skip_if=1;							
 			# } else {
 				say "ADDING $var to AssignedVars (line ".$info->{'LineID'}.")" if $DBG;
-				$state->{'AssignedVars'}{$var}{'Counter'}++;				
-				push @{$state->{'AssignedVars'}{$var}{'LineIDs'}}, $info->{'LineID'};
-				my $if_block_id = $info->{'IfBlockID'};
-				$state->{'IfBlocks'}{$if_block_id}{'AssignedVars'}{$var}{'Counter'}++;				
-				push @{$state->{'IfBlocks'}{$if_block_id}{'AssignedVars'}{$var}{'LineIDs'}}, $info->{'LineID'};
+				# $state->{'AssignedVars'}{$var}{'Counter'}++;				
+				# push @{$state->{'AssignedVars'}{$var}{'LineIDs'}}, $info->{'LineID'};
+				# my $if_block_id = $info->{'IfBlockID'};
+				# $state->{'IfBlocks'}{$if_block_id}{'AssignedVars'}{$var}{'Counter'}++;				
+				# push @{$state->{'IfBlocks'}{$if_block_id}{'AssignedVars'}{$var}{'LineIDs'}}, $info->{'LineID'};
+				$state = _add_var_to_state($var,$state,$info,'AssignedVars');
 				my %index_vars=();
 				if (exists $info->{'Lhs'}{'IndexVars'}) {
 					for my $index_var (keys %{ $info->{'Lhs'}{'IndexVars'}{'Set'} }) {
 						$index_vars{$index_var}=1;
- 						$state->{'ExprVars'}{$index_var}{'Counter'}++;
-						# say "VAR $index_var Counter ".$state->{'ExprVars'}{$index_var}{'Counter'};
-						push @{$state->{'ExprVars'}{$index_var}{'LineIDs'}}, $info->{'LineID'};
+ 						# $state->{'ExprVars'}{$index_var}{'Counter'}++;
+						# push @{$state->{'ExprVars'}{$index_var}{'LineIDs'}}, $info->{'LineID'};
+						$state = _add_var_to_state($index_var,$state,$info,'ExprVars');						
  					}
 				}
 
@@ -357,8 +420,9 @@ sub remove_redundant_assignments { (my $stref, my $f)=@_;
 				my $rhs_vars = _get_all_vars_from_assignment_rec($info->{'Rhs'}{'Vars'}{'Set'});
 				for my $rhs_var (sort keys %{$rhs_vars}) {
 					if (not exists $index_vars{$rhs_var}) {
-						$state->{'ExprVars'}{$rhs_var}{'Counter'}++;	
-						push @{$state->{'ExprVars'}{$rhs_var}{'LineIDs'}}, $info->{'LineID'};
+						# $state->{'ExprVars'}{$rhs_var}{'Counter'}++;	
+						# push @{$state->{'ExprVars'}{$rhs_var}{'LineIDs'}}, $info->{'LineID'};
+						$state = _add_var_to_state($rhs_var,$state,$info,'ExprVars');
 						say "ADDING RHS $rhs_var to ExprVars (line ".$info->{'LineID'}.")" if $DBG;
 					}
 				}
@@ -370,23 +434,26 @@ sub remove_redundant_assignments { (my $stref, my $f)=@_;
 			# TODO
 			# If the intent is Out or InOut then it is an assignment			
 			for my $var (keys %{ $info->{'SubroutineCall'}{'Args'}{'Set'} }) {
- 				$state->{'ExprVars'}{$var}{'Counter'}++;	
-				push @{$state->{'ExprVars'}{$var}{'LineIDs'}}, $info->{'LineID'};
+ 				# $state->{'ExprVars'}{$var}{'Counter'}++;	
+				# push @{$state->{'ExprVars'}{$var}{'LineIDs'}}, $info->{'LineID'};
+				$state = _add_var_to_state($var,$state,$info,'ExprVars');
 			}			
 			$done=1;
 		}	
 		elsif ( exists $info->{'Do'} ) {
 			my $iter_var = $info->{'Do'}{'Iterator'};
-			$state->{'AssignedVars'}{$iter_var}{'Counter'}++;
-			push @{$state->{'AssignedVars'}{$iter_var}{'LineIDs'}}, $info->{'LineID'};
-			my $if_block_id = $info->{'IfBlockID'};
-			$state->{'IfBlocks'}{$if_block_id}{'AssignedVars'}{$iter_var}{'Counter'}++;
-			push @{$state->{'IfBlocks'}{$if_block_id}{'AssignedVars'}{$iter_var}{'LineIDs'}}, $info->{'LineID'};			
+			# $state->{'AssignedVars'}{$iter_var}{'Counter'}++;
+			# push @{$state->{'AssignedVars'}{$iter_var}{'LineIDs'}}, $info->{'LineID'};
+			# my $if_block_id = $info->{'IfBlockID'};
+			# $state->{'IfBlocks'}{$if_block_id}{'AssignedVars'}{$iter_var}{'Counter'}++;
+			# push @{$state->{'IfBlocks'}{$if_block_id}{'AssignedVars'}{$iter_var}{'LineIDs'}}, $info->{'LineID'};
+			$state = _add_var_to_state($iter_var,$state,$info,'AssignedVars');
 			my @range_vars = @{$info->{'Do'}{'Range'}{'Vars'}};
 			for my $var (@range_vars) {
 				say "ADDING $var to ExprVars in DO" if $DBG;
- 				$state->{'ExprVars'}{$var}{'Counter'}++;	
-				push @{$state->{'ExprVars'}{$var}{'LineIDs'}}, $info->{'LineID'};
+ 				# $state->{'ExprVars'}{$var}{'Counter'}++;	
+				# push @{$state->{'ExprVars'}{$var}{'LineIDs'}}, $info->{'LineID'};
+				$state = _add_var_to_state($var,$state,$info,'ExprVars');
 			}		
 			$done=1;				
 		}
@@ -395,16 +462,18 @@ sub remove_redundant_assignments { (my $stref, my $f)=@_;
 			my $cond_expr_ast=$info->{'Cond'}{'AST'};
 			for my $var (keys %{ $info->{'Cond'}{'Vars'}{'Set'} }) {
 				say "ADDING $var to ExprVars in IF (line ".$info->{'LineID'}.")" if $DBG;
- 				$state->{'ExprVars'}{$var}{'Counter'}++;	
-				push @{$state->{'ExprVars'}{$var}{'LineIDs'}}, $info->{'LineID'};
+ 				# $state->{'ExprVars'}{$var}{'Counter'}++;	
+				# push @{$state->{'ExprVars'}{$var}{'LineIDs'}}, $info->{'LineID'};
+				$state = _add_var_to_state($var,$state,$info,'ExprVars');				
 			}						
 			for my $var ( @{ $info->{'Cond'}{'Vars'}{'List'} } ) {					
 				if (exists  $info->{'Cond'}{'Vars'}{'Set'}{$var}{'IndexVars'}
 				and scalar keys %{ $info->{'Cond'}{'Vars'}{'Set'}{$var}{'IndexVars'} } > 0
 				) {								
 					for my $index_var (keys %{ $info->{'Cond'}{'Vars'}{'Set'}{$var}{'IndexVars'} }) {
-						$state->{'ExprVars'}{$index_var}{'Counter'}++;	
-						push @{$state->{'ExprVars'}{$index_var}{'LineIDs'}}, $info->{'LineID'};
+						# $state->{'ExprVars'}{$index_var}{'Counter'}++;	
+						# push @{$state->{'ExprVars'}{$index_var}{'LineIDs'}}, $info->{'LineID'};
+						$state = _add_var_to_state($index_var,$state,$info,'ExprVars');						
 						say "ADDING index var $index_var to ExprVars in IF (line ".$info->{'LineID'}.")" if $DBG;
 					}
 				}				
@@ -756,6 +825,15 @@ for my $var (sort keys %{$rec}) {
 return $vars;
 }
 
+sub _add_var_to_state { my ($var, $state, $info,$rwVars)=@_;
+	$state->{'ExprVars'}{$var}{'Counter'}++;	
+	push @{$state->{'ExprVars'}{$var}{'LineIDs'}}, $info->{'LineID'};	
+	my $if_block_id = $info->{'IfBlockID'};
+	$state->{'IfBlocks'}{$if_block_id}{$rwVars}{$var}{'Counter'}++;				
+	push @{$state->{'IfBlocks'}{$if_block_id}{$rwVars}{$var}{'LineIDs'}}, $info->{'LineID'};
+	return $state;
+}
+
 
 # ================================================================================================================================================
 
@@ -782,42 +860,6 @@ my $if_statement = {
 }
 =cut
 
-
-	# sub _if_is_expr_for_var { my ($state, $block_id, $var) = @_;
-	# 	if (exists $state->{'IfBlocks'}{$block_id}{'AssignedVars'}{$var} ) {
-	# 		for my $seq_id (@{$state->{'IfBlocks'}{$block_id}{'Branches'}} ) {
-	# 			next if $seq_id ==  $block_id;
-	# 			if (not exists $state->{'IfBlocks'}{$seq_id}{'AssignedVars'}{$var}) {
-	# 				return 0
-	# 			}
-	# 		}			
-	# 		say "BLOCK $block_id:".' IF IS EXPR FOR '.$var if $DBG;
-	# 		return 1;
-	# 	} else {
-	# 		return 0
-	# 	}
-	# }
-
-# sub _traverse_if_statement {my ($state, $st_id) = @_; 
-# 	my $seq = $state->{'IfBlocks'}{$st_id}{'Branches'}; 
-# 	my $branches = [];
-# 	for my $b_id ( @{$seq}) {
-# 		my $children = [];
-# 		if (scalar  @{$state->{'IfBlocks'}{$b_id}{'Children'}} > 0 ) {
-# 			for my $ch_id ( @{$state->{'IfBlocks'}{$b_id}{'Children'}}) {
-# 				push @{ $children }, _traverse_if_statement($state, $ch_id);
-# 			}
-# 		} 
-# 		push @{$branches},{
-# 			'branchId' => $b_id,
-# 			'children' => $children
-# 		}            
-# 	}
-# 	return {
-# 		'branches' => $branches
-# 	}
-# }
-
 sub _convert_if_statement_datastructure {my ($state, $st_id) = @_; 
     my $seq = $state->{'IfBlocks'}{$st_id}{'Branches'}; 
     my $branches = [];
@@ -837,7 +879,6 @@ sub _convert_if_statement_datastructure {my ($state, $st_id) = @_;
         'branches' => $branches
     }
 }
-
 
 =pod
 - If there are no children, the subtree becomes the child
@@ -916,7 +957,6 @@ sub list_all_paths { my ($bs, $path, $pathlist) = @_;
      return $p_pl_acc;
 }
 =pod
-
 This Haskell code is the solution to the key problem:
 We turn the nested if statements into a tree and do a path traversal
 That way we have every possible path through the code
@@ -1007,24 +1047,6 @@ list_all_paths bs (path, pathlist) =
                         ( init p'',pl') -- This 'init' is trial-and-error
         ) (path,pathlist) bs        
 
---nested_if_nodata :: [(Int,[a])]
---This does not work, as we need a mutually recursive type
---but it shows how we could write it in Perl
--- nested_if_nodata = [
---    (0, [
---             [
---                 (1, []),
---                 (2, [ [ (3, []), (4, []) ] ]),
---                 (5, [])
---             ],
---             [
---                 (6, []),
---                 (7, [ [ (8, []) ] ])
---             ]
---        ]
---    )
---  ]
-
 -- 0 1 6 7
 -- 0 1 8 9
 -- 0 1 8 10
@@ -1073,19 +1095,12 @@ nested_if = IfStatement [
          ]
     ]
 
-                        
-
-
 main = do
     print nested_if
     let
         tree = append_subtree_to_children_and_fold (IfStatement True []) [nested_if]
         paths_tup = list_all_paths ( branches tree) ([],[])
     print (snd paths_tup)
-
-
-
-
 =cut
 1;
 
