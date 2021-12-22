@@ -178,7 +178,7 @@ The final data structure that matter is:
 			$state->{'IfBlocks'}{$blockid}{'Children'}=[];
 		}
 		elsif (exists $info->{'EndIf'}) {
-			say 'ENDIF: SEQ:' .Dumper( $seq[$stack[-1]]);
+			# say 'ENDIF: SEQ:' .Dumper( $seq[$stack[-1]]);
 			for my $seq_block_id (@{$seq[$stack[-1]]}) {
 				$state->{'IfBlocks'}{$seq_block_id}{'Branches'} = dclone($seq[$stack[-1]]);
 			}
@@ -671,7 +671,7 @@ This the most complex part because of the nesting and sequencing of if-statement
 		# } # Assigned variables
 	# die Dumper $state;
 	# } # If blocks
-	die "\nSTATE:\n".Dumper( $state);
+	# die "\nSTATE:\n".Dumper( $state);
 	
 	
 	# --------------------------------------------------------------------------------------------------------------------------------
@@ -764,7 +764,7 @@ This the most complex part because of the nesting and sequencing of if-statement
  	$stref->{'Subroutines'}{$f}{'DeclaredOrigArgs'}{'List'}=dclone($state->{'RemainingArgs'});
 	
  	map { delete $stref->{'Subroutines'}{$f}{'DeclaredOrigArgs'}{'Set'}{$_} }  @{ $state->{'DeletedArgs'} };
-	die show_annlines( $annlines_5);
+	# die show_annlines( $annlines_5);
 	$stref->{'Subroutines'}{$f}{'RefactoredCode'} = $annlines_5;
 	# die;
 	return $stref;

@@ -1849,7 +1849,7 @@ sub analyseLoop_reduce {
     my $pass_analyseLoop_reduce = sub { my ($annline,$state) = @_;
         my ($line,$info)=@{$annline};
 
-        if (exists $info->{'If'} or exists $info->{'ElsIf'}) {
+        if (exists $info->{'If'} or exists $info->{'ElseIf'}) {
             my $readOperands=createExprListFromVarAccesses($info->{'VarAccesses'}, $info->{'LineID'},'Read');
             my $condExprAnalysis = [{}, [], $readOperands, []]; # AnalysisInfo tuple from the 'if' condition            
             $state = combineAnalysisInfo( $state, $condExprAnalysis);
