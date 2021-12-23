@@ -207,7 +207,9 @@ sub analyse_for_dead_code {
         }
         push @{$refactored_annlines},[$line,$info];
     }
+
 #    return $refactored_annlines; # Or maybe we assign this to a slot in $stref
+
 
     my $mod_sub_or_func = sub_func_incl_mod( $f, $stref );
     $stref->{$mod_sub_or_func}{$f}{'AnnLines'} = $refactored_annlines;    

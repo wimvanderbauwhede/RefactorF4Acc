@@ -3067,7 +3067,7 @@ sub __parse_f95_decl {
 		
 		my $parliststr = $1;
 		( $Sf, $info ) = _parse_f77_par_decl(  $Sf, $stref, $f, $indent,  $line, $info, $parliststr );
-		# croak $line. Dumper $info if $line=~/s7/;
+		# croak $line. Dumper $pt if $line=~/s3/;
 
 	} else {
 		# F95 VarDecl, continued

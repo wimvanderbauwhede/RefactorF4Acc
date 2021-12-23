@@ -350,7 +350,7 @@ The final data structure that matter is:
 			}
 			$done=1;
 		}
-		elsif ( exists $info->{'VarDecl'} ) {
+		elsif ( exists $info->{'VarDecl'} and not exists $info->{'ParamDecl'}) {			
 			my $varname = $info->{'VarDecl'}{'Name'};
 			# Add intent to Args
 			my $subset = in_nested_set( $Sf, 'Args', $varname );
@@ -375,6 +375,33 @@ The final data structure that matter is:
 			}										
 			$done=1;
 		}
+		elsif ( exists $info->{'ParamDecl'}  ) { 
+			my $var = $info->{'ParamDecl'}{'Name'};
+			say "ADDING $var to AssignedVars (line ".$info->{'LineID'}.")" if $DBG;
+			$state = _add_var_to_state($var,$state,$info,'AssignedVars');
+			if (exists $info->{'ParsedParDecl'} ) { ;
+				if (exists $info->{'ParsedParDecl'}{'Attributes'} and
+				exists $info->{'ParsedParDecl'}{'Attributes'}{'Dim'} ) {
+					for my $dim_str (@{$info->{'ParsedParDecl'}{'Attributes'}{'Dim'}}) {
+						my $dim_expr_ast=parse_expression($dim_str, $info,{}, '');
+						my $vars = get_vars_from_expression($dim_expr_ast,{});
+						for my $var (keys %{ $vars } ) {
+							$state = _add_var_to_state($var,$state,$info,'ExprVars');
+						}					
+					}
+				}											
+				if (exists $info->{'ParsedParDecl'}{'Pars'} and
+				exists $info->{'ParsedParDecl'}{'Pars'}{'Val'} ) {
+					my $val_str = $info->{'ParsedParDecl'}{'Pars'}{'Val'};
+						my $val_expr_ast=parse_expression($val_str, $info,{}, '');						
+						my $vars = get_vars_from_expression($val_expr_ast,{});
+						for my $var (keys %{ $vars } ) {
+							$state = _add_var_to_state($var,$state,$info,'ExprVars');
+						}											
+				}
+			}
+			$done=1;
+		}		
 		elsif ( exists $info->{'Assignment'}  ) { 
 			my $var = $info->{'Lhs'}{'VarName'};
 			# if (exists $state->{'UnusedVars'}{$var}) {				
@@ -420,12 +447,12 @@ The final data structure that matter is:
 				# for my $var (keys %{  $info->{'Rhs'}{'Vars'}{'Set'} } ) {
 				my $rhs_vars = _get_all_vars_from_assignment_rec($info->{'Rhs'}{'Vars'}{'Set'});
 				for my $rhs_var (sort keys %{$rhs_vars}) {
-					if (not exists $index_vars{$rhs_var}) {
+					# if (not exists $index_vars{$rhs_var}) {
 						# $state->{'ExprVars'}{$rhs_var}{'Counter'}++;	
 						# push @{$state->{'ExprVars'}{$rhs_var}{'LineIDs'}}, $info->{'LineID'};
 						$state = _add_var_to_state($rhs_var,$state,$info,'ExprVars');
 						say "ADDING RHS $rhs_var to ExprVars (line ".$info->{'LineID'}.")" if $DBG;
-					}
+					# }
 				}
 				# }
 			# }
@@ -448,6 +475,7 @@ The final data structure that matter is:
 			# my $if_block_id = $info->{'IfBlockID'};
 			# $state->{'IfBlocks'}{$if_block_id}{'AssignedVars'}{$iter_var}{'Counter'}++;
 			# push @{$state->{'IfBlocks'}{$if_block_id}{'AssignedVars'}{$iter_var}{'LineIDs'}}, $info->{'LineID'};
+			say "ADDING $iter_var to AssignedVars (line ".$info->{'LineID'}.")" if $DBG;
 			$state = _add_var_to_state($iter_var,$state,$info,'AssignedVars');
 			my @range_vars = @{$info->{'Do'}{'Range'}{'Vars'}};
 			for my $var (@range_vars) {
@@ -525,11 +553,11 @@ The final data structure that matter is:
 				
 		if ( exists $info->{'Assignment'}  ) { 
 			my $var = $info->{'Lhs'}{'VarName'};
-			if (exists $state->{'UnusedVars'}{$var}) {				
+			if (exists $state->{'UnusedVars'}{$var}) {
 				say "REMOVED ASSIGNMENT $line in $f" if $DBG;
 				$annline=['! '.$line, {%{$info},'Deleted'=>1}];
 				delete $state->{'UnusedVars'}{$var};
-				delete $state->{'AssignedVars'}{$var};	
+				delete $state->{'AssignedVars'}{$var};
 				# Remove all vars in the LHS expr from ExprVars
 				if (exists $info->{'Lhs'}{'IndexVars'}) {
 					for my $idx_var (keys %{ $info->{'Lhs'}{'IndexVars'}{'Set'} }) {
@@ -539,9 +567,39 @@ The final data structure that matter is:
 		 					carp "DELETE ExprVar $idx_var (LHS index var)"  if $DBG;
 		 				}	 						
  					}
-				}		
+				}
+				my $rhs_vars = _get_all_vars_from_assignment_rec($info->{'Rhs'}{'Vars'}{'Set'});
+				for my $rhs_var (sort keys %{$rhs_vars}) {
+					$state->{'ExprVars'}{$rhs_var}{'Counter'}--;	
+					
+					if ( $state->{'ExprVars'}{$rhs_var}{'Counter'} == 0) {
+						delete $state->{'ExprVars'}{$rhs_var};
+						say "DELETE ExprVar $rhs_var (RHS VAR line ".$info->{'LineID'}.")" if $DBG;					
+					} else {
+						say "RHS VAR $rhs_var is still in use: ". $state->{'ExprVars'}{$rhs_var}{'Counter'} if $DBG;
+					}
+				}
 			} 
 		}
+		elsif ( exists $info->{'ParamDecl'}  ) { 
+			my $var = $info->{'ParamDecl'}{'Name'};
+			if (exists $state->{'UnusedVars'}{$var}) {
+				say "REMOVED PARAM DECL $line in $f" if $DBG;
+				$annline=['! '.$line, {%{$info},'Deleted'=>1}];
+				delete $state->{'UnusedVars'}{$var};
+				delete $state->{'AssignedVars'}{$var};
+			}
+		}		
+		elsif ( exists $info->{'Do'} ) {
+			my $var = $info->{'Do'}{'Iterator'};
+			# croak Dumper $state;
+			if (exists $state->{'UnusedVars'}{$var}) {
+				say "ASSIGNMENT TO DO ITERATOR $var, NOT REMOVING: $line in $f" if $DBG;				
+				delete $state->{'UnusedVars'}{$var};
+				delete $state->{'AssignedVars'}{$var};
+			}
+			# $state->{'UnusedLines'}{$info->{'LineID'}}=1;
+		}		
 		# elsif ( exists $info->{'SubroutineCall'} ) {
 		# 	# TODO
 		# 	# If the intent is Out or InOut then it is an assignment			
@@ -555,7 +613,7 @@ The final data structure that matter is:
 		return ([$annline],$state);
 	}; # END of pass_action_remove_unused_vars
 
-	my $dbg_ctr=-1;
+	my $dbg_ctr=5;
 	do {
  		($annlines_3,$state) = stateful_pass($annlines_3,$pass_action_remove_unused_vars, $state,'_remove_all_unused_variables() ' . __LINE__  ) ; 	
  		# Check for every AssignedVar if it is used as an ExprVar or as an Arg 	
@@ -566,8 +624,9 @@ The final data structure that matter is:
 	 			$state->{'UnusedVars'}{$var}=1;
 	 		} 
 	 	}		 
+		#  say Dumper $state->{'UnusedVars'} if $DBG;
 	} until scalar keys %{ $state->{'UnusedVars'} } ==0 or --$dbg_ctr==0; 
-	
+	# die;
 # ----------------------------------------------------------------------------------------------------	
 	say "\nMark writes to variables that are not subsequently read for removal\n" if $DBG;
 =pod
@@ -766,7 +825,7 @@ This the most complex part because of the nesting and sequencing of if-statement
  	map { delete $stref->{'Subroutines'}{$f}{'DeclaredOrigArgs'}{'Set'}{$_} }  @{ $state->{'DeletedArgs'} };
 	# die show_annlines( $annlines_5);
 	$stref->{'Subroutines'}{$f}{'RefactoredCode'} = $annlines_5;
-	# die;
+	# die Dumper $state;
 	return $stref;
 	
 } # END of remove_redundant_assignments()
@@ -1010,7 +1069,7 @@ sub _remove_or_keep_across_paths { my ($var, $state, $paths) = @_;
 			'ExprVars'=>{$var => { 'LineIDs' => [sort numeric @exprVarsLineIDs] }},
 			'Args' => $state->{'Args'}
 		};
-		say Dumper $path_state ;
+		# say Dumper $path_state ;
 		(my $remove, my $keep) = _remove_or_keep($var, $path_state);
 		# die Dumper({'REMOVE'=>$remove,'KEEP'=> $keep}) if $var eq 'v1';
 		push @{$remove_per_path},$remove;

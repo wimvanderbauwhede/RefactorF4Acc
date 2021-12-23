@@ -753,7 +753,7 @@ sub _split_multivar_decls {
                             'Type' => $orig_decl->{'Type'}
                         };
                 
-                        $rinfo{'ParsedParDecl'}{'Attributes'}=['parameter'];
+                        $rinfo{'ParsedParDecl'}{'Attributes'}{'Parameter'}='parameter';
                     }  else {
                         # say Dumper $rinfo{'ParsedParDecl'}{'Pars'};
                         my $val = ref($rinfo{'ParsedParDecl'}{'Pars'}{'Val'}) eq 'ARRAY' 

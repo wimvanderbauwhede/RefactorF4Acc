@@ -41,7 +41,7 @@ sub parse_F95_var_decl {
 #carp Dumper($matches);
 	my $pt = getParseTree($matches);
 	print 'PARSE TREE:'.Dumper($pt),"\n" if $VV;
-    #carp $str .' => <'.Dumper($pt).'>';	
+    # carp $str .' => <'.Dumper($pt).'>';	
     if(ref($pt) ne 'HASH') {
             die "Fortran::F95VarDeclParser::parse_F95_var_decl('$str'): Parse error\n";
     }
@@ -195,7 +195,7 @@ sub intent_parser {
 }
 
 sub parameter_parser {
-    symbol('parameter')
+    { 'Parameter' => symbol('parameter') }
 }
 
 sub volatile_parser {
@@ -230,7 +230,12 @@ sub param_assignment {
     sequence( [
         {'Lhs' => word },
         symbol('='),                
-		{'Rhs' => choice(regex('[\w\s\*\+\-\/]+'),regex('[\-\.\dedq]+'),word) } #FIXME  weak !word,
+		{'Rhs' => choice(
+			regex('^[\w\s\*\+\-\/]+'),
+			regex('^[\-\.\dedq]+'),
+			regex('^(?:\(\/|\[).+?(?:\]|\/\))'), # Array constant
+			word #FIXME  weak !word,
+			) } 
     ] )
 }
 sub openacc_pragma_parser { sequence [

@@ -712,10 +712,10 @@ sub oneOf {
 }
 
 # Enough rope: this parser will parse whatever the regex is, stripping trailing whitespace
-sub regex {
+sub regex {	
 	( my $regex_str ) = @_;
-	my $gen = sub {
-		( my $str ) = @_;
+	my $gen = sub { 
+		( my $str ) = @_;		
 #		$regex_str=~s/\//\\\//g;
 		$regex_str=~s/\*/\\\*/g;
 		say "* regex( '/$regex_str/', '$str' )" if $V;
@@ -984,9 +984,9 @@ sub _l2m {
 sub getParseTree {
 	( my $m ) = @_;
 	my $mm = _remove_undefined_values($m);
-#	say "AFTER _remove_undefined_values:".Dumper($mm);
+	# say "AFTER _remove_undefined_values:".Dumper($mm);
 	my $tal = _get_tree_as_lists($m);
-#	say "AFTER _get_tree_as_lists:".Dumper($tal);
+	# say "AFTER _get_tree_as_lists:".Dumper($tal);
 
 	my $map = _l2m( $tal, {} );
 #   say "AFTER _l2m:".Dumper($map);

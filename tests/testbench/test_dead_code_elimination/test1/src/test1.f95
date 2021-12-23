@@ -9,8 +9,8 @@ contains
       integer, intent(in) :: global_id
 
 !  Dead Code Begin
-      integer, dimension(1:5), parameter :: s3 = (/13, 145, 156, 157, 168/)
-      integer, dimension(1:2), parameter :: s5 = (/145, 289/)
+      integer, dimension(1:5), parameter :: s3 = (/ 13, 145, 156, 157, 168 /)
+      integer, dimension(1:2), parameter :: s5 = (/ 145, 289 /)
       real, dimension(1:2, 1:5) :: svec_u_1
       integer :: s_idx_1, s_idx_2
       do s_idx_1 = 1, 2
