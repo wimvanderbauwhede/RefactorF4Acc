@@ -214,20 +214,6 @@ sub analyse_for_dead_code {
     return $stref;
 } 
 
-=info
-Furthermore, I want to remove unused variables.
-A variable is unused if:
-- It's an In argument but it does not get read, i.e. appears on RHS or in subroutine call
-- It's an Out or InOut but it does not get assigned (which means I have to look inside any called functions as well)
-- It's a local variable that never appears on the RHS or in a subroutine call
-- If it does appear in a subroutine call, I need to establish that the corresponding variable in the subroutine is unused
-So we must do these checks recursively for all variables in a subroutine.
-=cut
-
-sub find_unused_variables {
-    
-}
-
 =info 
 Another nice thing to do is constant detection and then replacing if() by #if 
 =cut

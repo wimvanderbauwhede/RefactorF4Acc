@@ -966,6 +966,22 @@ for my $line_id (@all_line_ids) {
 	}
 }
 
+There is still a problem with this: 
+
+if
+	v1=1
+	if
+		v1=2
+	end
+	v1=3
+	if 
+		v1=4
+	end
+end if
+
+The path is [1,2,3]
+But the 
+
 =cut
 
 
@@ -987,12 +1003,14 @@ sub _remove_or_keep_across_paths { my ($var, $state, $paths) = @_;
 			@assignedVarsLineIDs = (@assignedVarsLineIDs,@assignedVarsLineIDsBlock);
 			@exprVarsLineIDs = (@exprVarsLineIDs,@exprVarsLineIDsBlock);
 		}
+		# The sort here is necessary because the paths can be interleaved
+		# e.g. a path [0,1,2,3] can actually be  [0, 1, 2, 1, 3, 1, 0]
 		my $path_state ={
-			'AssignedVars'=>{$var => { 'LineIDs' => \@assignedVarsLineIDs}},
-			'ExprVars'=>{$var => { 'LineIDs' => \@exprVarsLineIDs}},
+			'AssignedVars'=>{$var => { 'LineIDs' => [sort numeric @assignedVarsLineIDs] }},
+			'ExprVars'=>{$var => { 'LineIDs' => [sort numeric @exprVarsLineIDs] }},
 			'Args' => $state->{'Args'}
 		};
-		
+		say Dumper $path_state ;
 		(my $remove, my $keep) = _remove_or_keep($var, $path_state);
 		# die Dumper({'REMOVE'=>$remove,'KEEP'=> $keep}) if $var eq 'v1';
 		push @{$remove_per_path},$remove;
@@ -1219,13 +1237,12 @@ sub append_subtree_to_children_and_fold {my ($s,$cs) = @_;
 =pod
 So now a little traversal to list all paths
 This was very tricky and it shouldn't have been
-Why does I need init?
 
-We accumulate the path to a leaf node by appending all branch ids
+We accumulate the path to a leaf node by appending all branch ids ('push')
 Then we append this to the path list, and continue with the path without the terminal id
 to climb back up in the branch of the tree
 
-But that is not enough, if we don't do 'init' of the returned path, we get repetition
+We call 'init' to pop the entry
 =cut
 # list_all_paths :: [Branch] -> ([Int],[[Int]]) -> ([Int],[[Int]])
 sub list_all_paths { my ($bs, $path, $pathlist) = @_;
@@ -1234,14 +1251,14 @@ sub list_all_paths { my ($bs, $path, $pathlist) = @_;
             my ($p,$pl) = @{$p_pl};         
             my $c = head(   $b->{'children'});
             my $bs_ =  $c->{'branches'}//[];
-            my $p_=[@{$p}, $b->{'branchId'} ];
-            # say 'PATH:',Dumper $p,$p_;
+            my $p_=[@{$p}, $b->{'branchId'} ]; # 'push'
+            # die 'PATH:',Dumper $p,$p_;
             if (null($bs_)) {
                  return [$p, [@{$pl},$p_]]; # p not p_ because we go back up
             } else {                    
                 my $p__pl_ = list_all_paths( $bs_, $p_,$pl);
                 my ($p__,$pl_) =@{$p__pl_};
-                return [ init( $p__),$pl_]; # This 'init' is trial-and-error
+                return [ init( $p__),$pl_]; # 'pop'
             }
      }, [$path,$pathlist], $bs); 
      return $p_pl_acc;
