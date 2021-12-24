@@ -182,7 +182,7 @@ say "\nAnalysis::analyse_for_dead_code($f)\n" if $DBG;
                     }
                     $dead_code_stack=[];
                 }
-                # $maybe_dead_code = 0; # WV: check
+                $maybe_dead_code = 0; # WV: check
             } 
         }    
         
