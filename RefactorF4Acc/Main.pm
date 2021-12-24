@@ -56,6 +56,7 @@ our $usage = "
     -B: Build the generated code
     -A: Annotate the refactored lines 
     -P: Name of pass to be performed
+    -S: Show code to be emitted
     -s: Provide a comma-separated list of source files to be refactored. Same as specifying SOURCEFILES in the config file
     -o: Provide a custom output path
     \n";
@@ -333,7 +334,7 @@ sub parse_args { (my $args)=@_;
     if (defined $args) {
         %opts = %{$args};
     } #else {
-    getopts( 'Vvw:iIdhACTgbBGc:P:s:o:', \%opts );
+    getopts( 'Vvw:iIdhACTgbBGSc:P:s:o:', \%opts );
     #}
 	if ($opts{'V'}) {
 		die "Version: $VERSION\n";
@@ -421,6 +422,7 @@ sub parse_args { (my $args)=@_;
     $WW = $WARNING_LEVEL >= 2 ? 1 : 0;
     $WWW = $WARNING_LEVEL >= 3 ? 1 : 0;
 	$DBG = ( $opts{'d'} ) ? 1 : 0;
+    $SHOW = $opts{'S'} ? 1: 0;
 
     $Config{'INLINE_INCLUDES'} = $opts{'I'}  ? 1 : 0;
 

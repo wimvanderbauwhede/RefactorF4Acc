@@ -127,7 +127,7 @@ sub emit_all {
         else {
             say "INFO: Emitter: New source: $targetdir/$nsrc ($src)" if ( $I or $DBG );
             show_annlines( $stref->{'AnnLines'}{$src}, 0 );
-              
+            
             my $mod_lines = $stref->{'RefactoredCode'}{$src};
 
             if ( exists $stref->{'SourceFiles'}{$src}{'AnnLines'} ) {
@@ -137,6 +137,8 @@ sub emit_all {
                     $mod_lines = [ @source_level_comments, @{$mod_lines} ];
                 }
             }
+
+            show_annlines( $mod_lines, 0 ) if $SHOW;  
 
             open my $TGT, '>', "$targetdir/$nsrc"
               or die $! . ": $targetdir/$nsrc";

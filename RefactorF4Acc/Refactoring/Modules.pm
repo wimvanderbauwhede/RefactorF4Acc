@@ -177,7 +177,7 @@ sub add_module_decls {
 		}
 	
 	}    # loop over all source files
-croak;
+
 	return $stref;
 }    # END of add_module_decls()
 
