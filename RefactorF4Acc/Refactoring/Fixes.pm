@@ -118,6 +118,7 @@ our @EXPORT_OK = qw(
 # - The difference with a local var and In is that a final assignment is kept
 
 sub _remove_unused_variables { (my $stref, my $f)=@_;
+croak "Fixes::_remove_unused_variables is OBSOLETE, please use package Refactoring::RemoveRedundantAssignments::remove_redundant_assignments instead!";
 	if (not exists $Config{'FIXES'}{'_remove_unused_variables'}) { return $stref }
 	my $Sf = $stref->{'Subroutines'}{$f};
 	# If a variable is assigned but is not and arg and does not occur in any RHS or SubroutineCall, it is unused. 

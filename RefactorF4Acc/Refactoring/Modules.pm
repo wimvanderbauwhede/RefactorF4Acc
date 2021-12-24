@@ -125,6 +125,7 @@ sub add_module_decls {
 				for my $sub ( @{ $stref->{'Modules'}{ $existing_module_name{$src} }{'Contains'} } ) {
 					say '=' x 80 if $V;
 					say 'SUB: ' . $sub if $V;
+					
 					$stref = _create_module_src(  $stref, $src, $sub, \%no_modules ) unless $only_one_sub_in_module;
 					
 					$new_annlines = [ @{$new_annlines}, ['',{}],@{ $stref->{'Subroutines'}{$sub}{'RefactoredCode'} } ];
@@ -150,13 +151,14 @@ sub add_module_decls {
 				];
 				$old_annlines = $old_annlines_with_refactored_vardecls;
 	
-				if ( scalar @{$new_annlines} > 0 ) {
+				if ( scalar @{$new_annlines} > 0 ) {					
 					my $merged_annlines = splice_additional_lines_cond_inplace( $stref, $existing_module_name{$src}, 
 					sub { ( my $annline ) = @_; 
 					( my $line, my $info ) = @{$annline}; 
 					return exists $info->{'Contains'};
 					}, $old_annlines, $new_annlines, 0, 0, 1 );
 					$stref->{'RefactoredCode'}{$src} = $merged_annlines;
+					
 				} else {
 					$stref->{'RefactoredCode'}{$src} = $old_annlines;
 				}
@@ -175,7 +177,7 @@ sub add_module_decls {
 		}
 	
 	}    # loop over all source files
-
+croak;
 	return $stref;
 }    # END of add_module_decls()
 

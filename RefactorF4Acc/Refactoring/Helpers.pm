@@ -836,7 +836,7 @@ sub splice_additional_lines_cond_inplace {
         my $skip_insert_pos_line,
         my $do_once
     ) = @_;
-    say "SPLICE on condition for $f" if $V;
+    say "SPLICE on condition for $f" if ($V||$DBG);
     my $sub_or_func_or_mod = sub_func_incl_mod( $f, $stref );
     my $Sf                 = $stref->{$sub_or_func_or_mod}{$f};
     
@@ -887,7 +887,7 @@ sub splice_additional_lines_cond_inplace {
             push @{$merged_annlines}, $annline;
         }
     }
-    
+    say "END SPLICE on condition for $f" if ($V||$DBG);
     return $merged_annlines;
 
 }    # END of splice_additional_lines_cond_inplace()

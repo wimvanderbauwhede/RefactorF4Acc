@@ -83,7 +83,7 @@ sub _eliminate_dead_code { (my $stref, my $f)=@_;
     my $Sf = $stref->{'Subroutines'}{$f};
     my $pass__eliminate_dead_code = sub {  my ($annline) = @_;
             my ($line, $info) = @{$annline};
-            if (exists $info->{'DeadCode'}) {
+            if (exists $info->{'DeadCode'} and not exists $info->{'Comments'}) {
                 say "REMOVING dead code: $line" if $DBG;
                 $info->{'Deleted'} = 1;
             }

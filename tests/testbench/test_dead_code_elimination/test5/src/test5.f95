@@ -18,17 +18,23 @@ contains
       real :: w4
       real :: w5
       integer :: s_idx_1, s_idx_2
+      ! Dead code
       w1 = 0
+      ! End dead code
       w1 = u
       w2 = w1+1
+      ! Dead code
       w3 = w2+w1
       w5 = w3*2
       w3 = w2+1
       w4 = w3
+      ! End dead code
       w3 = w2+2
       w1 = u+w3+w2
+      ! Dead code
       w5 = 0
       w2 = w5+1
+      ! End dead code
       v = w1
 
    end subroutine test5

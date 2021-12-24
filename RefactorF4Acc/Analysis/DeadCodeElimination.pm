@@ -68,6 +68,7 @@ Else => pop;push: [Else]
 
 sub analyse_for_dead_code {
 ( my $stref, my $f ) = @_; # This could also be a subroutine I guess,
+say "\nAnalysis::analyse_for_dead_code($f)\n" if $DBG;
     my $refactored_annlines     = [];
     my $dead_code_regions={};
     my $dead_code_stack=[];
@@ -173,9 +174,9 @@ sub analyse_for_dead_code {
             if ($do_block_counter==0) {
                 say "MAYBE FINAL DEAD LINE: $line ".$info->{'LineID'} if $DBG;
                 push @{$dead_code_stack}, $annline;
-                if (@{$dead_code_stack} > 0) {
+                if (@{$dead_code_stack} > 1) { # because we just pushed that line
                     for my $dead_code_annline (@{$dead_code_stack}) {
-                        say "STACK: ". $dead_code_annline->[0] if $DBG;
+                        say "STACK: ". $dead_code_annline->[0]."\t".$dead_code_annline->[1]{'LineID'} if $DBG;
                         my $dead_code_info = $dead_code_annline->[1];
                         $dead_code_regions->{$dead_code_info->{'LineID'}}= $dead_code_info;
                     }
@@ -190,6 +191,7 @@ sub analyse_for_dead_code {
             say "MAYBE DEAD LINE: $line ".$info->{'LineID'} if $DBG;
             push @{$dead_code_stack}, $annline;
         } else {
+            say "NOT DEAD CODE: ".$line . ' => clear stack: '.Dumper $dead_code_stack if $DBG;
             $dead_code_stack=[];
             $maybe_dead_code = 0;
             my $prev_if_keyword = pop @{ $if_keyword_stack };
