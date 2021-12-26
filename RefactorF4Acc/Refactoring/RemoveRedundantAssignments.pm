@@ -232,6 +232,7 @@ The final data structure that matter is:
 
 	if ($DBG) {
 	say "\nshow_if_blocks\n";
+	open my $TMP,'>','tmp.txt';
 	my $pass_action_show_if_blocks = sub { (my $annline, my $state)=@_;		
 		(my $line,my $info)=@{$annline};
 		my $if_block_id = $info->{'IfBlockID'};
@@ -246,11 +247,15 @@ The final data structure that matter is:
 		."\tEnd: $end"
 		."\tSeq: [$seq]"
 		."\tChildren: [$children]";
+		
+		say $TMP "$fid\t$line";
 		return ([[$line,$info]],$state);
 	};		
  
 	stateful_pass($annlines_1 ,$pass_action_show_if_blocks, $if_block_state,'_show_if_blocks() ' . __LINE__  ) ;	
+	close $TMP;
 	}
+	
 	
 # ----------------------------------------------------------------------------------------------------
 	say "\npass_action_find_all_used_vars\n" if $DBG;	
@@ -583,7 +588,7 @@ The final data structure that matter is:
  					}
 				}
 				my $rhs_vars = _get_all_vars_from_assignment_rec($info->{'Rhs'}{'Vars'}{'Set'});
-				say "RHS VARS for $var: ".Dumper($rhs_vars);
+				# say "RHS VARS for $var: ".Dumper($rhs_vars);
 				for my $rhs_var (sort keys %{$rhs_vars}) {
 					say "CTR for $rhs_var: ". $state->{'ExprVars'}{$rhs_var}{'Counter'};
 					if ( $state->{'ExprVars'}{$rhs_var}{'Counter'} == 1) {

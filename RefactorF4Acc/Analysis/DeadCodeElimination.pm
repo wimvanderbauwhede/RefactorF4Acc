@@ -97,7 +97,7 @@ say "\nAnalysis::analyse_for_dead_code($f)\n" if $DBG;
                 if (@{$dead_code_stack} > 0) {
                     # croak Dumper $dead_code_stack;
                     for my $dead_code_annline (@{$dead_code_stack}) {
-                        say 'DEAD CODE: ',$dead_code_annline->[0];
+                        # say 'DEAD CODE: ',$dead_code_annline->[0] ;
                         my $dead_code_info = $dead_code_annline->[1];
                         $dead_code_regions->{$dead_code_info->{'LineID'}}= $dead_code_info;
                     }
@@ -122,9 +122,11 @@ say "\nAnalysis::analyse_for_dead_code($f)\n" if $DBG;
                     $info->{'Cond'}{ 'Expr'} = $expr;
                     $info->{'LineID'} = $line_id;
                     $annline=[$line,$info];
+                    push @{ $if_keyword_stack }, ['If',$info];
                 }
                 elsif  ($prev_if_keyword->[0] eq 'ElseIf' and exists $info->{'Else'}) {
                     # do nothing
+                    push @{ $if_keyword_stack }, [(exists $info->{'Else'} ? 'Else' : 'ElseIf'),$info];
                 }
                 elsif  (
                     ($prev_if_keyword->[0] eq 'If' 
@@ -134,9 +136,11 @@ say "\nAnalysis::analyse_for_dead_code($f)\n" if $DBG;
                     $info->{'If'}=1;
                     $line=~s/else\s+//;
                     $annline=[$line,$info];
+                    push @{ $if_keyword_stack }, ['If',$info];
                 }
+            } else {
+                push @{ $if_keyword_stack }, [(exists $info->{'Else'} ? 'Else' : 'ElseIf'),$info];
             }
-            push @{ $if_keyword_stack }, [(exists $info->{'Else'} ? 'Else' : 'ElseIf'),$info];
          }
         if (exists $info->{'Do'} ) {
             $do_block_counter++;    
@@ -161,11 +165,13 @@ say "\nAnalysis::analyse_for_dead_code($f)\n" if $DBG;
                 }
             }
             my $prev_if_keyword = pop @{ $if_keyword_stack };
+            $maybe_dead_code = 0;
             if ($prev_if_keyword->[0] ne 'Live' ) {
                 $dead_code_regions->{$prev_if_keyword->[1]{'LineID'}} = $prev_if_keyword->[1];
-                if ($prev_if_keyword->[0] eq 'If' ) {
+                if ($prev_if_keyword->[0] eq 'If' ) {                  
                     $dead_code_regions->{$info->{'LineID'}} = 'EndIf';
-                }
+                    $maybe_dead_code = 1;
+                } 
             }
         }    
         
@@ -182,20 +188,24 @@ say "\nAnalysis::analyse_for_dead_code($f)\n" if $DBG;
                     }
                     $dead_code_stack=[];
                 }
-                $maybe_dead_code = 0; # WV: check
+                $maybe_dead_code = 0;
             } 
         }    
-        
+        if ( exists $info->{'Assignment'} or exists $info->{'SubroutineCall'} ) {
+            say "FOUND LIVE LINE: ".$line if $DBG;
+            my $prev_if_keyword = pop @{ $if_keyword_stack };
+            push @{ $if_keyword_stack }, ['Live',$info];
+
+        }
         if (not exists $info->{'Assignment'} and not exists $info->{'SubroutineCall'} 
             and $maybe_dead_code) {
             say "MAYBE DEAD LINE: $line ".$info->{'LineID'} if $DBG;
+            die if $info->{'LineID'}==54;
             push @{$dead_code_stack}, $annline;
         } else {
             say "NOT DEAD CODE: ".$line . ' => clear stack: '.Dumper $dead_code_stack if $DBG;
             $dead_code_stack=[];
             $maybe_dead_code = 0;
-            my $prev_if_keyword = pop @{ $if_keyword_stack };
-            push @{ $if_keyword_stack }, ['Live',$info];
 
         } 
     }
