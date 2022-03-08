@@ -122,7 +122,7 @@ The Branches is a list of the blocks (if, elsif, else) in an if-statement
 The blocks are numbered using a running counter
 I renumber the LineIDs to make sure they are contiguous
 
-The final data structure that matter is:
+The final data structure that matters is:
 
  	my $state = {
 		'IfBlocks'=>{
@@ -1260,19 +1260,19 @@ We call 'init' to pop the entry
 # list_all_paths :: [Branch] -> ([Int],[[Int]]) -> ([Int],[[Int]])
 sub list_all_paths { my ($bs, $path, $pathlist) = @_;
     my $p_pl_acc = foldl( sub { my ($p_pl, $b) = @_;
-            # say Dumper $p_pl;
-            my ($p,$pl) = @{$p_pl};         
-            my $c = head(   $b->{'children'});
-            my $bs_ =  $c->{'branches'}//[];
-            my $p_=[@{$p}, $b->{'branchId'} ]; # 'push'
-            # die 'PATH:',Dumper $p,$p_;
-            if (null($bs_)) {
-                 return [$p, [@{$pl},$p_]]; # p not p_ because we go back up
-            } else {                    
-                my $p__pl_ = list_all_paths( $bs_, $p_,$pl);
-                my ($p__,$pl_) =@{$p__pl_};
-                return [ init( $p__),$pl_]; # 'pop'
-            }
+		# say Dumper $p_pl;
+		my ($p,$pl) = @{$p_pl};         
+		my $c = head(   $b->{'children'});
+		my $bs_ =  $c->{'branches'}//[];
+		my $p_=[@{$p}, $b->{'branchId'} ]; # 'push'
+		# die 'PATH:',Dumper $p,$p_;
+		if (null($bs_)) {
+				return [$p, [@{$pl},$p_]]; # p not p_ because we go back up
+		} else {                    
+			my $p__pl_ = list_all_paths( $bs_, $p_,$pl);
+			my ($p__,$pl_) =@{$p__pl_};
+			return [ init( $p__),$pl_]; # 'pop'
+		}
      }, [$path,$pathlist], $bs); 
      return $p_pl_acc;
 }
@@ -1411,3 +1411,128 @@ main = do
 =cut
 1;
 
+=pod
+The problem with the above approach is that the structure of the If-blocks is independent of the individual variables.
+For example
+
+if cond1 #1
+	v1=1
+	if cond2 #2
+		v2=2
+	else #3 
+		v2=...
+	end if
+	v1=v2
+else #4
+	v1=3	
+end if
+v2=...
+if cond3 #5
+	v3=...
+else #6
+	v4=...	
+end if
+
+will currently result in following paths:
+
+#1 #2 #5
+#1 #2 #6
+
+#1 #3 #5
+#1 #3 #6
+
+#4 #5
+#4 #6
+
+But actually, from the perspective of v1 the structure is
+if cond1 #1
+	v1=1
+	v1=v2
+else #4
+	v1=3	
+end if
+From v2 it is 
+if cond1 #1
+	v1=1
+	if cond2 #2
+		v2=2
+	else #3 
+		v2=...
+	end if
+	v1=v2
+else #4
+	v1=3	
+end if
+v2=...
+And from v3 and v4 it is
+if cond3 #5
+	v3=...
+else #6
+	v4=...	
+end if
+
+So any If block that does not contain a given variable can be left out from the path. 
+Currently I have 
+
+ 	my $state = {
+		'IfBlocks'=>{
+			$block_id => {
+				'Branches'=>[$branch_id,...],
+				'Children'=>[$child_block_id,...],
+				'StartLineId'=>$start_line_id,
+				'EndLineId'=>$end_line_id
+			}
+		},
+	};
+
+And this should really become
+
+ 	my $state = {
+		$var => 'IfBlocks'=>{
+			$block_id => {
+				'Branches'=>[$branch_id,...],
+				'Children'=>[$child_block_id,...],
+				'StartLineId'=>$start_line_id,
+				'EndLineId'=>$end_line_id
+			}
+		},
+	};
+
+So for a given variable, we need to check if it is used in any of the branches or their children
+So I guess we do a recursive descent 
+
+sub _recurse_if_statement_datastructure {my ($state, $st_id,$var) = @_; 
+    my $seq = $state->{'IfBlocks'}{$st_id}{'Branches'};     	
+    for my $b_id ( @{$seq}) {
+		# $state->{'VarNotInBranch'}{$var}{$b_id};
+        my $children = [];
+        if (scalar  @{$state->{'IfBlocks'}{$b_id}{'Children'}} > 0 ) {
+            for my $ch_id ( @{$state->{'IfBlocks'}{$b_id}{'Children'}}) {
+				# $state->{'NotChildForVar'}{$var}{$child_block_id};
+                push @{ $children }, _recurse_if_statement_datastructure($state, $ch_id,$var);
+				# Maybe do work?
+            }
+        } 
+		# Do the work
+    }
+    return $state;    
+}
+
+
+
+and keep a state 
+
+	$state->{'NotChildForVar'}{$var}{$child_block_id}
+
+and we can remove any child that is not used by $var from Children.
+
+I think Branches are actually blocks, so for every branch I van find StartLine and EndLine
+
+If Children is empty and none of the branches contains $var (tracked via $state->{'VarNotInBranch'}{$var}{$branch_id})
+then we can remove that block from the IfBlocks for $var.
+
+The complexity of this is the complexity of the recursive descent which is roughly number of branches times number of if-blocks, for each variable
+
+A better way is to build the correct structure from the start, simply by keeping track of occurrences of variables in each branch.
+
+=cut

@@ -2906,7 +2906,8 @@ fold f~$_1$~ acc (map f~$_2$~ v) = fold (f1 `fcomp` f2) acc v -- Fold-Map
 
 \begin_layout Plain Layout
 
-stencil s~$_1$~ (map f_1) = map (maps f_1) (stencil s_1) -- Stencil-Map
+stencil s~$_1$~ (map f~$_1$~) = map (maps f~$_1$~) (stencil s~$_1$~) --
+ Stencil-Map
 \end_layout
 
 \begin_layout Plain Layout
