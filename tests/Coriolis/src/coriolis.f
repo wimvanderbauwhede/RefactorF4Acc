@@ -6,7 +6,7 @@
         !* Author: J. Kaempf, 2008
         !*************************************
         !integer im,jm,km
-        parameter(im=10,jm=10,km=5)
+        parameter(im=100,jm=100,km=50)
         parameter(dmax=1000)
         
         REAL u,v,un,vn
