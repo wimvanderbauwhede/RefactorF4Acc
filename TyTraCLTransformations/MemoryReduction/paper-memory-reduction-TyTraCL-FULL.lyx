@@ -7,7 +7,7 @@
 \textclass svglobal3
 \begin_preamble
 \RequirePackage{fix-cm}
-
+\AtBeginDocument{\renewcommand{\MintedPygmentize}{/Users/wim/Library/Python/3.8/bin/pygmentize}}
 \smartqed  % flush right qed marks, e.g. at end of proof
 \usepackage{minted}
 
