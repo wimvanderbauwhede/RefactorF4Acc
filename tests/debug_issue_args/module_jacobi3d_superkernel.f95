@@ -57,6 +57,11 @@ integer, parameter :: ST_STENCIL_1 = 1
 
 state = state_ptr ! state 
 select case(state)
+! case (ST_DYN_SHAPIRO_MAP_49)
+!   call stencil_0(u, un)
+! case (ST_DYN_SHAPIRO_MAP_55)
+!   call stencil_0(u, un)
+
   case (ST_DYN_SHAPIRO_MAP_49)
     call stencil_0(u, v0)
   case (ST_DYN_SHAPIRO_MAP_55)

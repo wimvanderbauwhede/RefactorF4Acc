@@ -26,6 +26,7 @@ use RefactorF4Acc::Refactoring::Fixes qw(
   _make_dim_vars_scalar_consts_in_sigs
   remove_redundant_arguments_and_fix_intents
 );
+use RefactorF4Acc::Refactoring::RemoveRedundantAssignments qw( remove_redundant_assignments );
 use RefactorF4Acc::Analysis::Variables qw( identify_vars_on_line );
 use RefactorF4Acc::Analysis::ArrayAccessPatterns qw( identify_array_accesses_in_exprs );
 use RefactorF4Acc::Refactoring::FoldConstants qw( fold_constants_in_decls );
@@ -72,7 +73,8 @@ sub pass_rename_array_accesses_to_scalars {
     ( my $stref, my $code_unit_name ) = @_;
 
     $Config{'FIXES'}{'remove_redundant_arguments_and_fix_intents'} = 1;
-    $Config{'FIXES'}{'_remove_unused_variables'}                  = 1;
+    # $Config{'FIXES'}{'_remove_unused_variables'}                  = 1;
+    # $Config{'FIXES'}{'remove_redundant_assignments'} = 1;
     $stref = pass_wrapper_subs_in_module(
         $stref,
         '',
@@ -100,7 +102,8 @@ sub pass_rename_array_accesses_to_scalars {
             [
                 \&_declare_undeclared_variables,
                 \&_rename_array_accesses_to_scalars,
-                \&_remove_unused_variables,
+                # \&_remove_unused_variables,
+                \&remove_redundant_assignments
             ],
 
             # Scalarises the calls to the scalarised routines
@@ -145,7 +148,7 @@ sub pass_rename_array_accesses_to_scalars {
 		'Vars' => {
 			'List' => ['g_ptr'],
 			'Set' => {
-				'g_ptr' => {'Type' => 'Array','Vars' => {}}				
+				'g_ptr' => {'Type' => 'Array','Vars' => {}}
 			}
 		}
 	},
@@ -160,7 +163,7 @@ sub pass_rename_array_accesses_to_scalars {
 =info_assumptions_array_access_detection
 Assumptions:
 - Array accesses use index expressions that are linear `a*idx+b`, where idx is part of IndexVars
-- For stencils we _only_ support idx+k where k is a positive or negative constant 
+- For stencils we _only_ support idx+k where k is a positive or negative constant
 - If an array has a constant index access, that is _not_ part of the stencil
 
 =cut
@@ -172,15 +175,15 @@ This composite pass renames array accesses in the called subroutines in a superk
 
 It consists of following sub-passes:
 	1. Scalarise array accesses in assignments and conditional expressions of IFs
-		$pass_rename_array_accesses_in_exprs 
-	2. Create new assignment lines, these go into LiftedScalarAssignments 
-	3. Update the subroutine Signature and VarDecl declarations in $info	
+		$pass_rename_array_accesses_in_exprs
+	2. Create new assignment lines, these go into LiftedScalarAssignments
+	3. Update the subroutine Signature and VarDecl declarations in $info
 		$pass_update_sig_and_decls
-	4. Update DeclaredOrigArgs and DeclaredOrigArgs	
+	4. Update DeclaredOrigArgs and DeclaredOrigArgs
 	5. Add the missing declarations: in the superkernel we assign the variables to the original array accesses
-		$pass_lift_array_index_calculations 
-	6. Emit the updated code for the subroutine signature, the variable declarations, assignment expressions and ifthen expressions	
-		$pass_emit_updated_code 
+		$pass_lift_array_index_calculations
+	6. Emit the updated code for the subroutine signature, the variable declarations, assignment expressions and ifthen expressions
+		$pass_emit_updated_code
 
 WV 2019-11-14 What needs to change: the scalarisation should only happen for stream variables. So we need to determine which variables are stream variables, and which ones are not.
 As we first do identify_array_accesses_in_exprs, we should make sure there is a table created, e.g. $Sf->{'StreamVars'}. This is already used, but we could use it to decide on action or not.
@@ -227,12 +230,12 @@ sub _rename_array_accesses_to_scalars {
                     $info->{'Rhs'}{'ExpressionAST'} = $ast;
                     if ( ref($ast) ne '' ) {
                         my $vars = get_vars_from_expression( $ast, {} );
-                        
+
                         $info->{'Rhs'}{'Vars'}{'Set'} = $vars;
-                        
+
                         $info->{'Rhs'}{'Vars'}{'List'} =
                           [ grep { $_ ne 'IndexVars' } sort keys %{$vars} ];
-                        
+
                     }
                     else {
                         $info->{'Rhs'}{'Vars'} = { 'List' => [], 'Set' => {} };
@@ -268,7 +271,7 @@ sub _rename_array_accesses_to_scalars {
                         };
                     }
                 }
-                
+
             }
             if ( exists $info->{'If'} ) {
 
@@ -313,7 +316,7 @@ sub _rename_array_accesses_to_scalars {
 
 # So I think I should put the arguments in $state, I can do that when I encounter the Signature
         my $state = { 'IndexVars' => {}, 'StreamVars' => {}, 'Args' => {} };
-        
+
         ( $stref, $state ) =
           stateful_pass_inplace( $stref, $f,
             $pass_rename_array_accesses_in_exprs,
@@ -496,7 +499,7 @@ sub _rename_array_accesses_to_scalars {
         my $pass_update_sig_and_decls = sub {
             ( my $annline, my $state ) = @_;
             ( my $line,    my $info )  = @{$annline};
-            
+
             if ( exists $info->{'Signature'} ) {
 
 # What we do is replace the array args with the "tuple" of scalar args from StreamVars
@@ -628,7 +631,7 @@ sub _rename_array_accesses_to_scalars {
 # However, the array indices are computed from the global id on a per-sub basis so i,j,k are different for each sub.
 # So  we need to extract the calculations of i,j,k out of the sub
 
-# WV 2021-06-17 It is possible that i,j,k is used outside of actual indexing, in particular in guards. 
+# WV 2021-06-17 It is possible that i,j,k is used outside of actual indexing, in particular in guards.
 # The easy way is to check for guards. But I think any occurence of i,j,k being read outside of an actual index should be a trigger.
 
 
@@ -640,7 +643,7 @@ sub _rename_array_accesses_to_scalars {
 # We do this until we have all of them. Basically, if we start from the back and push in reverse, we can do this in a single pass
 
             if ( exists $info->{'Assignment'} ) {
-              # warn "LINE: $line"; 
+              # warn "LINE: $line";
                 my $lhs_var = $info->{'Lhs'}{'VarName'};
                 if ( exists $state->{'IndexVars'}{$lhs_var} ) { # It's an index var or dep on the LHS
                     unshift @{ $state->{'LiftedIndexCalcLines'} },
@@ -662,7 +665,7 @@ sub _rename_array_accesses_to_scalars {
                 } else {
                   # Maybe an index var is read on the RHS
                   my $rhs_vars = $info->{'Rhs'}{'Vars'}{'Set'};
-                  # croak Dumper $rhs_vars if $line =~/dx1/; 
+                  # croak Dumper $rhs_vars if $line =~/dx1/;
                   for my $index_var (sort keys %{ $state->{'IndexVars'}} ) {
                     if (exists $rhs_vars->{$index_var}) {
                         $state->{'IndexVarsToKeep'}{$index_var}=$state->{'IndexVars'}{$index_var};
@@ -677,10 +680,10 @@ sub _rename_array_accesses_to_scalars {
                   }
                 }
 
-            }            
+            }
             elsif ( exists $info->{'SubroutineCall'} ) {
                 for my $arg ( @{ $info->{'SubroutineCall'}{'Args'}{'List'} } ) {
-                    if ( exists $state->{'IndexVars'}{$arg} ) { 
+                    if ( exists $state->{'IndexVars'}{$arg} ) {
                         unshift @{ $state->{'LiftedIndexCalcLines'} },
                           dclone($annline);
                         my $args = $info->{'SubroutineCall'}{'Args'}{'Set'};
@@ -950,8 +953,7 @@ sub _rename_array_accesses_to_scalars_in_subcalls {
                               dclone($var_rec);
                         }
                         else {
-                            warn
-"No declaration record for $lifted_var in $subname!";
+                            warn "WARNING: No declaration record for $lifted_var in $subname or in $f!";
                         }
                     }
                 }
@@ -985,7 +987,7 @@ sub _rename_array_accesses_to_scalars_in_subcalls {
 
 # ================================================================================================================================================
 
-sub _update_call_args { 
+sub _update_call_args {
     ( my $stref, my $f ) = @_;
 
     if ( $f eq $Config{'KERNEL'} ) {
@@ -1370,7 +1372,7 @@ sub _emit_subroutine_call_w_streams {
 
     ( my $line, my $info ) = @{$annline};
     my $name        = $info->{'SubroutineCall'}{'Name'};
-    my $new_arg_map = $info->{'SubroutineCall'}{'ArgMap'};
+    my $new_arg_map = $info->{'SubroutineCall'}{'ArgMap'}; # Sig to Call
 
     # Then update CallArgs and again the ArgMap
     my $orig_call_args = $info->{'SubroutineCall'}{'Args'}{'List'};
@@ -1385,33 +1387,44 @@ sub _emit_subroutine_call_w_streams {
                 last;
             }
         }
-
+        # Here the args are fine
         if (
             exists $stref->{'Subroutines'}{$name}{'StreamVars'}
             {$current_sig_arg} )
         {
             $new_call_args = [
                 @{$new_call_args},
+                map {
+                   my $stream_call_arg = $_;
+                  $stream_call_arg =~ s/^$current_sig_arg/$call_arg/;
+                  $stream_call_arg
+                }
                 @{
-                    $stref->{'Subroutines'}{$name}{'StreamVars'}
-                      {$current_sig_arg}{'List'}
+                    $stref->{'Subroutines'}{$name}{'StreamVars'}{$current_sig_arg}{'List'}
                 }
             ];
             delete $info->{'SubroutineCall'}{'Args'}{'Set'}{$call_arg};
             map {
-                $info->{'SubroutineCall'}{'Args'}{'Set'}{$_} =
+              my $stream_call_arg = $_;
+              $stream_call_arg =~ s/^$current_sig_arg/$call_arg/;
+                $info->{'SubroutineCall'}{'Args'}{'Set'}{$stream_call_arg} =
                   { 'Expr' => $_, 'Type' => 'Scalar' }
-            } @{ $stref->{'Subroutines'}{$name}{'StreamVars'}
-                  {$current_sig_arg}{'List'} };
-            delete $info->{'SubroutineCall'}{'ArgMap'}{$call_arg};
+            } @{ $stref->{'Subroutines'}{$name}{'StreamVars'}{$current_sig_arg}{'List'} };
+            # delete $info->{'SubroutineCall'}{'ArgMap'}{$call_arg};
+            delete $info->{'SubroutineCall'}{'ArgMap'}{$current_sig_arg};
             for my $stream_arg (
                 @{
-                    $stref->{'Subroutines'}{$name}{'StreamVars'}
-                      {$current_sig_arg}{'List'}
+                    $stref->{'Subroutines'}{$name}{'StreamVars'}{$current_sig_arg}{'List'}
                 }
               )
             {
-                $info->{'SubroutineCall'}{'ArgMap'}{$stream_arg} = $stream_arg;
+              # This is incorrect!
+              # The stream args need to become call args on the RHS
+              my $stream_call_arg = $stream_arg;
+              # say "$stream_arg $current_sig_arg $call_arg $stream_call_arg";
+                $stream_call_arg=~s/^$current_sig_arg/$call_arg/;
+                # say "$stream_arg $current_sig_arg $call_arg $stream_call_arg";
+                $info->{'SubroutineCall'}{'ArgMap'}{$stream_arg} = $stream_call_arg;
             }
         }
         elsif (
@@ -1426,7 +1439,9 @@ sub _emit_subroutine_call_w_streams {
             delete $info->{'SubroutineCall'}{'ArgMap'}{$call_arg};
         }
     }
+    
     $info->{'SubroutineCall'}{'Args'}{'List'} = $new_call_args;
+# croak;# Dumper $info->{'SubroutineCall'};
     my $args_ref = $stref->{'Subroutines'}{$name}{'DeclaredOrigArgs'}{'List'};
 
     ( my $rline, my $rinfo ) =
