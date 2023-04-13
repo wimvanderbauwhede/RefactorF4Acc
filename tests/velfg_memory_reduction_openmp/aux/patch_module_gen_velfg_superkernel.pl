@@ -4,6 +4,8 @@ use strict;
 use warnings;
 
 # Add an implementation for `get_global_id` and remove the intent for vars that are not stage kernel args.
+# This is an in-place patch
+
 use Cwd;
 my $wd=cwd;
 if ($wd!~/MemoryReduction$/) {
@@ -65,7 +67,7 @@ my $superkernel_file = shift @superkernel_files;
 open my $SKMF, '<', $superkernel_file or die $!;
 my @superkernel_file_lines = <$SKMF>;
 close $SKMF;
-    $superkernel_file=~s/^\.\.\///;
+$superkernel_file=~s/^\.\.\///;
 open $SKMF, '>', "$superkernel_file" or die "$!";
 
 
@@ -73,14 +75,14 @@ my %stage_kernel_args=();
 my $has_global_id_decl=0;
 
 for my $line (@superkernel_file_lines) {
-        if (not $for_inlining and $line=~/^module module/) { 
+        if (not $for_inlining and $line=~/^module module/) {
             print $SKMF $line;
             print $SKMF 'use module_global_id'."\n";
             next;
         }
     # if ($line=~/integer\s*,\s*intent\(\w+\)\s+::\s+global_id/) {
     # $has_global_id_decl=1
-    # }        
+    # }
     if ($line=~/subroutine\s+stage_kernel_\d+\(([\w,\s]+)\)/) {
         my $args_str = $1;
         my @args = split(/\s*,\s*/,$args_str);

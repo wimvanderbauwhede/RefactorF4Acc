@@ -3,7 +3,24 @@ contains
 
 subroutine velfg_map_218_scal(dx1,cov1_i_j_k,cov1_ip1_j_k,cov2_i_j_k,cov2_i_jp1_k,cov3_i_j_k,cov3_i_j_kp1,diu1_i_j_k,diu1_ip1_j_k,diu2_i_j_k,diu2_i_jp1_k,dy1,diu3_i_j_k,diu3_i_j_kp1,dzn,dfu1_i_j_k,cov4_i_j_k,cov4_ip1_j_k,cov5_i_j_k,cov5_i_jp1_k,cov6_i_j_k,cov6_i_j_kp1,diu4_i_j_k,diu4_ip1_j_k,diu5_i_j_k,diu5_i_jp1_k,diu6_i_j_k,diu6_i_j_kp1,dfv1_i_j_k,cov7_i_j_k,cov7_ip1_j_k,cov8_i_j_k,cov8_i_jp1_k,cov9_i_j_k,cov9_i_j_kp1,diu7_i_j_k,diu7_ip1_j_k,diu8_i_j_k,diu8_i_jp1_k,diu9_i_j_k,diu9_i_j_kp1,dzs,dfw1_i_j_k,f_i_j_k,g_i_j_k,h_i_j_k)
       implicit none
+      integer, parameter :: ip___velfg_map_218_scal=300
+      integer, parameter :: jp___velfg_map_218_scal=300
+      integer, parameter :: kp___velfg_map_218_scal=90
+      integer, parameter :: im___velfg_map_218_scal=300
+      integer, parameter :: jm___velfg_map_218_scal=300
+      integer, parameter :: km___velfg_map_218_scal=90
+      integer, parameter :: ifbf___velfg_map_218_scal=1
+      integer, parameter :: ianime___velfg_map_218_scal=1
+      integer, parameter :: ical___velfg_map_218_scal=0
+      integer, parameter :: n0___velfg_map_218_scal=1
+      integer, parameter :: n1___velfg_map_218_scal=10001
+      integer, parameter :: nmax___velfg_map_218_scal=20000
+      real, parameter :: dt___velfg_map_218_scal=0.2
+      real, parameter :: ro___velfg_map_218_scal=1.1763
       real, parameter :: vn___velfg_map_218_scal=15.83 * 10. ** (-6.)
+      real, parameter :: alpha___velfg_map_218_scal=-10.
+      real, parameter :: beta___velfg_map_218_scal=-1.
+      integer, parameter :: u0___velfg_map_218_scal=0
  real :: covx1___velfg_map_218_scal
  integer :: i___velfg_map_218_scal
  integer :: j___velfg_map_218_scal
@@ -12,12 +29,13 @@ subroutine velfg_map_218_scal(dx1,cov1_i_j_k,cov1_ip1_j_k,cov2_i_j_k,cov2_i_jp1_
  real :: covz1___velfg_map_218_scal
  real :: covc___velfg_map_218_scal
  real :: df___velfg_map_218_scal
+ integer :: k_range___velfg_map_218_scal
  integer :: j_range___velfg_map_218_scal
  integer :: i_range___velfg_map_218_scal
- integer :: i_rel___velfg_map_218_scal
- integer :: j_rel___velfg_map_218_scal
  integer :: k_rel___velfg_map_218_scal
- real, dimension((-1):(150+1)), intent(in) :: dx1
+ integer :: j_rel___velfg_map_218_scal
+ integer :: i_rel___velfg_map_218_scal
+ real, dimension((-1):(300+1)), intent(in) :: dx1
  real, intent(in) :: cov1_i_j_k
  real, intent(in) :: cov1_ip1_j_k
  real, intent(in) :: cov2_i_j_k
@@ -28,7 +46,7 @@ subroutine velfg_map_218_scal(dx1,cov1_i_j_k,cov1_ip1_j_k,cov2_i_j_k,cov2_i_jp1_
  real, intent(in) :: diu1_ip1_j_k
  real, intent(in) :: diu2_i_j_k
  real, intent(in) :: diu2_i_jp1_k
- real, dimension(0:(150+1)), intent(in) :: dy1
+ real, dimension(0:(300+1)), intent(in) :: dy1
  real, intent(in) :: diu3_i_j_k
  real, intent(in) :: diu3_i_j_kp1
  real, dimension((-1):(90+2)), intent(in) :: dzn
@@ -63,10 +81,11 @@ subroutine velfg_map_218_scal(dx1,cov1_i_j_k,cov1_ip1_j_k,cov2_i_j_k,cov2_i_jp1_
  real, intent(inout) :: dfu1_i_j_k
  real, intent(inout) :: dfv1_i_j_k
  real, intent(inout) :: dfw1_i_j_k
- integer :: global_id___velfg_map_218_scal
- call get_global_id(global_id___velfg_map_218_scal,0)
- j_range___velfg_map_218_scal = ((150 - 1) + 1)
- i_range___velfg_map_218_scal = ((150 - 1) + 1)
+ integer, intent(in) :: global_id___velfg_map_218_scal
+!       call get_global_id(global_id,0)
+ k_range___velfg_map_218_scal = ((90 - 1) + 1)
+ j_range___velfg_map_218_scal = ((300 - 1) + 1)
+ i_range___velfg_map_218_scal = ((300 - 1) + 1)
  k_rel___velfg_map_218_scal = (global_id___velfg_map_218_scal / (j_range___velfg_map_218_scal * i_range___velfg_map_218_scal))
  k___velfg_map_218_scal = (k_rel___velfg_map_218_scal + 1)
  j_rel___velfg_map_218_scal = ((global_id___velfg_map_218_scal - (k_rel___velfg_map_218_scal * (j_range___velfg_map_218_scal * i_range___velfg_map_218_scal))) / i_range___velfg_map_218_scal)

@@ -57,8 +57,7 @@ call system_clock(timestamp(0), clock_rate)
 !$OMP PARALLEL DO
 #endif      
     do global_id = 1, 2025000_8*MM
-      call velfg_superkernel(u_0,v_0,w_0,f_1,g_1,h_1,state_ptr,global_id)
-
+        call velfg_superkernel(u_0,v_0,w_0,f_1,g_1,h_1,state_ptr,global_id)
     end do
 #ifdef WITH_OPENMP
 !$OMP END PARALLEL DO

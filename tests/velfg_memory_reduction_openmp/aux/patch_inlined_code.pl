@@ -16,7 +16,7 @@ our $V=1;
 # - In the main file:
 #    - get the module line and correct the name
 # - In the stage kernel file
-#    - find all unique calls     
+#    - find all unique calls
 # - We need to patch the call to deal with get_global_id, for now
 # - Replace `call get_global_id(idx,0,global_id)` by `idx=global_id`
 # - Patch the _scal files

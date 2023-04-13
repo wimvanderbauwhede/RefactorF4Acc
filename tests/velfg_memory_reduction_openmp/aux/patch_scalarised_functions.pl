@@ -1,10 +1,10 @@
-#!/usr/bin/perl 
+#!/usr/bin/perl
 use v5.30;
 use strict;
 use warnings;
 our $V=1;
 
-# To be run in MemoryReduction/Generated 
+# To be run in MemoryReduction/Generated
 # Substitute the parameters from the original module
 # Add `pure` to the subroutine declarations
 # Add a module declaration for get_global_id
@@ -17,7 +17,7 @@ if ($wd!~/MemoryReduction$/) {
     die "Run this script in 'MemoryReduction'\n";
 }
 my $for_inlining = 0;
-if (@ARGV) { 
+if (@ARGV) {
 
 if ($ARGV[0] eq '-i') {
     $for_inlining = 1;
@@ -60,20 +60,20 @@ for my $scal_f_name (@scal_funcs) {
     my @lines = <$SFF>;
     close $SFF;
     open $SFF, '>', "Generated/$patched_f_name" or die $!;
-    
+
     my $has_global_id_decl=0;
     my $first_decl=1;
     for my $line (@lines) {
-        if (not $for_inlining and $line=~/^module singleton/) { 
+        if (not $for_inlining and $line=~/^module singleton/) {
             print $SFF $line;
             print $SFF 'use module_global_id'."\n";
-            next;            
+            next;
         }
-        if ($line=~/dimension/) { 
+        if ($line=~/dimension/) {
             for my $par (sort keys %params) {
                 my $val = $params{$par};
                 $line=~s/\b$par\b/$val/;
-            }            
+            }
         }
         # if ($line=~/integer\s+::\s+global_id/) {
         #     $line=~s/integer/integer, intent(In)/;
@@ -82,7 +82,7 @@ for my $scal_f_name (@scal_funcs) {
         if ($line=~/subroutine\s+$scal_f_name\s*\(/) {
             $line=~s/$scal_f_name\s*\(/$scal_f_name(global_id,/;
             $line=~s/subroutine/pure subroutine/;
-        } 
+        }
         # elsif ($line=~/get_global_id/) {
         #     $line = '!'.$line;
         # }
@@ -90,7 +90,7 @@ for my $scal_f_name (@scal_funcs) {
         #     say $SFF "integer, intent(In) :: global_id";
         #     $has_global_id_decl=1;
         # }
-        # if ($line!~/::/ and $line=~/=/ and $first_decl==1 and $has_global_id_decl==0) { 
+        # if ($line!~/::/ and $line=~/=/ and $first_decl==1 and $has_global_id_decl==0) {
         #     say $SFF "integer, intent(In) :: global_id";
         #     $has_global_id_decl=1;
         #     $first_decl=0;
@@ -111,7 +111,7 @@ my $maybe_module_global_id = $for_inlining ? '' : ", 'module_global_id.f95'" ;
 open my $SC, '>', 'Generated/SConstruct' or die $!;
 my $sconstruct_file = <<ENDSC;
 import os
-  
+
 FC=os.environ.get('FC')
 
 fsources = ['gen_velfg_superkernel.f95', 'module_gen_velfg_superkernel.f95', 'velfg_map_133.f95', 'velfg_map_218.f95', 'velfg_map_76.f95' $maybe_module_global_id ]

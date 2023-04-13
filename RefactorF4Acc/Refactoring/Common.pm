@@ -15,18 +15,18 @@ use v5.10;
 use RefactorF4Acc::Config;
 use RefactorF4Acc::Utils;
 use RefactorF4Acc::Parser qw( parse_fortran_src );
-use RefactorF4Acc::Refactoring::Helpers qw( 	 	 
-	emit_f95_var_decl 
+use RefactorF4Acc::Refactoring::Helpers qw(
+	emit_f95_var_decl
 	splice_additional_lines_cond_inplace
 	);
-# use RefactorF4Acc::Refactoring::ContextFree qw( context_free_refactorings );	
+# use RefactorF4Acc::Refactoring::ContextFree qw( context_free_refactorings );
 use RefactorF4Acc::Refactoring::Subroutines::Signatures qw( create_refactored_subroutine_signature refactor_subroutine_signature );
 use RefactorF4Acc::Refactoring::Subroutines::IncludeStatements qw( skip_common_include_statement );
-use RefactorF4Acc::Parser::Expressions qw( emit_expr_from_ast  find_vars_in_ast );
+use RefactorF4Acc::Parser::Expressions qw( emit_expr_from_ast  find_vars_in_ast parse_expression_no_context );
 
 use RefactorF4Acc::Analysis::Arrays qw(
   calculate_array_size
-  get_array_rank  
+  get_array_rank
 );
 use RefactorF4Acc::Refactoring::Casts qw( cast_call_argument );
 
@@ -80,17 +80,17 @@ sub refactor_COMMON_blocks_and_CONTAINed_subs {  # 218 lines Was _refactor_globa
 			# $Sf->{'ParametersFromContainer'} = $stref->{'Subroutines'}{$container}{'Parameters'};    # Note this is a nested set
 			my ($set,$list) = merge_subsets($stref->{'Modules'}{$container}{'Parameters'}{'Subsets'});    # Note this is a nested set
 			$Sf->{'ParametersFromContainer'}{'Set'}=$set;
-			$Sf->{'ParametersFromContainer'}{'List'}=$list;			
+			$Sf->{'ParametersFromContainer'}{'List'}=$list;
 			my $all_pars_in_container = get_vars_from_set( $stref->{'Subroutines'}{$container}{'Parameters'} );
 			for my $par ( keys %{$all_pars_in_container} ) {
 				my $par_decl      = $all_pars_in_container->{$par};
-				my $par_decl_line = [ 
-					'      ' . emit_f95_var_decl($par_decl), 
-					{ 
-						'ParamDecl' => $par_decl, 
+				my $par_decl_line = [
+					'      ' . emit_f95_var_decl($par_decl),
+					{
+						'ParamDecl' => $par_decl,
 						'Ann'       => [ annotate( $f, __LINE__ ) ],
-						'SpecificationStatement' => 1,						
-						'Ref' => 1 
+						'SpecificationStatement' => 1,
+						'Ref' => 1
 						} ];
 				push @par_decl_lines_from_container, $par_decl_line;
 			}
@@ -110,7 +110,7 @@ sub refactor_COMMON_blocks_and_CONTAINed_subs {  # 218 lines Was _refactor_globa
 			  get_vars_from_set( $stref->{'Modules'}{$mod}{'Parameters'} );
 			for my $par ( keys %{$all_pars_in_module} ) {
 				my $par_decl      = $all_pars_in_module->{$par};
-				my $par_decl_line = [					
+				my $par_decl_line = [
 					'      ' . emit_f95_var_decl($par_decl),
 					{
 						'ParamDecl' => $par_decl,
@@ -145,7 +145,7 @@ sub refactor_COMMON_blocks_and_CONTAINed_subs {  # 218 lines Was _refactor_globa
 		( my $line, my $info ) = @{$annline};
 
 		my $skip = 0;
-		
+
 		# Create the refactored subroutine signature
 		if ( exists $info->{'Signature'} ) {
 			if ( not exists $Sf->{'HasRefactoredArgs'}
@@ -241,14 +241,14 @@ sub refactor_COMMON_blocks_and_CONTAINed_subs {  # 218 lines Was _refactor_globa
 			$first_non_spec_stmt = 0;
 			say "EX-GLOBS for $f" if $V;
 			$info->{'ExGlobVarDeclHook'}='Before';
-			$rlines = [				
+			$rlines = [
 				@{_create_extra_arg_and_var_decls( $stref, $f, $annline, $rlines )},
 			['! END new declarations',{'Comments'=>1}],
 			['',{'Blank'=>1}],
 			];
 		}
 
-		if ( exists $info->{'SubroutineCall'} 
+		if ( exists $info->{'SubroutineCall'}
 		# and not exists $info->{'ExtractedSubroutine'}
 		) {
 
@@ -275,9 +275,9 @@ sub refactor_COMMON_blocks_and_CONTAINed_subs {  # 218 lines Was _refactor_globa
 	# We can store them in $Sf->{'CastReshapeVarDecls'}, for convenience we would just create them and emit them
 	# To have the full picture I suppose the decls should go into DeclaredLocalVars
 	# The can go anywhere but I guess the best place is after all other VarDecls, so before the first non-VarDecl statement
-	# We can simply do this using 
+	# We can simply do this using
 	if (exists $Sf->{'CastReshapeVarDecls'}
-	and exists $Sf->{'CastReshapeVarDecls'}{'List'} and scalar @{$Sf->{'CastReshapeVarDecls'}{'List'}} > 0 ) { 
+	and exists $Sf->{'CastReshapeVarDecls'}{'List'} and scalar @{$Sf->{'CastReshapeVarDecls'}{'List'}} > 0 ) {
 		my $nextLineID = scalar @{$rlines} + 1;
 		my $cast_reshape_vardecl_annlines = [];
 		for my $cast_reshape_vardecl (@{$Sf->{'CastReshapeVarDecls'}{'List'}}) {
@@ -315,7 +315,7 @@ sub refactor_COMMON_blocks_and_CONTAINed_subs {  # 218 lines Was _refactor_globa
 				return 0;
 			}
 		};
-		# Usage: 
+		# Usage:
 		my $merged_annlines = splice_additional_lines_cond_inplace( $stref, $f, $insert_cond_subref, $rlines, $cast_reshape_vardecl_annlines, 1, 0, 1 );
 		$rlines = $merged_annlines;
 	}
@@ -418,7 +418,7 @@ sub _create_extra_arg_and_var_decls { #272 lines
 			$info->{'SpecificationStatement'} = 1;
 			@{$rlines}=(@{$rlines},@{$inherited_param_decls});
 			push @{$rlines}, [ $rline, $info ];
-			
+
 		}
 	}    # for
 
@@ -437,7 +437,7 @@ sub _create_extra_arg_and_var_decls { #272 lines
 	}    # for
 
 	print "INFO: UndeclaredOrigArgs in $f\n" if $I;
-	
+
 	my %unique_ex_impl = ();
 	if (scalar keys %{ $Sf->{'UndeclaredOrigArgs'}{'Set'} } > 0) {
 	for my $var ( @{ $Sf->{'UndeclaredOrigArgs'}{'List'} } ) {
@@ -445,7 +445,7 @@ sub _create_extra_arg_and_var_decls { #272 lines
 		if (not defined $var) {
 			carp "Undefined arg in position $_arg_idx in DeclaredOrigArgs for $f";
 			carp Dumper $Sf->{'UndeclaredOrigArgs'};
-		}		
+		}
 		if (    not exists $Sf->{'UsedGlobalVars'}{'Set'}{$var}
 			and not exists $Sf->{'CalledSubs'}{'Set'}{$var} )
 		{
@@ -542,7 +542,7 @@ sub _create_extra_arg_and_var_decls { #272 lines
 			# I don't explicitly declare variables that conflict with reserved words or intrinsics.
 			my $var_is_sub = 0;
 
-			#WV20201209: In Parser/Expressions I set the value to 2, 
+			#WV20201209: In Parser/Expressions I set the value to 2,
 			if ( exists $Sf->{'CalledSubs'}{'Set'}{$var}
 				and $Sf->{'CalledSubs'}{'Set'}{$var}[0] == 1 )
 			{
@@ -556,7 +556,7 @@ sub _create_extra_arg_and_var_decls { #272 lines
 
 			# Skip if the variable is a subroutine
 			if (
-				
+
 				exists $Sf->{'MaskedIntrinsics'}{$var}
 				or
 				(
@@ -587,7 +587,7 @@ sub _create_extra_arg_and_var_decls { #272 lines
 				$info->{'SpecificationStatement'} = 1;
 				push @{$rlines}, [ $rline, $info ];
 			} else {
-				say "INFO: $var is a reserved word" if $I;			
+				say "INFO: $var is a reserved word" if $I;
 				# croak Dumper($Sf->{'MaskedIntrinsics'}{$var}) if $var eq 'len';
 			}
 		}
@@ -616,7 +616,7 @@ sub _create_extra_arg_and_var_decls { #272 lines
 # This subroutine adds additional arguments to a call to $name in $f.
 # What it does NOT do is update the list of variables in scope in $f.
 # It should update ExGlobArgs
-# Furthermore I notice that sometimes these arguments are not passed on to the containing subroutine. 
+# Furthermore I notice that sometimes these arguments are not passed on to the containing subroutine.
 # That should be an issue in the subroutine refactoring code
 sub _create_refactored_subroutine_call { # 321 lines
 	( my $stref, my $f, my $annline, my $rlines ) = @_;
@@ -631,7 +631,7 @@ sub _create_refactored_subroutine_call { # 321 lines
 		return $rlines;
 	}
 	# This is in case we need intermediate variables for casting and reshaping of arguments to subroutine calls
-	if (not exists $Sf->{'CastReshapeVarDecls'}) {	
+	if (not exists $Sf->{'CastReshapeVarDecls'}) {
 		$Sf->{'CastReshapeVarDecls'}={'List'=>[], 'Set'=>{}};
 	}
 	# Collect original args
@@ -649,19 +649,19 @@ sub _create_refactored_subroutine_call { # 321 lines
 		# The main purpose is to handle variable names
 		# So this is rather weak because e.g. v(i) will not be in Vars.
 		# So this only works for plain variable names
-		my $call_arg = emit_expr_from_ast($call_arg_expr);		
+		my $call_arg = emit_expr_from_ast($call_arg_expr);
 		# carp Dumper($call_arg_expr);
 		my $has_vars = scalar keys %{ find_vars_in_ast($call_arg_expr,{}) } > 0;
 		if (# skip constants
-			$has_vars 
-			# $call_arg_expr->[0] < 29 
+			$has_vars
+			# $call_arg_expr->[0] < 29
 			# and not ($call_arg_expr->[0]==4 and $call_arg_expr->[1][0] >= 29) # negative constant
 			# This is still weak because for example 1+1 would get through. Maybe better is to check if there are any vars at all!
 			and not exists $stref->{'Subroutines'}{$call_arg}
-			) { 
+			) {
 			my $subset = in_nested_set($stref->{'Subroutines'}{$f}, 'Vars', $call_arg);
-			
-			if ($subset) { # otherwise it means this is an expression, including array accesses, or a constant.			
+
+			if ($subset) { # otherwise it means this is an expression, including array accesses, or a constant.
 				my $call_arg_decl = $stref->{'Subroutines'}{$f}{$subset}{'Set'}{$call_arg};
 # croak $subset, Dumper($call_arg_expr, $call_arg_decl) if $call_arg eq 'fs335';
 				# Just set $sig_arg to $call_arg as a start
@@ -669,9 +669,9 @@ sub _create_refactored_subroutine_call { # 321 lines
 				# Now see if there is an actual $sig_arg for which the entry in ArgMap
 				# matches the $call_arg
 				# ArgMap entries are not typed: the type info is in $info->{'SubroutineCall'}{'Args'}
-				for my $tsig_arg (keys %{$info->{'SubroutineCall'}{'ArgMap'} }) {					
+				for my $tsig_arg (keys %{$info->{'SubroutineCall'}{'ArgMap'} }) {
 					if ( defined $info->{'SubroutineCall'}{'ArgMap'}{$tsig_arg} and
-						$info->{'SubroutineCall'}{'ArgMap'}{$tsig_arg} eq $call_arg) {									
+						$info->{'SubroutineCall'}{'ArgMap'}{$tsig_arg} eq $call_arg) {
 						$sig_arg=$tsig_arg;
 						last;
 					}
@@ -683,7 +683,7 @@ sub _create_refactored_subroutine_call { # 321 lines
 				if (not exists $sig_arg_decl->{'Name'}) {
 					$sig_arg_decl = $call_arg_decl;
 				}
-				
+
 				my $cast_reshape_result = _maybe_cast_call_args($stref, $f, $name, $call_arg,$call_arg_decl,$sig_arg, $sig_arg_decl);
 				# say Dumper($cast_reshape_result)  if $name =~/mpi_reduce_double_precision/;
 				# croak Dumper($sig_arg_decl,$call_arg_decl)  if $name =~/mpi_reduce_double_precision/ and $call_arg eq 'data1';
@@ -694,28 +694,28 @@ sub _create_refactored_subroutine_call { # 321 lines
 
 		push @orig_args, $call_arg;
 	} # loop over all call args
-	
-	map { 
+
+	map {
 		$Sf->{'CastReshapeVarDecls'}{'Set'}{
 			$_->{'CallArg'}
 		} = $_->{'CastReshapeVarDecl'};
 	} @cast_reshape_results;
 	$Sf->{'CastReshapeVarDecls'}{'List'} = [sort keys %{ $Sf->{'CastReshapeVarDecls'}{'Set'} }];
 
- 
+
 	my $args_ref = [@orig_args];               # NOT ordered union, if they repeat that should be OK
 # carp Dumper($args_ref) if $name eq 'sn725';
-	
+
 	# This is for the case of ENTRYs. The "parent" is the actual sub which contains the ENTRY statements
 	my $parent_sub_name =
 	  exists $stref->{'Entries'}{$name} ? $stref->{'Entries'}{$name} : $name;
 	# croak Dumper( $annline) if $name eq 'sub0' and $f=~/loop/;
 	# If there are any ex-global args, collect them
 	# WV2019-06-03 Here we should check.
-	if ( exists $stref->{'Subroutines'}{$name}{'RefactoredArgs'} 
+	if ( exists $stref->{'Subroutines'}{$name}{'RefactoredArgs'}
 	and exists $info->{'ExtractedSubroutine'}
 	) { # If we have this, surely we can just use them?
-		
+
 		my $args_ref = $stref->{'Subroutines'}{$name}{'RefactoredArgs'}{'List'};
 		$info->{'SubroutineCall'}{'Args'}{'List'} = $args_ref;
 		# croak Dumper($args_ref);
@@ -815,7 +815,7 @@ sub _create_refactored_subroutine_call { # 321 lines
 				for my $arg (@{$args_ref}) {
 					my $Sf = $stref->{'Subroutines'}{$f};
 					my $subset = in_nested_set( $Sf, 'Vars', $arg );
-					my $call_arg_decl = get_var_record_from_set($Sf->{$subset},$arg);				
+					my $call_arg_decl = get_var_record_from_set($Sf->{$subset},$arg);
 
 					if ( exists $call_arg_decl->{'OrigName'} ) {
 						 $annline->[1]{'SubroutineCall'}{'Args'}{'Set'}{$arg}= {
@@ -858,7 +858,7 @@ sub _create_refactored_subroutine_call { # 321 lines
 						my ($cast_reshape_post_line, $cast_reshape_post_info) =@{$cast_reshape_result->{'PostAnnLine'}};
 						push @{$rlines}, [ $indent . $cast_reshape_post_line, $cast_reshape_post_info ];
 					}
-				}		
+				}
 
 			} else { # no change to original call line
 				push @{$rlines}, [ $line, $info ];
@@ -881,7 +881,7 @@ sub _create_refactored_subroutine_call { # 321 lines
 					my $subset = in_nested_set($stref->{'Subroutines'}{$f}, 'Vars', $call_arg);
 					my $call_arg_decl = $stref->{'Subroutines'}{$f}{$subset}{'Set'}{$call_arg};
 					my $sig_arg_decl = $stref->{'Subroutines'}{$parent_sub_name}{'ExMismatchedCommonArgs'}{'SigArgs'}{'Set'}{$sig_arg};
-					# I think it is safe enough not to cast if call arg and sig arg have the same name. 
+					# I think it is safe enough not to cast if call arg and sig arg have the same name.
 					# But I'll handle that inside _maybe_cast_call_args
 					# carp 'CAST?'. Dumper($f, $parent_sub_name, $call_arg,$sig_arg);
 					my $cast_reshape_result = _maybe_cast_call_args($stref, $f, $parent_sub_name, $call_arg,$call_arg_decl,$sig_arg, $sig_arg_decl);
@@ -893,7 +893,7 @@ sub _create_refactored_subroutine_call { # 321 lines
 				}
 
 				$Sf->{'CastReshapeVarDecls'}{'List'} = [map {$_->{'CallArg'}} @cast_reshape_results];
-				map { 
+				map {
 					$Sf->{'CastReshapeVarDecls'}{'Set'}{
 						$_->{'CallArg'}
 					} = $_->{'CastReshapeVarDecl'};
@@ -902,7 +902,7 @@ sub _create_refactored_subroutine_call { # 321 lines
 
 				# Then we concatenate these arg lists
 				$args_ref = [ @orig_args, @maybe_renamed_exglobs ];    # NOT ordered union, if they repeat that should be OK
-				
+
 				my $expr_ast = $info->{'SubroutineCall'}{'ExpressionAST'};
 				if (    @maybe_renamed_exglobs
 					and @{$expr_ast}
@@ -949,19 +949,19 @@ sub _create_refactored_subroutine_call { # 321 lines
 						my ($cast_reshape_post_line, $cast_reshape_post_info) =@{$cast_reshape_result->{'PostAnnLine'}};
 						push @{$rlines}, [ $indent . $cast_reshape_post_line, $cast_reshape_post_info ];
 					}
-				}		
+				}
 
 			} else { # no change to original call line
 				push @{$rlines}, [ $line, $info ];
 			}
-		}	
+		}
 	}
 		# croak Dumper( $annline) if $name eq 'sub0' and $f=~/loop/;
 	return ($rlines, $stref);
 }    # END of _create_refactored_subroutine_call()
 
 
-sub __generate_inherited_param_decls { my ($rdecl, $var, $stref, $f, $inherited_param_decls) = @_;	
+sub __generate_inherited_param_decls { my ($rdecl, $var, $stref, $f, $inherited_param_decls) = @_;
     my $Sf         = $stref->{'Subroutines'}{$f};
 	if (exists $rdecl->{'InheritedParams'}) {
 		for my $inh_par (sort keys %{ $rdecl->{'InheritedParams'}{'Set'} }) {
@@ -970,7 +970,7 @@ sub __generate_inherited_param_decls { my ($rdecl, $var, $stref, $f, $inherited_
 				my $in_mod=0;
 					if ( exists $Sf->{'InModule'} ) {
 						my $mod = $Sf->{'InModule'};
-						if ( exists $stref->{'Modules'}{$mod}{'Parameters'} ) { 
+						if ( exists $stref->{'Modules'}{$mod}{'Parameters'} ) {
 							$in_mod=1;
 						}
 					}
@@ -981,14 +981,14 @@ sub __generate_inherited_param_decls { my ($rdecl, $var, $stref, $f, $inherited_
                     #croak Dumper(pp_annlines($Sf->{'AnnLines'}));
                     #croak Dumper($Sf);
 					my $par_decl = $rdecl->{'InheritedParams'}{'Set'}{$inh_par};
-					my $par_decl_line = [ '      ' . emit_f95_var_decl($par_decl), { 'ParamDecl' => $par_decl, 'Ref' => 1, 
+					my $par_decl_line = [ '      ' . emit_f95_var_decl($par_decl), { 'ParamDecl' => $par_decl, 'Ref' => 1,
 					'Ann' => [annotate($f, __LINE__ . " : __generate_inherited_param_decls")]
 					} ];
 					push @{$inherited_param_decls}, $par_decl_line;
-					 
+
 					$Sf->{'LocalParameters'}{'Set'}{$inh_par}=$par_decl;
 					if (exists $par_decl->{'InheritedParams'} and scalar keys %{$par_decl->{'InheritedParams'}{'Set'}}> 0) {
-						($inherited_param_decls, $Sf) =__generate_inherited_param_decls($par_decl, $inh_par, $stref, $f, $inherited_param_decls);		
+						($inherited_param_decls, $Sf) =__generate_inherited_param_decls($par_decl, $inh_par, $stref, $f, $inherited_param_decls);
 					}
 				}
 				#  else {
@@ -1002,7 +1002,7 @@ sub __generate_inherited_param_decls { my ($rdecl, $var, $stref, $f, $inherited_
 
 # _maybe_cast_call_args
 =pod
-returns  $cast_reshape_result, 
+returns  $cast_reshape_result,
 	my $cast_reshape_result={
 		'CallArg' => $call_arg,
 		'PreAnnLine' => [],
@@ -1018,15 +1018,15 @@ where Status =
 Casting and reshaping may both be needed. We have four cases
 1. Cast only
 2. Reshape only
-We need to reshape the call arg in the shape of the sig arg. Problem is that in the caller context, there is no sig arg. 
-So we either need to calculate the shape and insert it as a constant, so that we can do this in-place, or we need to create the new call arg 
+We need to reshape the call arg in the shape of the sig arg. Problem is that in the caller context, there is no sig arg.
+So we either need to calculate the shape and insert it as a constant, so that we can do this in-place, or we need to create the new call arg
 The latter is easier.
 3. Reshape and cast
 Casting should take places after reshaping: cast(reshape())
 4. No reshape nor cast
 
 cast only
-- in-place 
+- in-place
 - new arg
 reshape only (always new arg)
 cast and reshape (always new arg)
@@ -1045,7 +1045,7 @@ sub _maybe_cast_call_args { # 200 lines
 	if (_compare_decls($stref, $f, $call_arg_decl, $sig_arg_decl))	{
 		return $cast_reshape_result;
 	}
-	
+
 	my ($needs_reshape, $use_arg_sz) = __reshape_check($stref, $f, $sub_name, $call_arg_decl,$sig_arg_decl);
 	my $needs_cast = __cast_check( $call_arg_decl,$sig_arg_decl);
 	my $sig_kind=__get_kind_from_decl($sig_arg_decl);
@@ -1060,8 +1060,8 @@ sub _maybe_cast_call_args { # 200 lines
 		$new_call_arg = $call_arg.'_'.$sub_name.'_cr';
 		my $Sf = $stref->{'Subroutines'}{$f};
 		my $subset = in_nested_set( $Sf, 'Vars', $call_arg );
-		my $call_arg_decl = get_var_record_from_set($Sf->{$subset},$call_arg);				
-		my $new_call_arg_decl = dclone($sig_arg_decl);		
+		my $call_arg_decl = get_var_record_from_set($Sf->{$subset},$call_arg);
+		my $new_call_arg_decl = dclone($sig_arg_decl);
 		$new_call_arg_decl->{'Name'}=$new_call_arg;
 		$new_call_arg_decl->{'OrigName'}=$call_arg;
 		if ($use_arg_sz) {
@@ -1074,7 +1074,7 @@ sub _maybe_cast_call_args { # 200 lines
 
 		$cast_reshape_result->{'CallArg'}=$new_call_arg;
 		$cast_reshape_result->{'CastReshapeVarDecl'}=$new_call_arg_decl;
-		$cast_reshape_result->{'Status'}=2;		
+		$cast_reshape_result->{'Status'}=2;
 	} elsif ($needs_cast and not $is_out) {
 		$cast_reshape_result->{'Status'}=1;
 	}
@@ -1082,18 +1082,18 @@ sub _maybe_cast_call_args { # 200 lines
 
 	if ($needs_reshape) { # never in-place
 		# do the reshape, then check for cast
-		
+
 		my $reshaped_call_arg = "reshape($call_arg,shape($new_call_arg))";
 		my $reshaped_call_arg_ast = [1,'reshape',[27,$call_arg, [1,'shape',[2,$new_call_arg]]]];
 		my $cast_reshape_pre_line = "$new_call_arg = $reshaped_call_arg";
-#@ Lhs => 
+#@ Lhs =>
 #@        VarName       => $lhs_varname
 #@        IndexVars     => $lhs_vars
 #@        ArrayOrScalar => Array | Scalar
 #@        ExpressionAST => $lhs_ast
-#@ Rhs => 
+#@ Rhs =>
 #@        Vars       => $rhs_all_vars
-#@        ExpressionAST => $rhs_ast			
+#@        ExpressionAST => $rhs_ast
 		my $cast_reshape_pre_info = {
 			'Lhs' => {'ExpressionAST' => [2,$new_call_arg],
 				'VarName' => $new_call_arg,
@@ -1104,7 +1104,7 @@ sub _maybe_cast_call_args { # 200 lines
 				'ExpressionAST' => $reshaped_call_arg_ast,
 				'Vars' => {
 					'List' => [$call_arg, $new_call_arg],
-					'Set' => {$call_arg =>{'Type' => 'Scalar'}, 
+					'Set' => {$call_arg =>{'Type' => 'Scalar'},
 							$new_call_arg=>{'Type' => 'Scalar'}
 					}
 				}
@@ -1112,7 +1112,7 @@ sub _maybe_cast_call_args { # 200 lines
 		};
 		my $cast_reshape_pre_annline = [$cast_reshape_pre_line,$cast_reshape_pre_info];
 
-		my $reshaped_new_call_arg = "reshape($new_call_arg, shape($call_arg))";		
+		my $reshaped_new_call_arg = "reshape($new_call_arg, shape($call_arg))";
 		my $reshaped_new_call_arg_ast = [1,'reshape',[27,$new_call_arg, [1,'shape',[2,$call_arg]]]];
 		my $cast_reshape_post_line = "$call_arg = $reshaped_new_call_arg";
 		my $cast_reshape_post_info = {
@@ -1123,7 +1123,7 @@ sub _maybe_cast_call_args { # 200 lines
 			},
 			'Rhs' => {'ExpressionAST' => $reshaped_new_call_arg_ast,
 			'Vars' => {
-				'List' => [$call_arg, $new_call_arg], 
+				'List' => [$call_arg, $new_call_arg],
 				'Set' => {$call_arg =>{'Type' => 'Scalar'}, $new_call_arg=>{'Type' => 'Scalar'}}
 				}
 			},
@@ -1131,7 +1131,7 @@ sub _maybe_cast_call_args { # 200 lines
 		my $cast_reshape_post_annline = [$cast_reshape_post_line,$cast_reshape_post_info];
 
 
-		if ($needs_cast) { 
+		if ($needs_cast) {
 			# cast
 			my $cast_reshaped_call_arg = cast_call_argument($sig_arg_decl->{'Type'}, $sig_kind , $call_arg_decl->{'Type'}, $reshaped_call_arg);
 			my $cast_reshaped_call_arg_ast = parse_expression($cast_reshaped_call_arg);
@@ -1144,17 +1144,17 @@ sub _maybe_cast_call_args { # 200 lines
 			},
 			'Rhs' => {'ExpressionAST' => $cast_reshaped_call_arg_ast,
 			'Vars' => {
-				'List' => [$call_arg, $new_call_arg], 
+				'List' => [$call_arg, $new_call_arg],
 				'Set' => {$call_arg =>{'Type' => 'Scalar'}, $new_call_arg=>{'Type' => 'Scalar'}}
 				}
 			},
 		};
-		 $cast_reshape_post_annline = [$cast_reshape_post_line,$cast_reshape_post_info];			
+		 $cast_reshape_post_annline = [$cast_reshape_post_line,$cast_reshape_post_info];
 			my $reshaped_new_call_arg = "reshape($new_call_arg, shape($call_arg)";
 			my $cast_reshaped_new_call_arg = cast_call_argument($call_arg_decl->{'Type'}, $call_kind , $sig_arg_decl->{'Type'}, $reshaped_new_call_arg);
 			$cast_reshape_post_line = "$call_arg = $cast_reshaped_new_call_arg";
-		} 
-		
+		}
+
 		$cast_reshape_result = __update_cast_reshape_result(
 			$cast_reshape_result,
 			$cast_reshape_pre_annline,
@@ -1163,13 +1163,14 @@ sub _maybe_cast_call_args { # 200 lines
 			$new_call_arg
 		);
 
-	} else { # no reshape. This I guess could be an array access used as argument, so a scalar, I wonder what happens 
+	} else { # no reshape. This I guess could be an array access used as argument, so a scalar, I wonder what happens
 	# croak Dumper $call_arg;
-		if ($needs_cast) { 
-			if ($is_out) { # not in place		
-			 
-					my $cast_call_arg = cast_call_argument($sig_arg_decl->{'Type'}, $sig_kind , $call_arg_decl->{'Type'}, $call_arg);		
-					my $cast_call_arg_ast = parse_expression($cast_call_arg);
+		if ($needs_cast) {
+			if ($is_out) { # not in place
+
+					my $cast_call_arg = cast_call_argument($sig_arg_decl->{'Type'}, $sig_kind , $call_arg_decl->{'Type'}, $call_arg);
+					# my $cast_call_arg_ast = parse_expression($cast_call_arg);
+					(my $cast_call_arg_ast, my $rest, my $err, my $has_funcs)  = parse_expression_no_context($cast_call_arg);
 					my $cast_reshape_pre_line =  "$new_call_arg = $cast_call_arg" ;
 					my $cast_reshape_pre_info = {
 						'Lhs' => {'ExpressionAST' => [2,$new_call_arg],
@@ -1184,7 +1185,8 @@ sub _maybe_cast_call_args { # 200 lines
 					my $cast_reshape_pre_annline = [$cast_reshape_pre_line,$cast_reshape_pre_info];
 
 					my $cast_new_call_arg = cast_call_argument($call_arg_decl->{'Type'}, $call_kind , $sig_arg_decl->{'Type'}, $new_call_arg);
-					my $cast_new_call_arg_ast = parse_expression($cast_new_call_arg);
+					# my $cast_new_call_arg_ast = parse_expression($cast_new_call_arg);
+					(my $cast_new_call_arg_ast, my $restn, my $errn, my $has_funcsn)  = parse_expression_no_context($cast_new_call_arg);
 					my $cast_reshape_post_line =   "$call_arg = $cast_new_call_arg" ;
 					my $cast_reshape_post_info = {
 						'Lhs' => {'ExpressionAST' => [2,$call_arg],
@@ -1195,8 +1197,8 @@ sub _maybe_cast_call_args { # 200 lines
 						'Rhs' => {'ExpressionAST' => $cast_new_call_arg_ast,
 						'Vars' => {'List' => [$cast_new_call_arg], 'Set' => {$cast_new_call_arg=>{'Type' => 'Scalar'}}}
 						},
-					};		
-					my $cast_reshape_post_annline = [$cast_reshape_post_line,$cast_reshape_post_info];		
+					};
+					my $cast_reshape_post_annline = [$cast_reshape_post_line,$cast_reshape_post_info];
 
 					$cast_reshape_result = __update_cast_reshape_result($cast_reshape_result,
 						$cast_reshape_pre_annline,
@@ -1208,7 +1210,7 @@ sub _maybe_cast_call_args { # 200 lines
 			} else { # in place
 					my $cast_call_arg = cast_call_argument($sig_arg_decl->{'Type'}, $sig_kind , $call_arg_decl->{'Type'}, $call_arg);
 					$cast_reshape_result->{'CallArg'}=$cast_call_arg;
-			}	
+			}
 		}
 	}
 
@@ -1218,12 +1220,12 @@ sub _maybe_cast_call_args { # 200 lines
 
 sub  __update_cast_reshape_result {
 	my (
-		$cast_reshape_result, # {'PreAnnLine' => ..., 'PostAnnLine' => ...} -> 
+		$cast_reshape_result, # {'PreAnnLine' => ..., 'PostAnnLine' => ...} ->
 		$cast_reshape_pre_annline, # AnnLine
 		$cast_reshape_post_annline, # AnnLine
 		$call_arg, # Var
 		$new_call_arg # Var
-	) = @_; # {'PreAnnLine' => ..., 'PostAnnLine' => ...} 
+	) = @_; # {'PreAnnLine' => ..., 'PostAnnLine' => ...}
 
 	my ($cast_reshape_pre_line,$cast_reshape_pre_info) = @{$cast_reshape_pre_annline};
 	my ($cast_reshape_post_line,$cast_reshape_post_info) = @{$cast_reshape_post_annline};
@@ -1234,10 +1236,10 @@ carp Dumper $cast_reshape_result->{'PreAnnLine'}[1];
 	$cast_reshape_result->{'PreAnnLine'}[1]{'Lhs'}{'ExpressionAST'}=[2,$new_call_arg];
 	$cast_reshape_result->{'PreAnnLine'}[1]{'Lhs'}{'IndexVars'}{'List'}=[];
 	$cast_reshape_result->{'PreAnnLine'}[1]{'Lhs'}{'ArrayOrScalar'}='Scalar';
-	$cast_reshape_result->{'PreAnnLine'}[1]{'Rhs'}{'Vars'}{'List'}=[$new_call_arg,$call_arg];	
+	$cast_reshape_result->{'PreAnnLine'}[1]{'Rhs'}{'Vars'}{'List'}=[$new_call_arg,$call_arg];
 	$cast_reshape_result->{'PreAnnLine'}[1]{'Rhs'}{'ExpressionAST'} = [1,'reshape',[27,[2,$call_arg],[1,'shape',[2,$new_call_arg]]]];
-	$cast_reshape_result->{'PostAnnLine'}[0]=$cast_reshape_post_line;	
-	$cast_reshape_result->{'PostAnnLine'}[1]=$cast_reshape_post_info;	
+	$cast_reshape_result->{'PostAnnLine'}[0]=$cast_reshape_post_line;
+	$cast_reshape_result->{'PostAnnLine'}[1]=$cast_reshape_post_info;
 	$cast_reshape_result->{'PostAnnLine'}[1]{'Lhs'}{'VarName'}=$call_arg;
 	$cast_reshape_result->{'PostAnnLine'}[1]{'Lhs'}{'ExpressionAST'}=[2,$call_arg];
 	$cast_reshape_result->{'PostAnnLine'}[1]{'Lhs'}{'IndexVars'}{'List'}=[];
@@ -1262,20 +1264,20 @@ sub __get_kind_from_decl { my ($decl) = @_;
 
 
 sub __reshape_check { my ($stref, $f, $sub_name, $call_arg_decl,$sig_arg_decl) = @_;
-	
+
 	my $call_arg = $call_arg_decl->{'Name'};
 	my $sig_arg = $sig_arg_decl->{'Name'};
 
-	my $needs_reshape=0;	
+	my $needs_reshape=0;
 	my $use_arg_sz=0;
 	if (exists $call_arg_decl->{'ArrayOrScalar'} and
 		$call_arg_decl->{'ArrayOrScalar'} eq 'Array'
-		and $sig_arg_decl->{'ArrayOrScalar'} eq 'Array'									
+		and $sig_arg_decl->{'ArrayOrScalar'} eq 'Array'
 	) { # both are arrays. Let's check size and rank
 		# and also assignment is array to array
 
 		my $dim1  = $call_arg_decl->{'Dim'};
-		my $dim2  = $sig_arg_decl->{'Dim'};		
+		my $dim2  = $sig_arg_decl->{'Dim'};
 		# say "ASSUMED? ". __is_assumed_array($dim2);
 		# Avoid overwriting the actual Dim field
 		my $dim2d = dclone($dim2);
@@ -1288,7 +1290,7 @@ sub __reshape_check { my ($stref, $f, $sub_name, $call_arg_decl,$sig_arg_decl) =
 		croak 'FIXME!'.Dumper($call_arg_decl,$sig_arg_decl) if $DBG and not defined $size1 or not defined $size2;
 		if ($not_const1 ne $not_const2) {
 			warning("the call to $sub_name in $f might have the wrong dimension for " .
-			( $not_const1 ? "$call_arg($not_const1)" : $call_arg) . " with dummy " . 
+			( $not_const1 ? "$call_arg($not_const1)" : $call_arg) . " with dummy " .
 			( $not_const2 ? "$sig_arg($not_const2)" : $sig_arg) ,2);
 			# say Dumper($dim1, $dim2d);
 		}
@@ -1299,16 +1301,16 @@ sub __reshape_check { my ($stref, $f, $sub_name, $call_arg_decl,$sig_arg_decl) =
 
 		# if the same rank and different size
 		if ( $size1 == $size2 and $rank1 != $rank2 ) {
-			$needs_reshape=1;			
+			$needs_reshape=1;
 		} elsif ( $size1 != $size2 and $rank1 == $rank2 ) {
 			# warning("In call to $sub_name in $f: call arg $call_arg and subroutine arg $sig_arg have different sizes $size1<>$size2, type error!\n"
 			# .'Using the largest dimension for the reshaped array.' if not $not_const2 and $W ;
 
 			warning("the call to $sub_name in $f might have the wrong dimension for " .
-			( $not_const1 ? "$call_arg($not_const1)" : $call_arg) . " with dummy " . 
+			( $not_const1 ? "$call_arg($not_const1)" : $call_arg) . " with dummy " .
 			( $not_const2 ? "$sig_arg($not_const2)" : $sig_arg) . "\n\t" .
 			'Using the largest dimension for the reshaped array.',2) if not $not_const2 ;
-			# If the dim is for some reason still symbolic, we'll take the non-symbolic one			
+			# If the dim is for some reason still symbolic, we'll take the non-symbolic one
 			if ($size1>$size2) {
 				$use_arg_sz=1;
 			}
@@ -1321,7 +1323,7 @@ sub __reshape_check { my ($stref, $f, $sub_name, $call_arg_decl,$sig_arg_decl) =
 			# warning("In call to $sub_name in $f: call arg $call_arg and subroutine arg $sig_arg have different sizes $size1<>$size2, type error in reshape()!\n"
 			# .'Using the largest dimension for the reshaped array.',2) if not $not_const2;
 			warning("the call to $sub_name in $f might have the wrong dimension for " .
-			( $not_const1 ? "$call_arg($not_const1)" : $call_arg) . " with dummy " . 
+			( $not_const1 ? "$call_arg($not_const1)" : $call_arg) . " with dummy " .
 			( $not_const2 ? "$sig_arg($not_const2)" : $sig_arg) . "\n\t" .
 			'Using the largest dimension for the reshaped array.',2) if not $not_const2 ;
 			$needs_reshape=1;
@@ -1344,11 +1346,11 @@ sub __cast_check {
 	if ($call_arg_decl->{'Type'} ne $sig_arg_decl->{'Type'}) {
 		# TODO: if they are the same type but different kinds, we also need to cast.
 		$needs_cast = 1;
-	} elsif ("$sig_kind" ne "$call_kind" 
+	} elsif ("$sig_kind" ne "$call_kind"
 			and "$sig_kind" ne '*' # Assumed length for character string
-			) {		
-		$needs_cast = 1;	
-	}	
+			) {
+		$needs_cast = 1;
+	}
 	return $needs_cast;
 }
 
@@ -1356,7 +1358,7 @@ sub __out_check {
 	my ($sig_arg_decl) = @_;
 	if ($sig_arg_decl->{'IODir'} ne 'In'
 		# or $sig_arg_decl->{'IODir'} eq 'InOut'
-	) { 
+	) {
 		return 1;
 	} else {
 		return 0;
@@ -1375,7 +1377,7 @@ for my $dim_comp (@{$dims}) {
 return 0;
 } # END of __is_assumed_array
 
-# I will at first assume the dimensions are the same, and if not I need to reshape 
+# I will at first assume the dimensions are the same, and if not I need to reshape
 sub __take_upper_bound_from_call_arg { my ($dim1,$dim2) = @_;
 	my $idx=0;
 	if (
@@ -1399,12 +1401,12 @@ sub __take_upper_bound_from_call_arg { my ($dim1,$dim2) = @_;
 		return $dim2;
 	} else { # This means $dim1 has a different shape from $dim2
 	# For example [1,6] and [[1,2],[1,*]]
-	# In this case we see that * should be 3. 
+	# In this case we see that * should be 3.
 	# But what if we had
 	# For example [1,6] and [[1,*],[1,*]]
-	# Then there is no unique solution! 
+	# Then there is no unique solution!
 	# If on the contrary we had [[1,2],[1,3]] and [1,*] then it is clear.
-	# So: 
+	# So:
 	# - If there is only one *, the we calculate the linear size of the call arg, and the linear sizes of the non-* sig arg dims
 		my $nstars = 0;
 		for my $dim_comp2 (@{$dim2}) {
@@ -1425,7 +1427,7 @@ sub __take_upper_bound_from_call_arg { my ($dim1,$dim2) = @_;
 				my $upper_bound2=$dim2_comp->[1];
 				my $lower_bound2=$dim2_comp->[1];
 				if ($upper_bound2 ne '*'){
-					$size2 = $size2*($upper_bound2-$lower_bound2+1);			
+					$size2 = $size2*($upper_bound2-$lower_bound2+1);
 				}
 			}
 			my $assumed_size = $size1/$size2;
@@ -1434,7 +1436,7 @@ sub __take_upper_bound_from_call_arg { my ($dim1,$dim2) = @_;
 				if ($upper_bound2 eq '*') {
 					$dim_comp2->[1]=$assumed_size-$dim_comp2->[0]+1;
 				}
-			}			
+			}
 			return $dim2;
 		} else {
 			# Not good, better error message needed
@@ -1465,7 +1467,7 @@ sub _compare_decls{my ($stref, $f, $var1_decl, $var2_decl)=@_;
 		my $rank1 = get_array_rank($dim1);
 		my $rank2 = get_array_rank($dim2);
 
-		# if the same rank and different size	
+		# if the same rank and different size
 		$decls_are_equal *=  ( $size1 == $size2 and $rank1 == $rank2 ) ? 1 : 0;
 	}
 	return $decls_are_equal;
@@ -1510,7 +1512,7 @@ sub _create_refactored_function_calls {
 	my $updated_line =
 		$do_not_update ? $line
 	  : emit_expr_from_ast($updated_ast);
-	  
+
 	if ( exists $info->{'PlaceHolders'} ) {
 
 		while ( $updated_line =~ /(__PH\d+__)/ ) {
@@ -1646,7 +1648,7 @@ sub __update_function_calls_in_AST {
 		my $entry = __update_function_calls_in_AST( $stref, $Sf, $f, $ast->[2] );
 		$ast->[2] = $entry;
 	} elsif ( ( $ast->[0] & 0xFF ) < 29 and ( $ast->[0] & 0xFF ) != 2 ) {    # other operators
-	
+
 		for my $idx ( 1 .. scalar @{$ast} - 1 ) {
 			my $entry = __update_function_calls_in_AST( $stref, $Sf, $f, $ast->[$idx] );
 			$ast->[$idx] = $entry;
