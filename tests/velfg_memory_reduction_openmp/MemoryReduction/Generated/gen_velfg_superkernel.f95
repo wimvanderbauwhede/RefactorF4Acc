@@ -9,7 +9,6 @@ program main
     real, dimension(1:8244691) :: f_1
     real, dimension(1:8244691) :: g_1
     real, dimension(1:8244691) :: h_1
-    integer :: global_id_0
     integer, parameter :: ST_STAGE_KERNEL_1 = 1 ! stage_kernel_1
     integer :: state_ptr
     integer, parameter :: niters = 5
@@ -19,7 +18,7 @@ program main
     do iter = 1, niters
     print *, iter
     do global_id = 1, 8510058
-      call velfg_superkernel(u_0, v_0, w_0, f_1, g_1, h_1, global_id_0,state_ptr)
+      call velfg_superkernel(u_0, v_0, w_0, f_1, g_1, h_1,state_ptr)
     end do
     end do
 

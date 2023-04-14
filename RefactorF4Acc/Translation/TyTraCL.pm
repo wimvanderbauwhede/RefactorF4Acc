@@ -1031,12 +1031,13 @@ sub _add_TyTraCL_AST_entry {
                 } # else it is not an argument
             } else {
                 if (exists $state->{'Subroutines'}{$f}{'DeclaredOrigArgs'}{'Set'}{$arg}{'IODir'}) {
-                warn "No Purpose for $arg, using IODir " . $state->{'Subroutines'}{$f}{'DeclaredOrigArgs'}{'Set'}{$arg}{'IODir'};
-                $tytracl_ast->{'OrigArgs'}{$arg} = $state->{'Subroutines'}{$f}{'DeclaredOrigArgs'}{'Set'}{$arg}{'IODir'};
-                $tytracl_ast->{'FunctionArgsMappings'}{$f}{$arg}=$arg_pos;
-                ++$arg_pos;
+                    warn "No Purpose for $arg, using IODir " . $state->{'Subroutines'}{$f}{'DeclaredOrigArgs'}{'Set'}{$arg}{'IODir'};
+                    $tytracl_ast->{'OrigArgs'}{$arg} = $state->{'Subroutines'}{$f}{'DeclaredOrigArgs'}{'Set'}{$arg}{'IODir'};
+                    $tytracl_ast->{'FunctionArgsMappings'}{$f}{$arg}=$arg_pos;
+                    ++$arg_pos;
                 } else {
                     warn "No Purpose or IODir for $arg" . Dumper $state->{'Subroutines'}{$f}{'DeclaredOrigArgs'}{'Set'}{$arg};
+                    croak $f,Dumper $state->{'Subroutines'}{$f}{'DeclaredOrigArgs'};
                 }
             }
         }

@@ -4,28 +4,28 @@ module Main where
 import Control.Monad ( when )
 import System.IO ( openFile, hPutStr, hClose, IOMode(..) )
 import Data.List ((\\),foldl')
-import TyTraCLAST 
+import TyTraCLAST
 import ASTInstance (ast,functionSignaturesList,superkernelName)
 import Transforms (
-    splitLhsTuples, 
-    substituteVectors, 
-    applyRewriteRules, 
-    fuseStencils, 
-    regroupTuples, 
-    removeDuplicateExpressions, 
+    splitLhsTuples,
+    substituteVectors,
+    applyRewriteRules,
+    fuseStencils,
+    regroupTuples,
+    removeDuplicateExpressions,
     decomposeExpressions,
     substituteNonUniqueStencilNames,
     stencilNamesToUniqueNames
-    ) 
+    )
 import CodeGeneration (
-    inferSignatures, 
+    inferSignatures,
     generateFortranCode,
     createStages
     )
 
-info = True 
+info = True
 printTyTraCL = True
-    
+
 data Stage = Original | SplitLhsTuples | SubstituteVectors | ApplyRewriteRules | FuseStencils | RegroupTuples | DecomposeExpressions | RemoveDuplicateExpressions deriving (Show, Ord, Eq)
 stage = RemoveDuplicateExpressions
 
@@ -41,7 +41,7 @@ ast3'' = fuseStencils ast3
 ast3' :: TyTraCLAST
 ast3' = regroupTuples ast3''
 ast4 :: [TyTraCLAST]
-ast4 = decomposeExpressions ast1 ast3' 
+ast4 = decomposeExpressions ast1 ast3'
 tagged_asts = map (\ast -> (foldl'(\isFold (lhs,rhs) -> case rhs of
                             Fold _ _ _ -> True
                             _ -> isFold
@@ -50,7 +50,7 @@ tagged_asts = map (\ast -> (foldl'(\isFold (lhs,rhs) -> case rhs of
 ast5 = removeDuplicateExpressions $ concat maps_asts -- the fold stages must remain separate!
 ast6 = fold_asts ++ [ast5] --[ groupMapCalls ast5]
 
-asts  
+asts
     | stage == Original = [ast]
     | stage == SplitLhsTuples = [ast1]
     | stage == SubstituteVectors = [ast2]
@@ -63,7 +63,7 @@ asts
 inferedSignatures :: [[(Name,FSig)]]
 inferedSignatures = map inferSignatures ast4
 
-generatedFortranCode = generateFortranCode asts functionSignaturesList idSigList 
+generatedFortranCode = generateFortranCode asts functionSignaturesList idSigList
 (generatedMainProgramCode,generatedModuleCode) = generatedFortranCode
 
 main = do
@@ -84,7 +84,7 @@ main = do
             putStrLn "\n-- Regroup tuples"
             mapM_ print ast3'
             putStrLn "\n-- Decompose expressions and infer function signatures"
-            mapM_ ( \((x1,x2),ct) -> do                
+            mapM_ ( \((x1,x2),ct) -> do
                 if not (null (x2 \\ functionSignaturesList)) then
                     do
                         putStrLn $ "-- Inferred function signatures stage "++(show ct)
@@ -92,23 +92,23 @@ main = do
                 else
                     return [()]
                 putStrLn $ "-- Decomposed expressions stage "++(show ct)
-                mapM_ print x1   
-                ) (zip (zip ast4 inferedSignatures) [1..])   
+                mapM_ print x1
+                ) (zip (zip ast4 inferedSignatures) [1..])
             mapM_ (\x -> do
-                            mapM_ print x) ast6         
+                            mapM_ print x) ast6
             putStrLn ""
         else return ()
     if printTyTraCL then
-            do        
+            do
             putStrLn "-- Original function signatures"
             mapM_ (putStrLn . ppFSig) functionSignaturesList
             putStrLn "\n-- Original TyTraCL code"
             mapM_ putStrLn $ ppAST ast
             putStrLn "\n-- Fuse stencils"
             mapM_ putStrLn $ ppAST ast3''
-            putStrLn "\n-- Regroup tuples"       
+            putStrLn "\n-- Regroup tuples"
             mapM_ putStrLn $ ppAST ast3'
-            putStrLn "\n-- Decomposed expressions and inferred function signatures"            
+            putStrLn "\n-- Decomposed expressions and inferred function signatures"
             mapM_ (
                  \((x1,x2),ct) -> do
                 if not (null (x2 \\ functionSignaturesList)) then
@@ -119,7 +119,7 @@ main = do
                 mapM_ (putStrLn . ppFSig) (x2 \\ functionSignaturesList)
                 -- putStrLn $ "-- " ++ (show . LHSPrint . fst . head) x1
                 putStrLn $ "-- Decomposed expressions stage "++(show ct)
-                -- mapM_ print x1   
+                -- mapM_ print x1
                 putStr $ unlines $ ppAST x1
                 ) (zip (zip ast4 inferedSignatures) [1..])
                 -- ) [(( ast5, inferedSignatures),0)]
@@ -127,18 +127,18 @@ main = do
             mapM_ (putStr . unlines . ppAST) ast6
 
 
-        else return ()     
+        else return ()
 
     let
         fp = mkSrcFileName superkernelName
-    fh <- openFile fp WriteMode     
+    fh <- openFile fp WriteMode
     hPutStr fh generatedMainProgramCode
     hClose fh
     if not (null generatedModuleCode) then
         do
             let
                 fp' = mkModuleSrcFileName superkernelName
-            fh' <- openFile fp' WriteMode     
+            fh' <- openFile fp' WriteMode
             hPutStr fh' generatedModuleCode
             hClose fh'
     else

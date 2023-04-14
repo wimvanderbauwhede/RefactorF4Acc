@@ -2,11 +2,11 @@ import os
 
 FC=os.environ.get('FC')
 
-fsources = ['gen_velfg_superkernel.f95', 'module_gen_velfg_superkernel.f95', 'velfg_map_133.f95', 'velfg_map_218.f95', 'velfg_map_76.f95'  ]
+fsources = ['gen_velfg_superkernel.f95', 'module_gen_velfg_superkernel.f95', '../Scalarized/velfg_map_133.f95', '../Scalarized/velfg_map_218.f95', '../Scalarized/velfg_map_76.f95']
 
 FFLAGS = ['-Wall','-cpp','-O3','-m64','-ffree-form','-ffree-line-length-0','-fconvert=little-endian','-frecord-marker=4']
 
-envF=Environment(F95=FC,LINK=FC,F95FLAGS=FFLAGS,F95PATH=['.' ,'/usr/local/include'])
+envF=Environment(F95=FC,LINK=FC,F95FLAGS=FFLAGS,F95PATH=['.' ,'../Scalarized','/usr/local/include'])
 
 envF.Program('gen_velfg_superkernel',fsources,LIBS=['m'],LIBPATH=['.' ,'/usr/lib','/usr/local/lib'])
 
