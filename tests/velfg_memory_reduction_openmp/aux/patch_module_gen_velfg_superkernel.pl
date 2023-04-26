@@ -15,12 +15,12 @@ if ($wd!~/MemoryReduction$/) {
 my $for_inlining = 0;
 if (@ARGV) { 
 
-if ($ARGV[0] eq '-i') {
-    $for_inlining = 1;
-}
-else {
-   die "The only supported option is -i to patch before inlining\n";
-}
+    if ($ARGV[0] eq '-i') {
+        $for_inlining = 1;
+    }
+    else {
+    die "The only supported option is -i to patch before inlining\n";
+    }
 
 }
 
@@ -51,9 +51,9 @@ end module module_global_id
 ';
 
 if (not -e 'Generated/module_global_id.f95') {
-open my $MG, '>', 'Generated/module_global_id.f95' or die $!;
-print $MG $module_global_id;
-close $MG;
+    open my $MG, '>', 'Generated/module_global_id.f95' or die $!;
+    print $MG $module_global_id;
+    close $MG;
 } elsif ($for_inlining) {
     unlink 'Generated/module_global_id.f95';
 }

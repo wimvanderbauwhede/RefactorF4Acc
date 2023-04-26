@@ -2,19 +2,8 @@ module singleton_module_stage_kernel_1
 
 contains
 
-subroutine stage_kernel_1(dx1_0,dy1_0,dzn_0,dzs_0,global_id_0,u_0,v_0,w_0,f_1,g_1,h_1,global_id,global_id)
+subroutine stage_kernel_1(dx1_0,dy1_0,dzn_0,dzs_0,th_idx_0,u_0,v_0,w_0,f_1,g_1,h_1,global_id)
  implicit none
- integer, dimension(1:2), parameter :: s8=(/ 92418 , 92419 /)
- integer, dimension(1:5), parameter :: s3=(/ 605, 91809, 92110, 92111, 92412 /)
- integer, dimension(1:5), parameter :: s2=(/ 605, 91809, 91810, 92110, 92111 /)
- integer, dimension(1:4), parameter :: s1=(/ 92111, 92112, 92413, 183617 /)
- integer, dimension(1:2), parameter :: s12=(/ 92113 , 92416 /)
- integer, dimension(1:2), parameter :: s7=(/ 92113 , 183922 /)
- integer, dimension(1:2), parameter :: s9=(/ 92113 , 92114 /)
- integer, dimension(1:2), parameter :: s10=(/ 92418 , 92722 /)
- integer, dimension(1:2), parameter :: s6=(/ 92110 , 183616 /)
- integer, dimension(1:3), parameter :: s5=(/ 183315, 183616, 183617 /)
- integer, dimension(1:2), parameter :: s4=(/ 91809 , 183315 /)
  integer, parameter :: ip___velfg_map_76_scal=300
  integer, parameter :: jp___velfg_map_76_scal=300
  integer, parameter :: kp___velfg_map_76_scal=90
@@ -249,32 +238,42 @@ subroutine stage_kernel_1(dx1_0,dy1_0,dzn_0,dzs_0,global_id_0,u_0,v_0,w_0,f_1,g_
  real :: dfu1_1___f_pelts_f_1_g_1_h_1_16
  real :: dfv1_1___f_pelts_f_1_g_1_h_1_16
  real :: dfw1_1___f_pelts_f_1_g_1_h_1_16
- integer, intent(In) :: global_id
  real, dimension(1:8418552), intent(in) :: u_0
  real, dimension(1:8418552), intent(in) :: v_0
  real, dimension(1:8510058), intent(in) :: w_0
  real, dimension(1:8244691), intent(out) :: f_1
  real, dimension(1:8244691), intent(out) :: g_1
  real, dimension(1:8244691), intent(out) :: h_1
+ integer, dimension(1:2), parameter :: s10=(/ 92418 , 92419 /)
+ integer, dimension(1:5), parameter :: s1=(/ 605, 91809, 92110, 92111, 92412 /)
  real, dimension(1:2,1:5) :: svec_f_1_g_1_h_1_17
  integer :: s_idx_1
  integer :: s_idx_2
+ integer, dimension(1:5), parameter :: s3=(/ 605, 91809, 91810, 92110, 92111 /)
  real, dimension(1:2,1:5) :: svec_f_1_g_1_h_1_18
+ integer, dimension(1:4), parameter :: s2=(/ 92111, 92112, 92413, 183617 /)
  real, dimension(1:2,1:4) :: svec_f_1_g_1_h_1_19
+ integer, dimension(1:2), parameter :: s12=(/ 92113 , 92416 /)
  real, dimension(1:2,1:5) :: svec_f_1_g_1_h_1_20
  real, dimension(1:2,1:5) :: svec_f_1_g_1_h_1_21
  real, dimension(1:2,1:4) :: svec_f_1_g_1_h_1_22
+ integer, dimension(1:2), parameter :: s7=(/ 92113 , 183922 /)
  real, dimension(1:2,1:5) :: svec_f_1_g_1_h_1_23
  real, dimension(1:2,1:5) :: svec_f_1_g_1_h_1_24
  real, dimension(1:2,1:4) :: svec_f_1_g_1_h_1_25
+ integer, dimension(1:2), parameter :: s9=(/ 92113 , 92114 /)
  real, dimension(1:2,1:5) :: svec_f_1_g_1_h_1_26
  real, dimension(1:2,1:5) :: svec_f_1_g_1_h_1_27
  real, dimension(1:2,1:4) :: svec_f_1_g_1_h_1_28
+ integer, dimension(1:2), parameter :: s11=(/ 92418 , 92722 /)
  real, dimension(1:2,1:5) :: svec_f_1_g_1_h_1_29
  real, dimension(1:2,1:5) :: svec_f_1_g_1_h_1_30
  real, dimension(1:2,1:4) :: svec_f_1_g_1_h_1_31
+ integer, dimension(1:2), parameter :: s6=(/ 92110 , 183616 /)
  real, dimension(1:2,1:2) :: svec_f_1_g_1_h_1_32
+ integer, dimension(1:3), parameter :: s5=(/ 183315, 183616, 183617 /)
  real, dimension(1:2,1:3) :: svec_f_1_g_1_h_1_33
+ integer, dimension(1:2), parameter :: s4=(/ 91809 , 183315 /)
  real, dimension(1:2,1:2) :: svec_f_1_g_1_h_1_34
  real, dimension(1:2,1:2) :: svec_f_1_g_1_h_1_35
  real, dimension(1:2,1:3) :: svec_f_1_g_1_h_1_36
@@ -283,14 +282,15 @@ subroutine stage_kernel_1(dx1_0,dy1_0,dzn_0,dzs_0,global_id_0,u_0,v_0,w_0,f_1,g_
  real, dimension(0:301), intent(in) :: dy1_0
  real, dimension(-1:92), intent(in) :: dzn_0
  real, dimension(-1:92), intent(in) :: dzs_0
- integer, intent(in) :: global_id_0
+ integer, intent(in) :: th_idx_0
  integer :: idx
+integer, intent(In) :: global_id
 idx = global_id
 !RF4A Begin Inline
  do s_idx_1 = 1,2
  do s_idx_2 = 1,5
- if (idx+s8(s_idx_1)+s3(s_idx_2)>=1 .and. idx+s8(s_idx_1)+s3(s_idx_2)<=8418552) then
- svec_f_1_g_1_h_1_17(s_idx_1, s_idx_2) = u_0(idx+s8(s_idx_1)+s3(s_idx_2))
+ if (idx+s10(s_idx_1)+s1(s_idx_2)>=1 .and. idx+s10(s_idx_1)+s1(s_idx_2)<=8418552) then
+ svec_f_1_g_1_h_1_17(s_idx_1, s_idx_2) = u_0(idx+s10(s_idx_1)+s1(s_idx_2))
  else
  svec_f_1_g_1_h_1_17(s_idx_1, s_idx_2) = u_0(idx)
  end if
@@ -298,8 +298,8 @@ idx = global_id
  end do
  do s_idx_1 = 1,2
  do s_idx_2 = 1,5
- if (idx+s8(s_idx_1)+s2(s_idx_2)>=1 .and. idx+s8(s_idx_1)+s2(s_idx_2)<=8418552) then
- svec_f_1_g_1_h_1_18(s_idx_1, s_idx_2) = v_0(idx+s8(s_idx_1)+s2(s_idx_2))
+ if (idx+s10(s_idx_1)+s3(s_idx_2)>=1 .and. idx+s10(s_idx_1)+s3(s_idx_2)<=8418552) then
+ svec_f_1_g_1_h_1_18(s_idx_1, s_idx_2) = v_0(idx+s10(s_idx_1)+s3(s_idx_2))
  else
  svec_f_1_g_1_h_1_18(s_idx_1, s_idx_2) = v_0(idx)
  end if
@@ -307,8 +307,8 @@ idx = global_id
  end do
  do s_idx_1 = 1,2
  do s_idx_2 = 1,4
- if (idx+s8(s_idx_1)+s1(s_idx_2)>=1 .and. idx+s8(s_idx_1)+s1(s_idx_2)<=8510058) then
- svec_f_1_g_1_h_1_19(s_idx_1, s_idx_2) = w_0(idx+s8(s_idx_1)+s1(s_idx_2))
+ if (idx+s10(s_idx_1)+s2(s_idx_2)>=1 .and. idx+s10(s_idx_1)+s2(s_idx_2)<=8510058) then
+ svec_f_1_g_1_h_1_19(s_idx_1, s_idx_2) = w_0(idx+s10(s_idx_1)+s2(s_idx_2))
  else
  svec_f_1_g_1_h_1_19(s_idx_1, s_idx_2) = w_0(idx)
  end if
@@ -316,8 +316,8 @@ idx = global_id
  end do
  do s_idx_1 = 1,2
  do s_idx_2 = 1,5
- if (idx+s12(s_idx_1)+s3(s_idx_2)>=1 .and. idx+s12(s_idx_1)+s3(s_idx_2)<=8418552) then
- svec_f_1_g_1_h_1_20(s_idx_1, s_idx_2) = u_0(idx+s12(s_idx_1)+s3(s_idx_2))
+ if (idx+s12(s_idx_1)+s1(s_idx_2)>=1 .and. idx+s12(s_idx_1)+s1(s_idx_2)<=8418552) then
+ svec_f_1_g_1_h_1_20(s_idx_1, s_idx_2) = u_0(idx+s12(s_idx_1)+s1(s_idx_2))
  else
  svec_f_1_g_1_h_1_20(s_idx_1, s_idx_2) = u_0(idx)
  end if
@@ -325,8 +325,8 @@ idx = global_id
  end do
  do s_idx_1 = 1,2
  do s_idx_2 = 1,5
- if (idx+s12(s_idx_1)+s2(s_idx_2)>=1 .and. idx+s12(s_idx_1)+s2(s_idx_2)<=8418552) then
- svec_f_1_g_1_h_1_21(s_idx_1, s_idx_2) = v_0(idx+s12(s_idx_1)+s2(s_idx_2))
+ if (idx+s12(s_idx_1)+s3(s_idx_2)>=1 .and. idx+s12(s_idx_1)+s3(s_idx_2)<=8418552) then
+ svec_f_1_g_1_h_1_21(s_idx_1, s_idx_2) = v_0(idx+s12(s_idx_1)+s3(s_idx_2))
  else
  svec_f_1_g_1_h_1_21(s_idx_1, s_idx_2) = v_0(idx)
  end if
@@ -334,8 +334,8 @@ idx = global_id
  end do
  do s_idx_1 = 1,2
  do s_idx_2 = 1,4
- if (idx+s12(s_idx_1)+s1(s_idx_2)>=1 .and. idx+s12(s_idx_1)+s1(s_idx_2)<=8510058) then
- svec_f_1_g_1_h_1_22(s_idx_1, s_idx_2) = w_0(idx+s12(s_idx_1)+s1(s_idx_2))
+ if (idx+s12(s_idx_1)+s2(s_idx_2)>=1 .and. idx+s12(s_idx_1)+s2(s_idx_2)<=8510058) then
+ svec_f_1_g_1_h_1_22(s_idx_1, s_idx_2) = w_0(idx+s12(s_idx_1)+s2(s_idx_2))
  else
  svec_f_1_g_1_h_1_22(s_idx_1, s_idx_2) = w_0(idx)
  end if
@@ -343,8 +343,8 @@ idx = global_id
  end do
  do s_idx_1 = 1,2
  do s_idx_2 = 1,5
- if (idx+s7(s_idx_1)+s3(s_idx_2)>=1 .and. idx+s7(s_idx_1)+s3(s_idx_2)<=8418552) then
- svec_f_1_g_1_h_1_23(s_idx_1, s_idx_2) = u_0(idx+s7(s_idx_1)+s3(s_idx_2))
+ if (idx+s7(s_idx_1)+s1(s_idx_2)>=1 .and. idx+s7(s_idx_1)+s1(s_idx_2)<=8418552) then
+ svec_f_1_g_1_h_1_23(s_idx_1, s_idx_2) = u_0(idx+s7(s_idx_1)+s1(s_idx_2))
  else
  svec_f_1_g_1_h_1_23(s_idx_1, s_idx_2) = u_0(idx)
  end if
@@ -352,8 +352,8 @@ idx = global_id
  end do
  do s_idx_1 = 1,2
  do s_idx_2 = 1,5
- if (idx+s7(s_idx_1)+s2(s_idx_2)>=1 .and. idx+s7(s_idx_1)+s2(s_idx_2)<=8418552) then
- svec_f_1_g_1_h_1_24(s_idx_1, s_idx_2) = v_0(idx+s7(s_idx_1)+s2(s_idx_2))
+ if (idx+s7(s_idx_1)+s3(s_idx_2)>=1 .and. idx+s7(s_idx_1)+s3(s_idx_2)<=8418552) then
+ svec_f_1_g_1_h_1_24(s_idx_1, s_idx_2) = v_0(idx+s7(s_idx_1)+s3(s_idx_2))
  else
  svec_f_1_g_1_h_1_24(s_idx_1, s_idx_2) = v_0(idx)
  end if
@@ -361,8 +361,8 @@ idx = global_id
  end do
  do s_idx_1 = 1,2
  do s_idx_2 = 1,4
- if (idx+s7(s_idx_1)+s1(s_idx_2)>=1 .and. idx+s7(s_idx_1)+s1(s_idx_2)<=8510058) then
- svec_f_1_g_1_h_1_25(s_idx_1, s_idx_2) = w_0(idx+s7(s_idx_1)+s1(s_idx_2))
+ if (idx+s7(s_idx_1)+s2(s_idx_2)>=1 .and. idx+s7(s_idx_1)+s2(s_idx_2)<=8510058) then
+ svec_f_1_g_1_h_1_25(s_idx_1, s_idx_2) = w_0(idx+s7(s_idx_1)+s2(s_idx_2))
  else
  svec_f_1_g_1_h_1_25(s_idx_1, s_idx_2) = w_0(idx)
  end if
@@ -370,8 +370,8 @@ idx = global_id
  end do
  do s_idx_1 = 1,2
  do s_idx_2 = 1,5
- if (idx+s9(s_idx_1)+s3(s_idx_2)>=1 .and. idx+s9(s_idx_1)+s3(s_idx_2)<=8418552) then
- svec_f_1_g_1_h_1_26(s_idx_1, s_idx_2) = u_0(idx+s9(s_idx_1)+s3(s_idx_2))
+ if (idx+s9(s_idx_1)+s1(s_idx_2)>=1 .and. idx+s9(s_idx_1)+s1(s_idx_2)<=8418552) then
+ svec_f_1_g_1_h_1_26(s_idx_1, s_idx_2) = u_0(idx+s9(s_idx_1)+s1(s_idx_2))
  else
  svec_f_1_g_1_h_1_26(s_idx_1, s_idx_2) = u_0(idx)
  end if
@@ -379,8 +379,8 @@ idx = global_id
  end do
  do s_idx_1 = 1,2
  do s_idx_2 = 1,5
- if (idx+s9(s_idx_1)+s2(s_idx_2)>=1 .and. idx+s9(s_idx_1)+s2(s_idx_2)<=8418552) then
- svec_f_1_g_1_h_1_27(s_idx_1, s_idx_2) = v_0(idx+s9(s_idx_1)+s2(s_idx_2))
+ if (idx+s9(s_idx_1)+s3(s_idx_2)>=1 .and. idx+s9(s_idx_1)+s3(s_idx_2)<=8418552) then
+ svec_f_1_g_1_h_1_27(s_idx_1, s_idx_2) = v_0(idx+s9(s_idx_1)+s3(s_idx_2))
  else
  svec_f_1_g_1_h_1_27(s_idx_1, s_idx_2) = v_0(idx)
  end if
@@ -388,8 +388,8 @@ idx = global_id
  end do
  do s_idx_1 = 1,2
  do s_idx_2 = 1,4
- if (idx+s9(s_idx_1)+s1(s_idx_2)>=1 .and. idx+s9(s_idx_1)+s1(s_idx_2)<=8510058) then
- svec_f_1_g_1_h_1_28(s_idx_1, s_idx_2) = w_0(idx+s9(s_idx_1)+s1(s_idx_2))
+ if (idx+s9(s_idx_1)+s2(s_idx_2)>=1 .and. idx+s9(s_idx_1)+s2(s_idx_2)<=8510058) then
+ svec_f_1_g_1_h_1_28(s_idx_1, s_idx_2) = w_0(idx+s9(s_idx_1)+s2(s_idx_2))
  else
  svec_f_1_g_1_h_1_28(s_idx_1, s_idx_2) = w_0(idx)
  end if
@@ -397,8 +397,8 @@ idx = global_id
  end do
  do s_idx_1 = 1,2
  do s_idx_2 = 1,5
- if (idx+s10(s_idx_1)+s3(s_idx_2)>=1 .and. idx+s10(s_idx_1)+s3(s_idx_2)<=8418552) then
- svec_f_1_g_1_h_1_29(s_idx_1, s_idx_2) = u_0(idx+s10(s_idx_1)+s3(s_idx_2))
+ if (idx+s11(s_idx_1)+s1(s_idx_2)>=1 .and. idx+s11(s_idx_1)+s1(s_idx_2)<=8418552) then
+ svec_f_1_g_1_h_1_29(s_idx_1, s_idx_2) = u_0(idx+s11(s_idx_1)+s1(s_idx_2))
  else
  svec_f_1_g_1_h_1_29(s_idx_1, s_idx_2) = u_0(idx)
  end if
@@ -406,8 +406,8 @@ idx = global_id
  end do
  do s_idx_1 = 1,2
  do s_idx_2 = 1,5
- if (idx+s10(s_idx_1)+s2(s_idx_2)>=1 .and. idx+s10(s_idx_1)+s2(s_idx_2)<=8418552) then
- svec_f_1_g_1_h_1_30(s_idx_1, s_idx_2) = v_0(idx+s10(s_idx_1)+s2(s_idx_2))
+ if (idx+s11(s_idx_1)+s3(s_idx_2)>=1 .and. idx+s11(s_idx_1)+s3(s_idx_2)<=8418552) then
+ svec_f_1_g_1_h_1_30(s_idx_1, s_idx_2) = v_0(idx+s11(s_idx_1)+s3(s_idx_2))
  else
  svec_f_1_g_1_h_1_30(s_idx_1, s_idx_2) = v_0(idx)
  end if
@@ -415,8 +415,8 @@ idx = global_id
  end do
  do s_idx_1 = 1,2
  do s_idx_2 = 1,4
- if (idx+s10(s_idx_1)+s1(s_idx_2)>=1 .and. idx+s10(s_idx_1)+s1(s_idx_2)<=8510058) then
- svec_f_1_g_1_h_1_31(s_idx_1, s_idx_2) = w_0(idx+s10(s_idx_1)+s1(s_idx_2))
+ if (idx+s11(s_idx_1)+s2(s_idx_2)>=1 .and. idx+s11(s_idx_1)+s2(s_idx_2)<=8510058) then
+ svec_f_1_g_1_h_1_31(s_idx_1, s_idx_2) = w_0(idx+s11(s_idx_1)+s2(s_idx_2))
  else
  svec_f_1_g_1_h_1_31(s_idx_1, s_idx_2) = w_0(idx)
  end if
@@ -480,15 +480,15 @@ idx = global_id
  k_vel2_range___velfg_m___9606c486 = (((90 + 1) - 1) + 1)
  j_vel2_range___velfg_m___4b6e60e4 = ((300 - 1) + 1)
  i_vel2_range___velfg_m___ea66ec4a = ((300 - 1) + 1)
- k_vel2_rel___velfg_map_76_scal = (global_id /  &
-      (j_vel2_range___velfg_m___4b6e60e4 * i_vel2_range___velfg_m___ea66ec4a))
+ k_vel2_rel___velfg_map_76_scal = (th_idx___velfg_map_76_scal / (j_vel2_range___velfg_m___4b6e60e4  &
+      * i_vel2_range___velfg_m___ea66ec4a))
  k_vel2___velfg_map_76_scal = (k_vel2_rel___velfg_map_76_scal + 1)
- j_vel2_rel___velfg_map_76_scal = ((global_id - (k_vel2_rel___velfg_map_76_scal  &
-      * (j_vel2_range___velfg_m___4b6e60e4 * i_vel2_range___velfg_m___ea66ec4a))) /  &
+ j_vel2_rel___velfg_map_76_scal = ((th_idx___velfg_map_76_scal - (k_vel2_rel___velfg_map_76_scal *  &
+      (j_vel2_range___velfg_m___4b6e60e4 * i_vel2_range___velfg_m___ea66ec4a))) /  &
       i_vel2_range___velfg_m___ea66ec4a)
  j_vel2___velfg_map_76_scal = (j_vel2_rel___velfg_map_76_scal + 1)
- i_vel2_rel___velfg_map_76_scal = ((global_id - (k_vel2_rel___velfg_map_76_scal  &
-      * (j_vel2_range___velfg_m___4b6e60e4 * i_vel2_range___velfg_m___ea66ec4a))) -  &
+ i_vel2_rel___velfg_map_76_scal = ((th_idx___velfg_map_76_scal - (k_vel2_rel___velfg_map_76_scal *  &
+      (j_vel2_range___velfg_m___4b6e60e4 * i_vel2_range___velfg_m___ea66ec4a))) -  &
       (j_vel2_rel___velfg_map_76_scal * i_vel2_range___velfg_m___ea66ec4a))
  i_vel2___velfg_map_76_scal = (i_vel2_rel___velfg_map_76_scal + 1)
  if ((k_vel2___velfg_map_76_scal < 90)) then
@@ -565,15 +565,15 @@ idx = global_id
  k_vel2_range___velfg_m___9606c486 = (((90 + 1) - 1) + 1)
  j_vel2_range___velfg_m___4b6e60e4 = ((300 - 1) + 1)
  i_vel2_range___velfg_m___ea66ec4a = ((300 - 1) + 1)
- k_vel2_rel___velfg_map_76_scal = (global_id /  &
-      (j_vel2_range___velfg_m___4b6e60e4 * i_vel2_range___velfg_m___ea66ec4a))
+ k_vel2_rel___velfg_map_76_scal = (th_idx___velfg_map_76_scal / (j_vel2_range___velfg_m___4b6e60e4  &
+      * i_vel2_range___velfg_m___ea66ec4a))
  k_vel2___velfg_map_76_scal = (k_vel2_rel___velfg_map_76_scal + 1)
- j_vel2_rel___velfg_map_76_scal = ((global_id - (k_vel2_rel___velfg_map_76_scal  &
-      * (j_vel2_range___velfg_m___4b6e60e4 * i_vel2_range___velfg_m___ea66ec4a))) /  &
+ j_vel2_rel___velfg_map_76_scal = ((th_idx___velfg_map_76_scal - (k_vel2_rel___velfg_map_76_scal *  &
+      (j_vel2_range___velfg_m___4b6e60e4 * i_vel2_range___velfg_m___ea66ec4a))) /  &
       i_vel2_range___velfg_m___ea66ec4a)
  j_vel2___velfg_map_76_scal = (j_vel2_rel___velfg_map_76_scal + 1)
- i_vel2_rel___velfg_map_76_scal = ((global_id - (k_vel2_rel___velfg_map_76_scal  &
-      * (j_vel2_range___velfg_m___4b6e60e4 * i_vel2_range___velfg_m___ea66ec4a))) -  &
+ i_vel2_rel___velfg_map_76_scal = ((th_idx___velfg_map_76_scal - (k_vel2_rel___velfg_map_76_scal *  &
+      (j_vel2_range___velfg_m___4b6e60e4 * i_vel2_range___velfg_m___ea66ec4a))) -  &
       (j_vel2_rel___velfg_map_76_scal * i_vel2_range___velfg_m___ea66ec4a))
  i_vel2___velfg_map_76_scal = (i_vel2_rel___velfg_map_76_scal + 1)
  if ((k_vel2___velfg_map_76_scal < 90)) then
@@ -650,15 +650,15 @@ idx = global_id
  k_vel2_range___velfg_m___9606c486 = (((90 + 1) - 1) + 1)
  j_vel2_range___velfg_m___4b6e60e4 = ((300 - 1) + 1)
  i_vel2_range___velfg_m___ea66ec4a = ((300 - 1) + 1)
- k_vel2_rel___velfg_map_76_scal = (global_id /  &
-      (j_vel2_range___velfg_m___4b6e60e4 * i_vel2_range___velfg_m___ea66ec4a))
+ k_vel2_rel___velfg_map_76_scal = (th_idx___velfg_map_76_scal / (j_vel2_range___velfg_m___4b6e60e4  &
+      * i_vel2_range___velfg_m___ea66ec4a))
  k_vel2___velfg_map_76_scal = (k_vel2_rel___velfg_map_76_scal + 1)
- j_vel2_rel___velfg_map_76_scal = ((global_id - (k_vel2_rel___velfg_map_76_scal  &
-      * (j_vel2_range___velfg_m___4b6e60e4 * i_vel2_range___velfg_m___ea66ec4a))) /  &
+ j_vel2_rel___velfg_map_76_scal = ((th_idx___velfg_map_76_scal - (k_vel2_rel___velfg_map_76_scal *  &
+      (j_vel2_range___velfg_m___4b6e60e4 * i_vel2_range___velfg_m___ea66ec4a))) /  &
       i_vel2_range___velfg_m___ea66ec4a)
  j_vel2___velfg_map_76_scal = (j_vel2_rel___velfg_map_76_scal + 1)
- i_vel2_rel___velfg_map_76_scal = ((global_id - (k_vel2_rel___velfg_map_76_scal  &
-      * (j_vel2_range___velfg_m___4b6e60e4 * i_vel2_range___velfg_m___ea66ec4a))) -  &
+ i_vel2_rel___velfg_map_76_scal = ((th_idx___velfg_map_76_scal - (k_vel2_rel___velfg_map_76_scal *  &
+      (j_vel2_range___velfg_m___4b6e60e4 * i_vel2_range___velfg_m___ea66ec4a))) -  &
       (j_vel2_rel___velfg_map_76_scal * i_vel2_range___velfg_m___ea66ec4a))
  i_vel2___velfg_map_76_scal = (i_vel2_rel___velfg_map_76_scal + 1)
  if ((k_vel2___velfg_map_76_scal < 90)) then
@@ -737,15 +737,15 @@ idx = global_id
  k_vel2_range___velfg_m___9606c486 = (((90 + 1) - 1) + 1)
  j_vel2_range___velfg_m___4b6e60e4 = ((300 - 1) + 1)
  i_vel2_range___velfg_m___ea66ec4a = ((300 - 1) + 1)
- k_vel2_rel___velfg_map_76_scal = (global_id /  &
-      (j_vel2_range___velfg_m___4b6e60e4 * i_vel2_range___velfg_m___ea66ec4a))
+ k_vel2_rel___velfg_map_76_scal = (th_idx___velfg_map_76_scal / (j_vel2_range___velfg_m___4b6e60e4  &
+      * i_vel2_range___velfg_m___ea66ec4a))
  k_vel2___velfg_map_76_scal = (k_vel2_rel___velfg_map_76_scal + 1)
- j_vel2_rel___velfg_map_76_scal = ((global_id - (k_vel2_rel___velfg_map_76_scal  &
-      * (j_vel2_range___velfg_m___4b6e60e4 * i_vel2_range___velfg_m___ea66ec4a))) /  &
+ j_vel2_rel___velfg_map_76_scal = ((th_idx___velfg_map_76_scal - (k_vel2_rel___velfg_map_76_scal *  &
+      (j_vel2_range___velfg_m___4b6e60e4 * i_vel2_range___velfg_m___ea66ec4a))) /  &
       i_vel2_range___velfg_m___ea66ec4a)
  j_vel2___velfg_map_76_scal = (j_vel2_rel___velfg_map_76_scal + 1)
- i_vel2_rel___velfg_map_76_scal = ((global_id - (k_vel2_rel___velfg_map_76_scal  &
-      * (j_vel2_range___velfg_m___4b6e60e4 * i_vel2_range___velfg_m___ea66ec4a))) -  &
+ i_vel2_rel___velfg_map_76_scal = ((th_idx___velfg_map_76_scal - (k_vel2_rel___velfg_map_76_scal *  &
+      (j_vel2_range___velfg_m___4b6e60e4 * i_vel2_range___velfg_m___ea66ec4a))) -  &
       (j_vel2_rel___velfg_map_76_scal * i_vel2_range___velfg_m___ea66ec4a))
  i_vel2___velfg_map_76_scal = (i_vel2_rel___velfg_map_76_scal + 1)
  if ((k_vel2___velfg_map_76_scal < 90)) then
@@ -821,15 +821,15 @@ idx = global_id
  k_vel2_range___velfg_m___9606c486 = (((90 + 1) - 1) + 1)
  j_vel2_range___velfg_m___4b6e60e4 = ((300 - 1) + 1)
  i_vel2_range___velfg_m___ea66ec4a = ((300 - 1) + 1)
- k_vel2_rel___velfg_map_76_scal = (global_id /  &
-      (j_vel2_range___velfg_m___4b6e60e4 * i_vel2_range___velfg_m___ea66ec4a))
+ k_vel2_rel___velfg_map_76_scal = (th_idx___velfg_map_76_scal / (j_vel2_range___velfg_m___4b6e60e4  &
+      * i_vel2_range___velfg_m___ea66ec4a))
  k_vel2___velfg_map_76_scal = (k_vel2_rel___velfg_map_76_scal + 1)
- j_vel2_rel___velfg_map_76_scal = ((global_id - (k_vel2_rel___velfg_map_76_scal  &
-      * (j_vel2_range___velfg_m___4b6e60e4 * i_vel2_range___velfg_m___ea66ec4a))) /  &
+ j_vel2_rel___velfg_map_76_scal = ((th_idx___velfg_map_76_scal - (k_vel2_rel___velfg_map_76_scal *  &
+      (j_vel2_range___velfg_m___4b6e60e4 * i_vel2_range___velfg_m___ea66ec4a))) /  &
       i_vel2_range___velfg_m___ea66ec4a)
  j_vel2___velfg_map_76_scal = (j_vel2_rel___velfg_map_76_scal + 1)
- i_vel2_rel___velfg_map_76_scal = ((global_id - (k_vel2_rel___velfg_map_76_scal  &
-      * (j_vel2_range___velfg_m___4b6e60e4 * i_vel2_range___velfg_m___ea66ec4a))) -  &
+ i_vel2_rel___velfg_map_76_scal = ((th_idx___velfg_map_76_scal - (k_vel2_rel___velfg_map_76_scal *  &
+      (j_vel2_range___velfg_m___4b6e60e4 * i_vel2_range___velfg_m___ea66ec4a))) -  &
       (j_vel2_rel___velfg_map_76_scal * i_vel2_range___velfg_m___ea66ec4a))
  i_vel2___velfg_map_76_scal = (i_vel2_rel___velfg_map_76_scal + 1)
  if ((k_vel2___velfg_map_76_scal < 90)) then
@@ -906,17 +906,16 @@ idx = global_id
  k_vel2_range___velfg_m___a725d29e = (((90 - 1) - 1) + 1)
  j_vel2_range___velfg_m___9675913f = ((300 - 1) + 1)
  i_vel2_range___velfg_m___a1f7aab8 = ((300 - 1) + 1)
- k_vel2_rel___velfg_map_133_scal = (global_id /  &
+ k_vel2_rel___velfg_map_133_scal = (th_idx___velfg_map_133_scal /  &
       (j_vel2_range___velfg_m___9675913f * i_vel2_range___velfg_m___a1f7aab8))
  k_vel2___velfg_map_133_scal = (k_vel2_rel___velfg_map_133_scal + 1)
- j_vel2_rel___velfg_map_133_scal = ((global_id -  &
-      (k_vel2_rel___velfg_map_133_scal * (j_vel2_range___velfg_m___9675913f *  &
-      i_vel2_range___velfg_m___a1f7aab8))) / i_vel2_range___velfg_m___a1f7aab8)
+ j_vel2_rel___velfg_map_133_scal = ((th_idx___velfg_map_133_scal - (k_vel2_rel___velfg_map_133_scal  &
+      * (j_vel2_range___velfg_m___9675913f * i_vel2_range___velfg_m___a1f7aab8))) /  &
+      i_vel2_range___velfg_m___a1f7aab8)
  j_vel2___velfg_map_133_scal = (j_vel2_rel___velfg_map_133_scal + 1)
- i_vel2_rel___velfg_map_133_scal = ((global_id -  &
-      (k_vel2_rel___velfg_map_133_scal * (j_vel2_range___velfg_m___9675913f *  &
-      i_vel2_range___velfg_m___a1f7aab8))) - (j_vel2_rel___velfg_map_133_scal *  &
-      i_vel2_range___velfg_m___a1f7aab8))
+ i_vel2_rel___velfg_map_133_scal = ((th_idx___velfg_map_133_scal - (k_vel2_rel___velfg_map_133_scal  &
+      * (j_vel2_range___velfg_m___9675913f * i_vel2_range___velfg_m___a1f7aab8))) -  &
+      (j_vel2_rel___velfg_map_133_scal * i_vel2_range___velfg_m___a1f7aab8))
  i_vel2___velfg_map_133_scal = (i_vel2_rel___velfg_map_133_scal + 1)
  nou7___velfg_map_133 = (dzn_0(k_vel2___velfg_map_133_scal + 1) *  &
       svec_f_1_g_1_h_1_32(i___f_maps_f_1_g_1_h_1_11, &
@@ -944,17 +943,16 @@ idx = global_id
  k_vel2_range___velfg_m___a725d29e = (((90 - 1) - 1) + 1)
  j_vel2_range___velfg_m___9675913f = ((300 - 1) + 1)
  i_vel2_range___velfg_m___a1f7aab8 = ((300 - 1) + 1)
- k_vel2_rel___velfg_map_133_scal = (global_id /  &
+ k_vel2_rel___velfg_map_133_scal = (th_idx___velfg_map_133_scal /  &
       (j_vel2_range___velfg_m___9675913f * i_vel2_range___velfg_m___a1f7aab8))
  k_vel2___velfg_map_133_scal = (k_vel2_rel___velfg_map_133_scal + 1)
- j_vel2_rel___velfg_map_133_scal = ((global_id -  &
-      (k_vel2_rel___velfg_map_133_scal * (j_vel2_range___velfg_m___9675913f *  &
-      i_vel2_range___velfg_m___a1f7aab8))) / i_vel2_range___velfg_m___a1f7aab8)
+ j_vel2_rel___velfg_map_133_scal = ((th_idx___velfg_map_133_scal - (k_vel2_rel___velfg_map_133_scal  &
+      * (j_vel2_range___velfg_m___9675913f * i_vel2_range___velfg_m___a1f7aab8))) /  &
+      i_vel2_range___velfg_m___a1f7aab8)
  j_vel2___velfg_map_133_scal = (j_vel2_rel___velfg_map_133_scal + 1)
- i_vel2_rel___velfg_map_133_scal = ((global_id -  &
-      (k_vel2_rel___velfg_map_133_scal * (j_vel2_range___velfg_m___9675913f *  &
-      i_vel2_range___velfg_m___a1f7aab8))) - (j_vel2_rel___velfg_map_133_scal *  &
-      i_vel2_range___velfg_m___a1f7aab8))
+ i_vel2_rel___velfg_map_133_scal = ((th_idx___velfg_map_133_scal - (k_vel2_rel___velfg_map_133_scal  &
+      * (j_vel2_range___velfg_m___9675913f * i_vel2_range___velfg_m___a1f7aab8))) -  &
+      (j_vel2_rel___velfg_map_133_scal * i_vel2_range___velfg_m___a1f7aab8))
  i_vel2___velfg_map_133_scal = (i_vel2_rel___velfg_map_133_scal + 1)
  nou7___velfg_map_133 = (dzn_0(k_vel2___velfg_map_133_scal + 1) *  &
       svec_f_1_g_1_h_1_32(i___f_maps_f_1_g_1_h_1_13, &
@@ -982,14 +980,14 @@ idx = global_id
  k_range___velfg_map_218_scal = ((90 - 1) + 1)
  j_range___velfg_map_218_scal = ((300 - 1) + 1)
  i_range___velfg_map_218_scal = ((300 - 1) + 1)
- k_rel___velfg_map_218_scal = (global_id / (j_range___velfg_map_218_scal *  &
+ k_rel___velfg_map_218_scal = (th_idx___velfg_map_218_scal / (j_range___velfg_map_218_scal *  &
       i_range___velfg_map_218_scal))
  k___velfg_map_218_scal = (k_rel___velfg_map_218_scal + 1)
- j_rel___velfg_map_218_scal = ((global_id - (k_rel___velfg_map_218_scal *  &
+ j_rel___velfg_map_218_scal = ((th_idx___velfg_map_218_scal - (k_rel___velfg_map_218_scal *  &
       (j_range___velfg_map_218_scal * i_range___velfg_map_218_scal))) /  &
       i_range___velfg_map_218_scal)
  j___velfg_map_218_scal = (j_rel___velfg_map_218_scal + 1)
- i_rel___velfg_map_218_scal = ((global_id - (k_rel___velfg_map_218_scal *  &
+ i_rel___velfg_map_218_scal = ((th_idx___velfg_map_218_scal - (k_rel___velfg_map_218_scal *  &
       (j_range___velfg_map_218_scal * i_range___velfg_map_218_scal))) -  &
       (j_rel___velfg_map_218_scal * i_range___velfg_map_218_scal))
  i___velfg_map_218_scal = (i_rel___velfg_map_218_scal + 1)

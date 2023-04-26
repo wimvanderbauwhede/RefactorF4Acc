@@ -1,4 +1,4 @@
-#!/usr/bin/perl 
+#!/usr/bin/perl
 
 use v5.30;
 use strict;
@@ -6,16 +6,19 @@ use warnings;
 our $V=1;
 # To be run in mem_reduced_inlined/Generated after the inliner was run on the mem-reduced code
 
-# TODO: make sure global_id is added to args in  gen_velfg_superkernel.f95 and velfg_superkernel.f95
+# TODO: make sure global_id is added to args in gen_velfg_superkernel.f95 and velfg_superkernel.f95
 
-# - Clean up
+# These steps do not change any source code:
+# - Clean up (just deletes unneeded files)
 # - Get the parames from the original superkernel
 # - Find the file with the main program. It is the file starting with 'gen_'
 # - From the superkernel file, get the module name, subroutine name and stage kernel name(s)
-# - In the superkernel file, in the superkernel subroutine, add the use declarations for the stage kernels
-# - In the main file:
+
+# These steps change source code:
+# - In the superkernel file (*_superkernel.f95), in the superkernel subroutine, add the use declarations for the stage kernels
+# - In the main file (gen_*_superkernel.f95):
 #    - get the module line and correct the name
-# - In the stage kernel file
+# - In the stage kernel file (stage_kernel_*.f95)
 #    - find all unique calls
 # - We need to patch the call to deal with get_global_id, for now
 # - Replace `call get_global_id(idx,0,global_id)` by `idx=global_id`
@@ -79,32 +82,42 @@ my $min_dim = $params{'ip'}*$params{'jp'}*$params{'kp'};
         chomp $stage_kernel_name;
         $stage_kernel_name=~s/^\s*call\s+//;
         $stage_kernel_name=~s/\s*\(.+$//;
-        
+
         say "stage_kernel_name <$stage_kernel_name>" if $V;
     }
-    
+
     mkdir 'Patched';
 
 # - In the superkernel file, in the superkernel subroutine, add the use declarations for the stage kernels
     open my $SKMF, '<', $superkernel_file or die $!;
     my @superkernel_file_lines = <$SKMF>;
     close $SKMF;
-     
+
     open $SKMF, '>', "Patched/$superkernel_file" or die "$!";
-    
+    my $sub_sig=0;
     for my $line (@superkernel_file_lines) {
         print $SKMF $line;
-        
-        if ($line=~/^\s*subroutine\s+$sub_name/) { 
+
+        if ($line=~/^\s*subroutine\s+$sub_name/) {
+            if ($line!~/\&\s*$/) {
+                for my $stage_kernel_name (@stage_kernel_names) {
+                    say $SKMF "use singleton_module_${stage_kernel_name}, only: ${stage_kernel_name}";
+                }
+            } else {
+                $sub_sig=1;
+            }
+        }
+        if ($sub_sig==1 and $line!~/\&\s*$/) {
+            $sub_sig=0;
             for my $stage_kernel_name (@stage_kernel_names) {
                 say $SKMF "use singleton_module_${stage_kernel_name}, only: ${stage_kernel_name}";
             }
         }
     }
     close $SKMF;
-    
+
     system "cat Patched/$superkernel_file" if $V;
-    
+
 # - In the main file:
     # - get the module line and correct the name
     open my $MF, '<', $main_file or die $!;
@@ -122,10 +135,10 @@ my $min_dim = $params{'ip'}*$params{'jp'}*$params{'kp'};
     }
 
     for my $line (@main_file_lines) {
-        
+
         if ($line=~/^\s*use.+only\s*:\s+$sub_name/) {
             say $MF "use $module_name, only : $sub_name";
-        } elsif ($line=~/do\s+global_id\s+=\s+1,\s*\d+/) { 
+        } elsif ($line=~/do\s+global_id\s+=\s+1,\s*\d+/) {
             my $rline=$line;
             $rline=~s/,\s*\d+/, $min_dim/;
             print $MF $rline;
@@ -135,16 +148,16 @@ my $min_dim = $params{'ip'}*$params{'jp'}*$params{'kp'};
     }
     close $MF;
     system "cat Patched/$main_file" if $V;
-    
+
 # - In the stage kernel file
 my %scalar_functions=();
-for my $stage_kernel_name (@stage_kernel_names) { 
+for my $stage_kernel_name (@stage_kernel_names) {
     my $stage_kernel_file=$stage_kernel_name.'.f95';
     open my $SKF, '<', $stage_kernel_file or die $!;
     my @stage_kernel_file_lines = <$SKF>;
     close $SKF;
-    
-    # - find all unique calls     
+
+    # - find all unique calls
     for my $line (@stage_kernel_file_lines) {
         if ($line=~/^\s*call\s+(\w+?_scal)/) {
             my $scal_f_name=$1;
@@ -161,7 +174,7 @@ for my $stage_kernel_name (@stage_kernel_names) {
         $line=~/use singleton_module/ && next;
         if ($line=~/integer\s*,\s*intent\(\w+\)\s+::\s+global_id/) {
             $has_global_id_decl=1
-            }        
+            }
         # replace `call get_global_id(idx,0,global_id)` by `idx=global_id`
         if ($line=~/subroutine\s+stage_kernel_\d+\(([\w,\s]+)\)/) {
             my $args_str = $1;
@@ -181,7 +194,7 @@ for my $stage_kernel_name (@stage_kernel_names) {
         if ($line=~/^\s*call\s+get_global_id/ ) {
             if ( $first_call_to_get_global_id) {
                 say $SKF "integer, intent(In) :: global_id" unless $has_global_id_decl;
-                say $SKF "idx = global_id"; 
+                say $SKF "idx = global_id";
                 $first_call_to_get_global_id=0;
             } else {
                 next;
@@ -229,7 +242,7 @@ for my $scal_f_name (sort keys %scalar_functions) {
             say $SFF "integer, intent(In) :: global_id";
             $has_global_id_decl=1;
         }
-        if ($line!~/::/ and $line=~/=/ and $first_decl==1 and $has_global_id_decl==0) { 
+        if ($line!~/::/ and $line=~/=/ and $first_decl==1 and $has_global_id_decl==0) {
             say $SFF "integer, intent(In) :: global_id";
             $has_global_id_decl=1;
             $first_decl=0;
@@ -248,7 +261,7 @@ if (not -e 'Patched/SConstruct') {
 open my $SC, '>', 'Patched/SConstruct' or die $!;
 my $sconstruct_file = <<'ENDSC';
 import os
-  
+
 FC=os.environ.get('FC')
 
 fsources = ['gen_velfg_superkernel.f95', 'stage_kernel_1.f95',

@@ -2,13 +2,13 @@ module singleton_module_velfg_map_218
 
 contains
 
-subroutine velfg_map_218_scal(th_ratio,dx1,cov1_i_j_k,cov1_ip1_j_k,cov2_i_j_k,cov2_i_jp1_k, &
-      cov3_i_j_k,cov3_i_j_kp1,diu1_i_j_k,diu1_ip1_j_k,diu2_i_j_k,diu2_i_jp1_k,dy1,diu3_i_j_k, &
-      diu3_i_j_kp1,dzn,dfu1_i_j_k,cov4_i_j_k,cov4_ip1_j_k,cov5_i_j_k,cov5_i_jp1_k,cov6_i_j_k, &
-      cov6_i_j_kp1,diu4_i_j_k,diu4_ip1_j_k,diu5_i_j_k,diu5_i_jp1_k,diu6_i_j_k,diu6_i_j_kp1, &
-      dfv1_i_j_k,cov7_i_j_k,cov7_ip1_j_k,cov8_i_j_k,cov8_i_jp1_k,cov9_i_j_k,cov9_i_j_kp1, &
-      diu7_i_j_k,diu7_ip1_j_k,diu8_i_j_k,diu8_i_jp1_k,diu9_i_j_k,diu9_i_j_kp1,dzs,dfw1_i_j_k, &
-      f_i_j_k,g_i_j_k,h_i_j_k)
+subroutine velfg_map_218_scal(dx1,cov1_i_j_k,cov1_ip1_j_k,cov2_i_j_k,cov2_i_jp1_k,cov3_i_j_k, &
+      cov3_i_j_kp1,diu1_i_j_k,diu1_ip1_j_k,diu2_i_j_k,diu2_i_jp1_k,dy1,diu3_i_j_k,diu3_i_j_kp1, &
+      dzn,dfu1_i_j_k,cov4_i_j_k,cov4_ip1_j_k,cov5_i_j_k,cov5_i_jp1_k,cov6_i_j_k,cov6_i_j_kp1, &
+      diu4_i_j_k,diu4_ip1_j_k,diu5_i_j_k,diu5_i_jp1_k,diu6_i_j_k,diu6_i_j_kp1,dfv1_i_j_k, &
+      cov7_i_j_k,cov7_ip1_j_k,cov8_i_j_k,cov8_i_jp1_k,cov9_i_j_k,cov9_i_j_kp1,diu7_i_j_k, &
+      diu7_ip1_j_k,diu8_i_j_k,diu8_i_jp1_k,diu9_i_j_k,diu9_i_j_kp1,dzs,dfw1_i_j_k,f_i_j_k,g_i_j_k, &
+      h_i_j_k)
  integer, parameter :: ip=300
  integer, parameter :: jp=300
  integer, parameter :: kp=90
@@ -87,17 +87,16 @@ subroutine velfg_map_218_scal(th_ratio,dx1,cov1_i_j_k,cov1_ip1_j_k,cov2_i_j_k,co
  real, intent(InOut) :: dfu1_i_j_k
  real, intent(InOut) :: dfv1_i_j_k
  real, intent(InOut) :: dfw1_i_j_k
- integer, intent(in) :: th_idx
- real, dimension(1:ip), intent(in) :: th_ratio
-!      call get_th_idx(th_idx,0)
+ integer, intent(in) :: global_id
+!      call get_global_id(global_id,0)
  k_range = ((90 - 1) + 1)
  j_range = ((300 - 1) + 1)
  i_range = ((300 - 1) + 1)
- k_rel = (th_idx / (j_range * i_range))
+ k_rel = (global_id / (j_range * i_range))
  k = (k_rel + 1)
- j_rel = ((th_idx - (k_rel * (j_range * i_range))) / i_range)
+ j_rel = ((global_id - (k_rel * (j_range * i_range))) / i_range)
  j = (j_rel + 1)
- i_rel = ((th_idx - (k_rel * (j_range * i_range))) - (j_rel * i_range))
+ i_rel = ((global_id - (k_rel * (j_range * i_range))) - (j_rel * i_range))
  i = (i_rel + 1)
  covx1 = (dx1(i + 1) * cov1_i_j_k + dx1(i) * cov1_ip1_j_k) / (dx1(i) + dx1(i + 1))
  covy1 = (cov2_i_j_k + cov2_i_jp1_k) / 2.
@@ -105,7 +104,7 @@ subroutine velfg_map_218_scal(th_ratio,dx1,cov1_i_j_k,cov1_ip1_j_k,cov2_i_j_k,co
  covc = covx1 + covy1 + covz1
  dfu1_i_j_k = 2. * (-diu1_i_j_k + diu1_ip1_j_k) / (dx1(i) + dx1(i + 1)) + (-diu2_i_j_k +  &
       diu2_i_jp1_k) / dy1(j) + (-diu3_i_j_k + diu3_i_j_kp1) / dzn(k)
- df = vn * dfu1_i_j_k * th_ratio(1)
+ df = vn * dfu1_i_j_k
  f_i_j_k = (-covc + df)
  covx1 = (cov4_i_j_k + cov4_ip1_j_k) / 2.
  covy1 = (dy1(j + 1) * cov5_i_j_k + dy1(j) * cov5_i_jp1_k) / (dy1(j) + dy1(j + 1))

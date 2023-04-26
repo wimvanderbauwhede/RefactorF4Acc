@@ -4,7 +4,7 @@ use strict;
 use warnings;
 our $V=1;
 
-# To be run in MemoryReduction/Generated
+# To be run in MemoryReduction
 # Substitute the parameters from the original module
 # Add `pure` to the subroutine declarations
 # Add a module declaration for get_global_id
@@ -19,12 +19,12 @@ if ($wd!~/MemoryReduction$/) {
 my $for_inlining = 0;
 if (@ARGV) {
 
-if ($ARGV[0] eq '-i') {
-    $for_inlining = 1;
-}
-else {
-    die "The only supported option is -i to patch before inlining\n";
-}
+    if ($ARGV[0] eq '-i') {
+        $for_inlining = 1;
+    }
+    else {
+        die "The only supported option is -i to patch before inlining\n";
+    }
 
 }
 # Clean up
@@ -35,6 +35,7 @@ if (scalar @orig_superkernel_files>1) {
     die 'Too many superkernel files!';
 }
 my $orig_superkernel_file = shift @orig_superkernel_files;
+
 # Get the parames from the original superkernel
 my %params=();
 open my $SMF, '<', $orig_superkernel_file or die $!;
@@ -46,7 +47,6 @@ while ( my $line = <$SMF>) {
     }
 }
 close $SMF;
-
 
 # Patch the _scal files
 # We need to substitute the parameters from the original module, so get them first

@@ -1858,19 +1858,21 @@ generateMainProgramOrSuperkernel genModule functionSignatures ast_stages  =
                     main_arg_decls,
                     if genStages
                         then
-                            "call stage_kernel_"++show ct++"("++mkArgList [nonMapArgs, in_args, out_args]++")" -- used_acc_names++, maybe_acc_arg
+                            "call stage_kernel_"++show ct++"("++mkArgList [nonMapArgs,in_args, out_args]++")" -- used_acc_names++, maybe_acc_arg
                         else
                             "! Stage kernel call code not generated"
-                    )
+                    ) -- this is stage_kernel_decls_calls' below, it is a tuple of ([String],[FDecl],[String])
+                    -- I think the [FDecl] does not include non-map args, they are in (nonMapArgs,uniqueNonMapArgDecls) below
                     , accs', generatedStageKernelsStr
                     ,(upperBound,lowerBound), (nonMapArgs,uniqueNonMapArgDecls)
                 )
+            -- END of generateStageKernel'
 
         (stage_kernel_decls_calls', _, def_lines_strs,boundPairs, non_map_args) =  foldl (\(stage_kernel_decls_calls, accs, def_lines_strs,bps,nms) (ast,ct) ->
             let
-                (stage_kernel_decls_calls', accs', def_lines_str,bp,nms') = generateStageKernel' functionSignatures ct ast accs
+                (stage_kernel_decls_calls'', accs', def_lines_str,bp,nms') = generateStageKernel' functionSignatures ct ast accs
             in
-                (stage_kernel_decls_calls++[stage_kernel_decls_calls'],
+                (stage_kernel_decls_calls++[stage_kernel_decls_calls''],
                     accs',
                     def_lines_strs++[def_lines_str],
                     bps++[bp],
@@ -1891,8 +1893,9 @@ generateMainProgramOrSuperkernel genModule functionSignatures ast_stages  =
             ) (zip stage_kernel_calls boundPairs)
         -- use_statements_for_opaques = map (\fname -> "use singleton_module_"++fname++", only : "++fname++"_scal") (Map.keys scalarisedArgs)
     in
+        -- This is messy, it would be better to have all the call args combined in buildSuperkernelDef as well. TODO! 
         if genModule
-            then (buildMainProgramForSuperkernelDef unique_stage_kernel_decls stage_kernel_calls,
+            then (buildMainProgramForSuperkernelDef (snd unique_non_map_args ++ unique_stage_kernel_decls) stage_kernel_calls,
                 buildSuperkernelDef unique_stage_kernel_decls stage_kernel_calls def_lines_strs unique_non_map_args)
             else (buildMainProgramDef main_program_decl_strs' loops_over_calls def_lines_strs,("",""))
 

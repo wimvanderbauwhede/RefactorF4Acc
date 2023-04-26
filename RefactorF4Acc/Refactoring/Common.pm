@@ -1299,10 +1299,12 @@ sub __reshape_check { my ($stref, $f, $sub_name, $call_arg_decl,$sig_arg_decl) =
 		my $rank1 = get_array_rank($dim1);
 		my $rank2 = get_array_rank($dim2);
 
-		# if the same rank and different size
+		# if the same size and different rank 
 		if ( $size1 == $size2 and $rank1 != $rank2 ) {
 			$needs_reshape=1;
+			croak '# if the same size and different rank';
 		} elsif ( $size1 != $size2 and $rank1 == $rank2 ) {
+			# if the same rank and different size
 			# warning("In call to $sub_name in $f: call arg $call_arg and subroutine arg $sig_arg have different sizes $size1<>$size2, type error!\n"
 			# .'Using the largest dimension for the reshaped array.' if not $not_const2 and $W ;
 
@@ -1315,6 +1317,7 @@ sub __reshape_check { my ($stref, $f, $sub_name, $call_arg_decl,$sig_arg_decl) =
 				$use_arg_sz=1;
 			}
 			$needs_reshape=1;
+			croak '# if the same rank and different size: '.$call_arg . ':'. $size1 .'!='. $sig_arg.':'.$size2;
 		} elsif ( $size1 != $size2 and $rank1 != $rank2 ) {
 			# We take the largest of the two. This can of course lead to run-time errors.
 			if ($size1>$size2) {
@@ -1327,6 +1330,7 @@ sub __reshape_check { my ($stref, $f, $sub_name, $call_arg_decl,$sig_arg_decl) =
 			( $not_const2 ? "$sig_arg($not_const2)" : $sig_arg) . "\n\t" .
 			'Using the largest dimension for the reshaped array.',2) if not $not_const2 ;
 			$needs_reshape=1;
+			croak '# if different rank and different size'
 		}
 	}
 	return ($needs_reshape, $use_arg_sz) ;

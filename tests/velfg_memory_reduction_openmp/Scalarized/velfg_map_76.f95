@@ -2,7 +2,7 @@ module singleton_module_velfg_map_76
 
 contains
 
-subroutine velfg_map_76_scal(th_ratio,u_i_vel2_j_vel2_k_vel2m1,u_i_vel2_j_vel2m1_k_vel2, &
+subroutine velfg_map_76_scal(u_i_vel2_j_vel2_k_vel2m1,u_i_vel2_j_vel2m1_k_vel2, &
       u_i_vel2m1_j_vel2_k_vel2,u_i_vel2_j_vel2_k_vel2,u_i_vel2m1_j_vel2p1_k_vel2,dx1, &
       v_i_vel2_j_vel2_k_vel2m1,v_i_vel2_j_vel2m1_k_vel2,v_i_vel2p1_j_vel2m1_k_vel2, &
       v_i_vel2m1_j_vel2_k_vel2,v_i_vel2_j_vel2_k_vel2,dy1,w_i_vel2_j_vel2_k_vel2m1, &
@@ -80,8 +80,10 @@ subroutine velfg_map_76_scal(th_ratio,u_i_vel2_j_vel2_k_vel2m1,u_i_vel2_j_vel2m1
  real, intent(InOut) :: diu4_i_vel2_j_vel2_k_vel2
  real, intent(InOut) :: nou6_i_vel2_j_vel2_k_vel2
  real, intent(InOut) :: diu6_i_vel2_j_vel2_k_vel2
- integer, intent(in) :: th_idx
- real, dimension(1:ip), intent(in) :: th_ratio
+ integer, intent(in) :: global_id
+ integer :: th_idx
+ th_idx = global_id
+!      call get_global_id(th_idx,0)
  k_vel2_range = (((90 + 1) - 1) + 1)
  j_vel2_range = ((300 - 1) + 1)
  i_vel2_range = ((300 - 1) + 1)
@@ -124,7 +126,7 @@ subroutine velfg_map_76_scal(th_ratio,u_i_vel2_j_vel2_k_vel2m1,u_i_vel2_j_vel2m1
  nou6_i_vel2_j_vel2_k_vel2 = (dy1(j_vel2 + 1) * w_i_vel2_j_vel2_k_vel2m1 + dy1(j_vel2) *  &
       w_i_vel2_j_vel2p1_k_vel2m1) / (dy1(j_vel2) + dy1(j_vel2 + 1))
  diu6_i_vel2_j_vel2_k_vel2 = (-v_i_vel2_j_vel2_k_vel2m1 + v_i_vel2_j_vel2_k_vel2) / dzs(k_vel2 - 1)
- cov6_i_vel2_j_vel2_k_vel2 = nou6_i_vel2_j_vel2_k_vel2 * diu6_i_vel2_j_vel2_k_vel2 * th_ratio(1)
+ cov6_i_vel2_j_vel2_k_vel2 = nou6_i_vel2_j_vel2_k_vel2 * diu6_i_vel2_j_vel2_k_vel2
 end subroutine velfg_map_76_scal
 
 end module singleton_module_velfg_map_76

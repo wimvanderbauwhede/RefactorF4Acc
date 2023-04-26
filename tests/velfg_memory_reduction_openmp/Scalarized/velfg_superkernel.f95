@@ -2,7 +2,7 @@ module singleton_module_velfg_superkernel
 
 contains
 
-subroutine velfg_superkernel_scal(f,g,h,dzn,u,v,w,th_ratio,dx1,dy1,dzs,state_ptr,th_idx)
+subroutine velfg_superkernel_scal(f,g,h,dzn,u,v,w,dx1,dy1,dzs,state_ptr,global_id)
  real, dimension((-1):(ip + 2),0:(jp + 2),0:(kp + 2)), intent(in) :: cov1
  real, dimension((-1):(ip + 2),0:(jp + 2),0:(kp + 2)), intent(out) :: cov1
  real, dimension((-1):(ip + 2),0:(jp + 2),0:(kp + 2)), intent(in) :: cov1
@@ -88,6 +88,7 @@ subroutine velfg_superkernel_scal(f,g,h,dzn,u,v,w,th_ratio,dx1,dy1,dzs,state_ptr
  real(kind=4), dimension(0:(ip + 2),0:(jp + 2),0:(kp + 2)) , intent(out):: nou7
  real(kind=4), dimension(0:(ip + 2),0:(jp + 2),0:(kp + 2)) , intent(out):: nou8
  real(kind=4), dimension(0:(ip + 2),0:(jp + 2),0:(kp + 2)) , intent(out):: nou9
+ integer :: th_idx
  real, dimension(0:(ip + 1),(-1):(jp + 1),0:(kp + 1)), intent(in) :: u
  real, dimension(0:(ip + 1),(-1):(jp + 1),0:(kp + 1)), intent(in) :: u
  real, dimension(0:(ip + 1),(-1):(jp + 1),0:(kp + 1)), intent(in) :: u
@@ -112,7 +113,7 @@ subroutine velfg_superkernel_scal(f,g,h,dzn,u,v,w,th_ratio,dx1,dy1,dzs,state_ptr
  real, dimension((-1):(kp+2)), intent(in) :: dzn
  real, dimension((-1):(kp+2)), intent(in) :: dzs
  real, dimension((-1):(ip+1)), intent(in) :: dx1
-!    real, dimension((-1):(ip + 1)), intent(In) :: delx1  
+!    real, dimension((-1):(ip + 1)), intent(In) :: delx1
  real, dimension(0:(jp+1)), intent(in) :: dy1
  real, dimension(0:(ip+1),(-1):(jp+1),0:(kp+1)), intent(in) :: u
  real, dimension(0:(ip+1),(-1):(jp+1),0:(kp+1)), intent(in) :: v
@@ -153,8 +154,7 @@ subroutine velfg_superkernel_scal(f,g,h,dzn,u,v,w,th_ratio,dx1,dy1,dzs,state_ptr
  real, dimension((-1):(ip + 1),(-1):(jp + 1),0:(kp + 1)) :: sm
  integer :: state
  integer, intent(in) :: state_ptr
- real, dimension(1:ip), intent(in) :: th_ratio
- integer, intent(in) :: th_idx
+ integer, intent(in) :: global_id
  integer, parameter :: st_adam_map_22=0
  integer, parameter :: st_les_map_87=10
  integer, parameter :: st_les_map_107=11
@@ -171,7 +171,8 @@ subroutine velfg_superkernel_scal(f,g,h,dzn,u,v,w,th_ratio,dx1,dy1,dzs,state_ptr
  integer, parameter :: st_velfg_map_218=28
  state = state_ptr 
  select case(state)
- case (st_velfg_map_76)
+ case (st_velfg_map_76§)
+ th_idx = global_id
  j_vel2_range = ((300 - 1) + 1)
  i_vel2_range = ((300 - 1) + 1)
  k_vel2_rel = (th_idx / (j_vel2_range * i_vel2_range))
@@ -181,49 +182,48 @@ subroutine velfg_superkernel_scal(f,g,h,dzn,u,v,w,th_ratio,dx1,dy1,dzs,state_ptr
  i_vel2_rel = ((th_idx - (k_vel2_rel * (j_vel2_range * i_vel2_range))) - (j_vel2_rel *  &
       i_vel2_range))
  i_vel2 = (i_vel2_rel + 1)
-call velfg_map_76(th_ratio,u_i_vel2_j_vel2_k_vel2m1,u_i_vel2_j_vel2m1_k_vel2, &
-      u_i_vel2m1_j_vel2_k_vel2,u_i_vel2_j_vel2_k_vel2,u_i_vel2m1_j_vel2p1_k_vel2,dx1, &
-      v_i_vel2_j_vel2_k_vel2m1,v_i_vel2_j_vel2m1_k_vel2,v_i_vel2p1_j_vel2m1_k_vel2, &
-      v_i_vel2m1_j_vel2_k_vel2,v_i_vel2_j_vel2_k_vel2,dy1,w_i_vel2_j_vel2_k_vel2m1, &
-      w_i_vel2p1_j_vel2_k_vel2m1,w_i_vel2_j_vel2p1_k_vel2m1,w_i_vel2_j_vel2_k_vel2,dzn, &
-      nou1_i_vel2_j_vel2_k_vel2,diu1_i_vel2_j_vel2_k_vel2,nou5_i_vel2_j_vel2_k_vel2, &
-      diu5_i_vel2_j_vel2_k_vel2,nou9_i_vel2_j_vel2_k_vel2,diu9_i_vel2_j_vel2_k_vel2, &
-      nou2_i_vel2_j_vel2_k_vel2,diu2_i_vel2_j_vel2_k_vel2,dzs,nou3_i_vel2_j_vel2_k_vel2, &
-      diu3_i_vel2_j_vel2_k_vel2,nou4_i_vel2_j_vel2_k_vel2,diu4_i_vel2_j_vel2_k_vel2, &
-      nou6_i_vel2_j_vel2_k_vel2,diu6_i_vel2_j_vel2_k_vel2,cov1_i_vel2_j_vel2_k_vel2, &
-      cov5_i_vel2_j_vel2_k_vel2,cov9_i_vel2_j_vel2_k_vel2,cov2_i_vel2_j_vel2_k_vel2, &
-      cov3_i_vel2_j_vel2_k_vel2,cov4_i_vel2_j_vel2_k_vel2,cov6_i_vel2_j_vel2_k_vel2)
- case (st_velfg_map_133)
+call velfg_map_76(u_i_vel2_j_vel2_k_vel2m1,u_i_vel2_j_vel2m1_k_vel2,u_i_vel2m1_j_vel2_k_vel2, &
+      u_i_vel2_j_vel2_k_vel2,u_i_vel2m1_j_vel2p1_k_vel2,dx1,v_i_vel2_j_vel2_k_vel2m1, &
+      v_i_vel2_j_vel2m1_k_vel2,v_i_vel2p1_j_vel2m1_k_vel2,v_i_vel2m1_j_vel2_k_vel2, &
+      v_i_vel2_j_vel2_k_vel2,dy1,w_i_vel2_j_vel2_k_vel2m1,w_i_vel2p1_j_vel2_k_vel2m1, &
+      w_i_vel2_j_vel2p1_k_vel2m1,w_i_vel2_j_vel2_k_vel2,dzn,nou1_i_vel2_j_vel2_k_vel2, &
+      diu1_i_vel2_j_vel2_k_vel2,nou5_i_vel2_j_vel2_k_vel2,diu5_i_vel2_j_vel2_k_vel2, &
+      nou9_i_vel2_j_vel2_k_vel2,diu9_i_vel2_j_vel2_k_vel2,nou2_i_vel2_j_vel2_k_vel2, &
+      diu2_i_vel2_j_vel2_k_vel2,dzs,nou3_i_vel2_j_vel2_k_vel2,diu3_i_vel2_j_vel2_k_vel2, &
+      nou4_i_vel2_j_vel2_k_vel2,diu4_i_vel2_j_vel2_k_vel2,nou6_i_vel2_j_vel2_k_vel2, &
+      diu6_i_vel2_j_vel2_k_vel2,cov1_i_vel2_j_vel2_k_vel2,cov5_i_vel2_j_vel2_k_vel2, &
+      cov9_i_vel2_j_vel2_k_vel2,cov2_i_vel2_j_vel2_k_vel2,cov3_i_vel2_j_vel2_k_vel2, &
+      cov4_i_vel2_j_vel2_k_vel2,cov6_i_vel2_j_vel2_k_vel2)
+ case (st_velfg_map_13§3)
  j_vel2_range = ((300 - 1) + 1)
  i_vel2_range = ((300 - 1) + 1)
- k_vel2_rel = (th_idx / (j_vel2_range * i_vel2_range))
+ k_vel2_rel = (global_id / (j_vel2_range * i_vel2_range))
  k_vel2 = (k_vel2_rel + 1)
- j_vel2_rel = ((th_idx - (k_vel2_rel * (j_vel2_range * i_vel2_range))) / i_vel2_range)
+ j_vel2_rel = ((global_id - (k_vel2_rel * (j_vel2_range * i_vel2_range))) / i_vel2_range)
  j_vel2 = (j_vel2_rel + 1)
- i_vel2_rel = ((th_idx - (k_vel2_rel * (j_vel2_range * i_vel2_range))) - (j_vel2_rel *  &
+ i_vel2_rel = ((global_id - (k_vel2_rel * (j_vel2_range * i_vel2_range))) - (j_vel2_rel *  &
       i_vel2_range))
  i_vel2 = (i_vel2_rel + 1)
-call velfg_map_133(th_ratio,dzn,u_i_vel2m1_j_vel2_k_vel2,u_i_vel2m1_j_vel2_k_vel2p1, &
-      w_i_vel2_j_vel2m1_k_vel2,w_i_vel2m1_j_vel2_k_vel2,w_i_vel2_j_vel2_k_vel2,dx1, &
-      nou7_i_vel2_j_vel2_k_vel2,diu7_i_vel2_j_vel2_k_vel2,v_i_vel2_j_vel2m1_k_vel2, &
-      v_i_vel2_j_vel2m1_k_vel2p1,dy1,nou8_i_vel2_j_vel2_k_vel2,diu8_i_vel2_j_vel2_k_vel2, &
-      cov7_i_vel2_j_vel2_k_vel2,cov8_i_vel2_j_vel2_k_vel2)
+call velfg_map_133(dzn,u_i_vel2m1_j_vel2_k_vel2,u_i_vel2m1_j_vel2_k_vel2p1,w_i_vel2_j_vel2m1_k_vel2, &
+      w_i_vel2m1_j_vel2_k_vel2,w_i_vel2_j_vel2_k_vel2,dx1,nou7_i_vel2_j_vel2_k_vel2, &
+      diu7_i_vel2_j_vel2_k_vel2,v_i_vel2_j_vel2m1_k_vel2,v_i_vel2_j_vel2m1_k_vel2p1,dy1, &
+      nou8_i_vel2_j_vel2_k_vel2,diu8_i_vel2_j_vel2_k_vel2,cov7_i_vel2_j_vel2_k_vel2, &
+      cov8_i_vel2_j_vel2_k_vel2)
  case (st_velfg_map_218)
  j_range = ((300 - 1) + 1)
  i_range = ((300 - 1) + 1)
- k_rel = (th_idx / (j_range * i_range))
+ k_rel = (global_id / (j_range * i_range))
  k = (k_rel + 1)
- j_rel = ((th_idx - (k_rel * (j_range * i_range))) / i_range)
+ j_rel = ((global_id - (k_rel * (j_range * i_range))) / i_range)
  j = (j_rel + 1)
- i_rel = ((th_idx - (k_rel * (j_range * i_range))) - (j_rel * i_range))
+ i_rel = ((global_id - (k_rel * (j_range * i_range))) - (j_rel * i_range))
  i = (i_rel + 1)
-call velfg_map_218(th_ratio,dx1,cov1_i_j_k,cov1_ip1_j_k,cov2_i_j_k,cov2_i_jp1_k,cov3_i_j_k, &
-      cov3_i_j_kp1,diu1_i_j_k,diu1_ip1_j_k,diu2_i_j_k,diu2_i_jp1_k,dy1,diu3_i_j_k,diu3_i_j_kp1, &
-      dzn,dfu1_i_j_k,cov4_i_j_k,cov4_ip1_j_k,cov5_i_j_k,cov5_i_jp1_k,cov6_i_j_k,cov6_i_j_kp1, &
-      diu4_i_j_k,diu4_ip1_j_k,diu5_i_j_k,diu5_i_jp1_k,diu6_i_j_k,diu6_i_j_kp1,dfv1_i_j_k, &
-      cov7_i_j_k,cov7_ip1_j_k,cov8_i_j_k,cov8_i_jp1_k,cov9_i_j_k,cov9_i_j_kp1,diu7_i_j_k, &
-      diu7_ip1_j_k,diu8_i_j_k,diu8_i_jp1_k,diu9_i_j_k,diu9_i_j_kp1,dzs,dfw1_i_j_k,f_i_j_k,g_i_j_k, &
-      h_i_j_k)
+call velfg_map_218(dx1,cov1_i_j_k,cov1_ip1_j_k,cov2_i_j_k,cov2_i_jp1_k,cov3_i_j_k,cov3_i_j_kp1, &
+      diu1_i_j_k,diu1_ip1_j_k,diu2_i_j_k,diu2_i_jp1_k,dy1,diu3_i_j_k,diu3_i_j_kp1,dzn,dfu1_i_j_k, &
+      cov4_i_j_k,cov4_ip1_j_k,cov5_i_j_k,cov5_i_jp1_k,cov6_i_j_k,cov6_i_j_kp1,diu4_i_j_k, &
+      diu4_ip1_j_k,diu5_i_j_k,diu5_i_jp1_k,diu6_i_j_k,diu6_i_j_kp1,dfv1_i_j_k,cov7_i_j_k, &
+      cov7_ip1_j_k,cov8_i_j_k,cov8_i_jp1_k,cov9_i_j_k,cov9_i_j_kp1,diu7_i_j_k,diu7_ip1_j_k, &
+      diu8_i_j_k,diu8_i_jp1_k,diu9_i_j_k,diu9_i_j_kp1,dzs,dfw1_i_j_k,f_i_j_k,g_i_j_k,h_i_j_k)
  end select
 end subroutine velfg_superkernel
 

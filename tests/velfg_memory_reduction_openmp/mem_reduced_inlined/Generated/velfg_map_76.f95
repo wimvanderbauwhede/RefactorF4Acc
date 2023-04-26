@@ -2,7 +2,7 @@ module singleton_module_velfg_map_76
 
 contains
 
-subroutine velfg_map_76(dx1_0,dy1_0,dzn_0,dzs_0,global_id_0,u_s_0,v_s_0,w_s_0,cov1_1,cov2_1,cov3_1, &
+subroutine velfg_map_76(dx1_0,dy1_0,dzn_0,dzs_0,th_idx_0,u_s_0,v_s_0,w_s_0,cov1_1,cov2_1,cov3_1, &
       cov4_1,cov5_1,cov6_1,cov9_1,diu1_1,diu2_1,diu3_1,diu4_1,diu5_1,diu6_1,diu9_1,nou1_1,nou2_1, &
       nou3_1,nou4_1,nou5_1,nou6_1,nou9_1)
 use singleton_module_velfg_map_76, only : velfg_map_76_scal
@@ -40,7 +40,7 @@ use singleton_module_velfg_map_76, only : velfg_map_76_scal
  real, dimension(0:301), intent(in) :: dy1_0
  real, dimension(-1:92), intent(in) :: dzn_0
  real, dimension(-1:92), intent(in) :: dzs_0
- integer, intent(in) :: global_id_0
+ integer, intent(in) :: th_idx_0
  real, dimension(1:5), intent(In) :: u_s_0
  real, dimension(1:5), intent(In) :: v_s_0
  real, dimension(1:4), intent(In) :: w_s_0
@@ -85,15 +85,15 @@ use singleton_module_velfg_map_76, only : velfg_map_76_scal
  k_vel2_range___velfg_m___9606c486 = (((90 + 1) - 1) + 1)
  j_vel2_range___velfg_m___4b6e60e4 = ((300 - 1) + 1)
  i_vel2_range___velfg_m___ea66ec4a = ((300 - 1) + 1)
- k_vel2_rel___velfg_map_76_scal = (global_id___velfg_map_76_scal /  &
-      (j_vel2_range___velfg_m___4b6e60e4 * i_vel2_range___velfg_m___ea66ec4a))
+ k_vel2_rel___velfg_map_76_scal = (th_idx___velfg_map_76_scal / (j_vel2_range___velfg_m___4b6e60e4  &
+      * i_vel2_range___velfg_m___ea66ec4a))
  k_vel2___velfg_map_76_scal = (k_vel2_rel___velfg_map_76_scal + 1)
- j_vel2_rel___velfg_map_76_scal = ((global_id___velfg_map_76_scal - (k_vel2_rel___velfg_map_76_scal  &
-      * (j_vel2_range___velfg_m___4b6e60e4 * i_vel2_range___velfg_m___ea66ec4a))) /  &
+ j_vel2_rel___velfg_map_76_scal = ((th_idx___velfg_map_76_scal - (k_vel2_rel___velfg_map_76_scal *  &
+      (j_vel2_range___velfg_m___4b6e60e4 * i_vel2_range___velfg_m___ea66ec4a))) /  &
       i_vel2_range___velfg_m___ea66ec4a)
  j_vel2___velfg_map_76_scal = (j_vel2_rel___velfg_map_76_scal + 1)
- i_vel2_rel___velfg_map_76_scal = ((global_id___velfg_map_76_scal - (k_vel2_rel___velfg_map_76_scal  &
-      * (j_vel2_range___velfg_m___4b6e60e4 * i_vel2_range___velfg_m___ea66ec4a))) -  &
+ i_vel2_rel___velfg_map_76_scal = ((th_idx___velfg_map_76_scal - (k_vel2_rel___velfg_map_76_scal *  &
+      (j_vel2_range___velfg_m___4b6e60e4 * i_vel2_range___velfg_m___ea66ec4a))) -  &
       (j_vel2_rel___velfg_map_76_scal * i_vel2_range___velfg_m___ea66ec4a))
  i_vel2___velfg_map_76_scal = (i_vel2_rel___velfg_map_76_scal + 1)
  if ((k_vel2___velfg_map_76_scal < 90)) then
