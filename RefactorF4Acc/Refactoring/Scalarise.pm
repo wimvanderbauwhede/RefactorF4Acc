@@ -505,6 +505,7 @@ sub _rename_array_accesses_to_scalars {
 # What we do is replace the array args with the "tuple" of scalar args from StreamVars
                 my $new_args       = [];
                 my %orig_arg_names = ();
+                # carp $f.' ARGS: ',Dumper $info->{'Signature'}{'Args'};
                 for my $arg ( @{ $info->{'Signature'}{'Args'}{'List'} } ) {
                     if ( exists $state->{'StreamVars'}{$arg} ) {
                         $new_args = [
@@ -728,7 +729,9 @@ sub _rename_array_accesses_to_scalars {
             elsif ( exists $info->{'Signature'} ) {
                 my $new_args = [];
                 for my $arg ( @{ $info->{'Signature'}{'Args'}{'List'} } ) {
-                    if ( not exists $state->{'IndexVars'}{$arg} ) {
+                    if ( not exists $state->{'IndexVars'}{$arg} 
+                      or $arg eq 'global_id'
+                    ) { # global_id is special, for OpenMP code
                         push @{$new_args}, $arg;
                     }
                     else {

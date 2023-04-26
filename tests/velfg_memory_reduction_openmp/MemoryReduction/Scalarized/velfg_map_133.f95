@@ -6,7 +6,7 @@ subroutine velfg_map_133_scal(dzn,u_i_vel2m1_j_vel2_k_vel2,u_i_vel2m1_j_vel2_k_v
       w_i_vel2_j_vel2m1_k_vel2,w_i_vel2m1_j_vel2_k_vel2,w_i_vel2_j_vel2_k_vel2,dx1, &
       nou7_i_vel2_j_vel2_k_vel2,diu7_i_vel2_j_vel2_k_vel2,v_i_vel2_j_vel2m1_k_vel2, &
       v_i_vel2_j_vel2m1_k_vel2p1,dy1,nou8_i_vel2_j_vel2_k_vel2,diu8_i_vel2_j_vel2_k_vel2, &
-      cov7_i_vel2_j_vel2_k_vel2,cov8_i_vel2_j_vel2_k_vel2)
+      cov7_i_vel2_j_vel2_k_vel2,cov8_i_vel2_j_vel2_k_vel2,global_id)
  integer, parameter :: ip=300
  integer, parameter :: jp=300
  integer, parameter :: kp=90
