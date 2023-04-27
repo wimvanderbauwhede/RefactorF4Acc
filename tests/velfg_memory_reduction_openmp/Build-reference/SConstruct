@@ -5,7 +5,7 @@ FC=os.environ.get('FC')
 fsources = ['module_velfg_superkernel.f95', 'velfg_driver.f95']
 
 FLFLAGS = ['-Ofast','-flto']
-#FLFLAGS += ['-fopenmp','-DWITH_OPENMP','-mcmodel=medium','-DWM=2']
+# FLFLAGS += ['-fopenmp','-DWITH_OPENMP','-mcmodel=medium','-DWM=2']
 FLFLAGS += ['-DWM=2' ]
 FFLAGS = FLFLAGS + ['-Wall','-cpp','-m64','-ffree-form','-ffree-line-length-0','-fconvert=little-endian','-frecord-marker=4']#, '-fopenmp']
 

@@ -1,11 +1,13 @@
 program main
+#ifdef WITH_OPENMP  
     use omp_lib
+#endif    
     use module_velfg_superkernel, only : velfg_superkernel
     integer :: global_id
     ! Declarations
     integer, parameter :: niters = 1
-integer, parameter :: ip=300 ! was 150*WM
-integer, parameter :: jp=300 ! was 150*WM
+integer, parameter :: ip=50 ! was 150*WM
+integer, parameter :: jp=50 ! was 150*WM
 integer, parameter :: kp=90 
 
 !    real, dimension(0:(ip + 1),(-1):(jp + 1),0:(kp + 1)) :: u
