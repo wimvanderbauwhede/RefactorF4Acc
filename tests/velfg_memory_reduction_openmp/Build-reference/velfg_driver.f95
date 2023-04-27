@@ -59,11 +59,11 @@ program main
       do state_idx = 1,5
       state_ptr=states(state_idx)
 !$OMP PARALLEL DO
-      do global_id = 1, ip*jp*kp
+      do global_id = 1, ip*jp*kp-1
 #ifdef WITH_OPENMP        
-        print *, iter,global_id, omp_get_thread_num()
+!        print *, iter,global_id, omp_get_thread_num()
 #else
-        print *, iter,global_id
+!        print *, iter,global_id
 #endif        
         call velfg_superkernel(f,g,h,dzn,u,v,w,dx1,dy1,dzs,state_ptr, global_id)
       end do

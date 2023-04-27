@@ -5,7 +5,7 @@ program main
     use module_velfg_superkernel, only : velfg_superkernel
     integer :: global_id
     ! Declarations
-    integer, parameter :: niters = 1
+    integer, parameter :: niters = 10
 integer, parameter :: ip=50 ! was 150*WM
 integer, parameter :: jp=50 ! was 150*WM
 integer, parameter :: kp=90 

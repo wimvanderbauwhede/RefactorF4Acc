@@ -62,14 +62,15 @@ subroutine velfg_map_76(u,dx1,v,dy1,w,dzn,nou1,diu1,nou5,diu5,nou9,diu9,nou2,diu
     th_idx = global_id
 !     call get_global_id(th_idx,0)
     k_vel2_range = (((90 + 1) - 1) + 1)
-    j_vel2_range = ((300 - 1) + 1)
-    i_vel2_range = ((300 - 1) + 1)
+    j_vel2_range = ((50 - 1) + 1)
+    i_vel2_range = ((50 - 1) + 1)
     k_vel2_rel = (th_idx / (j_vel2_range * i_vel2_range))
     k_vel2 = (k_vel2_rel + 1)
     j_vel2_rel = ((th_idx - (k_vel2_rel * (j_vel2_range * i_vel2_range))) / i_vel2_range)
     j_vel2 = (j_vel2_rel + 1)
     i_vel2_rel = ((th_idx - (k_vel2_rel * (j_vel2_range * i_vel2_range))) - (j_vel2_rel * i_vel2_range))
     i_vel2 = (i_vel2_rel + 1)
+    !print *, i_vel2,j_vel2,k_vel2
     if ((k_vel2 < 90)) then
  nou1(i_vel2,j_vel2,k_vel2) = (u(i_vel2-1,j_vel2,k_vel2)+u(i_vel2,j_vel2,k_vel2))/2.
  diu1(i_vel2,j_vel2,k_vel2) = (-u(i_vel2-1,j_vel2,k_vel2)+u(i_vel2,j_vel2,k_vel2))/dx1(i_vel2)
@@ -149,14 +150,15 @@ subroutine velfg_map_133(dzn,u,w,dx1,nou7,diu7,v,dy1,nou8,diu8,cov7,cov8,global_
 
 !     call get_global_id(global_id,0)
     k_vel2_range = (((90 - 1) - 1) + 1)
-    j_vel2_range = ((300 - 1) + 1)
-    i_vel2_range = ((300 - 1) + 1)
+    j_vel2_range = ((50 - 1) + 1)
+    i_vel2_range = ((50 - 1) + 1)
     k_vel2_rel = (global_id / (j_vel2_range * i_vel2_range))
     k_vel2 = (k_vel2_rel + 1)
     j_vel2_rel = ((global_id - (k_vel2_rel * (j_vel2_range * i_vel2_range))) / i_vel2_range)
     j_vel2 = (j_vel2_rel + 1)
     i_vel2_rel = ((global_id - (k_vel2_rel * (j_vel2_range * i_vel2_range))) - (j_vel2_rel * i_vel2_range))
     i_vel2 = (i_vel2_rel + 1)
+    !print *, i_vel2,j_vel2,k_vel2
  nou7(i_vel2,j_vel2,k_vel2) = (dzn(k_vel2+1)*u(i_vel2-1,j_vel2,k_vel2)+dzn(k_vel2)*u(i_vel2-1, &
       j_vel2,k_vel2+1)) /(dzn(k_vel2)+dzn(k_vel2+1))
  diu7(i_vel2,j_vel2,k_vel2) = 2.*(-w(i_vel2-1,j_vel2,k_vel2)+w(i_vel2,j_vel2, &
@@ -234,14 +236,15 @@ subroutine velfg_map_218(dx1,cov1,cov2,cov3,diu1,diu2,dy1,diu3,dzn,dfu1,cov4,cov
 
 !     call get_global_id(global_id,0)
     k_range = ((90 - 1) + 1)
-    j_range = ((300 - 1) + 1)
-    i_range = ((300 - 1) + 1)
+    j_range = ((50 - 1) + 1)
+    i_range = ((50 - 1) + 1)
     k_rel = (global_id / (j_range * i_range))
     k = (k_rel + 1)
     j_rel = ((global_id - (k_rel * (j_range * i_range))) / i_range)
     j = (j_rel + 1)
     i_rel = ((global_id - (k_rel * (j_range * i_range))) - (j_rel * i_range))
     i = (i_rel + 1)
+    !print *, i,j,k
  covx1 = (dx1(i+1)*cov1(i,j,k)+dx1(i)*cov1(i+1,j,k)) /(dx1(i)+dx1(i+1))
  covy1 = (cov2(i,j,k)+cov2(i,j+1,k))/2.
  covz1 = (cov3(i,j,k)+cov3(i,j,k+1))/2.
@@ -336,7 +339,7 @@ integer, parameter :: ST_velfg_MAP_206 = 26 !  velfg_map_206
 integer, parameter :: ST_velfg_MAP_212 = 27 !  velfg_map_212
 integer, parameter :: ST_velfg_MAP_218 = 28 !  velfg_map_218
   state = state_ptr ! state
-  print *, state
+  !print *, global_id,state
   select case(state)
     case (ST_velfg_MAP_76)
       call velfg_map_76(u,dx1,v,dy1,w,dzn,nou1,diu1,nou5,diu5,nou9,diu9,nou2,diu2,dzs,nou3,diu3,nou4,diu4,nou6,diu6,cov1,cov5,cov9,cov2,cov3,cov4,cov6,global_id)

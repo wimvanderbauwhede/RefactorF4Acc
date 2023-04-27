@@ -6,7 +6,7 @@ fsources = ['module_velfg_superkernel-dyn.f95', 'velfg_driver-dyn.f95']
 
 
 FLFLAGS = ['-Ofast','-flto']
-FLFLAGS += ['-fopenmp','-DWITH_OPENMP','-DWM=2'] # was 14; but it depends on the param values, the module needs to be patched for that
+#FLFLAGS += ['-fopenmp','-DWITH_OPENMP','-DWM=2'] # was 14; but it depends on the param values, the module needs to be patched for that
 FLFLAGS += ['-DWM=2']#, '-mcmodel=medium']
 FFLAGS = FLFLAGS + ['-Wall','-cpp','-m64','-ffree-form','-ffree-line-length-0','-fconvert=little-endian','-frecord-marker=4']
 

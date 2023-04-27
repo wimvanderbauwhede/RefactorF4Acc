@@ -37,7 +37,9 @@ This needs to be set manually at compile time. For testing on the laptop, WM=1 i
 
 BUGS 2023-04-26
 
-It looks to me like there is some major bug here: scalarisation relies on get_global_id to determine the iterators, and that is used to determine which arrays can become stream vars. So I can't comment out get_global_id! Instead, I should define it as a no-op
+It looks to me like there is some major bug here: scalarisation relies on get_global_id to determine the iterators, and that is used to determine which arrays can become stream vars. So what I've done is accept global_id as a special arg.
+There is still a bug in the scalarisation: the global_id is removed in the end, because it is an index var.
+=> FIXED
 
 non-map args are missing in the main program; also, some of the cast/reshape are plain wrong, and others are not needed because the dimensions are the same.
 => FIXED
