@@ -1,5 +1,5 @@
 ! AST STAGES:
-! [(Vec VS (Scalar VDC DFloat "svec_f_1_g_1_h_1_17"),Stencil (SComb (SVec 2 (Scalar VDC DInt "s7")) (SVec 5 (Scalar VDC DInt "s1"))) (Vec VI (Scalar VDC DFloat "u_0"))),(Vec VS (Scalar VDC DFloat "svec_f_1_g_1_h_1_18"),Stencil (SComb (SVec 2 (Scalar VDC DInt "s7")) (SVec 5 (Scalar VDC DInt "s2"))) (Vec VI (Scalar VDC DFloat "v_0"))),(Vec VS (Scalar VDC DFloat "svec_f_1_g_1_h_1_19"),Stencil (SComb (SVec 2 (Scalar VDC DInt "s7")) (SVec 4 (Scalar VDC DInt "s3"))) (Vec VI (Scalar VDC DFloat "w_0"))),(Vec VS (Scalar VDC DFloat "svec_f_1_g_1_h_1_20"),Stencil (SComb (SVec 2 (Scalar VDC DInt "s9")) (SVec 5 (Scalar VDC DInt "s1"))) (Vec VI (Scalar VDC DFloat "u_0"))),(Vec VS (Scalar VDC DFloat "svec_f_1_g_1_h_1_21"),Stencil (SComb (SVec 2 (Scalar VDC DInt "s9")) (SVec 5 (Scalar VDC DInt "s2"))) (Vec VI (Scalar VDC DFloat "v_0"))),(Vec VS (Scalar VDC DFloat "svec_f_1_g_1_h_1_22"),Stencil (SComb (SVec 2 (Scalar VDC DInt "s9")) (SVec 4 (Scalar VDC DInt "s3"))) (Vec VI (Scalar VDC DFloat "w_0"))),(Vec VS (Scalar VDC DFloat "svec_f_1_g_1_h_1_23"),Stencil (SComb (SVec 2 (Scalar VDC DInt "s10")) (SVec 5 (Scalar VDC DInt "s1"))) (Vec VI (Scalar VDC DFloat "u_0"))),(Vec VS (Scalar VDC DFloat "svec_f_1_g_1_h_1_24"),Stencil (SComb (SVec 2 (Scalar VDC DInt "s10")) (SVec 5 (Scalar VDC DInt "s2"))) (Vec VI (Scalar VDC DFloat "v_0"))),(Vec VS (Scalar VDC DFloat "svec_f_1_g_1_h_1_25"),Stencil (SComb (SVec 2 (Scalar VDC DInt "s10")) (SVec 4 (Scalar VDC DInt "s3"))) (Vec VI (Scalar VDC DFloat "w_0"))),(Vec VS (Scalar VDC DFloat "svec_f_1_g_1_h_1_26"),Stencil (SComb (SVec 2 (Scalar VDC DInt "s13")) (SVec 5 (Scalar VDC DInt "s1"))) (Vec VI (Scalar VDC DFloat "u_0"))),(Vec VS (Scalar VDC DFloat "svec_f_1_g_1_h_1_27"),Stencil (SComb (SVec 2 (Scalar VDC DInt "s13")) (SVec 5 (Scalar VDC DInt "s2"))) (Vec VI (Scalar VDC DFloat "v_0"))),(Vec VS (Scalar VDC DFloat "svec_f_1_g_1_h_1_28"),Stencil (SComb (SVec 2 (Scalar VDC DInt "s13")) (SVec 4 (Scalar VDC DInt "s3"))) (Vec VI (Scalar VDC DFloat "w_0"))),(Vec VS (Scalar VDC DFloat "svec_f_1_g_1_h_1_29"),Stencil (SComb (SVec 2 (Scalar VDC DInt "s23")) (SVec 5 (Scalar VDC DInt "s1"))) (Vec VI (Scalar VDC DFloat "u_0"))),(Vec VS (Scalar VDC DFloat "svec_f_1_g_1_h_1_30"),Stencil (SComb (SVec 2 (Scalar VDC DInt "s23")) (SVec 5 (Scalar VDC DInt "s2"))) (Vec VI (Scalar VDC DFloat "v_0"))),(Vec VS (Scalar VDC DFloat "svec_f_1_g_1_h_1_31"),Stencil (SComb (SVec 2 (Scalar VDC DInt "s23")) (SVec 4 (Scalar VDC DInt "s3"))) (Vec VI (Scalar VDC DFloat "w_0"))),(Vec VS (Scalar VDC DFloat "svec_f_1_g_1_h_1_32"),Stencil (SComb (SVec 2 (Scalar VDC DInt "s13")) (SVec 2 (Scalar VDC DInt "s6"))) (Vec VI (Scalar VDC DFloat "u_0"))),(Vec VS (Scalar VDC DFloat "svec_f_1_g_1_h_1_33"),Stencil (SComb (SVec 2 (Scalar VDC DInt "s13")) (SVec 3 (Scalar VDC DInt "s4"))) (Vec VI (Scalar VDC DFloat "w_0"))),(Vec VS (Scalar VDC DFloat "svec_f_1_g_1_h_1_34"),Stencil (SComb (SVec 2 (Scalar VDC DInt "s13")) (SVec 2 (Scalar VDC DInt "s5"))) (Vec VI (Scalar VDC DFloat "v_0"))),(Vec VS (Scalar VDC DFloat "svec_f_1_g_1_h_1_35"),Stencil (SComb (SVec 2 (Scalar VDC DInt "s9")) (SVec 2 (Scalar VDC DInt "s6"))) (Vec VI (Scalar VDC DFloat "u_0"))),(Vec VS (Scalar VDC DFloat "svec_f_1_g_1_h_1_36"),Stencil (SComb (SVec 2 (Scalar VDC DInt "s9")) (SVec 3 (Scalar VDC DInt "s4"))) (Vec VI (Scalar VDC DFloat "w_0"))),(Vec VS (Scalar VDC DFloat "svec_f_1_g_1_h_1_37"),Stencil (SComb (SVec 2 (Scalar VDC DInt "s9")) (SVec 2 (Scalar VDC DInt "s5"))) (Vec VI (Scalar VDC DFloat "v_0"))),(Tuple [Vec VO (Scalar VDC DFloat "f_1"),Vec VO (Scalar VDC DFloat "g_1"),Vec VO (Scalar VDC DFloat "h_1")],UnzipT (Map (Function "f_pelts_f_1_g_1_h_1_16" [FVec [(-1,301)] (Scalar VDC DFloat "dx1_0"),FVec [(0,301)] (Scalar VDC DFloat "dy1_0"),FVec [(-1,92)] (Scalar VDC DFloat "dzn_0"),FVec [(-1,92)] (Scalar VDC DFloat "dzs_0"),Scalar VI DInt "global_id_0",FVec [(-1,301)] (Scalar VDC DFloat "dx1_0"),FVec [(0,301)] (Scalar VDC DFloat "dy1_0"),FVec [(-1,92)] (Scalar VDC DFloat "dzn_0"),FVec [(-1,92)] (Scalar VDC DFloat "dzs_0"),Scalar VI DInt "global_id_0",FVec [(-1,301)] (Scalar VDC DFloat "dx1_0"),FVec [(0,301)] (Scalar VDC DFloat "dy1_0"),FVec [(-1,92)] (Scalar VDC DFloat "dzn_0"),FVec [(-1,92)] (Scalar VDC DFloat "dzs_0"),Scalar VI DInt "global_id_0",FVec [(-1,301)] (Scalar VDC DFloat "dx1_0"),FVec [(0,301)] (Scalar VDC DFloat "dy1_0"),FVec [(-1,92)] (Scalar VDC DFloat "dzn_0"),FVec [(-1,92)] (Scalar VDC DFloat "dzs_0"),Scalar VI DInt "global_id_0",FVec [(-1,301)] (Scalar VDC DFloat "dx1_0"),FVec [(0,301)] (Scalar VDC DFloat "dy1_0"),FVec [(-1,92)] (Scalar VDC DFloat "dzn_0"),FVec [(-1,92)] (Scalar VDC DFloat "dzs_0"),Scalar VI DInt "global_id_0",FVec [(-1,301)] (Scalar VDC DFloat "dx1_0"),FVec [(0,301)] (Scalar VDC DFloat "dy1_0"),FVec [(-1,92)] (Scalar VDC DFloat "dzn_0"),FVec [(-1,92)] (Scalar VDC DFloat "dzs_0"),Scalar VI DInt "global_id_0",FVec [(-1,92)] (Scalar VDC DFloat "dzn_0"),FVec [(-1,301)] (Scalar VDC DFloat "dx1_0"),FVec [(0,301)] (Scalar VDC DFloat "dy1_0"),Scalar VI DInt "global_id_0",FVec [(-1,92)] (Scalar VDC DFloat "dzn_0"),FVec [(-1,301)] (Scalar VDC DFloat "dx1_0"),FVec [(0,301)] (Scalar VDC DFloat "dy1_0"),Scalar VI DInt "global_id_0"]) (ZipT [ZipT [Vec VS (Scalar VDC DFloat "svec_f_1_g_1_h_1_17"),Vec VS (Scalar VDC DFloat "svec_f_1_g_1_h_1_18"),Vec VS (Scalar VDC DFloat "svec_f_1_g_1_h_1_19")],ZipT [Vec VS (Scalar VDC DFloat "svec_f_1_g_1_h_1_20"),Vec VS (Scalar VDC DFloat "svec_f_1_g_1_h_1_21"),Vec VS (Scalar VDC DFloat "svec_f_1_g_1_h_1_22")],ZipT [Vec VS (Scalar VDC DFloat "svec_f_1_g_1_h_1_23"),Vec VS (Scalar VDC DFloat "svec_f_1_g_1_h_1_24"),Vec VS (Scalar VDC DFloat "svec_f_1_g_1_h_1_25")],ZipT [Vec VS (Scalar VDC DFloat "svec_f_1_g_1_h_1_26"),Vec VS (Scalar VDC DFloat "svec_f_1_g_1_h_1_27"),Vec VS (Scalar VDC DFloat "svec_f_1_g_1_h_1_28")],ZipT [Vec VS (Scalar VDC DFloat "svec_f_1_g_1_h_1_29"),Vec VS (Scalar VDC DFloat "svec_f_1_g_1_h_1_30"),Vec VS (Scalar VDC DFloat "svec_f_1_g_1_h_1_31")],ZipT [Vec VS (Scalar VDC DFloat "svec_f_1_g_1_h_1_32"),Vec VS (Scalar VDC DFloat "svec_f_1_g_1_h_1_33"),Vec VS (Scalar VDC DFloat "svec_f_1_g_1_h_1_34")],ZipT [Vec VS (Scalar VDC DFloat "svec_f_1_g_1_h_1_35"),Vec VS (Scalar VDC DFloat "svec_f_1_g_1_h_1_36"),Vec VS (Scalar VDC DFloat "svec_f_1_g_1_h_1_37")]])))]
+! [(Vec VS (Scalar VDC DFloat "svec_f_1_g_1_h_1_17"),Stencil (SComb (SVec 2 (Scalar VDC DInt "s17")) (SVec 5 (Scalar VDC DInt "s2"))) (Vec VI (Scalar VDC DFloat "u_0"))),(Vec VS (Scalar VDC DFloat "svec_f_1_g_1_h_1_18"),Stencil (SComb (SVec 2 (Scalar VDC DInt "s17")) (SVec 5 (Scalar VDC DInt "s1"))) (Vec VI (Scalar VDC DFloat "v_0"))),(Vec VS (Scalar VDC DFloat "svec_f_1_g_1_h_1_19"),Stencil (SComb (SVec 2 (Scalar VDC DInt "s17")) (SVec 4 (Scalar VDC DInt "s3"))) (Vec VI (Scalar VDC DFloat "w_0"))),(Vec VS (Scalar VDC DFloat "svec_f_1_g_1_h_1_20"),Stencil (SComb (SVec 2 (Scalar VDC DInt "s9")) (SVec 5 (Scalar VDC DInt "s2"))) (Vec VI (Scalar VDC DFloat "u_0"))),(Vec VS (Scalar VDC DFloat "svec_f_1_g_1_h_1_21"),Stencil (SComb (SVec 2 (Scalar VDC DInt "s9")) (SVec 5 (Scalar VDC DInt "s1"))) (Vec VI (Scalar VDC DFloat "v_0"))),(Vec VS (Scalar VDC DFloat "svec_f_1_g_1_h_1_22"),Stencil (SComb (SVec 2 (Scalar VDC DInt "s9")) (SVec 4 (Scalar VDC DInt "s3"))) (Vec VI (Scalar VDC DFloat "w_0"))),(Vec VS (Scalar VDC DFloat "svec_f_1_g_1_h_1_23"),Stencil (SComb (SVec 2 (Scalar VDC DInt "s8")) (SVec 5 (Scalar VDC DInt "s2"))) (Vec VI (Scalar VDC DFloat "u_0"))),(Vec VS (Scalar VDC DFloat "svec_f_1_g_1_h_1_24"),Stencil (SComb (SVec 2 (Scalar VDC DInt "s8")) (SVec 5 (Scalar VDC DInt "s1"))) (Vec VI (Scalar VDC DFloat "v_0"))),(Vec VS (Scalar VDC DFloat "svec_f_1_g_1_h_1_25"),Stencil (SComb (SVec 2 (Scalar VDC DInt "s8")) (SVec 4 (Scalar VDC DInt "s3"))) (Vec VI (Scalar VDC DFloat "w_0"))),(Vec VS (Scalar VDC DFloat "svec_f_1_g_1_h_1_26"),Stencil (SComb (SVec 2 (Scalar VDC DInt "s16")) (SVec 5 (Scalar VDC DInt "s2"))) (Vec VI (Scalar VDC DFloat "u_0"))),(Vec VS (Scalar VDC DFloat "svec_f_1_g_1_h_1_27"),Stencil (SComb (SVec 2 (Scalar VDC DInt "s16")) (SVec 5 (Scalar VDC DInt "s1"))) (Vec VI (Scalar VDC DFloat "v_0"))),(Vec VS (Scalar VDC DFloat "svec_f_1_g_1_h_1_28"),Stencil (SComb (SVec 2 (Scalar VDC DInt "s16")) (SVec 4 (Scalar VDC DInt "s3"))) (Vec VI (Scalar VDC DFloat "w_0"))),(Vec VS (Scalar VDC DFloat "svec_f_1_g_1_h_1_29"),Stencil (SComb (SVec 2 (Scalar VDC DInt "s7")) (SVec 5 (Scalar VDC DInt "s2"))) (Vec VI (Scalar VDC DFloat "u_0"))),(Vec VS (Scalar VDC DFloat "svec_f_1_g_1_h_1_30"),Stencil (SComb (SVec 2 (Scalar VDC DInt "s7")) (SVec 5 (Scalar VDC DInt "s1"))) (Vec VI (Scalar VDC DFloat "v_0"))),(Vec VS (Scalar VDC DFloat "svec_f_1_g_1_h_1_31"),Stencil (SComb (SVec 2 (Scalar VDC DInt "s7")) (SVec 4 (Scalar VDC DInt "s3"))) (Vec VI (Scalar VDC DFloat "w_0"))),(Vec VS (Scalar VDC DFloat "svec_f_1_g_1_h_1_32"),Stencil (SComb (SVec 2 (Scalar VDC DInt "s16")) (SVec 2 (Scalar VDC DInt "s6"))) (Vec VI (Scalar VDC DFloat "u_0"))),(Vec VS (Scalar VDC DFloat "svec_f_1_g_1_h_1_33"),Stencil (SComb (SVec 2 (Scalar VDC DInt "s16")) (SVec 3 (Scalar VDC DInt "s5"))) (Vec VI (Scalar VDC DFloat "w_0"))),(Vec VS (Scalar VDC DFloat "svec_f_1_g_1_h_1_34"),Stencil (SComb (SVec 2 (Scalar VDC DInt "s16")) (SVec 2 (Scalar VDC DInt "s4"))) (Vec VI (Scalar VDC DFloat "v_0"))),(Vec VS (Scalar VDC DFloat "svec_f_1_g_1_h_1_35"),Stencil (SComb (SVec 2 (Scalar VDC DInt "s9")) (SVec 2 (Scalar VDC DInt "s6"))) (Vec VI (Scalar VDC DFloat "u_0"))),(Vec VS (Scalar VDC DFloat "svec_f_1_g_1_h_1_36"),Stencil (SComb (SVec 2 (Scalar VDC DInt "s9")) (SVec 3 (Scalar VDC DInt "s5"))) (Vec VI (Scalar VDC DFloat "w_0"))),(Vec VS (Scalar VDC DFloat "svec_f_1_g_1_h_1_37"),Stencil (SComb (SVec 2 (Scalar VDC DInt "s9")) (SVec 2 (Scalar VDC DInt "s4"))) (Vec VI (Scalar VDC DFloat "v_0"))),(Tuple [Vec VO (Scalar VDC DFloat "f_1"),Vec VO (Scalar VDC DFloat "g_1"),Vec VO (Scalar VDC DFloat "h_1")],UnzipT (Map (Function "f_pelts_f_1_g_1_h_1_16" [FVec [(-1,301)] (Scalar VDC DFloat "dx1_0"),FVec [(0,301)] (Scalar VDC DFloat "dy1_0"),FVec [(-1,92)] (Scalar VDC DFloat "dzn_0"),FVec [(-1,92)] (Scalar VDC DFloat "dzs_0"),Scalar VI DInt "global_id_0",FVec [(-1,301)] (Scalar VDC DFloat "dx1_0"),FVec [(0,301)] (Scalar VDC DFloat "dy1_0"),FVec [(-1,92)] (Scalar VDC DFloat "dzn_0"),FVec [(-1,92)] (Scalar VDC DFloat "dzs_0"),Scalar VI DInt "global_id_0",FVec [(-1,301)] (Scalar VDC DFloat "dx1_0"),FVec [(0,301)] (Scalar VDC DFloat "dy1_0"),FVec [(-1,92)] (Scalar VDC DFloat "dzn_0"),FVec [(-1,92)] (Scalar VDC DFloat "dzs_0"),Scalar VI DInt "global_id_0",FVec [(-1,301)] (Scalar VDC DFloat "dx1_0"),FVec [(0,301)] (Scalar VDC DFloat "dy1_0"),FVec [(-1,92)] (Scalar VDC DFloat "dzn_0"),FVec [(-1,92)] (Scalar VDC DFloat "dzs_0"),Scalar VI DInt "global_id_0",FVec [(-1,301)] (Scalar VDC DFloat "dx1_0"),FVec [(0,301)] (Scalar VDC DFloat "dy1_0"),FVec [(-1,92)] (Scalar VDC DFloat "dzn_0"),FVec [(-1,92)] (Scalar VDC DFloat "dzs_0"),Scalar VI DInt "global_id_0",FVec [(-1,301)] (Scalar VDC DFloat "dx1_0"),FVec [(0,301)] (Scalar VDC DFloat "dy1_0"),FVec [(-1,92)] (Scalar VDC DFloat "dzn_0"),FVec [(-1,92)] (Scalar VDC DFloat "dzs_0"),Scalar VI DInt "global_id_0",FVec [(-1,92)] (Scalar VDC DFloat "dzn_0"),FVec [(-1,301)] (Scalar VDC DFloat "dx1_0"),FVec [(0,301)] (Scalar VDC DFloat "dy1_0"),Scalar VI DInt "global_id_0",FVec [(-1,92)] (Scalar VDC DFloat "dzn_0"),FVec [(-1,301)] (Scalar VDC DFloat "dx1_0"),FVec [(0,301)] (Scalar VDC DFloat "dy1_0"),Scalar VI DInt "global_id_0"]) (ZipT [ZipT [Vec VS (Scalar VDC DFloat "svec_f_1_g_1_h_1_17"),Vec VS (Scalar VDC DFloat "svec_f_1_g_1_h_1_18"),Vec VS (Scalar VDC DFloat "svec_f_1_g_1_h_1_19")],ZipT [Vec VS (Scalar VDC DFloat "svec_f_1_g_1_h_1_20"),Vec VS (Scalar VDC DFloat "svec_f_1_g_1_h_1_21"),Vec VS (Scalar VDC DFloat "svec_f_1_g_1_h_1_22")],ZipT [Vec VS (Scalar VDC DFloat "svec_f_1_g_1_h_1_23"),Vec VS (Scalar VDC DFloat "svec_f_1_g_1_h_1_24"),Vec VS (Scalar VDC DFloat "svec_f_1_g_1_h_1_25")],ZipT [Vec VS (Scalar VDC DFloat "svec_f_1_g_1_h_1_26"),Vec VS (Scalar VDC DFloat "svec_f_1_g_1_h_1_27"),Vec VS (Scalar VDC DFloat "svec_f_1_g_1_h_1_28")],ZipT [Vec VS (Scalar VDC DFloat "svec_f_1_g_1_h_1_29"),Vec VS (Scalar VDC DFloat "svec_f_1_g_1_h_1_30"),Vec VS (Scalar VDC DFloat "svec_f_1_g_1_h_1_31")],ZipT [Vec VS (Scalar VDC DFloat "svec_f_1_g_1_h_1_32"),Vec VS (Scalar VDC DFloat "svec_f_1_g_1_h_1_33"),Vec VS (Scalar VDC DFloat "svec_f_1_g_1_h_1_34")],ZipT [Vec VS (Scalar VDC DFloat "svec_f_1_g_1_h_1_35"),Vec VS (Scalar VDC DFloat "svec_f_1_g_1_h_1_36"),Vec VS (Scalar VDC DFloat "svec_f_1_g_1_h_1_37")]])))]
 
 module module_velfg_superkernel
     contains
@@ -36,12 +36,12 @@ subroutine stage_kernel_1(dx1_0, dy1_0, dzn_0, dzs_0, global_id_0, u_0, v_0, w_0
     real, dimension(1:8244691), intent(Out) :: g_1
     real, dimension(1:8244691), intent(Out) :: h_1
 ! uniqueGeneratedDecls'
-    integer, parameter, dimension(1:2) :: s7 = [92418,92419]
-    integer, parameter, dimension(1:5) :: s1 = [605,91809,92110,92111,92412]
+    integer, parameter, dimension(1:2) :: s17 = [92418,92419]
+    integer, parameter, dimension(1:5) :: s2 = [605,91809,92110,92111,92412]
     real, dimension(1:2,1:5) :: svec_f_1_g_1_h_1_17
     integer :: s_idx_1
     integer :: s_idx_2
-    integer, parameter, dimension(1:5) :: s2 = [605,91809,91810,92110,92111]
+    integer, parameter, dimension(1:5) :: s1 = [605,91809,91810,92110,92111]
     real, dimension(1:2,1:5) :: svec_f_1_g_1_h_1_18
     integer, parameter, dimension(1:4) :: s3 = [92111,92112,92413,183617]
     real, dimension(1:2,1:4) :: svec_f_1_g_1_h_1_19
@@ -49,23 +49,23 @@ subroutine stage_kernel_1(dx1_0, dy1_0, dzn_0, dzs_0, global_id_0, u_0, v_0, w_0
     real, dimension(1:2,1:5) :: svec_f_1_g_1_h_1_20
     real, dimension(1:2,1:5) :: svec_f_1_g_1_h_1_21
     real, dimension(1:2,1:4) :: svec_f_1_g_1_h_1_22
-    integer, parameter, dimension(1:2) :: s10 = [92113,183922]
+    integer, parameter, dimension(1:2) :: s8 = [92113,183922]
     real, dimension(1:2,1:5) :: svec_f_1_g_1_h_1_23
     real, dimension(1:2,1:5) :: svec_f_1_g_1_h_1_24
     real, dimension(1:2,1:4) :: svec_f_1_g_1_h_1_25
-    integer, parameter, dimension(1:2) :: s13 = [92113,92114]
+    integer, parameter, dimension(1:2) :: s16 = [92113,92114]
     real, dimension(1:2,1:5) :: svec_f_1_g_1_h_1_26
     real, dimension(1:2,1:5) :: svec_f_1_g_1_h_1_27
     real, dimension(1:2,1:4) :: svec_f_1_g_1_h_1_28
-    integer, parameter, dimension(1:2) :: s23 = [92418,92722]
+    integer, parameter, dimension(1:2) :: s7 = [92418,92722]
     real, dimension(1:2,1:5) :: svec_f_1_g_1_h_1_29
     real, dimension(1:2,1:5) :: svec_f_1_g_1_h_1_30
     real, dimension(1:2,1:4) :: svec_f_1_g_1_h_1_31
     integer, parameter, dimension(1:2) :: s6 = [92110,183616]
     real, dimension(1:2,1:2) :: svec_f_1_g_1_h_1_32
-    integer, parameter, dimension(1:3) :: s4 = [183315,183616,183617]
+    integer, parameter, dimension(1:3) :: s5 = [183315,183616,183617]
     real, dimension(1:2,1:3) :: svec_f_1_g_1_h_1_33
-    integer, parameter, dimension(1:2) :: s5 = [91809,183315]
+    integer, parameter, dimension(1:2) :: s4 = [91809,183315]
     real, dimension(1:2,1:2) :: svec_f_1_g_1_h_1_34
     real, dimension(1:2,1:2) :: svec_f_1_g_1_h_1_35
     real, dimension(1:2,1:3) :: svec_f_1_g_1_h_1_36
@@ -79,46 +79,35 @@ subroutine stage_kernel_1(dx1_0, dy1_0, dzn_0, dzs_0, global_id_0, u_0, v_0, w_0
     integer :: idx
     call get_global_id(idx,0)
 !$RF4A Begin Inline
-! Stencil s7, s1
+! Stencil s17, s2
     do s_idx_1 = 1,2
     do s_idx_2 = 1,5
-        if (idx+s7(s_idx_1)+s1(s_idx_2)>=1 .and. idx+s7(s_idx_1)+s1(s_idx_2)<=8418552) then
-            svec_f_1_g_1_h_1_17(s_idx_1, s_idx_2) = u_0(idx+s7(s_idx_1)+s1(s_idx_2))
+        if (idx+s17(s_idx_1)+s2(s_idx_2)>=1 .and. idx+s17(s_idx_1)+s2(s_idx_2)<=8418552) then
+            svec_f_1_g_1_h_1_17(s_idx_1, s_idx_2) = u_0(idx+s17(s_idx_1)+s2(s_idx_2))
         else
             svec_f_1_g_1_h_1_17(s_idx_1, s_idx_2) = u_0(idx)
         end if
     end do
     end do
 
-! Stencil s7, s2
+! Stencil s17, s1
     do s_idx_1 = 1,2
     do s_idx_2 = 1,5
-        if (idx+s7(s_idx_1)+s2(s_idx_2)>=1 .and. idx+s7(s_idx_1)+s2(s_idx_2)<=8418552) then
-            svec_f_1_g_1_h_1_18(s_idx_1, s_idx_2) = v_0(idx+s7(s_idx_1)+s2(s_idx_2))
+        if (idx+s17(s_idx_1)+s1(s_idx_2)>=1 .and. idx+s17(s_idx_1)+s1(s_idx_2)<=8418552) then
+            svec_f_1_g_1_h_1_18(s_idx_1, s_idx_2) = v_0(idx+s17(s_idx_1)+s1(s_idx_2))
         else
             svec_f_1_g_1_h_1_18(s_idx_1, s_idx_2) = v_0(idx)
         end if
     end do
     end do
 
-! Stencil s7, s3
+! Stencil s17, s3
     do s_idx_1 = 1,2
     do s_idx_2 = 1,4
-        if (idx+s7(s_idx_1)+s3(s_idx_2)>=1 .and. idx+s7(s_idx_1)+s3(s_idx_2)<=8510058) then
-            svec_f_1_g_1_h_1_19(s_idx_1, s_idx_2) = w_0(idx+s7(s_idx_1)+s3(s_idx_2))
+        if (idx+s17(s_idx_1)+s3(s_idx_2)>=1 .and. idx+s17(s_idx_1)+s3(s_idx_2)<=8510058) then
+            svec_f_1_g_1_h_1_19(s_idx_1, s_idx_2) = w_0(idx+s17(s_idx_1)+s3(s_idx_2))
         else
             svec_f_1_g_1_h_1_19(s_idx_1, s_idx_2) = w_0(idx)
-        end if
-    end do
-    end do
-
-! Stencil s9, s1
-    do s_idx_1 = 1,2
-    do s_idx_2 = 1,5
-        if (idx+s9(s_idx_1)+s1(s_idx_2)>=1 .and. idx+s9(s_idx_1)+s1(s_idx_2)<=8418552) then
-            svec_f_1_g_1_h_1_20(s_idx_1, s_idx_2) = u_0(idx+s9(s_idx_1)+s1(s_idx_2))
-        else
-            svec_f_1_g_1_h_1_20(s_idx_1, s_idx_2) = u_0(idx)
         end if
     end do
     end do
@@ -127,7 +116,18 @@ subroutine stage_kernel_1(dx1_0, dy1_0, dzn_0, dzs_0, global_id_0, u_0, v_0, w_0
     do s_idx_1 = 1,2
     do s_idx_2 = 1,5
         if (idx+s9(s_idx_1)+s2(s_idx_2)>=1 .and. idx+s9(s_idx_1)+s2(s_idx_2)<=8418552) then
-            svec_f_1_g_1_h_1_21(s_idx_1, s_idx_2) = v_0(idx+s9(s_idx_1)+s2(s_idx_2))
+            svec_f_1_g_1_h_1_20(s_idx_1, s_idx_2) = u_0(idx+s9(s_idx_1)+s2(s_idx_2))
+        else
+            svec_f_1_g_1_h_1_20(s_idx_1, s_idx_2) = u_0(idx)
+        end if
+    end do
+    end do
+
+! Stencil s9, s1
+    do s_idx_1 = 1,2
+    do s_idx_2 = 1,5
+        if (idx+s9(s_idx_1)+s1(s_idx_2)>=1 .and. idx+s9(s_idx_1)+s1(s_idx_2)<=8418552) then
+            svec_f_1_g_1_h_1_21(s_idx_1, s_idx_2) = v_0(idx+s9(s_idx_1)+s1(s_idx_2))
         else
             svec_f_1_g_1_h_1_21(s_idx_1, s_idx_2) = v_0(idx)
         end if
@@ -145,132 +145,132 @@ subroutine stage_kernel_1(dx1_0, dy1_0, dzn_0, dzs_0, global_id_0, u_0, v_0, w_0
     end do
     end do
 
-! Stencil s10, s1
+! Stencil s8, s2
     do s_idx_1 = 1,2
     do s_idx_2 = 1,5
-        if (idx+s10(s_idx_1)+s1(s_idx_2)>=1 .and. idx+s10(s_idx_1)+s1(s_idx_2)<=8418552) then
-            svec_f_1_g_1_h_1_23(s_idx_1, s_idx_2) = u_0(idx+s10(s_idx_1)+s1(s_idx_2))
+        if (idx+s8(s_idx_1)+s2(s_idx_2)>=1 .and. idx+s8(s_idx_1)+s2(s_idx_2)<=8418552) then
+            svec_f_1_g_1_h_1_23(s_idx_1, s_idx_2) = u_0(idx+s8(s_idx_1)+s2(s_idx_2))
         else
             svec_f_1_g_1_h_1_23(s_idx_1, s_idx_2) = u_0(idx)
         end if
     end do
     end do
 
-! Stencil s10, s2
+! Stencil s8, s1
     do s_idx_1 = 1,2
     do s_idx_2 = 1,5
-        if (idx+s10(s_idx_1)+s2(s_idx_2)>=1 .and. idx+s10(s_idx_1)+s2(s_idx_2)<=8418552) then
-            svec_f_1_g_1_h_1_24(s_idx_1, s_idx_2) = v_0(idx+s10(s_idx_1)+s2(s_idx_2))
+        if (idx+s8(s_idx_1)+s1(s_idx_2)>=1 .and. idx+s8(s_idx_1)+s1(s_idx_2)<=8418552) then
+            svec_f_1_g_1_h_1_24(s_idx_1, s_idx_2) = v_0(idx+s8(s_idx_1)+s1(s_idx_2))
         else
             svec_f_1_g_1_h_1_24(s_idx_1, s_idx_2) = v_0(idx)
         end if
     end do
     end do
 
-! Stencil s10, s3
+! Stencil s8, s3
     do s_idx_1 = 1,2
     do s_idx_2 = 1,4
-        if (idx+s10(s_idx_1)+s3(s_idx_2)>=1 .and. idx+s10(s_idx_1)+s3(s_idx_2)<=8510058) then
-            svec_f_1_g_1_h_1_25(s_idx_1, s_idx_2) = w_0(idx+s10(s_idx_1)+s3(s_idx_2))
+        if (idx+s8(s_idx_1)+s3(s_idx_2)>=1 .and. idx+s8(s_idx_1)+s3(s_idx_2)<=8510058) then
+            svec_f_1_g_1_h_1_25(s_idx_1, s_idx_2) = w_0(idx+s8(s_idx_1)+s3(s_idx_2))
         else
             svec_f_1_g_1_h_1_25(s_idx_1, s_idx_2) = w_0(idx)
         end if
     end do
     end do
 
-! Stencil s13, s1
+! Stencil s16, s2
     do s_idx_1 = 1,2
     do s_idx_2 = 1,5
-        if (idx+s13(s_idx_1)+s1(s_idx_2)>=1 .and. idx+s13(s_idx_1)+s1(s_idx_2)<=8418552) then
-            svec_f_1_g_1_h_1_26(s_idx_1, s_idx_2) = u_0(idx+s13(s_idx_1)+s1(s_idx_2))
+        if (idx+s16(s_idx_1)+s2(s_idx_2)>=1 .and. idx+s16(s_idx_1)+s2(s_idx_2)<=8418552) then
+            svec_f_1_g_1_h_1_26(s_idx_1, s_idx_2) = u_0(idx+s16(s_idx_1)+s2(s_idx_2))
         else
             svec_f_1_g_1_h_1_26(s_idx_1, s_idx_2) = u_0(idx)
         end if
     end do
     end do
 
-! Stencil s13, s2
+! Stencil s16, s1
     do s_idx_1 = 1,2
     do s_idx_2 = 1,5
-        if (idx+s13(s_idx_1)+s2(s_idx_2)>=1 .and. idx+s13(s_idx_1)+s2(s_idx_2)<=8418552) then
-            svec_f_1_g_1_h_1_27(s_idx_1, s_idx_2) = v_0(idx+s13(s_idx_1)+s2(s_idx_2))
+        if (idx+s16(s_idx_1)+s1(s_idx_2)>=1 .and. idx+s16(s_idx_1)+s1(s_idx_2)<=8418552) then
+            svec_f_1_g_1_h_1_27(s_idx_1, s_idx_2) = v_0(idx+s16(s_idx_1)+s1(s_idx_2))
         else
             svec_f_1_g_1_h_1_27(s_idx_1, s_idx_2) = v_0(idx)
         end if
     end do
     end do
 
-! Stencil s13, s3
+! Stencil s16, s3
     do s_idx_1 = 1,2
     do s_idx_2 = 1,4
-        if (idx+s13(s_idx_1)+s3(s_idx_2)>=1 .and. idx+s13(s_idx_1)+s3(s_idx_2)<=8510058) then
-            svec_f_1_g_1_h_1_28(s_idx_1, s_idx_2) = w_0(idx+s13(s_idx_1)+s3(s_idx_2))
+        if (idx+s16(s_idx_1)+s3(s_idx_2)>=1 .and. idx+s16(s_idx_1)+s3(s_idx_2)<=8510058) then
+            svec_f_1_g_1_h_1_28(s_idx_1, s_idx_2) = w_0(idx+s16(s_idx_1)+s3(s_idx_2))
         else
             svec_f_1_g_1_h_1_28(s_idx_1, s_idx_2) = w_0(idx)
         end if
     end do
     end do
 
-! Stencil s23, s1
+! Stencil s7, s2
     do s_idx_1 = 1,2
     do s_idx_2 = 1,5
-        if (idx+s23(s_idx_1)+s1(s_idx_2)>=1 .and. idx+s23(s_idx_1)+s1(s_idx_2)<=8418552) then
-            svec_f_1_g_1_h_1_29(s_idx_1, s_idx_2) = u_0(idx+s23(s_idx_1)+s1(s_idx_2))
+        if (idx+s7(s_idx_1)+s2(s_idx_2)>=1 .and. idx+s7(s_idx_1)+s2(s_idx_2)<=8418552) then
+            svec_f_1_g_1_h_1_29(s_idx_1, s_idx_2) = u_0(idx+s7(s_idx_1)+s2(s_idx_2))
         else
             svec_f_1_g_1_h_1_29(s_idx_1, s_idx_2) = u_0(idx)
         end if
     end do
     end do
 
-! Stencil s23, s2
+! Stencil s7, s1
     do s_idx_1 = 1,2
     do s_idx_2 = 1,5
-        if (idx+s23(s_idx_1)+s2(s_idx_2)>=1 .and. idx+s23(s_idx_1)+s2(s_idx_2)<=8418552) then
-            svec_f_1_g_1_h_1_30(s_idx_1, s_idx_2) = v_0(idx+s23(s_idx_1)+s2(s_idx_2))
+        if (idx+s7(s_idx_1)+s1(s_idx_2)>=1 .and. idx+s7(s_idx_1)+s1(s_idx_2)<=8418552) then
+            svec_f_1_g_1_h_1_30(s_idx_1, s_idx_2) = v_0(idx+s7(s_idx_1)+s1(s_idx_2))
         else
             svec_f_1_g_1_h_1_30(s_idx_1, s_idx_2) = v_0(idx)
         end if
     end do
     end do
 
-! Stencil s23, s3
+! Stencil s7, s3
     do s_idx_1 = 1,2
     do s_idx_2 = 1,4
-        if (idx+s23(s_idx_1)+s3(s_idx_2)>=1 .and. idx+s23(s_idx_1)+s3(s_idx_2)<=8510058) then
-            svec_f_1_g_1_h_1_31(s_idx_1, s_idx_2) = w_0(idx+s23(s_idx_1)+s3(s_idx_2))
+        if (idx+s7(s_idx_1)+s3(s_idx_2)>=1 .and. idx+s7(s_idx_1)+s3(s_idx_2)<=8510058) then
+            svec_f_1_g_1_h_1_31(s_idx_1, s_idx_2) = w_0(idx+s7(s_idx_1)+s3(s_idx_2))
         else
             svec_f_1_g_1_h_1_31(s_idx_1, s_idx_2) = w_0(idx)
         end if
     end do
     end do
 
-! Stencil s13, s6
+! Stencil s16, s6
     do s_idx_1 = 1,2
     do s_idx_2 = 1,2
-        if (idx+s13(s_idx_1)+s6(s_idx_2)>=1 .and. idx+s13(s_idx_1)+s6(s_idx_2)<=8418552) then
-            svec_f_1_g_1_h_1_32(s_idx_1, s_idx_2) = u_0(idx+s13(s_idx_1)+s6(s_idx_2))
+        if (idx+s16(s_idx_1)+s6(s_idx_2)>=1 .and. idx+s16(s_idx_1)+s6(s_idx_2)<=8418552) then
+            svec_f_1_g_1_h_1_32(s_idx_1, s_idx_2) = u_0(idx+s16(s_idx_1)+s6(s_idx_2))
         else
             svec_f_1_g_1_h_1_32(s_idx_1, s_idx_2) = u_0(idx)
         end if
     end do
     end do
 
-! Stencil s13, s4
+! Stencil s16, s5
     do s_idx_1 = 1,2
     do s_idx_2 = 1,3
-        if (idx+s13(s_idx_1)+s4(s_idx_2)>=1 .and. idx+s13(s_idx_1)+s4(s_idx_2)<=8510058) then
-            svec_f_1_g_1_h_1_33(s_idx_1, s_idx_2) = w_0(idx+s13(s_idx_1)+s4(s_idx_2))
+        if (idx+s16(s_idx_1)+s5(s_idx_2)>=1 .and. idx+s16(s_idx_1)+s5(s_idx_2)<=8510058) then
+            svec_f_1_g_1_h_1_33(s_idx_1, s_idx_2) = w_0(idx+s16(s_idx_1)+s5(s_idx_2))
         else
             svec_f_1_g_1_h_1_33(s_idx_1, s_idx_2) = w_0(idx)
         end if
     end do
     end do
 
-! Stencil s13, s5
+! Stencil s16, s4
     do s_idx_1 = 1,2
     do s_idx_2 = 1,2
-        if (idx+s13(s_idx_1)+s5(s_idx_2)>=1 .and. idx+s13(s_idx_1)+s5(s_idx_2)<=8418552) then
-            svec_f_1_g_1_h_1_34(s_idx_1, s_idx_2) = v_0(idx+s13(s_idx_1)+s5(s_idx_2))
+        if (idx+s16(s_idx_1)+s4(s_idx_2)>=1 .and. idx+s16(s_idx_1)+s4(s_idx_2)<=8418552) then
+            svec_f_1_g_1_h_1_34(s_idx_1, s_idx_2) = v_0(idx+s16(s_idx_1)+s4(s_idx_2))
         else
             svec_f_1_g_1_h_1_34(s_idx_1, s_idx_2) = v_0(idx)
         end if
@@ -288,22 +288,22 @@ subroutine stage_kernel_1(dx1_0, dy1_0, dzn_0, dzs_0, global_id_0, u_0, v_0, w_0
     end do
     end do
 
-! Stencil s9, s4
+! Stencil s9, s5
     do s_idx_1 = 1,2
     do s_idx_2 = 1,3
-        if (idx+s9(s_idx_1)+s4(s_idx_2)>=1 .and. idx+s9(s_idx_1)+s4(s_idx_2)<=8510058) then
-            svec_f_1_g_1_h_1_36(s_idx_1, s_idx_2) = w_0(idx+s9(s_idx_1)+s4(s_idx_2))
+        if (idx+s9(s_idx_1)+s5(s_idx_2)>=1 .and. idx+s9(s_idx_1)+s5(s_idx_2)<=8510058) then
+            svec_f_1_g_1_h_1_36(s_idx_1, s_idx_2) = w_0(idx+s9(s_idx_1)+s5(s_idx_2))
         else
             svec_f_1_g_1_h_1_36(s_idx_1, s_idx_2) = w_0(idx)
         end if
     end do
     end do
 
-! Stencil s9, s5
+! Stencil s9, s4
     do s_idx_1 = 1,2
     do s_idx_2 = 1,2
-        if (idx+s9(s_idx_1)+s5(s_idx_2)>=1 .and. idx+s9(s_idx_1)+s5(s_idx_2)<=8418552) then
-            svec_f_1_g_1_h_1_37(s_idx_1, s_idx_2) = v_0(idx+s9(s_idx_1)+s5(s_idx_2))
+        if (idx+s9(s_idx_1)+s4(s_idx_2)>=1 .and. idx+s9(s_idx_1)+s4(s_idx_2)<=8418552) then
+            svec_f_1_g_1_h_1_37(s_idx_1, s_idx_2) = v_0(idx+s9(s_idx_1)+s4(s_idx_2))
         else
             svec_f_1_g_1_h_1_37(s_idx_1, s_idx_2) = v_0(idx)
         end if

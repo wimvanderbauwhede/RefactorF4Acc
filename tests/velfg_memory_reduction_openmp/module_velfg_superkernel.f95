@@ -336,9 +336,9 @@ integer, parameter :: ST_velfg_MAP_212 = 27 !  velfg_map_212
 integer, parameter :: ST_velfg_MAP_218 = 28 !  velfg_map_218
   state = state_ptr ! state
   select case(state)
-    case (ST_velfg_MAP_76§)
+    case (ST_velfg_MAP_76)
       call velfg_map_76(u,dx1,v,dy1,w,dzn,nou1,diu1,nou5,diu5,nou9,diu9,nou2,diu2,dzs,nou3,diu3,nou4,diu4,nou6,diu6,cov1,cov5,cov9,cov2,cov3,cov4,cov6,global_id)
-    case (ST_velfg_MAP_13§3)
+    case (ST_velfg_MAP_133)
       call velfg_map_133(dzn,u,w,dx1,nou7,diu7,v,dy1,nou8,diu8,cov7,cov8,global_id)
     case (ST_velfg_MAP_218)
       call velfg_map_218(dx1,cov1,cov2,cov3,diu1,diu2,dy1,diu3,dzn,dfu1,cov4,cov5,cov6,diu4,diu5,diu6,dfv1,cov7,cov8,cov9,diu7,diu8,diu9,dzs,dfw1,f,g,h,global_id)

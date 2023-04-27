@@ -4,8 +4,8 @@ program main
     integer :: global_id
     ! Declarations
     integer, parameter :: niters = 1
-integer, parameter :: ip=150*WM
-integer, parameter :: jp=150*WM
+integer, parameter :: ip=300 ! was 150*WM
+integer, parameter :: jp=300 ! was 150*WM
 integer, parameter :: kp=90 
 
 !    real, dimension(0:(ip + 1),(-1):(jp + 1),0:(kp + 1)) :: u
@@ -51,7 +51,7 @@ integer, parameter :: kp=90
   real, allocatable :: dfu1(:,:,:)
   real, allocatable :: dfv1(:,:,:)
   real, allocatable :: dfw1(:,:,:)
-  real, allocatable :: sm(:,:,:)
+  ! real, allocatable :: sm(:,:,:)
     real, dimension((-1):(kp + 2)) :: dzn
     real, dimension((-1):(kp + 2)) :: dzs
     real, dimension((-1):(ip + 1)) :: dx1
@@ -111,7 +111,7 @@ integer, parameter :: kp=90
   allocate(dfu1(0:ip,1:jp,1:kp)  )
   allocate(dfv1(1:ip,0:jp,1:kp) )
   allocate(dfw1(1:ip,1:jp,1:kp) )
-  allocate(sm((-1):(ip + 1),(-1):(jp + 1),0:(kp + 1)) )
+  ! allocate(sm((-1):(ip + 1),(-1):(jp + 1),0:(kp + 1)) )
 
     do k = -1,kp+2
       dzn(k)=1.
@@ -133,12 +133,13 @@ integer, parameter :: kp=90
       state_ptr=states(state_idx)
 !$OMP PARALLEL DO
       do global_id = 1, ip*jp*kp
-        call velfg_superkernel(f,g,h,dzn,u,v,w,dx1,dy1,dzs,state_ptr, global_id, &
-    diu1, diu2, diu3, diu4, diu5, diu6, diu7, diu8, diu9, &
-    cov1, cov2, cov3, cov4, cov5, cov6, cov7, cov8, cov9, &
-    nou1, nou5, nou9, nou2, nou3, nou4, nou6, nou7, nou8, &
-    dfu1, dfv1, dfw1, sm &
-                )
+        call velfg_superkernel(f,g,h,dzn,u,v,w,dx1,dy1,dzs,state_ptr,global_id)
+    !     (f,g,h,dzn,u,v,w,dx1,dy1,dzs,state_ptr, global_id, &
+    ! diu1, diu2, diu3, diu4, diu5, diu6, diu7, diu8, diu9, &
+    ! cov1, cov2, cov3, cov4, cov5, cov6, cov7, cov8, cov9, &
+    ! nou1, nou5, nou9, nou2, nou3, nou4, nou6, nou7, nou8, &
+    ! dfu1, dfv1, dfw1, sm &
+    !             )
         !print *, iter,global_id
       end do
 !$OMP END PARALLEL DO
