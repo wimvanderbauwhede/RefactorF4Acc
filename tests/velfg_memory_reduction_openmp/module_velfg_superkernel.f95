@@ -316,7 +316,7 @@ subroutine velfg_superkernel(f,g,h,dzn,u,v,w,dx1,dy1,dzs,state_ptr,global_id)
   real, dimension(0:ip,1:jp,1:kp) :: dfu1
   real, dimension(1:ip,0:jp,1:kp) :: dfv1
   real, dimension(1:ip,1:jp,1:kp) :: dfw1
-  real, dimension((-1):(ip + 1),(-1):(jp + 1),0:(kp + 1)) :: sm
+!   real, dimension((-1):(ip + 1),(-1):(jp + 1),0:(kp + 1)) :: sm
   integer :: state
   integer, intent(In) :: state_ptr
   integer, intent(In) :: global_id

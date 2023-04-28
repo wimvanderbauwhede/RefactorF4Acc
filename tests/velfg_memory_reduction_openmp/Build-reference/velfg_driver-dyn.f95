@@ -6,8 +6,8 @@ program main
     integer :: global_id
     ! Declarations
     integer, parameter :: niters = 10
-integer, parameter :: ip=50 ! was 150*WM
-integer, parameter :: jp=50 ! was 150*WM
+integer, parameter :: ip=150*WM
+integer, parameter :: jp=150*WM
 integer, parameter :: kp=90 
 
 !    real, dimension(0:(ip + 1),(-1):(jp + 1),0:(kp + 1)) :: u
@@ -135,13 +135,14 @@ integer, parameter :: kp=90
       state_ptr=states(state_idx)
 !$OMP PARALLEL DO
       do global_id = 1, ip*jp*kp
-        call velfg_superkernel(f,g,h,dzn,u,v,w,dx1,dy1,dzs,state_ptr,global_id)
-    !     (f,g,h,dzn,u,v,w,dx1,dy1,dzs,state_ptr, global_id, &
-    ! diu1, diu2, diu3, diu4, diu5, diu6, diu7, diu8, diu9, &
-    ! cov1, cov2, cov3, cov4, cov5, cov6, cov7, cov8, cov9, &
-    ! nou1, nou5, nou9, nou2, nou3, nou4, nou6, nou7, nou8, &
-    ! dfu1, dfv1, dfw1, sm &
-    !             )
+        ! call velfg_superkernel(f,g,h,dzn,u,v,w,dx1,dy1,dzs,state_ptr,global_id)
+        ! Because of the dyn alloc, all the temp arrays need to be passed in here
+        call velfg_superkernel(f,g,h,dzn,u,v,w,dx1,dy1,dzs,state_ptr, global_id, &
+    diu1, diu2, diu3, diu4, diu5, diu6, diu7, diu8, diu9, &
+    cov1, cov2, cov3, cov4, cov5, cov6, cov7, cov8, cov9, &
+    nou1, nou5, nou9, nou2, nou3, nou4, nou6, nou7, nou8, &
+    dfu1, dfv1, dfw1 &
+                )
         !print *, iter,global_id
       end do
 !$OMP END PARALLEL DO

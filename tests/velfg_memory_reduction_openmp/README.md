@@ -35,6 +35,10 @@ This needs to be set manually at compile time. For testing on the laptop, WM=1 i
     `perl ../../aux/patch_inlined_code.pl`
     - The patched code is in `Patched`, build using `scons`, the executable is `prog.exe`
 
+BUGS 2023-04-27
+
+The problem with OpenMP is that we need dyn alloc for all the intermediate arrays but in the current version the superkernel does not have them as arguments.
+
 BUGS 2023-04-26
 
 It looks to me like there is some major bug here: scalarisation relies on get_global_id to determine the iterators, and that is used to determine which arrays can become stream vars. So what I've done is accept global_id as a special arg.

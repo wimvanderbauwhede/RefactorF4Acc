@@ -1,11 +1,11 @@
 module module_velfg_superkernel
     contains
 subroutine velfg_map_76(u,dx1,v,dy1,w,dzn,nou1,diu1,nou5,diu5,nou9,diu9,nou2,diu2,dzs,nou3,diu3,nou4,diu4,nou6,diu6,cov1,cov5,cov9,cov2,cov3,cov4,cov6,global_id)
-     integer, parameter :: ip=50
-     integer, parameter :: jp=50
+     integer, parameter :: ip=150*WM
+     integer, parameter :: jp=150*WM
      integer, parameter :: kp=90
-     integer, parameter :: im=50
-     integer, parameter :: jm=50
+     integer, parameter :: im=150*WM
+     integer, parameter :: jm=150*WM
      integer, parameter :: km=90
      integer, parameter :: ifbf=1
      integer, parameter :: ianime=1
@@ -61,8 +61,8 @@ subroutine velfg_map_76(u,dx1,v,dy1,w,dzn,nou1,diu1,nou5,diu5,nou9,diu9,nou2,diu
     th_idx = global_id
 !     call get_global_id(th_idx,0)
     k_vel2_range = (((90 + 1) - 1) + 1)
-    j_vel2_range = ((50 - 1) + 1)
-    i_vel2_range = ((50 - 1) + 1)
+    j_vel2_range = ((150*WM - 1) + 1)
+    i_vel2_range = ((150*WM - 1) + 1)
     k_vel2_rel = (th_idx / (j_vel2_range * i_vel2_range))
     k_vel2 = (k_vel2_rel + 1)
     j_vel2_rel = ((th_idx - (k_vel2_rel * (j_vel2_range * i_vel2_range))) / i_vel2_range)
@@ -105,11 +105,11 @@ subroutine velfg_map_76(u,dx1,v,dy1,w,dzn,nou1,diu1,nou5,diu5,nou9,diu9,nou2,diu
 end subroutine velfg_map_76
 
 subroutine velfg_map_133(dzn,u,w,dx1,nou7,diu7,v,dy1,nou8,diu8,cov7,cov8,global_id)
-     integer, parameter :: ip=50
-     integer, parameter :: jp=50
+     integer, parameter :: ip=150*WM
+     integer, parameter :: jp=150*WM
      integer, parameter :: kp=90
-     integer, parameter :: im=50
-     integer, parameter :: jm=50
+     integer, parameter :: im=150*WM
+     integer, parameter :: jm=150*WM
      integer, parameter :: km=90
      integer, parameter :: ifbf=1
      integer, parameter :: ianime=1
@@ -148,8 +148,8 @@ subroutine velfg_map_133(dzn,u,w,dx1,nou7,diu7,v,dy1,nou8,diu8,cov7,cov8,global_
 
 !     call get_global_id(global_id,0)
     k_vel2_range = (((90 - 1) - 1) + 1)
-    j_vel2_range = ((50 - 1) + 1)
-    i_vel2_range = ((50 - 1) + 1)
+    j_vel2_range = ((150*WM - 1) + 1)
+    i_vel2_range = ((150*WM - 1) + 1)
     k_vel2_rel = (global_id / (j_vel2_range * i_vel2_range))
     k_vel2 = (k_vel2_rel + 1)
     j_vel2_rel = ((global_id - (k_vel2_rel * (j_vel2_range * i_vel2_range))) / i_vel2_range)
@@ -169,11 +169,11 @@ subroutine velfg_map_133(dzn,u,w,dx1,nou7,diu7,v,dy1,nou8,diu8,cov7,cov8,global_
 end subroutine velfg_map_133
 
 subroutine velfg_map_218(dx1,cov1,cov2,cov3,diu1,diu2,dy1,diu3,dzn,dfu1,cov4,cov5,cov6,diu4,diu5,diu6,dfv1,cov7,cov8,cov9,diu7,diu8,diu9,dzs,dfw1,f,g,h,global_id)
-     integer, parameter :: ip=50
-     integer, parameter :: jp=50
+     integer, parameter :: ip=150*WM
+     integer, parameter :: jp=150*WM
      integer, parameter :: kp=90
-     integer, parameter :: im=50
-     integer, parameter :: jm=50
+     integer, parameter :: im=150*WM
+     integer, parameter :: jm=150*WM
      integer, parameter :: km=90
      integer, parameter :: ifbf=1
      integer, parameter :: ianime=1
@@ -233,8 +233,8 @@ subroutine velfg_map_218(dx1,cov1,cov2,cov3,diu1,diu2,dy1,diu3,dzn,dfu1,cov4,cov
 
 !     call get_global_id(global_id,0)
     k_range = ((90 - 1) + 1)
-    j_range = ((50 - 1) + 1)
-    i_range = ((50 - 1) + 1)
+    j_range = ((150*WM - 1) + 1)
+    i_range = ((150*WM - 1) + 1)
     k_rel = (global_id / (j_range * i_range))
     k = (k_rel + 1)
     j_rel = ((global_id - (k_rel * (j_range * i_range))) / i_range)
@@ -269,10 +269,15 @@ subroutine velfg_map_218(dx1,cov1,cov2,cov3,diu1,diu2,dy1,diu3,dzn,dfu1,cov4,cov
     end if
 end subroutine velfg_map_218
 
-subroutine velfg_superkernel(f,g,h,dzn,u,v,w,dx1,dy1,dzs,state_ptr,global_id)
+subroutine velfg_superkernel(f,g,h,dzn,u,v,w,dx1,dy1,dzs,state_ptr, global_id, &
+     diu1, diu2, diu3, diu4, diu5, diu6, diu7, diu8, diu9, &
+     cov1, cov2, cov3, cov4, cov5, cov6, cov7, cov8, cov9, &
+     nou1, nou5, nou9, nou2, nou3, nou4, nou6, nou7, nou8, &
+     dfu1, dfv1, dfw1 &
+     )
 
-    integer, parameter :: ip=50
-    integer, parameter :: jp=50
+    integer, parameter :: ip=150*WM
+    integer, parameter :: jp=150*WM
     integer, parameter :: kp=90
 
   real, dimension((-1):(kp + 2)), intent(In) :: dzn
@@ -338,10 +343,10 @@ integer, parameter :: ST_velfg_MAP_218 = 28 !  velfg_map_218
   select case(state)
     case (ST_velfg_MAP_76)
       call velfg_map_76(u,dx1,v,dy1,w,dzn,nou1,diu1,nou5,diu5,nou9,diu9,nou2,diu2,dzs,nou3,diu3,nou4,diu4,nou6,diu6,cov1,cov5,cov9,cov2,cov3,cov4,cov6,global_id)
-     case (ST_velfg_MAP_133)
-       call velfg_map_133(dzn,u,w,dx1,nou7,diu7,v,dy1,nou8,diu8,cov7,cov8,global_id)
-     case (ST_velfg_MAP_218)
-       call velfg_map_218(dx1,cov1,cov2,cov3,diu1,diu2,dy1,diu3,dzn,dfu1,cov4,cov5,cov6,diu4,diu5,diu6,dfv1,cov7,cov8,cov9,diu7,diu8,diu9,dzs,dfw1,f,g,h,global_id)
+    case (ST_velfg_MAP_133)
+      call velfg_map_133(dzn,u,w,dx1,nou7,diu7,v,dy1,nou8,diu8,cov7,cov8,global_id)
+    case (ST_velfg_MAP_218)
+      call velfg_map_218(dx1,cov1,cov2,cov3,diu1,diu2,dy1,diu3,dzn,dfu1,cov4,cov5,cov6,diu4,diu5,diu6,dfv1,cov7,cov8,cov9,diu7,diu8,diu9,dzs,dfw1,f,g,h,global_id)
   end select
 end subroutine velfg_superkernel
 end module module_velfg_superkernel
