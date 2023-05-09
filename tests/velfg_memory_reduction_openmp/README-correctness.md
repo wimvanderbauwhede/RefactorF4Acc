@@ -77,13 +77,55 @@ In the driver (gen_velfg_superkernel.f95) we add:
 
 The complication here is that the WM must apply to the ip and kp, not to the overall size. So ideally, when we generate the full sizes, these should be expressions in WM rather than numeric constants. 
 
-I think we might simply hack that by matching 
-300 => (150*WM)
-301 => (150*WM+1)
-8418552 => 92*(150*WM+2)*(150*WM+3)
-8510058 => 93*(150*WM+2)*(150*WM+3)
-8244691 => 91*(150*WM+1)*(150*WM+1)
+Instead we hack that by matching 
 
-300*300*90 => 90*(150*WM)*(150*WM)
+Problem is that the stencil offsets are also in that position, and there are a lot of them.
+Probably the best thing to do is to approximate:
+ 605, 91809, 92110, 92111, 92412 should be matched as about 600, 90000, 180000;
 
-and we should do that in the patched inlined code.
+Or, more tempting, write an algorithm to figure out a formula of the form
+    a*(ip+off1)*(jp+off2)+b for the large ones
+and 
+    a*ip+b
+for the small ones
+
+`a` is easy
+off1, off2 and b can be done simply by brute force:
+
+sub decompose_num { (my $n) = @_;
+    my $a=1;
+    my @factors=();
+    # 1. small or large?
+    if ($n < ($ip-3)*($jp-3)) {
+        # small
+        $a =int($n/$ip); # e.g. 2
+        die unless $a<=2;
+        # now brute-force:
+        for my $b (0 .. 3) {
+            for my $off1 (-1 .. 3) {
+                if ($n == $a*($ip+$off1)+$b) {
+                    return $a.'*(150*WM+'.$off1.')+'.$b;
+                }
+            }
+        }
+    } else {
+        # medium or large?
+        ($n > ($ip+3)*($jp+3)+3) {
+            $a=int($n/($ip-3)*($jp-3));
+            die unless $a<=2;
+        } else {
+            $a=1;
+        }
+    
+        for my $b (0 .. 3) {
+            for my $off1 (-1 .. 3) {
+                for my $off2 (-1 .. 3) {
+                    if ($n == $a*($ip+$off1)*($jp+$off2)+$b) {
+                        @factors=($a,$b,$off1,$off2);
+                        break;
+                    }
+            }
+        }
+    }
+    my $expr_str = $factors[0].'*(150*WM+'.$factors[1].')+'.$factors[2]
+}

@@ -5,16 +5,16 @@ contains
 subroutine velfg_superkernel(dx1_0,dy1_0,dzn_0,dzs_0,global_id_0,u_0,v_0,w_0,f_1,g_1,h_1,state_ptr)
 use singleton_module_stage_kernel_1, only: stage_kernel_1
  implicit none
- real, dimension(1:8418552), intent(in) :: u_0
- real, dimension(1:8418552), intent(in) :: v_0
- real, dimension(1:8510058), intent(in) :: w_0
- real, dimension(1:8244691), intent(out) :: f_1
- real, dimension(1:8244691), intent(out) :: g_1
- real, dimension(1:8244691), intent(out) :: h_1
- real, dimension(-1:301), intent(in) :: dx1_0
- real, dimension(0:301), intent(in) :: dy1_0
- real, dimension(-1:92), intent(in) :: dzn_0
- real, dimension(-1:92), intent(in) :: dzs_0
+ real, dimension(1:*), intent(in) :: u_0
+ real, dimension(1:*), intent(in) :: v_0
+ real, dimension(1:*), intent(in) :: w_0
+ real, dimension(1:*), intent(out) :: f_1
+ real, dimension(1:*), intent(out) :: g_1
+ real, dimension(1:*), intent(out) :: h_1
+ real, dimension(-1:*), intent(in) :: dx1_0
+ real, dimension(0:*), intent(in) :: dy1_0
+ real, dimension(-1:*), intent(in) :: dzn_0
+ real, dimension(-1:*), intent(in) :: dzs_0
  integer, intent(in) :: global_id_0
  integer, parameter :: st_stage_kernel_1=1
  integer :: state

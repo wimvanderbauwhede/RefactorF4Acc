@@ -4,11 +4,11 @@ contains
 
 subroutine stage_kernel_1(dx1_0,dy1_0,dzn_0,dzs_0,global_id_0,u_0,v_0,w_0,f_1,g_1,h_1)
  implicit none
- integer, parameter :: ip___velfg_map_76_scal=300
- integer, parameter :: jp___velfg_map_76_scal=300
+ integer, parameter :: ip___velfg_map_76_scal=150*WM+0
+ integer, parameter :: jp___velfg_map_76_scal=150*WM+0
  integer, parameter :: kp___velfg_map_76_scal=90
- integer, parameter :: im___velfg_map_76_scal=300
- integer, parameter :: jm___velfg_map_76_scal=300
+ integer, parameter :: im___velfg_map_76_scal=150*WM+0
+ integer, parameter :: jm___velfg_map_76_scal=150*WM+0
  integer, parameter :: km___velfg_map_76_scal=90
  integer, parameter :: ifbf___velfg_map_76_scal=1
  integer, parameter :: ianime___velfg_map_76_scal=1
@@ -22,11 +22,11 @@ subroutine stage_kernel_1(dx1_0,dy1_0,dzn_0,dzs_0,global_id_0,u_0,v_0,w_0,f_1,g_
  real, parameter :: alpha___velfg_map_76_scal=-10.
  real, parameter :: beta___velfg_map_76_scal=-1.
  integer, parameter :: u0___velfg_map_76_scal=0
- integer, parameter :: ip___velfg_map_133_scal=300
- integer, parameter :: jp___velfg_map_133_scal=300
+ integer, parameter :: ip___velfg_map_133_scal=150*WM+0
+ integer, parameter :: jp___velfg_map_133_scal=150*WM+0
  integer, parameter :: kp___velfg_map_133_scal=90
- integer, parameter :: im___velfg_map_133_scal=300
- integer, parameter :: jm___velfg_map_133_scal=300
+ integer, parameter :: im___velfg_map_133_scal=150*WM+0
+ integer, parameter :: jm___velfg_map_133_scal=150*WM+0
  integer, parameter :: km___velfg_map_133_scal=90
  integer, parameter :: ifbf___velfg_map_133_scal=1
  integer, parameter :: ianime___velfg_map_133_scal=1
@@ -40,11 +40,11 @@ subroutine stage_kernel_1(dx1_0,dy1_0,dzn_0,dzs_0,global_id_0,u_0,v_0,w_0,f_1,g_
  real, parameter :: alpha___velfg_map_133_scal=-10.
  real, parameter :: beta___velfg_map_133_scal=-1.
  integer, parameter :: u0___velfg_map_133_scal=0
- integer, parameter :: ip___velfg_map_218_scal=300
- integer, parameter :: jp___velfg_map_218_scal=300
+ integer, parameter :: ip___velfg_map_218_scal=150*WM+0
+ integer, parameter :: jp___velfg_map_218_scal=150*WM+0
  integer, parameter :: kp___velfg_map_218_scal=90
- integer, parameter :: im___velfg_map_218_scal=300
- integer, parameter :: jm___velfg_map_218_scal=300
+ integer, parameter :: im___velfg_map_218_scal=150*WM+0
+ integer, parameter :: jm___velfg_map_218_scal=150*WM+0
  integer, parameter :: km___velfg_map_218_scal=90
  integer, parameter :: ifbf___velfg_map_218_scal=1
  integer, parameter :: ianime___velfg_map_218_scal=1
@@ -239,48 +239,48 @@ subroutine stage_kernel_1(dx1_0,dy1_0,dzn_0,dzs_0,global_id_0,u_0,v_0,w_0,f_1,g_
  real :: dfu1_1___f_pelts_f_1_g_1_h_1_16
  real :: dfv1_1___f_pelts_f_1_g_1_h_1_16
  real :: dfw1_1___f_pelts_f_1_g_1_h_1_16
- real, dimension(1:8418552) :: u_0
- real, dimension(1:8418552) :: v_0
- real, dimension(1:8510058) :: w_0
- real, dimension(1:8244691) :: f_1
- real, dimension(1:8244691) :: g_1
- real, dimension(1:8244691) :: h_1
- integer, dimension(1:2), parameter :: s7=(/ 92418 , 92419 /)
- integer, dimension(1:5), parameter :: s1=(/ 605, 91809, 92110, 92111, 92412 /)
+ real, dimension(1:92*(150*WM+2)*(150*WM+3)) :: u_0
+ real, dimension(1:92*(150*WM+2)*(150*WM+3)) :: v_0
+ real, dimension(1:93*(150*WM+2)*(150*WM+3)) :: w_0
+ real, dimension(1:91*(150*WM+1)*(150*WM+1)) :: f_1
+ real, dimension(1:91*(150*WM+1)*(150*WM+1)) :: g_1
+ real, dimension(1:91*(150*WM+1)*(150*WM+1)) :: h_1
+ integer, dimension(1:2), parameter :: s7=(/ (150*WM+4)*(150*WM+4)+2 , (150*WM+4)*(150*WM+4)+3 /)
+ integer, dimension(1:5), parameter :: s1=(/ 2*(150*WM+2)+1 , (150*WM+3)*(150*WM+3) , (150*WM+5)*(150*WM+2) , (150*WM+5)*(150*WM+2)+1 , (150*WM+6)*(150*WM+2) /)
  real, dimension(1:2,1:5) :: svec_f_1_g_1_h_1_17
  integer :: s_idx_1
  integer :: s_idx_2
- integer, dimension(1:5), parameter :: s2=(/ 605, 91809, 91810, 92110, 92111 /)
+ integer, dimension(1:5), parameter :: s2=(/ 2*(150*WM+2)+1 , (150*WM+3)*(150*WM+3) , (150*WM+3)*(150*WM+3)+1 , (150*WM+5)*(150*WM+2) , (150*WM+5)*(150*WM+2)+1 /)
  real, dimension(1:2,1:5) :: svec_f_1_g_1_h_1_18
- integer, dimension(1:4), parameter :: s3=(/ 92111, 92112, 92413, 183617 /)
+ integer, dimension(1:4), parameter :: s3=(/ (150*WM+5)*(150*WM+2)+1 , (150*WM+3)*(150*WM+4) , (150*WM+6)*(150*WM+2)+1 , 2*(150*WM+2)*(150*WM+4)+1 /)
  real, dimension(1:2,1:4) :: svec_f_1_g_1_h_1_19
- integer, dimension(1:2), parameter :: s8=(/ 92113 , 92416 /)
+ integer, dimension(1:2), parameter :: s8=(/ (150*WM+3)*(150*WM+4)+1 , (150*WM+4)*(150*WM+4) /)
  real, dimension(1:2,1:5) :: svec_f_1_g_1_h_1_20
  real, dimension(1:2,1:5) :: svec_f_1_g_1_h_1_21
  real, dimension(1:2,1:4) :: svec_f_1_g_1_h_1_22
- integer, dimension(1:2), parameter :: s9=(/ 92113 , 183922 /)
+ integer, dimension(1:2), parameter :: s9=(/ (150*WM+3)*(150*WM+4)+1 , 2*(150*WM+3)*(150*WM+3)+150*WM+4 /)
  real, dimension(1:2,1:5) :: svec_f_1_g_1_h_1_23
  real, dimension(1:2,1:5) :: svec_f_1_g_1_h_1_24
  real, dimension(1:2,1:4) :: svec_f_1_g_1_h_1_25
- integer, dimension(1:2), parameter :: s12=(/ 92113 , 92114 /)
+ integer, dimension(1:2), parameter :: s12=(/ (150*WM+3)*(150*WM+4)+1 , (150*WM+3)*(150*WM+4)+2 /)
  real, dimension(1:2,1:5) :: svec_f_1_g_1_h_1_26
  real, dimension(1:2,1:5) :: svec_f_1_g_1_h_1_27
  real, dimension(1:2,1:4) :: svec_f_1_g_1_h_1_28
- integer, dimension(1:2), parameter :: s13=(/ 92418 , 92722 /)
+ integer, dimension(1:2), parameter :: s13=(/ (150*WM+4)*(150*WM+4)+2 , (150*WM+5)*(150*WM+4)+2 /)
  real, dimension(1:2,1:5) :: svec_f_1_g_1_h_1_29
  real, dimension(1:2,1:5) :: svec_f_1_g_1_h_1_30
  real, dimension(1:2,1:4) :: svec_f_1_g_1_h_1_31
- integer, dimension(1:2), parameter :: s4=(/ 92110 , 183616 /)
+ integer, dimension(1:2), parameter :: s4=(/ (150*WM+5)*(150*WM+2) , 2*(150*WM+2)*(150*WM+4) /)
  real, dimension(1:2,1:2) :: svec_f_1_g_1_h_1_32
- integer, dimension(1:3), parameter :: s6=(/ 183315, 183616, 183617 /)
+ integer, dimension(1:3), parameter :: s6=(/ 2*(150*WM+2)*(150*WM+3)+150*WM+3 , 2*(150*WM+2)*(150*WM+4) , 2*(150*WM+2)*(150*WM+4)+1 /)
  real, dimension(1:2,1:3) :: svec_f_1_g_1_h_1_33
- integer, dimension(1:2), parameter :: s5=(/ 91809 , 183315 /)
+ integer, dimension(1:2), parameter :: s5=(/ (150*WM+3)*(150*WM+3) , 2*(150*WM+2)*(150*WM+3)+150*WM+3 /)
  real, dimension(1:2,1:2) :: svec_f_1_g_1_h_1_34
  real, dimension(1:2,1:2) :: svec_f_1_g_1_h_1_35
  real, dimension(1:2,1:3) :: svec_f_1_g_1_h_1_36
  real, dimension(1:2,1:2) :: svec_f_1_g_1_h_1_37
- real, dimension(-1:301) :: dx1_0
- real, dimension(0:301) :: dy1_0
+ real, dimension(-1:150*WM+1) :: dx1_0
+ real, dimension(0:150*WM+1) :: dy1_0
  real, dimension(-1:92) :: dzn_0
  real, dimension(-1:92) :: dzs_0
  integer :: global_id_0
@@ -289,7 +289,7 @@ subroutine stage_kernel_1(dx1_0,dy1_0,dzn_0,dzs_0,global_id_0,u_0,v_0,w_0,f_1,g_
 !RF4A Begin Inline
  do s_idx_1 = 1,2
  do s_idx_2 = 1,5
- if (idx+s7(s_idx_1)+s1(s_idx_2)>=1 .and. idx+s7(s_idx_1)+s1(s_idx_2)<=8418552) then
+ if (idx+s7(s_idx_1)+s1(s_idx_2)>=1 .and. idx+s7(s_idx_1)+s1(s_idx_2)<=92*(150*WM+2)*(150*WM+3)) then
  svec_f_1_g_1_h_1_17(s_idx_1, s_idx_2) = u_0(idx+s7(s_idx_1)+s1(s_idx_2))
  else
  svec_f_1_g_1_h_1_17(s_idx_1, s_idx_2) = u_0(idx)
@@ -298,7 +298,7 @@ subroutine stage_kernel_1(dx1_0,dy1_0,dzn_0,dzs_0,global_id_0,u_0,v_0,w_0,f_1,g_
  end do
  do s_idx_1 = 1,2
  do s_idx_2 = 1,5
- if (idx+s7(s_idx_1)+s2(s_idx_2)>=1 .and. idx+s7(s_idx_1)+s2(s_idx_2)<=8418552) then
+ if (idx+s7(s_idx_1)+s2(s_idx_2)>=1 .and. idx+s7(s_idx_1)+s2(s_idx_2)<=92*(150*WM+2)*(150*WM+3)) then
  svec_f_1_g_1_h_1_18(s_idx_1, s_idx_2) = v_0(idx+s7(s_idx_1)+s2(s_idx_2))
  else
  svec_f_1_g_1_h_1_18(s_idx_1, s_idx_2) = v_0(idx)
@@ -307,7 +307,7 @@ subroutine stage_kernel_1(dx1_0,dy1_0,dzn_0,dzs_0,global_id_0,u_0,v_0,w_0,f_1,g_
  end do
  do s_idx_1 = 1,2
  do s_idx_2 = 1,4
- if (idx+s7(s_idx_1)+s3(s_idx_2)>=1 .and. idx+s7(s_idx_1)+s3(s_idx_2)<=8510058) then
+ if (idx+s7(s_idx_1)+s3(s_idx_2)>=1 .and. idx+s7(s_idx_1)+s3(s_idx_2)<=93*(150*WM+2)*(150*WM+3)) then
  svec_f_1_g_1_h_1_19(s_idx_1, s_idx_2) = w_0(idx+s7(s_idx_1)+s3(s_idx_2))
  else
  svec_f_1_g_1_h_1_19(s_idx_1, s_idx_2) = w_0(idx)
@@ -316,7 +316,7 @@ subroutine stage_kernel_1(dx1_0,dy1_0,dzn_0,dzs_0,global_id_0,u_0,v_0,w_0,f_1,g_
  end do
  do s_idx_1 = 1,2
  do s_idx_2 = 1,5
- if (idx+s8(s_idx_1)+s1(s_idx_2)>=1 .and. idx+s8(s_idx_1)+s1(s_idx_2)<=8418552) then
+ if (idx+s8(s_idx_1)+s1(s_idx_2)>=1 .and. idx+s8(s_idx_1)+s1(s_idx_2)<=92*(150*WM+2)*(150*WM+3)) then
  svec_f_1_g_1_h_1_20(s_idx_1, s_idx_2) = u_0(idx+s8(s_idx_1)+s1(s_idx_2))
  else
  svec_f_1_g_1_h_1_20(s_idx_1, s_idx_2) = u_0(idx)
@@ -325,7 +325,7 @@ subroutine stage_kernel_1(dx1_0,dy1_0,dzn_0,dzs_0,global_id_0,u_0,v_0,w_0,f_1,g_
  end do
  do s_idx_1 = 1,2
  do s_idx_2 = 1,5
- if (idx+s8(s_idx_1)+s2(s_idx_2)>=1 .and. idx+s8(s_idx_1)+s2(s_idx_2)<=8418552) then
+ if (idx+s8(s_idx_1)+s2(s_idx_2)>=1 .and. idx+s8(s_idx_1)+s2(s_idx_2)<=92*(150*WM+2)*(150*WM+3)) then
  svec_f_1_g_1_h_1_21(s_idx_1, s_idx_2) = v_0(idx+s8(s_idx_1)+s2(s_idx_2))
  else
  svec_f_1_g_1_h_1_21(s_idx_1, s_idx_2) = v_0(idx)
@@ -334,7 +334,7 @@ subroutine stage_kernel_1(dx1_0,dy1_0,dzn_0,dzs_0,global_id_0,u_0,v_0,w_0,f_1,g_
  end do
  do s_idx_1 = 1,2
  do s_idx_2 = 1,4
- if (idx+s8(s_idx_1)+s3(s_idx_2)>=1 .and. idx+s8(s_idx_1)+s3(s_idx_2)<=8510058) then
+ if (idx+s8(s_idx_1)+s3(s_idx_2)>=1 .and. idx+s8(s_idx_1)+s3(s_idx_2)<=93*(150*WM+2)*(150*WM+3)) then
  svec_f_1_g_1_h_1_22(s_idx_1, s_idx_2) = w_0(idx+s8(s_idx_1)+s3(s_idx_2))
  else
  svec_f_1_g_1_h_1_22(s_idx_1, s_idx_2) = w_0(idx)
@@ -343,7 +343,7 @@ subroutine stage_kernel_1(dx1_0,dy1_0,dzn_0,dzs_0,global_id_0,u_0,v_0,w_0,f_1,g_
  end do
  do s_idx_1 = 1,2
  do s_idx_2 = 1,5
- if (idx+s9(s_idx_1)+s1(s_idx_2)>=1 .and. idx+s9(s_idx_1)+s1(s_idx_2)<=8418552) then
+ if (idx+s9(s_idx_1)+s1(s_idx_2)>=1 .and. idx+s9(s_idx_1)+s1(s_idx_2)<=92*(150*WM+2)*(150*WM+3)) then
  svec_f_1_g_1_h_1_23(s_idx_1, s_idx_2) = u_0(idx+s9(s_idx_1)+s1(s_idx_2))
  else
  svec_f_1_g_1_h_1_23(s_idx_1, s_idx_2) = u_0(idx)
@@ -352,7 +352,7 @@ subroutine stage_kernel_1(dx1_0,dy1_0,dzn_0,dzs_0,global_id_0,u_0,v_0,w_0,f_1,g_
  end do
  do s_idx_1 = 1,2
  do s_idx_2 = 1,5
- if (idx+s9(s_idx_1)+s2(s_idx_2)>=1 .and. idx+s9(s_idx_1)+s2(s_idx_2)<=8418552) then
+ if (idx+s9(s_idx_1)+s2(s_idx_2)>=1 .and. idx+s9(s_idx_1)+s2(s_idx_2)<=92*(150*WM+2)*(150*WM+3)) then
  svec_f_1_g_1_h_1_24(s_idx_1, s_idx_2) = v_0(idx+s9(s_idx_1)+s2(s_idx_2))
  else
  svec_f_1_g_1_h_1_24(s_idx_1, s_idx_2) = v_0(idx)
@@ -361,7 +361,7 @@ subroutine stage_kernel_1(dx1_0,dy1_0,dzn_0,dzs_0,global_id_0,u_0,v_0,w_0,f_1,g_
  end do
  do s_idx_1 = 1,2
  do s_idx_2 = 1,4
- if (idx+s9(s_idx_1)+s3(s_idx_2)>=1 .and. idx+s9(s_idx_1)+s3(s_idx_2)<=8510058) then
+ if (idx+s9(s_idx_1)+s3(s_idx_2)>=1 .and. idx+s9(s_idx_1)+s3(s_idx_2)<=93*(150*WM+2)*(150*WM+3)) then
  svec_f_1_g_1_h_1_25(s_idx_1, s_idx_2) = w_0(idx+s9(s_idx_1)+s3(s_idx_2))
  else
  svec_f_1_g_1_h_1_25(s_idx_1, s_idx_2) = w_0(idx)
@@ -370,7 +370,7 @@ subroutine stage_kernel_1(dx1_0,dy1_0,dzn_0,dzs_0,global_id_0,u_0,v_0,w_0,f_1,g_
  end do
  do s_idx_1 = 1,2
  do s_idx_2 = 1,5
- if (idx+s12(s_idx_1)+s1(s_idx_2)>=1 .and. idx+s12(s_idx_1)+s1(s_idx_2)<=8418552) then
+ if (idx+s12(s_idx_1)+s1(s_idx_2)>=1 .and. idx+s12(s_idx_1)+s1(s_idx_2)<=92*(150*WM+2)*(150*WM+3)) then
  svec_f_1_g_1_h_1_26(s_idx_1, s_idx_2) = u_0(idx+s12(s_idx_1)+s1(s_idx_2))
  else
  svec_f_1_g_1_h_1_26(s_idx_1, s_idx_2) = u_0(idx)
@@ -379,7 +379,7 @@ subroutine stage_kernel_1(dx1_0,dy1_0,dzn_0,dzs_0,global_id_0,u_0,v_0,w_0,f_1,g_
  end do
  do s_idx_1 = 1,2
  do s_idx_2 = 1,5
- if (idx+s12(s_idx_1)+s2(s_idx_2)>=1 .and. idx+s12(s_idx_1)+s2(s_idx_2)<=8418552) then
+ if (idx+s12(s_idx_1)+s2(s_idx_2)>=1 .and. idx+s12(s_idx_1)+s2(s_idx_2)<=92*(150*WM+2)*(150*WM+3)) then
  svec_f_1_g_1_h_1_27(s_idx_1, s_idx_2) = v_0(idx+s12(s_idx_1)+s2(s_idx_2))
  else
  svec_f_1_g_1_h_1_27(s_idx_1, s_idx_2) = v_0(idx)
@@ -388,7 +388,7 @@ subroutine stage_kernel_1(dx1_0,dy1_0,dzn_0,dzs_0,global_id_0,u_0,v_0,w_0,f_1,g_
  end do
  do s_idx_1 = 1,2
  do s_idx_2 = 1,4
- if (idx+s12(s_idx_1)+s3(s_idx_2)>=1 .and. idx+s12(s_idx_1)+s3(s_idx_2)<=8510058) then
+ if (idx+s12(s_idx_1)+s3(s_idx_2)>=1 .and. idx+s12(s_idx_1)+s3(s_idx_2)<=93*(150*WM+2)*(150*WM+3)) then
  svec_f_1_g_1_h_1_28(s_idx_1, s_idx_2) = w_0(idx+s12(s_idx_1)+s3(s_idx_2))
  else
  svec_f_1_g_1_h_1_28(s_idx_1, s_idx_2) = w_0(idx)
@@ -397,7 +397,7 @@ subroutine stage_kernel_1(dx1_0,dy1_0,dzn_0,dzs_0,global_id_0,u_0,v_0,w_0,f_1,g_
  end do
  do s_idx_1 = 1,2
  do s_idx_2 = 1,5
- if (idx+s13(s_idx_1)+s1(s_idx_2)>=1 .and. idx+s13(s_idx_1)+s1(s_idx_2)<=8418552) then
+ if (idx+s13(s_idx_1)+s1(s_idx_2)>=1 .and. idx+s13(s_idx_1)+s1(s_idx_2)<=92*(150*WM+2)*(150*WM+3)) then
  svec_f_1_g_1_h_1_29(s_idx_1, s_idx_2) = u_0(idx+s13(s_idx_1)+s1(s_idx_2))
  else
  svec_f_1_g_1_h_1_29(s_idx_1, s_idx_2) = u_0(idx)
@@ -406,7 +406,7 @@ subroutine stage_kernel_1(dx1_0,dy1_0,dzn_0,dzs_0,global_id_0,u_0,v_0,w_0,f_1,g_
  end do
  do s_idx_1 = 1,2
  do s_idx_2 = 1,5
- if (idx+s13(s_idx_1)+s2(s_idx_2)>=1 .and. idx+s13(s_idx_1)+s2(s_idx_2)<=8418552) then
+ if (idx+s13(s_idx_1)+s2(s_idx_2)>=1 .and. idx+s13(s_idx_1)+s2(s_idx_2)<=92*(150*WM+2)*(150*WM+3)) then
  svec_f_1_g_1_h_1_30(s_idx_1, s_idx_2) = v_0(idx+s13(s_idx_1)+s2(s_idx_2))
  else
  svec_f_1_g_1_h_1_30(s_idx_1, s_idx_2) = v_0(idx)
@@ -415,7 +415,7 @@ subroutine stage_kernel_1(dx1_0,dy1_0,dzn_0,dzs_0,global_id_0,u_0,v_0,w_0,f_1,g_
  end do
  do s_idx_1 = 1,2
  do s_idx_2 = 1,4
- if (idx+s13(s_idx_1)+s3(s_idx_2)>=1 .and. idx+s13(s_idx_1)+s3(s_idx_2)<=8510058) then
+ if (idx+s13(s_idx_1)+s3(s_idx_2)>=1 .and. idx+s13(s_idx_1)+s3(s_idx_2)<=93*(150*WM+2)*(150*WM+3)) then
  svec_f_1_g_1_h_1_31(s_idx_1, s_idx_2) = w_0(idx+s13(s_idx_1)+s3(s_idx_2))
  else
  svec_f_1_g_1_h_1_31(s_idx_1, s_idx_2) = w_0(idx)
@@ -424,7 +424,7 @@ subroutine stage_kernel_1(dx1_0,dy1_0,dzn_0,dzs_0,global_id_0,u_0,v_0,w_0,f_1,g_
  end do
  do s_idx_1 = 1,2
  do s_idx_2 = 1,2
- if (idx+s12(s_idx_1)+s4(s_idx_2)>=1 .and. idx+s12(s_idx_1)+s4(s_idx_2)<=8418552) then
+ if (idx+s12(s_idx_1)+s4(s_idx_2)>=1 .and. idx+s12(s_idx_1)+s4(s_idx_2)<=92*(150*WM+2)*(150*WM+3)) then
  svec_f_1_g_1_h_1_32(s_idx_1, s_idx_2) = u_0(idx+s12(s_idx_1)+s4(s_idx_2))
  else
  svec_f_1_g_1_h_1_32(s_idx_1, s_idx_2) = u_0(idx)
@@ -433,7 +433,7 @@ subroutine stage_kernel_1(dx1_0,dy1_0,dzn_0,dzs_0,global_id_0,u_0,v_0,w_0,f_1,g_
  end do
  do s_idx_1 = 1,2
  do s_idx_2 = 1,3
- if (idx+s12(s_idx_1)+s6(s_idx_2)>=1 .and. idx+s12(s_idx_1)+s6(s_idx_2)<=8510058) then
+ if (idx+s12(s_idx_1)+s6(s_idx_2)>=1 .and. idx+s12(s_idx_1)+s6(s_idx_2)<=93*(150*WM+2)*(150*WM+3)) then
  svec_f_1_g_1_h_1_33(s_idx_1, s_idx_2) = w_0(idx+s12(s_idx_1)+s6(s_idx_2))
  else
  svec_f_1_g_1_h_1_33(s_idx_1, s_idx_2) = w_0(idx)
@@ -442,7 +442,7 @@ subroutine stage_kernel_1(dx1_0,dy1_0,dzn_0,dzs_0,global_id_0,u_0,v_0,w_0,f_1,g_
  end do
  do s_idx_1 = 1,2
  do s_idx_2 = 1,2
- if (idx+s12(s_idx_1)+s5(s_idx_2)>=1 .and. idx+s12(s_idx_1)+s5(s_idx_2)<=8418552) then
+ if (idx+s12(s_idx_1)+s5(s_idx_2)>=1 .and. idx+s12(s_idx_1)+s5(s_idx_2)<=92*(150*WM+2)*(150*WM+3)) then
  svec_f_1_g_1_h_1_34(s_idx_1, s_idx_2) = v_0(idx+s12(s_idx_1)+s5(s_idx_2))
  else
  svec_f_1_g_1_h_1_34(s_idx_1, s_idx_2) = v_0(idx)
@@ -451,7 +451,7 @@ subroutine stage_kernel_1(dx1_0,dy1_0,dzn_0,dzs_0,global_id_0,u_0,v_0,w_0,f_1,g_
  end do
  do s_idx_1 = 1,2
  do s_idx_2 = 1,2
- if (idx+s8(s_idx_1)+s4(s_idx_2)>=1 .and. idx+s8(s_idx_1)+s4(s_idx_2)<=8418552) then
+ if (idx+s8(s_idx_1)+s4(s_idx_2)>=1 .and. idx+s8(s_idx_1)+s4(s_idx_2)<=92*(150*WM+2)*(150*WM+3)) then
  svec_f_1_g_1_h_1_35(s_idx_1, s_idx_2) = u_0(idx+s8(s_idx_1)+s4(s_idx_2))
  else
  svec_f_1_g_1_h_1_35(s_idx_1, s_idx_2) = u_0(idx)
@@ -460,7 +460,7 @@ subroutine stage_kernel_1(dx1_0,dy1_0,dzn_0,dzs_0,global_id_0,u_0,v_0,w_0,f_1,g_
  end do
  do s_idx_1 = 1,2
  do s_idx_2 = 1,3
- if (idx+s8(s_idx_1)+s6(s_idx_2)>=1 .and. idx+s8(s_idx_1)+s6(s_idx_2)<=8510058) then
+ if (idx+s8(s_idx_1)+s6(s_idx_2)>=1 .and. idx+s8(s_idx_1)+s6(s_idx_2)<=93*(150*WM+2)*(150*WM+3)) then
  svec_f_1_g_1_h_1_36(s_idx_1, s_idx_2) = w_0(idx+s8(s_idx_1)+s6(s_idx_2))
  else
  svec_f_1_g_1_h_1_36(s_idx_1, s_idx_2) = w_0(idx)
@@ -469,7 +469,7 @@ subroutine stage_kernel_1(dx1_0,dy1_0,dzn_0,dzs_0,global_id_0,u_0,v_0,w_0,f_1,g_
  end do
  do s_idx_1 = 1,2
  do s_idx_2 = 1,2
- if (idx+s8(s_idx_1)+s5(s_idx_2)>=1 .and. idx+s8(s_idx_1)+s5(s_idx_2)<=8418552) then
+ if (idx+s8(s_idx_1)+s5(s_idx_2)>=1 .and. idx+s8(s_idx_1)+s5(s_idx_2)<=92*(150*WM+2)*(150*WM+3)) then
  svec_f_1_g_1_h_1_37(s_idx_1, s_idx_2) = v_0(idx+s8(s_idx_1)+s5(s_idx_2))
  else
  svec_f_1_g_1_h_1_37(s_idx_1, s_idx_2) = v_0(idx)
@@ -479,8 +479,8 @@ subroutine stage_kernel_1(dx1_0,dy1_0,dzn_0,dzs_0,global_id_0,u_0,v_0,w_0,f_1,g_
  do i___f_maps_f_1_g_1_h_1_1=1,2
  th_idx___velfg_map_76_scal = global_id_0
  k_vel2_range___velfg_m___9606c486 = (((90 + 1) - 1) + 1)
- j_vel2_range___velfg_m___4b6e60e4 = ((300 - 1) + 1)
- i_vel2_range___velfg_m___ea66ec4a = ((300 - 1) + 1)
+ j_vel2_range___velfg_m___4b6e60e4 = ((150*WM+0 - 1) + 1)
+ i_vel2_range___velfg_m___ea66ec4a = ((150*WM+0 - 1) + 1)
  k_vel2_rel___velfg_map_76_scal = (th_idx___velfg_map_76_scal / (j_vel2_range___velfg_m___4b6e60e4  &
       * i_vel2_range___velfg_m___ea66ec4a))
  k_vel2___velfg_map_76_scal = (k_vel2_rel___velfg_map_76_scal + 1)
@@ -565,8 +565,8 @@ subroutine stage_kernel_1(dx1_0,dy1_0,dzn_0,dzs_0,global_id_0,u_0,v_0,w_0,f_1,g_
  do i___f_maps_f_1_g_1_h_1_3=1,2
  th_idx___velfg_map_76_scal = global_id_0
  k_vel2_range___velfg_m___9606c486 = (((90 + 1) - 1) + 1)
- j_vel2_range___velfg_m___4b6e60e4 = ((300 - 1) + 1)
- i_vel2_range___velfg_m___ea66ec4a = ((300 - 1) + 1)
+ j_vel2_range___velfg_m___4b6e60e4 = ((150*WM+0 - 1) + 1)
+ i_vel2_range___velfg_m___ea66ec4a = ((150*WM+0 - 1) + 1)
  k_vel2_rel___velfg_map_76_scal = (th_idx___velfg_map_76_scal / (j_vel2_range___velfg_m___4b6e60e4  &
       * i_vel2_range___velfg_m___ea66ec4a))
  k_vel2___velfg_map_76_scal = (k_vel2_rel___velfg_map_76_scal + 1)
@@ -651,8 +651,8 @@ subroutine stage_kernel_1(dx1_0,dy1_0,dzn_0,dzs_0,global_id_0,u_0,v_0,w_0,f_1,g_
  do i___f_maps_f_1_g_1_h_1_5=1,2
  th_idx___velfg_map_76_scal = global_id_0
  k_vel2_range___velfg_m___9606c486 = (((90 + 1) - 1) + 1)
- j_vel2_range___velfg_m___4b6e60e4 = ((300 - 1) + 1)
- i_vel2_range___velfg_m___ea66ec4a = ((300 - 1) + 1)
+ j_vel2_range___velfg_m___4b6e60e4 = ((150*WM+0 - 1) + 1)
+ i_vel2_range___velfg_m___ea66ec4a = ((150*WM+0 - 1) + 1)
  k_vel2_rel___velfg_map_76_scal = (th_idx___velfg_map_76_scal / (j_vel2_range___velfg_m___4b6e60e4  &
       * i_vel2_range___velfg_m___ea66ec4a))
  k_vel2___velfg_map_76_scal = (k_vel2_rel___velfg_map_76_scal + 1)
@@ -739,8 +739,8 @@ subroutine stage_kernel_1(dx1_0,dy1_0,dzn_0,dzs_0,global_id_0,u_0,v_0,w_0,f_1,g_
  do i___f_maps_f_1_g_1_h_1_7=1,2
  th_idx___velfg_map_76_scal = global_id_0
  k_vel2_range___velfg_m___9606c486 = (((90 + 1) - 1) + 1)
- j_vel2_range___velfg_m___4b6e60e4 = ((300 - 1) + 1)
- i_vel2_range___velfg_m___ea66ec4a = ((300 - 1) + 1)
+ j_vel2_range___velfg_m___4b6e60e4 = ((150*WM+0 - 1) + 1)
+ i_vel2_range___velfg_m___ea66ec4a = ((150*WM+0 - 1) + 1)
  k_vel2_rel___velfg_map_76_scal = (th_idx___velfg_map_76_scal / (j_vel2_range___velfg_m___4b6e60e4  &
       * i_vel2_range___velfg_m___ea66ec4a))
  k_vel2___velfg_map_76_scal = (k_vel2_rel___velfg_map_76_scal + 1)
@@ -824,8 +824,8 @@ subroutine stage_kernel_1(dx1_0,dy1_0,dzn_0,dzs_0,global_id_0,u_0,v_0,w_0,f_1,g_
  do i___f_maps_f_1_g_1_h_1_9=1,2
  th_idx___velfg_map_76_scal = global_id_0
  k_vel2_range___velfg_m___9606c486 = (((90 + 1) - 1) + 1)
- j_vel2_range___velfg_m___4b6e60e4 = ((300 - 1) + 1)
- i_vel2_range___velfg_m___ea66ec4a = ((300 - 1) + 1)
+ j_vel2_range___velfg_m___4b6e60e4 = ((150*WM+0 - 1) + 1)
+ i_vel2_range___velfg_m___ea66ec4a = ((150*WM+0 - 1) + 1)
  k_vel2_rel___velfg_map_76_scal = (th_idx___velfg_map_76_scal / (j_vel2_range___velfg_m___4b6e60e4  &
       * i_vel2_range___velfg_m___ea66ec4a))
  k_vel2___velfg_map_76_scal = (k_vel2_rel___velfg_map_76_scal + 1)
@@ -909,8 +909,8 @@ subroutine stage_kernel_1(dx1_0,dy1_0,dzn_0,dzs_0,global_id_0,u_0,v_0,w_0,f_1,g_
  end do
  do i___f_maps_f_1_g_1_h_1_11=1,2
  k_vel2_range___velfg_m___a725d29e = (((90 - 1) - 1) + 1)
- j_vel2_range___velfg_m___9675913f = ((300 - 1) + 1)
- i_vel2_range___velfg_m___a1f7aab8 = ((300 - 1) + 1)
+ j_vel2_range___velfg_m___9675913f = ((150*WM+0 - 1) + 1)
+ i_vel2_range___velfg_m___a1f7aab8 = ((150*WM+0 - 1) + 1)
  k_vel2_rel___velfg_map_133_scal = (global_id_0 / (j_vel2_range___velfg_m___9675913f *  &
       i_vel2_range___velfg_m___a1f7aab8))
  k_vel2___velfg_map_133_scal = (k_vel2_rel___velfg_map_133_scal + 1)
@@ -946,8 +946,8 @@ subroutine stage_kernel_1(dx1_0,dy1_0,dzn_0,dzs_0,global_id_0,u_0,v_0,w_0,f_1,g_
  end do
  do i___f_maps_f_1_g_1_h_1_13=1,2
  k_vel2_range___velfg_m___a725d29e = (((90 - 1) - 1) + 1)
- j_vel2_range___velfg_m___9675913f = ((300 - 1) + 1)
- i_vel2_range___velfg_m___a1f7aab8 = ((300 - 1) + 1)
+ j_vel2_range___velfg_m___9675913f = ((150*WM+0 - 1) + 1)
+ i_vel2_range___velfg_m___a1f7aab8 = ((150*WM+0 - 1) + 1)
  k_vel2_rel___velfg_map_133_scal = (global_id_0 / (j_vel2_range___velfg_m___9675913f *  &
       i_vel2_range___velfg_m___a1f7aab8))
  k_vel2___velfg_map_133_scal = (k_vel2_rel___velfg_map_133_scal + 1)
@@ -983,8 +983,8 @@ subroutine stage_kernel_1(dx1_0,dy1_0,dzn_0,dzs_0,global_id_0,u_0,v_0,w_0,f_1,g_
  diu8_s_0___f_comp_f_1____6399bded(i___f_maps_f_1_g_1_h_1_13) = diu8___velfg_map_133
  end do
  k_range___velfg_map_218_scal = ((90 - 1) + 1)
- j_range___velfg_map_218_scal = ((300 - 1) + 1)
- i_range___velfg_map_218_scal = ((300 - 1) + 1)
+ j_range___velfg_map_218_scal = ((150*WM+0 - 1) + 1)
+ i_range___velfg_map_218_scal = ((150*WM+0 - 1) + 1)
  k_rel___velfg_map_218_scal = (global_id_0 / (j_range___velfg_map_218_scal *  &
       i_range___velfg_map_218_scal))
  k___velfg_map_218_scal = (k_rel___velfg_map_218_scal + 1)

@@ -96,6 +96,9 @@ my $min_dim = ($params{'ip'}/2).'*WM*'.($params{'jp'}/2).'*WM*'.$params{'kp'};
     open $SKMF, '>', "Patched/$superkernel_file" or die "$!";
     my $sub_sig=0;
     for my $line (@superkernel_file_lines) {
+        if ($line=~/dimension/) {
+            $line=~s/:\d+/:*/;         
+        }        
         print $SKMF $line;
 
         if ($line=~/^\s*subroutine\s+$sub_name/) {
@@ -113,6 +116,7 @@ my $min_dim = ($params{'ip'}/2).'*WM*'.($params{'jp'}/2).'*WM*'.$params{'kp'};
                 say $SKMF "use singleton_module_${stage_kernel_name}, only: ${stage_kernel_name}";
             }
         }
+   
     }
     close $SKMF;
 
@@ -237,6 +241,27 @@ for my $stage_kernel_name (@stage_kernel_names) {
                 $line=~s/,\s*intent\(\w+\)//;
             }
         }
+        if ($line=~/30([0123])/) {
+            my $offset = $1;
+            my $val = '150*WM+'.$offset;
+            $line=~s/30[0123]/$val/;        
+        } elsif ($line=~/8418552/) {
+            $line=~s/8418552/92*(150*WM+2)*(150*WM+3)/;
+        } elsif ($line=~/8510058/) {
+            $line=~s/8510058/93*(150*WM+2)*(150*WM+3)/;
+        } elsif ($line=~/8244691/) {
+            $line=~s/8244691/91*(150*WM+1)*(150*WM+1)/;
+        } elsif ($line=~/\(\/\s*(.+?)\s*\/\)/) {
+            my $ns_str = $1; my @ns = split(/\s*,\s*/,$ns_str);
+            my @n_expr_strs=();
+            for my $n (@ns) {
+                my $dn = decompose_num($n);
+                warn "$n => $dn" if $dn eq '';
+                push @n_expr_strs, $dn;
+            }
+            my $array_str = '(/ '.join(' , ',@n_expr_strs).' /)';
+            $line=~s/\(\/.+$/$array_str/;
+        }
         # if ($line=~/integer :: global_id___/) {next;} # does not happen
         # $line=~s/global_id___\w+\b/global_id/g; # does not happen
         # if ($line=~/^\s*call\s+get_global_id/ ) { # does not happen
@@ -248,7 +273,7 @@ for my $stage_kernel_name (@stage_kernel_names) {
         #         next;
         #     }
         # } else {
-            print $SKF $line;
+        print $SKF $line;
         # }
     }
     close $SKF;
@@ -329,4 +354,58 @@ ENDSC
 print $SC $sconstruct_file;
 close $SC;
 
+}
+
+
+sub decompose_num { (my $n) = @_;
+    my $a=1;
+    my $ip=300;my $jp=300;
+    my @factors=();
+    # 1. small or large?
+    if ($n < ($ip-3)*($jp-3)) {
+        # small
+        $a =int($n/$ip); # e.g. 2
+        warn "$n => $a " unless $a<=2;
+        
+        # now brute-force:
+        for my $b (0 .. 3) {
+            for my $off1 (-1 .. 3) {
+                if ($n == $a*($ip+$off1)+$b) {
+                    $a=($a==2?'2*':'');
+                    return $a.'(150*WM+'.$off1.')'.($b==0?'':'+'.$b);
+                }
+            }
+        }
+    } else {
+        # medium or large?
+        if ($n > ($ip+3)*($jp+3)+3) {
+            $a=int($n/(($ip-3)*($jp-3)));
+            warn "$n => $a " unless $a<=2;
+        } else {
+            $a=1;
+        }
+        
+        for my $b (0 .. 3) {
+            for my $off1 (0.. 6) {
+                for my $off2 (0..4) {
+                    # warn $a*($ip+$off1)*($jp+$off2)+$b,"\n";
+                    if ($n == $a*($ip+$off1)*($jp+$off2)+$b) {     
+                        $a=($a==2?'2*':'');                   
+                        return $a.'(150*WM+'.$off1.')*(150*WM+'.$off2.')'.($b==0?'':'+'.$b); 
+                    }
+                }
+            }
+        }
+        for my $b (0 .. 6) {
+            for my $off1 (0.. 6) {
+                for my $off2 (0..4) {
+                    # warn $a*($ip+$off1)*($jp+$off2)+$b,"\n";
+                    if ($n == $a*($ip+$off1)*($jp+$off2)+$ip+$b) {    
+                        $a=($a==2?'2*':'');                    
+                        return $a.'(150*WM+'.$off1.')*(150*WM+'.$off2.')+150*WM'.($b==0?'':'+'.$b); 
+                    }
+                }
+            }
+        }
+    }
 }
