@@ -151,7 +151,7 @@ subroutine velfg_superkernel_scal(f,g,h,dzn,u,v,w,dx1,dy1,dzs,state_ptr,global_i
  real, dimension(0:ip,1:jp,1:kp) :: dfu1
  real, dimension(1:ip,0:jp,1:kp) :: dfv1
  real, dimension(1:ip,1:jp,1:kp) :: dfw1
- real, dimension((-1):(ip + 1),(-1):(jp + 1),0:(kp + 1)) :: sm
+!    real, dimension((-1):(ip + 1),(-1):(jp + 1),0:(kp + 1)) :: sm
  integer :: state
  integer, intent(in) :: state_ptr
  integer, intent(in) :: global_id
@@ -171,7 +171,7 @@ subroutine velfg_superkernel_scal(f,g,h,dzn,u,v,w,dx1,dy1,dzs,state_ptr,global_i
  integer, parameter :: st_velfg_map_218=28
  state = state_ptr 
  select case(state)
- case (st_velfg_map_76§)
+ case (st_velfg_map_76)
  th_idx = global_id
  j_vel2_range = ((300 - 1) + 1)
  i_vel2_range = ((300 - 1) + 1)
@@ -194,7 +194,7 @@ call velfg_map_76(u_i_vel2_j_vel2_k_vel2m1,u_i_vel2_j_vel2m1_k_vel2,u_i_vel2m1_j
       diu6_i_vel2_j_vel2_k_vel2,cov1_i_vel2_j_vel2_k_vel2,cov5_i_vel2_j_vel2_k_vel2, &
       cov9_i_vel2_j_vel2_k_vel2,cov2_i_vel2_j_vel2_k_vel2,cov3_i_vel2_j_vel2_k_vel2, &
       cov4_i_vel2_j_vel2_k_vel2,cov6_i_vel2_j_vel2_k_vel2,global_id)
- case (st_velfg_map_13§3)
+ case (st_velfg_map_133)
  j_vel2_range = ((300 - 1) + 1)
  i_vel2_range = ((300 - 1) + 1)
  k_vel2_rel = (global_id / (j_vel2_range * i_vel2_range))

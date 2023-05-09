@@ -6,8 +6,8 @@ fsources = ['module_velfg_superkernel-dyn.f95', 'velfg_driver-dyn.f95']
 
 
 FLFLAGS = ['-Ofast','-flto']
-FLFLAGS += ['-fopenmp','-DWITH_OPENMP','-DWM=14']
-#FLFLAGS += ['-DWM=2']#, '-mcmodel=medium']
+FLFLAGS += ['-fopenmp','-DWITH_OPENMP']#,'-DWM=14']
+FLFLAGS += ['-DWM=2']#, '-mcmodel=medium']
 FFLAGS = FLFLAGS + ['-Wall','-cpp','-m64','-ffree-form','-ffree-line-length-0','-fconvert=little-endian','-frecord-marker=4']#, '-fopenmp']
 
 # '-fopenmp','-mcmodel=medium',

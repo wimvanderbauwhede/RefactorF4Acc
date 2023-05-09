@@ -17,16 +17,14 @@ This needs to be set manually at compile time. For testing on the laptop, WM=1 i
 7. In  `~/Git/RefactorF4Acc/tests/velfg_memory_reduction_openmp/`
     - run `memory_reduction.pl -C`. This should create the reduced file in `MemoryReduction/Generated`
 8. In `~/Git/RefactorF4Acc/tests/velfg_memory_reduction_openmp/MemoryReduction/`
-    - patch the kernel module, the scalarised functions and the SConstruct file:
+    - patch the kernel module, the scalarised functions and the SConstruct file
         `../aux/patch_memreduced.sh -i`
     - the patch does the following:
         - in `Generated`
-            - add an implementation for `get_global_id` as a separate module
-            - remove the intent for vars that are not stage kernel args in `module_gen_*_superkernel.f95`
+            - remove the intent for vars that are not stage kernel args in `module_gen_*_superkernel.f95` (probably does nothing anymore )
         - in `Scalarized`
             - substitute the parameters from the original module (`module_*_superkernel.f95` file)
             - add `pure` to the subroutine declarations
-            - add a module declaration for get_global_id
     - for further inlining, the script takes the option `-i`. Without it, the script produces code and a build script in `Generated`. Run `scons` there to test that code if desired. The executable is `gen_velfg_superkernel`. The difference is that the inlined version does not use the `get_global_id` module
     - Run the inliner
         `refactorF4acc.pl -c ./rf4a_inline.cfg`

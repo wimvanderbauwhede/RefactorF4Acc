@@ -1842,7 +1842,8 @@ generateMainProgramOrSuperkernel genModule functionSignatures ast_stages  =
                                 -- ,map ( ("!    "++) . show ) uniqueGeneratedDecls
                                 ,[
                                     "    integer :: idx",
-                                    "    call get_global_id(idx,0)",
+                                    "!    call get_global_id(idx,0)",
+                                    "    idx = global_id_0",
                                     "!$RF4A Begin Inline"
                                  ]
                                 ,generatedStmts
@@ -2015,7 +2016,7 @@ buildMainProgramForSuperkernelDef unique_stage_kernel_decls stage_kernel_calls =
             "    state_ptr = ST_STAGE_KERNEL_"++(show ct),
             "    do iter = 1, niters",
             "    print *, iter",
-            "    do global_id = 1, "++(show vSz),
+            "    do global_id_0 = 1, "++(show vSz),
             "      call "++superkernelName++"("++superkernel_args_str++",state_ptr)",
             "    end do",
             "    end do"
@@ -2025,7 +2026,7 @@ buildMainProgramForSuperkernelDef unique_stage_kernel_decls stage_kernel_calls =
     unlines $ [
         "program main",
         "    use module_"++superkernelName++", only : "++superkernelName,
-        "    integer :: global_id",
+        "    ! integer :: global_id",
         "    ! common /ocl/ global_id",
         "    ! Declarations"
         ] ++
@@ -2033,7 +2034,7 @@ buildMainProgramForSuperkernelDef unique_stage_kernel_decls stage_kernel_calls =
         case_param_decl_strs ++
         [
             "    integer :: state_ptr",
-            "    integer, parameter :: niters = 5",
+            "    integer, parameter :: niters = 10",
             "    integer :: iter ",
         "    ! Loops over stage calls"] ++
         loops_over_calls ++

@@ -7,7 +7,6 @@ our $V=1;
 # To be run in MemoryReduction
 # Substitute the parameters from the original module
 # Add `pure` to the subroutine declarations
-# Add a module declaration for get_global_id
 
 use Cwd;
 use Carp qw(croak);
@@ -60,15 +59,13 @@ for my $scal_f_name (@scal_funcs) {
     my @lines = <$SFF>;
     close $SFF;
     open $SFF, '>', "Generated/$patched_f_name" or die $!;
-
+    my $scal_func_name = $patched_f_name;
+    $scal_func_name=~s/\.f95//;
+    $scal_func_name.='_scal';
     my $has_global_id_decl=0;
     my $first_decl=1;
     for my $line (@lines) {
-        if (not $for_inlining and $line=~/^module singleton/) {
-            print $SFF $line;
-            print $SFF 'use module_global_id'."\n";
-            next;
-        }
+        # say "$scal_f_name $patched_f_name: $line";
         if ($line=~/dimension/) {
             for my $par (sort keys %params) {
                 my $val = $params{$par};
@@ -79,8 +76,9 @@ for my $scal_f_name (@scal_funcs) {
         #     $line=~s/integer/integer, intent(In)/;
         #     $has_global_id_decl=1
         #     }
-        if ($line=~/subroutine\s+$scal_f_name\s*\(/) {
-            $line=~s/$scal_f_name\s*\(/$scal_f_name(global_id,/;
+        if ($line=~/^\s*subroutine\s+$scal_func_name\s*\(/) {
+            # $line=~s/$scal_func_name\s*\(/$scal_func_name(global_id,/;
+            say "PURE $scal_func_name";
             $line=~s/subroutine/pure subroutine/;
         }
         # elsif ($line=~/get_global_id/) {
@@ -104,17 +102,17 @@ for my $scal_f_name (@scal_funcs) {
 
 # Make sure the SCons file is correct
 my $test_scons_for_patched_scal_funcs = `grep Scalarized Generated/SConstruct`;
-my $test_scons_for_global_id= `grep module_global_id Generated/SConstruct`;
-my $test_scons_for_inlining =  ($for_inlining && $test_scons_for_global_id) || (!$for_inlining and !$test_scons_for_global_id);
-if ($test_scons_for_patched_scal_funcs or $test_scons_for_inlining) {
-my $maybe_module_global_id = $for_inlining ? '' : ", 'module_global_id.f95'" ;
+# my $test_scons_for_global_id= `grep module_global_id Generated/SConstruct`;
+# my $test_scons_for_inlining =  ($for_inlining && $test_scons_for_global_id) || (!$for_inlining and !$test_scons_for_global_id);
+if ($test_scons_for_patched_scal_funcs) { # or $test_scons_for_inlining
+# my $maybe_module_global_id = $for_inlining ? '' : ", 'module_global_id.f95'" ;
 open my $SC, '>', 'Generated/SConstruct' or die $!;
 my $sconstruct_file = <<ENDSC;
 import os
 
 FC=os.environ.get('FC')
 
-fsources = ['gen_velfg_superkernel.f95', 'module_gen_velfg_superkernel.f95', 'velfg_map_133.f95', 'velfg_map_218.f95', 'velfg_map_76.f95' $maybe_module_global_id ]
+fsources = ['gen_velfg_superkernel.f95', 'module_gen_velfg_superkernel.f95', 'velfg_map_133.f95', 'velfg_map_218.f95', 'velfg_map_76.f95' ]
 
 FFLAGS = ['-Wall','-cpp','-O3','-m64','-ffree-form','-ffree-line-length-0','-fconvert=little-endian','-frecord-marker=4']
 

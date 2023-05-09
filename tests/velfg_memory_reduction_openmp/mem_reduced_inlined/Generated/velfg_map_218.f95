@@ -2,10 +2,10 @@ module singleton_module_velfg_map_218
 
 contains
 
-subroutine velfg_map_218(dx1_0,dy1_0,dzn_0,dzs_0,th_idx_0,cov1_s_0,cov2_s_0,cov3_s_0,diu1_s_0, &
+subroutine velfg_map_218(dx1_0,dy1_0,dzn_0,dzs_0,global_id_0,cov1_s_0,cov2_s_0,cov3_s_0,diu1_s_0, &
       diu2_s_0,diu3_s_0,cov4_s_0,cov5_s_0,cov6_s_0,diu4_s_0,diu5_s_0,diu6_s_0,cov7_s_0,cov8_s_0, &
       cov9_s_0,diu7_s_0,diu8_s_0,diu9_s_0,dfu1_1,dfv1_1,dfw1_1,f_1,g_1,h_1)
-use singleton_module_velfg_map_218, only : velfg_map_218_scal
+! use singleton_module_velfg_map_218, only : velfg_map_218_scal
  implicit none
 !      BEGIN ex-sub decls velfg_map_218_scal
  integer, parameter :: ip___velfg_map_218_scal=300
@@ -45,28 +45,28 @@ use singleton_module_velfg_map_218, only : velfg_map_218_scal
  real, dimension(0:301), intent(in) :: dy1_0
  real, dimension(-1:92), intent(in) :: dzn_0
  real, dimension(-1:92), intent(in) :: dzs_0
- integer, intent(in) :: th_idx_0
- real, dimension(1:2), intent(In) :: cov1_s_0
- real, dimension(1:2), intent(In) :: cov2_s_0
- real, dimension(1:2), intent(In) :: cov3_s_0
- real, dimension(1:2), intent(In) :: diu1_s_0
- real, dimension(1:2), intent(In) :: diu2_s_0
- real, dimension(1:2), intent(In) :: diu3_s_0
- real, dimension(1:2), intent(In) :: cov4_s_0
- real, dimension(1:2), intent(In) :: cov5_s_0
- real, dimension(1:2), intent(In) :: cov6_s_0
- real, dimension(1:2), intent(In) :: diu4_s_0
- real, dimension(1:2), intent(In) :: diu5_s_0
- real, dimension(1:2), intent(In) :: diu6_s_0
- real, dimension(1:2), intent(In) :: cov7_s_0
- real, dimension(1:2), intent(In) :: cov8_s_0
- real, dimension(1:2), intent(In) :: cov9_s_0
- real, dimension(1:2), intent(In) :: diu7_s_0
- real, dimension(1:2), intent(In) :: diu8_s_0
- real, dimension(1:2), intent(In) :: diu9_s_0
- real, intent(Out) :: dfu1_1
- real, intent(Out) :: dfv1_1
- real, intent(Out) :: dfw1_1
+ integer, intent(in) :: global_id_0
+ real, dimension(1:2), intent(in) :: cov1_s_0
+ real, dimension(1:2), intent(in) :: cov2_s_0
+ real, dimension(1:2), intent(in) :: cov3_s_0
+ real, dimension(1:2), intent(in) :: diu1_s_0
+ real, dimension(1:2), intent(in) :: diu2_s_0
+ real, dimension(1:2), intent(in) :: diu3_s_0
+ real, dimension(1:2), intent(in) :: cov4_s_0
+ real, dimension(1:2), intent(in) :: cov5_s_0
+ real, dimension(1:2), intent(in) :: cov6_s_0
+ real, dimension(1:2), intent(in) :: diu4_s_0
+ real, dimension(1:2), intent(in) :: diu5_s_0
+ real, dimension(1:2), intent(in) :: diu6_s_0
+ real, dimension(1:2), intent(in) :: cov7_s_0
+ real, dimension(1:2), intent(in) :: cov8_s_0
+ real, dimension(1:2), intent(in) :: cov9_s_0
+ real, dimension(1:2), intent(in) :: diu7_s_0
+ real, dimension(1:2), intent(in) :: diu8_s_0
+ real, dimension(1:2), intent(in) :: diu9_s_0
+ real, intent(out) :: dfu1_1
+ real, intent(out) :: dfv1_1
+ real, intent(out) :: dfw1_1
  real, intent(out) :: f_1
  real, intent(out) :: g_1
  real, intent(out) :: h_1
@@ -76,18 +76,18 @@ use singleton_module_velfg_map_218, only : velfg_map_218_scal
  real :: dfw1___velfg_map_218
 !    ! Call to the original scalarised subroutine
 !      BEGIN inlined call to velfg_map_218_scal
-!       call get_th_idx(th_idx,0)
+!       call get_global_id(global_id_0,0)
  k_range___velfg_map_218_scal = ((90 - 1) + 1)
  j_range___velfg_map_218_scal = ((300 - 1) + 1)
  i_range___velfg_map_218_scal = ((300 - 1) + 1)
- k_rel___velfg_map_218_scal = (th_idx___velfg_map_218_scal / (j_range___velfg_map_218_scal *  &
+ k_rel___velfg_map_218_scal = (global_id_0 / (j_range___velfg_map_218_scal *  &
       i_range___velfg_map_218_scal))
  k___velfg_map_218_scal = (k_rel___velfg_map_218_scal + 1)
- j_rel___velfg_map_218_scal = ((th_idx___velfg_map_218_scal - (k_rel___velfg_map_218_scal *  &
+ j_rel___velfg_map_218_scal = ((global_id_0 - (k_rel___velfg_map_218_scal *  &
       (j_range___velfg_map_218_scal * i_range___velfg_map_218_scal))) /  &
       i_range___velfg_map_218_scal)
  j___velfg_map_218_scal = (j_rel___velfg_map_218_scal + 1)
- i_rel___velfg_map_218_scal = ((th_idx___velfg_map_218_scal - (k_rel___velfg_map_218_scal *  &
+ i_rel___velfg_map_218_scal = ((global_id_0 - (k_rel___velfg_map_218_scal *  &
       (j_range___velfg_map_218_scal * i_range___velfg_map_218_scal))) -  &
       (j_rel___velfg_map_218_scal * i_range___velfg_map_218_scal))
  i___velfg_map_218_scal = (i_rel___velfg_map_218_scal + 1)

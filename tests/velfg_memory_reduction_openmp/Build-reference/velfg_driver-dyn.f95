@@ -126,6 +126,10 @@ integer, parameter :: kp=90
     do j = 0,jp+1
       dy1(j)=1.
     end do
+
+    f = 1.0; g = 1.0; h = 1.0
+    u = 1.0; v = 1.0; w = 1.0
+
     call system_clock(timestamp(0), clock_rate)
     do iter = 1,niters
       !print *,iter
@@ -151,5 +155,7 @@ integer, parameter :: kp=90
     end do
     call system_clock(timestamp(1), clock_rate)
     print '(f6.3)',(timestamp(1)-timestamp(0))/ real(clock_rate)
-!    print *, f(1,1,1)
+   print *, sum(f)
+   print *, sum(g)
+   print *, sum(h)
 end program main  

@@ -15,16 +15,16 @@ our $V=1;
 # - From the superkernel file, get the module name, subroutine name and stage kernel name(s)
 
 # These steps change source code:
-# - In the superkernel file (*_superkernel.f95), in the superkernel subroutine, add the use declarations for the stage kernels
-# - In the main file (gen_*_superkernel.f95):
-#    - get the module line and correct the name
-# - In the stage kernel file (stage_kernel_*.f95)
-#    - find all unique calls
-# - We need to patch the call to deal with get_global_id, for now
-# - Replace `call get_global_id(idx,0,global_id)` by `idx=global_id`
-# - Patch the _scal files
-# - We need to substitute the parameters from the original module
-# - Create a SConstruct file if it does not exists
+# - In the superkernel file (velfg_superkernel.f95), in the superkernel subroutine, add the use declarations for the stage kernel(s)
+# - In the main file (gen_velfg_superkernel.f95):
+#    - get the module line and correct the name, it should be singleton_module_velfg_superkernel, in velfg_superkernel.f95
+# - In the stage kernel file (stage_kernel_1.f95)
+#   - remove use decls
+#   - We need to patch the call to deal with get_global_id, for now => obsolete
+#   - Replace `call get_global_id(idx,0,global_id)` by `idx=global_id` => obsolete
+# - Patch the _scal files => I think that is obsolete!
+#   - We need to substitute the parameters from the original module
+#   - Create a SConstruct file if it does not exists
 
 use Cwd;
 use Carp qw(croak);
@@ -168,91 +168,93 @@ for my $stage_kernel_name (@stage_kernel_names) {
     }
     open $SKF, '>', "Patched/$stage_kernel_file" or die $!;
     my %stage_kernel_args=();
-    my $has_global_id_decl=0;
+    # my $has_global_id_decl=0;
     my $first_call_to_get_global_id=1;
     for my $line (@stage_kernel_file_lines) {
+        # Remove use lines
         $line=~/use singleton_module/ && next;
-        if ($line=~/integer\s*,\s*intent\(\w+\)\s+::\s+global_id/) {
-            $has_global_id_decl=1
-            }
+        # if ($line=~/integer\s*,\s*intent\(\w+\)\s+::\s+global_id/) {
+        #     $has_global_id_decl=1
+        #     }
         # replace `call get_global_id(idx,0,global_id)` by `idx=global_id`
-        if ($line=~/subroutine\s+stage_kernel_\d+\(([\w,\s]+)\)/) {
-            my $args_str = $1;
-            my @args = split(/\s*,\s*/,$args_str);
-            %stage_kernel_args = map {$_=>1} @args;
-            $line=~s/\)\s*$/,global_id)/;
-            $line.="\n";
-        }
+        # if ($line=~/subroutine\s+stage_kernel_\d+\(([\w,\s]+)\)/) {
+        #     my $args_str = $1;
+        #     my @args = split(/\s*,\s*/,$args_str);
+        #     %stage_kernel_args = map {$_=>1} @args;
+        #     $line=~s/\)\s*$/,global_id)/;
+        #     $line.="\n";
+        # }
+        # strip intent
         if ($line=~/intent\(\w+\)\s*::\s*(\w+)/) {
             my $var = $1;
             if (not exists $stage_kernel_args{$var}) {
                 $line=~s/,\s*intent\(\w+\)//;
             }
         }
-        if ($line=~/integer :: global_id___/) {next;}
-        $line=~s/global_id___\w+\b/global_id/g;
-        if ($line=~/^\s*call\s+get_global_id/ ) {
-            if ( $first_call_to_get_global_id) {
-                say $SKF "integer, intent(In) :: global_id" unless $has_global_id_decl;
-                say $SKF "idx = global_id";
-                $first_call_to_get_global_id=0;
-            } else {
-                next;
-            }
-        } else {
+        # if ($line=~/integer :: global_id___/) {next;} # does not happen
+        # $line=~s/global_id___\w+\b/global_id/g; # does not happen
+        # if ($line=~/^\s*call\s+get_global_id/ ) { # does not happen
+        #     if ( $first_call_to_get_global_id) {
+        #         say $SKF "integer, intent(In) :: global_id" unless $has_global_id_decl;
+        #         say $SKF "idx = global_id";
+        #         $first_call_to_get_global_id=0;
+        #     } else {
+        #         next;
+        #     }
+        # } else {
             print $SKF $line;
-        }
+        # }
     }
     close $SKF;
     system "cat Patched/$stage_kernel_file" if $V;
 }
 
-# Patch the _scal files
-# We need to substitute the parameters from the original module, so get them first
+# # Patch the _scal files
+# # We need to substitute the parameters from the original module, so get them first
 
 
-for my $scal_f_name (sort keys %scalar_functions) {
-    my $f_name = $scal_f_name;
-    $f_name=~s/_scal/.f95/;
-    open my $SFF, '<', '../../MemoryReduction/Scalarized/'.$f_name or die $!;
-    my @lines = <$SFF>;
-    close $SFF;
-    open $SFF, '>', "Patched/$f_name" or die $!;
-    my $has_global_id_decl=0;
-    my $first_decl=1;
-    for my $line (@lines) {
+# for my $scal_f_name (sort keys %scalar_functions) {
+#     my $f_name = $scal_f_name;
+#     $f_name=~s/_scal/.f95/;
+#     open my $SFF, '<', '../../MemoryReduction/Scalarized/'.$f_name or die $!;
+#     my @lines = <$SFF>;
+#     close $SFF;
+#     open $SFF, '>', "Patched/$f_name" or die $!;
+#     my $has_global_id_decl=0;
+#     my $first_decl=1;
+#     for my $line (@lines) {
 
-        if ($line=~/dimension/) {
-            for my $par (sort keys %params) {
-                my $val = $params{$par};
-                $line=~s/\b$par\b/$val/;
-            }
-        }
-        if ($line=~/integer\s+::\s+global_id/) {
-            $line=~s/integer/integer, intent(In)/;
-            $has_global_id_decl=1
-            }
-        if ($line=~/subroutine\s+$scal_f_name\s*\(/) {
-            $line=~s/$scal_f_name\s*\(/$scal_f_name(global_id,/;
-            $line=~s/subroutine/pure subroutine/;
-        } elsif ($line=~/get_global_id/) {
-            $line = '!'.$line;
-        }
-        if ($line=~/globalIdInitialisation/ and $has_global_id_decl==0) {
-            say $SFF "integer, intent(In) :: global_id";
-            $has_global_id_decl=1;
-        }
-        if ($line!~/::/ and $line=~/=/ and $first_decl==1 and $has_global_id_decl==0) {
-            say $SFF "integer, intent(In) :: global_id";
-            $has_global_id_decl=1;
-            $first_decl=0;
-        }
+#         if ($line=~/dimension/) {
+#             for my $par (sort keys %params) {
+#                 my $val = $params{$par};
+#                 $line=~s/\b$par\b/$val/;
+#             }
+#         }
+#         if ($line=~/integer\s+::\s+global_id/) {
+#             $line=~s/integer/integer, intent(In)/;
+#             $has_global_id_decl=1
+#             }
+#         if ($line=~/subroutine\s+$scal_f_name\s*\(/) {
+#             $line=~s/$scal_f_name\s*\(/$scal_f_name(global_id,/;
+#             $line=~s/subroutine/pure subroutine/;
+#         } elsif ($line=~/get_global_id/) {
+#             $line = '!'.$line;
+#         }
+#         if ($line=~/globalIdInitialisation/ and $has_global_id_decl==0) {
+#             say $SFF "integer, intent(In) :: global_id";
+#             $has_global_id_decl=1;
+#         }
+#         if ($line!~/::/ and $line=~/=/ and $first_decl==1 and $has_global_id_decl==0) {
+#             say $SFF "integer, intent(In) :: global_id";
+#             $has_global_id_decl=1;
+#             $first_decl=0;
+#         }
 
-        print $SFF $line;
-    }
-    close $SFF;
-    system "cat Patched/$f_name" if $V;
-}
+#         print $SFF $line;
+#     }
+#     close $SFF;
+#     system "cat Patched/$f_name" if $V;
+# }
 
 # Create a SConstruct file if it does not exists
 
@@ -265,7 +267,7 @@ import os
 FC=os.environ.get('FC')
 
 fsources = ['gen_velfg_superkernel.f95', 'stage_kernel_1.f95',
-'velfg_map_133.f95', 'velfg_map_218.f95', 'velfg_map_76.f95', #'les_map_87.f95' , 'les_map_107.f95' ,
+#'velfg_map_133.f95', 'velfg_map_218.f95', 'velfg_map_76.f95', #'les_map_87.f95' , 'les_map_107.f95' ,
          'velfg_superkernel.f95']
 
 

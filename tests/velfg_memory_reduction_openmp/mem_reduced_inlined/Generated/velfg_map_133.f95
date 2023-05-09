@@ -2,9 +2,9 @@ module singleton_module_velfg_map_133
 
 contains
 
-subroutine velfg_map_133(dzn_0,dx1_0,dy1_0,th_idx_0,u_s_1,w_s_1,v_s_1,cov7_1,cov8_1,diu7_1,diu8_1, &
-      nou7_1,nou8_1)
-use singleton_module_velfg_map_133, only : velfg_map_133_scal
+subroutine velfg_map_133(dzn_0,dx1_0,dy1_0,global_id_0,u_s_1,w_s_1,v_s_1,cov7_1,cov8_1,diu7_1, &
+      diu8_1,nou7_1,nou8_1)
+! use singleton_module_velfg_map_133, only : velfg_map_133_scal
  implicit none
 !      BEGIN ex-sub decls velfg_map_133_scal
  integer, parameter :: ip___velfg_map_133_scal=300
@@ -38,16 +38,16 @@ use singleton_module_velfg_map_133, only : velfg_map_133_scal
  real, dimension(-1:92), intent(in) :: dzn_0
  real, dimension(-1:301), intent(in) :: dx1_0
  real, dimension(0:301), intent(in) :: dy1_0
- integer, intent(in) :: th_idx_0
- real, dimension(1:2), intent(In) :: u_s_1
- real, dimension(1:3), intent(In) :: w_s_1
- real, dimension(1:2), intent(In) :: v_s_1
- real, intent(InOut) :: cov7_1
- real, intent(InOut) :: cov8_1
- real, intent(Out) :: diu7_1
- real, intent(Out) :: diu8_1
- real, intent(Out) :: nou7_1
- real, intent(Out) :: nou8_1
+ integer, intent(in) :: global_id_0
+ real, dimension(1:2), intent(in) :: u_s_1
+ real, dimension(1:3), intent(in) :: w_s_1
+ real, dimension(1:2), intent(in) :: v_s_1
+ real, intent(out) :: cov7_1
+ real, intent(out) :: cov8_1
+ real, intent(out) :: diu7_1
+ real, intent(out) :: diu8_1
+ real, intent(out) :: nou7_1
+ real, intent(out) :: nou8_1
 !    ! Temp vars
  real :: nou7___velfg_map_133
  real :: diu7___velfg_map_133
@@ -55,19 +55,19 @@ use singleton_module_velfg_map_133, only : velfg_map_133_scal
  real :: diu8___velfg_map_133
 !    ! Call to the original scalarised subroutine
 !      BEGIN inlined call to velfg_map_133_scal
-!       call get_th_idx(th_idx,0)
+!       call get_global_id(global_id_0,0)
  k_vel2_range___velfg_m___a725d29e = (((90 - 1) - 1) + 1)
  j_vel2_range___velfg_m___9675913f = ((300 - 1) + 1)
  i_vel2_range___velfg_m___a1f7aab8 = ((300 - 1) + 1)
- k_vel2_rel___velfg_map_133_scal = (th_idx___velfg_map_133_scal /  &
-      (j_vel2_range___velfg_m___9675913f * i_vel2_range___velfg_m___a1f7aab8))
+ k_vel2_rel___velfg_map_133_scal = (global_id_0 / (j_vel2_range___velfg_m___9675913f *  &
+      i_vel2_range___velfg_m___a1f7aab8))
  k_vel2___velfg_map_133_scal = (k_vel2_rel___velfg_map_133_scal + 1)
- j_vel2_rel___velfg_map_133_scal = ((th_idx___velfg_map_133_scal - (k_vel2_rel___velfg_map_133_scal  &
-      * (j_vel2_range___velfg_m___9675913f * i_vel2_range___velfg_m___a1f7aab8))) /  &
+ j_vel2_rel___velfg_map_133_scal = ((global_id_0 - (k_vel2_rel___velfg_map_133_scal *  &
+      (j_vel2_range___velfg_m___9675913f * i_vel2_range___velfg_m___a1f7aab8))) /  &
       i_vel2_range___velfg_m___a1f7aab8)
  j_vel2___velfg_map_133_scal = (j_vel2_rel___velfg_map_133_scal + 1)
- i_vel2_rel___velfg_map_133_scal = ((th_idx___velfg_map_133_scal - (k_vel2_rel___velfg_map_133_scal  &
-      * (j_vel2_range___velfg_m___9675913f * i_vel2_range___velfg_m___a1f7aab8))) -  &
+ i_vel2_rel___velfg_map_133_scal = ((global_id_0 - (k_vel2_rel___velfg_map_133_scal *  &
+      (j_vel2_range___velfg_m___9675913f * i_vel2_range___velfg_m___a1f7aab8))) -  &
       (j_vel2_rel___velfg_map_133_scal * i_vel2_range___velfg_m___a1f7aab8))
  i_vel2___velfg_map_133_scal = (i_vel2_rel___velfg_map_133_scal + 1)
  nou7___velfg_map_133 = (dzn_0(k_vel2___velfg_map_133_scal + 1) * u_s_1(1) +  &

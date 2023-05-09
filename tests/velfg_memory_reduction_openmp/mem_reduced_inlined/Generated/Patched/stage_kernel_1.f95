@@ -2,7 +2,7 @@ module singleton_module_stage_kernel_1
 
 contains
 
-subroutine stage_kernel_1(dx1_0,dy1_0,dzn_0,dzs_0,th_idx_0,u_0,v_0,w_0,f_1,g_1,h_1,global_id)
+subroutine stage_kernel_1(dx1_0,dy1_0,dzn_0,dzs_0,global_id_0,u_0,v_0,w_0,f_1,g_1,h_1)
  implicit none
  integer, parameter :: ip___velfg_map_76_scal=300
  integer, parameter :: jp___velfg_map_76_scal=300
@@ -183,6 +183,7 @@ subroutine stage_kernel_1(dx1_0,dy1_0,dzn_0,dzs_0,th_idx_0,u_0,v_0,w_0,f_1,g_1,h
  integer :: k_vel2_rel___velfg_map_76_scal
  integer :: j_vel2_rel___velfg_map_76_scal
  integer :: i_vel2_rel___velfg_map_76_scal
+ integer :: th_idx___velfg_map_76_scal
  real :: nou1___velfg_map_76
  real :: diu1___velfg_map_76
  real :: nou5___velfg_map_76
@@ -238,22 +239,22 @@ subroutine stage_kernel_1(dx1_0,dy1_0,dzn_0,dzs_0,th_idx_0,u_0,v_0,w_0,f_1,g_1,h
  real :: dfu1_1___f_pelts_f_1_g_1_h_1_16
  real :: dfv1_1___f_pelts_f_1_g_1_h_1_16
  real :: dfw1_1___f_pelts_f_1_g_1_h_1_16
- real, dimension(1:8418552), intent(in) :: u_0
- real, dimension(1:8418552), intent(in) :: v_0
- real, dimension(1:8510058), intent(in) :: w_0
- real, dimension(1:8244691), intent(out) :: f_1
- real, dimension(1:8244691), intent(out) :: g_1
- real, dimension(1:8244691), intent(out) :: h_1
- integer, dimension(1:2), parameter :: s10=(/ 92418 , 92419 /)
- integer, dimension(1:5), parameter :: s1=(/ 605, 91809, 92110, 92111, 92412 /)
+ real, dimension(1:8418552) :: u_0
+ real, dimension(1:8418552) :: v_0
+ real, dimension(1:8510058) :: w_0
+ real, dimension(1:8244691) :: f_1
+ real, dimension(1:8244691) :: g_1
+ real, dimension(1:8244691) :: h_1
+ integer, dimension(1:2), parameter :: s8=(/ 92418 , 92419 /)
+ integer, dimension(1:5), parameter :: s3=(/ 605, 91809, 92110, 92111, 92412 /)
  real, dimension(1:2,1:5) :: svec_f_1_g_1_h_1_17
  integer :: s_idx_1
  integer :: s_idx_2
- integer, dimension(1:5), parameter :: s3=(/ 605, 91809, 91810, 92110, 92111 /)
+ integer, dimension(1:5), parameter :: s1=(/ 605, 91809, 91810, 92110, 92111 /)
  real, dimension(1:2,1:5) :: svec_f_1_g_1_h_1_18
  integer, dimension(1:4), parameter :: s2=(/ 92111, 92112, 92413, 183617 /)
  real, dimension(1:2,1:4) :: svec_f_1_g_1_h_1_19
- integer, dimension(1:2), parameter :: s12=(/ 92113 , 92416 /)
+ integer, dimension(1:2), parameter :: s9=(/ 92113 , 92416 /)
  real, dimension(1:2,1:5) :: svec_f_1_g_1_h_1_20
  real, dimension(1:2,1:5) :: svec_f_1_g_1_h_1_21
  real, dimension(1:2,1:4) :: svec_f_1_g_1_h_1_22
@@ -261,36 +262,35 @@ subroutine stage_kernel_1(dx1_0,dy1_0,dzn_0,dzs_0,th_idx_0,u_0,v_0,w_0,f_1,g_1,h
  real, dimension(1:2,1:5) :: svec_f_1_g_1_h_1_23
  real, dimension(1:2,1:5) :: svec_f_1_g_1_h_1_24
  real, dimension(1:2,1:4) :: svec_f_1_g_1_h_1_25
- integer, dimension(1:2), parameter :: s9=(/ 92113 , 92114 /)
+ integer, dimension(1:2), parameter :: s11=(/ 92113 , 92114 /)
  real, dimension(1:2,1:5) :: svec_f_1_g_1_h_1_26
  real, dimension(1:2,1:5) :: svec_f_1_g_1_h_1_27
  real, dimension(1:2,1:4) :: svec_f_1_g_1_h_1_28
- integer, dimension(1:2), parameter :: s11=(/ 92418 , 92722 /)
+ integer, dimension(1:2), parameter :: s12=(/ 92418 , 92722 /)
  real, dimension(1:2,1:5) :: svec_f_1_g_1_h_1_29
  real, dimension(1:2,1:5) :: svec_f_1_g_1_h_1_30
  real, dimension(1:2,1:4) :: svec_f_1_g_1_h_1_31
- integer, dimension(1:2), parameter :: s6=(/ 92110 , 183616 /)
+ integer, dimension(1:2), parameter :: s4=(/ 92110 , 183616 /)
  real, dimension(1:2,1:2) :: svec_f_1_g_1_h_1_32
- integer, dimension(1:3), parameter :: s5=(/ 183315, 183616, 183617 /)
+ integer, dimension(1:3), parameter :: s6=(/ 183315, 183616, 183617 /)
  real, dimension(1:2,1:3) :: svec_f_1_g_1_h_1_33
- integer, dimension(1:2), parameter :: s4=(/ 91809 , 183315 /)
+ integer, dimension(1:2), parameter :: s5=(/ 91809 , 183315 /)
  real, dimension(1:2,1:2) :: svec_f_1_g_1_h_1_34
  real, dimension(1:2,1:2) :: svec_f_1_g_1_h_1_35
  real, dimension(1:2,1:3) :: svec_f_1_g_1_h_1_36
  real, dimension(1:2,1:2) :: svec_f_1_g_1_h_1_37
- real, dimension(-1:301), intent(in) :: dx1_0
- real, dimension(0:301), intent(in) :: dy1_0
- real, dimension(-1:92), intent(in) :: dzn_0
- real, dimension(-1:92), intent(in) :: dzs_0
- integer, intent(in) :: th_idx_0
+ real, dimension(-1:301) :: dx1_0
+ real, dimension(0:301) :: dy1_0
+ real, dimension(-1:92) :: dzn_0
+ real, dimension(-1:92) :: dzs_0
+ integer :: global_id_0
  integer :: idx
-integer, intent(In) :: global_id
-idx = global_id
+ idx = global_id_0
 !RF4A Begin Inline
  do s_idx_1 = 1,2
  do s_idx_2 = 1,5
- if (idx+s10(s_idx_1)+s1(s_idx_2)>=1 .and. idx+s10(s_idx_1)+s1(s_idx_2)<=8418552) then
- svec_f_1_g_1_h_1_17(s_idx_1, s_idx_2) = u_0(idx+s10(s_idx_1)+s1(s_idx_2))
+ if (idx+s8(s_idx_1)+s3(s_idx_2)>=1 .and. idx+s8(s_idx_1)+s3(s_idx_2)<=8418552) then
+ svec_f_1_g_1_h_1_17(s_idx_1, s_idx_2) = u_0(idx+s8(s_idx_1)+s3(s_idx_2))
  else
  svec_f_1_g_1_h_1_17(s_idx_1, s_idx_2) = u_0(idx)
  end if
@@ -298,8 +298,8 @@ idx = global_id
  end do
  do s_idx_1 = 1,2
  do s_idx_2 = 1,5
- if (idx+s10(s_idx_1)+s3(s_idx_2)>=1 .and. idx+s10(s_idx_1)+s3(s_idx_2)<=8418552) then
- svec_f_1_g_1_h_1_18(s_idx_1, s_idx_2) = v_0(idx+s10(s_idx_1)+s3(s_idx_2))
+ if (idx+s8(s_idx_1)+s1(s_idx_2)>=1 .and. idx+s8(s_idx_1)+s1(s_idx_2)<=8418552) then
+ svec_f_1_g_1_h_1_18(s_idx_1, s_idx_2) = v_0(idx+s8(s_idx_1)+s1(s_idx_2))
  else
  svec_f_1_g_1_h_1_18(s_idx_1, s_idx_2) = v_0(idx)
  end if
@@ -307,8 +307,8 @@ idx = global_id
  end do
  do s_idx_1 = 1,2
  do s_idx_2 = 1,4
- if (idx+s10(s_idx_1)+s2(s_idx_2)>=1 .and. idx+s10(s_idx_1)+s2(s_idx_2)<=8510058) then
- svec_f_1_g_1_h_1_19(s_idx_1, s_idx_2) = w_0(idx+s10(s_idx_1)+s2(s_idx_2))
+ if (idx+s8(s_idx_1)+s2(s_idx_2)>=1 .and. idx+s8(s_idx_1)+s2(s_idx_2)<=8510058) then
+ svec_f_1_g_1_h_1_19(s_idx_1, s_idx_2) = w_0(idx+s8(s_idx_1)+s2(s_idx_2))
  else
  svec_f_1_g_1_h_1_19(s_idx_1, s_idx_2) = w_0(idx)
  end if
@@ -316,8 +316,8 @@ idx = global_id
  end do
  do s_idx_1 = 1,2
  do s_idx_2 = 1,5
- if (idx+s12(s_idx_1)+s1(s_idx_2)>=1 .and. idx+s12(s_idx_1)+s1(s_idx_2)<=8418552) then
- svec_f_1_g_1_h_1_20(s_idx_1, s_idx_2) = u_0(idx+s12(s_idx_1)+s1(s_idx_2))
+ if (idx+s9(s_idx_1)+s3(s_idx_2)>=1 .and. idx+s9(s_idx_1)+s3(s_idx_2)<=8418552) then
+ svec_f_1_g_1_h_1_20(s_idx_1, s_idx_2) = u_0(idx+s9(s_idx_1)+s3(s_idx_2))
  else
  svec_f_1_g_1_h_1_20(s_idx_1, s_idx_2) = u_0(idx)
  end if
@@ -325,8 +325,8 @@ idx = global_id
  end do
  do s_idx_1 = 1,2
  do s_idx_2 = 1,5
- if (idx+s12(s_idx_1)+s3(s_idx_2)>=1 .and. idx+s12(s_idx_1)+s3(s_idx_2)<=8418552) then
- svec_f_1_g_1_h_1_21(s_idx_1, s_idx_2) = v_0(idx+s12(s_idx_1)+s3(s_idx_2))
+ if (idx+s9(s_idx_1)+s1(s_idx_2)>=1 .and. idx+s9(s_idx_1)+s1(s_idx_2)<=8418552) then
+ svec_f_1_g_1_h_1_21(s_idx_1, s_idx_2) = v_0(idx+s9(s_idx_1)+s1(s_idx_2))
  else
  svec_f_1_g_1_h_1_21(s_idx_1, s_idx_2) = v_0(idx)
  end if
@@ -334,8 +334,8 @@ idx = global_id
  end do
  do s_idx_1 = 1,2
  do s_idx_2 = 1,4
- if (idx+s12(s_idx_1)+s2(s_idx_2)>=1 .and. idx+s12(s_idx_1)+s2(s_idx_2)<=8510058) then
- svec_f_1_g_1_h_1_22(s_idx_1, s_idx_2) = w_0(idx+s12(s_idx_1)+s2(s_idx_2))
+ if (idx+s9(s_idx_1)+s2(s_idx_2)>=1 .and. idx+s9(s_idx_1)+s2(s_idx_2)<=8510058) then
+ svec_f_1_g_1_h_1_22(s_idx_1, s_idx_2) = w_0(idx+s9(s_idx_1)+s2(s_idx_2))
  else
  svec_f_1_g_1_h_1_22(s_idx_1, s_idx_2) = w_0(idx)
  end if
@@ -343,8 +343,8 @@ idx = global_id
  end do
  do s_idx_1 = 1,2
  do s_idx_2 = 1,5
- if (idx+s7(s_idx_1)+s1(s_idx_2)>=1 .and. idx+s7(s_idx_1)+s1(s_idx_2)<=8418552) then
- svec_f_1_g_1_h_1_23(s_idx_1, s_idx_2) = u_0(idx+s7(s_idx_1)+s1(s_idx_2))
+ if (idx+s7(s_idx_1)+s3(s_idx_2)>=1 .and. idx+s7(s_idx_1)+s3(s_idx_2)<=8418552) then
+ svec_f_1_g_1_h_1_23(s_idx_1, s_idx_2) = u_0(idx+s7(s_idx_1)+s3(s_idx_2))
  else
  svec_f_1_g_1_h_1_23(s_idx_1, s_idx_2) = u_0(idx)
  end if
@@ -352,8 +352,8 @@ idx = global_id
  end do
  do s_idx_1 = 1,2
  do s_idx_2 = 1,5
- if (idx+s7(s_idx_1)+s3(s_idx_2)>=1 .and. idx+s7(s_idx_1)+s3(s_idx_2)<=8418552) then
- svec_f_1_g_1_h_1_24(s_idx_1, s_idx_2) = v_0(idx+s7(s_idx_1)+s3(s_idx_2))
+ if (idx+s7(s_idx_1)+s1(s_idx_2)>=1 .and. idx+s7(s_idx_1)+s1(s_idx_2)<=8418552) then
+ svec_f_1_g_1_h_1_24(s_idx_1, s_idx_2) = v_0(idx+s7(s_idx_1)+s1(s_idx_2))
  else
  svec_f_1_g_1_h_1_24(s_idx_1, s_idx_2) = v_0(idx)
  end if
@@ -370,8 +370,8 @@ idx = global_id
  end do
  do s_idx_1 = 1,2
  do s_idx_2 = 1,5
- if (idx+s9(s_idx_1)+s1(s_idx_2)>=1 .and. idx+s9(s_idx_1)+s1(s_idx_2)<=8418552) then
- svec_f_1_g_1_h_1_26(s_idx_1, s_idx_2) = u_0(idx+s9(s_idx_1)+s1(s_idx_2))
+ if (idx+s11(s_idx_1)+s3(s_idx_2)>=1 .and. idx+s11(s_idx_1)+s3(s_idx_2)<=8418552) then
+ svec_f_1_g_1_h_1_26(s_idx_1, s_idx_2) = u_0(idx+s11(s_idx_1)+s3(s_idx_2))
  else
  svec_f_1_g_1_h_1_26(s_idx_1, s_idx_2) = u_0(idx)
  end if
@@ -379,8 +379,8 @@ idx = global_id
  end do
  do s_idx_1 = 1,2
  do s_idx_2 = 1,5
- if (idx+s9(s_idx_1)+s3(s_idx_2)>=1 .and. idx+s9(s_idx_1)+s3(s_idx_2)<=8418552) then
- svec_f_1_g_1_h_1_27(s_idx_1, s_idx_2) = v_0(idx+s9(s_idx_1)+s3(s_idx_2))
+ if (idx+s11(s_idx_1)+s1(s_idx_2)>=1 .and. idx+s11(s_idx_1)+s1(s_idx_2)<=8418552) then
+ svec_f_1_g_1_h_1_27(s_idx_1, s_idx_2) = v_0(idx+s11(s_idx_1)+s1(s_idx_2))
  else
  svec_f_1_g_1_h_1_27(s_idx_1, s_idx_2) = v_0(idx)
  end if
@@ -388,8 +388,8 @@ idx = global_id
  end do
  do s_idx_1 = 1,2
  do s_idx_2 = 1,4
- if (idx+s9(s_idx_1)+s2(s_idx_2)>=1 .and. idx+s9(s_idx_1)+s2(s_idx_2)<=8510058) then
- svec_f_1_g_1_h_1_28(s_idx_1, s_idx_2) = w_0(idx+s9(s_idx_1)+s2(s_idx_2))
+ if (idx+s11(s_idx_1)+s2(s_idx_2)>=1 .and. idx+s11(s_idx_1)+s2(s_idx_2)<=8510058) then
+ svec_f_1_g_1_h_1_28(s_idx_1, s_idx_2) = w_0(idx+s11(s_idx_1)+s2(s_idx_2))
  else
  svec_f_1_g_1_h_1_28(s_idx_1, s_idx_2) = w_0(idx)
  end if
@@ -397,8 +397,8 @@ idx = global_id
  end do
  do s_idx_1 = 1,2
  do s_idx_2 = 1,5
- if (idx+s11(s_idx_1)+s1(s_idx_2)>=1 .and. idx+s11(s_idx_1)+s1(s_idx_2)<=8418552) then
- svec_f_1_g_1_h_1_29(s_idx_1, s_idx_2) = u_0(idx+s11(s_idx_1)+s1(s_idx_2))
+ if (idx+s12(s_idx_1)+s3(s_idx_2)>=1 .and. idx+s12(s_idx_1)+s3(s_idx_2)<=8418552) then
+ svec_f_1_g_1_h_1_29(s_idx_1, s_idx_2) = u_0(idx+s12(s_idx_1)+s3(s_idx_2))
  else
  svec_f_1_g_1_h_1_29(s_idx_1, s_idx_2) = u_0(idx)
  end if
@@ -406,8 +406,8 @@ idx = global_id
  end do
  do s_idx_1 = 1,2
  do s_idx_2 = 1,5
- if (idx+s11(s_idx_1)+s3(s_idx_2)>=1 .and. idx+s11(s_idx_1)+s3(s_idx_2)<=8418552) then
- svec_f_1_g_1_h_1_30(s_idx_1, s_idx_2) = v_0(idx+s11(s_idx_1)+s3(s_idx_2))
+ if (idx+s12(s_idx_1)+s1(s_idx_2)>=1 .and. idx+s12(s_idx_1)+s1(s_idx_2)<=8418552) then
+ svec_f_1_g_1_h_1_30(s_idx_1, s_idx_2) = v_0(idx+s12(s_idx_1)+s1(s_idx_2))
  else
  svec_f_1_g_1_h_1_30(s_idx_1, s_idx_2) = v_0(idx)
  end if
@@ -415,8 +415,8 @@ idx = global_id
  end do
  do s_idx_1 = 1,2
  do s_idx_2 = 1,4
- if (idx+s11(s_idx_1)+s2(s_idx_2)>=1 .and. idx+s11(s_idx_1)+s2(s_idx_2)<=8510058) then
- svec_f_1_g_1_h_1_31(s_idx_1, s_idx_2) = w_0(idx+s11(s_idx_1)+s2(s_idx_2))
+ if (idx+s12(s_idx_1)+s2(s_idx_2)>=1 .and. idx+s12(s_idx_1)+s2(s_idx_2)<=8510058) then
+ svec_f_1_g_1_h_1_31(s_idx_1, s_idx_2) = w_0(idx+s12(s_idx_1)+s2(s_idx_2))
  else
  svec_f_1_g_1_h_1_31(s_idx_1, s_idx_2) = w_0(idx)
  end if
@@ -424,8 +424,8 @@ idx = global_id
  end do
  do s_idx_1 = 1,2
  do s_idx_2 = 1,2
- if (idx+s9(s_idx_1)+s6(s_idx_2)>=1 .and. idx+s9(s_idx_1)+s6(s_idx_2)<=8418552) then
- svec_f_1_g_1_h_1_32(s_idx_1, s_idx_2) = u_0(idx+s9(s_idx_1)+s6(s_idx_2))
+ if (idx+s11(s_idx_1)+s4(s_idx_2)>=1 .and. idx+s11(s_idx_1)+s4(s_idx_2)<=8418552) then
+ svec_f_1_g_1_h_1_32(s_idx_1, s_idx_2) = u_0(idx+s11(s_idx_1)+s4(s_idx_2))
  else
  svec_f_1_g_1_h_1_32(s_idx_1, s_idx_2) = u_0(idx)
  end if
@@ -433,8 +433,8 @@ idx = global_id
  end do
  do s_idx_1 = 1,2
  do s_idx_2 = 1,3
- if (idx+s9(s_idx_1)+s5(s_idx_2)>=1 .and. idx+s9(s_idx_1)+s5(s_idx_2)<=8510058) then
- svec_f_1_g_1_h_1_33(s_idx_1, s_idx_2) = w_0(idx+s9(s_idx_1)+s5(s_idx_2))
+ if (idx+s11(s_idx_1)+s6(s_idx_2)>=1 .and. idx+s11(s_idx_1)+s6(s_idx_2)<=8510058) then
+ svec_f_1_g_1_h_1_33(s_idx_1, s_idx_2) = w_0(idx+s11(s_idx_1)+s6(s_idx_2))
  else
  svec_f_1_g_1_h_1_33(s_idx_1, s_idx_2) = w_0(idx)
  end if
@@ -442,8 +442,8 @@ idx = global_id
  end do
  do s_idx_1 = 1,2
  do s_idx_2 = 1,2
- if (idx+s9(s_idx_1)+s4(s_idx_2)>=1 .and. idx+s9(s_idx_1)+s4(s_idx_2)<=8418552) then
- svec_f_1_g_1_h_1_34(s_idx_1, s_idx_2) = v_0(idx+s9(s_idx_1)+s4(s_idx_2))
+ if (idx+s11(s_idx_1)+s5(s_idx_2)>=1 .and. idx+s11(s_idx_1)+s5(s_idx_2)<=8418552) then
+ svec_f_1_g_1_h_1_34(s_idx_1, s_idx_2) = v_0(idx+s11(s_idx_1)+s5(s_idx_2))
  else
  svec_f_1_g_1_h_1_34(s_idx_1, s_idx_2) = v_0(idx)
  end if
@@ -451,8 +451,8 @@ idx = global_id
  end do
  do s_idx_1 = 1,2
  do s_idx_2 = 1,2
- if (idx+s12(s_idx_1)+s6(s_idx_2)>=1 .and. idx+s12(s_idx_1)+s6(s_idx_2)<=8418552) then
- svec_f_1_g_1_h_1_35(s_idx_1, s_idx_2) = u_0(idx+s12(s_idx_1)+s6(s_idx_2))
+ if (idx+s9(s_idx_1)+s4(s_idx_2)>=1 .and. idx+s9(s_idx_1)+s4(s_idx_2)<=8418552) then
+ svec_f_1_g_1_h_1_35(s_idx_1, s_idx_2) = u_0(idx+s9(s_idx_1)+s4(s_idx_2))
  else
  svec_f_1_g_1_h_1_35(s_idx_1, s_idx_2) = u_0(idx)
  end if
@@ -460,8 +460,8 @@ idx = global_id
  end do
  do s_idx_1 = 1,2
  do s_idx_2 = 1,3
- if (idx+s12(s_idx_1)+s5(s_idx_2)>=1 .and. idx+s12(s_idx_1)+s5(s_idx_2)<=8510058) then
- svec_f_1_g_1_h_1_36(s_idx_1, s_idx_2) = w_0(idx+s12(s_idx_1)+s5(s_idx_2))
+ if (idx+s9(s_idx_1)+s6(s_idx_2)>=1 .and. idx+s9(s_idx_1)+s6(s_idx_2)<=8510058) then
+ svec_f_1_g_1_h_1_36(s_idx_1, s_idx_2) = w_0(idx+s9(s_idx_1)+s6(s_idx_2))
  else
  svec_f_1_g_1_h_1_36(s_idx_1, s_idx_2) = w_0(idx)
  end if
@@ -469,14 +469,15 @@ idx = global_id
  end do
  do s_idx_1 = 1,2
  do s_idx_2 = 1,2
- if (idx+s12(s_idx_1)+s4(s_idx_2)>=1 .and. idx+s12(s_idx_1)+s4(s_idx_2)<=8418552) then
- svec_f_1_g_1_h_1_37(s_idx_1, s_idx_2) = v_0(idx+s12(s_idx_1)+s4(s_idx_2))
+ if (idx+s9(s_idx_1)+s5(s_idx_2)>=1 .and. idx+s9(s_idx_1)+s5(s_idx_2)<=8418552) then
+ svec_f_1_g_1_h_1_37(s_idx_1, s_idx_2) = v_0(idx+s9(s_idx_1)+s5(s_idx_2))
  else
  svec_f_1_g_1_h_1_37(s_idx_1, s_idx_2) = v_0(idx)
  end if
  end do
  end do
  do i___f_maps_f_1_g_1_h_1_1=1,2
+ th_idx___velfg_map_76_scal = global_id_0
  k_vel2_range___velfg_m___9606c486 = (((90 + 1) - 1) + 1)
  j_vel2_range___velfg_m___4b6e60e4 = ((300 - 1) + 1)
  i_vel2_range___velfg_m___ea66ec4a = ((300 - 1) + 1)
@@ -562,6 +563,7 @@ idx = global_id
  diu6_1___f_pelts_f_1_g_1_h_1_0 = diu6___velfg_map_76
  end do
  do i___f_maps_f_1_g_1_h_1_3=1,2
+ th_idx___velfg_map_76_scal = global_id_0
  k_vel2_range___velfg_m___9606c486 = (((90 + 1) - 1) + 1)
  j_vel2_range___velfg_m___4b6e60e4 = ((300 - 1) + 1)
  i_vel2_range___velfg_m___ea66ec4a = ((300 - 1) + 1)
@@ -647,6 +649,7 @@ idx = global_id
  diu6_1___f_pelts_f_1_g_1_h_1_2 = diu6___velfg_map_76
  end do
  do i___f_maps_f_1_g_1_h_1_5=1,2
+ th_idx___velfg_map_76_scal = global_id_0
  k_vel2_range___velfg_m___9606c486 = (((90 + 1) - 1) + 1)
  j_vel2_range___velfg_m___4b6e60e4 = ((300 - 1) + 1)
  i_vel2_range___velfg_m___ea66ec4a = ((300 - 1) + 1)
@@ -734,6 +737,7 @@ idx = global_id
  diu6_s_0___f_comp_f_1____b1f35dc5(i___f_maps_f_1_g_1_h_1_5) = diu6___velfg_map_76
  end do
  do i___f_maps_f_1_g_1_h_1_7=1,2
+ th_idx___velfg_map_76_scal = global_id_0
  k_vel2_range___velfg_m___9606c486 = (((90 + 1) - 1) + 1)
  j_vel2_range___velfg_m___4b6e60e4 = ((300 - 1) + 1)
  i_vel2_range___velfg_m___ea66ec4a = ((300 - 1) + 1)
@@ -818,6 +822,7 @@ idx = global_id
  diu6_1___f_pelts_f_1_g_1_h_1_6 = diu6___velfg_map_76
  end do
  do i___f_maps_f_1_g_1_h_1_9=1,2
+ th_idx___velfg_map_76_scal = global_id_0
  k_vel2_range___velfg_m___9606c486 = (((90 + 1) - 1) + 1)
  j_vel2_range___velfg_m___4b6e60e4 = ((300 - 1) + 1)
  i_vel2_range___velfg_m___ea66ec4a = ((300 - 1) + 1)
@@ -906,15 +911,15 @@ idx = global_id
  k_vel2_range___velfg_m___a725d29e = (((90 - 1) - 1) + 1)
  j_vel2_range___velfg_m___9675913f = ((300 - 1) + 1)
  i_vel2_range___velfg_m___a1f7aab8 = ((300 - 1) + 1)
- k_vel2_rel___velfg_map_133_scal = (th_idx___velfg_map_133_scal /  &
-      (j_vel2_range___velfg_m___9675913f * i_vel2_range___velfg_m___a1f7aab8))
+ k_vel2_rel___velfg_map_133_scal = (global_id_0 / (j_vel2_range___velfg_m___9675913f *  &
+      i_vel2_range___velfg_m___a1f7aab8))
  k_vel2___velfg_map_133_scal = (k_vel2_rel___velfg_map_133_scal + 1)
- j_vel2_rel___velfg_map_133_scal = ((th_idx___velfg_map_133_scal - (k_vel2_rel___velfg_map_133_scal  &
-      * (j_vel2_range___velfg_m___9675913f * i_vel2_range___velfg_m___a1f7aab8))) /  &
+ j_vel2_rel___velfg_map_133_scal = ((global_id_0 - (k_vel2_rel___velfg_map_133_scal *  &
+      (j_vel2_range___velfg_m___9675913f * i_vel2_range___velfg_m___a1f7aab8))) /  &
       i_vel2_range___velfg_m___a1f7aab8)
  j_vel2___velfg_map_133_scal = (j_vel2_rel___velfg_map_133_scal + 1)
- i_vel2_rel___velfg_map_133_scal = ((th_idx___velfg_map_133_scal - (k_vel2_rel___velfg_map_133_scal  &
-      * (j_vel2_range___velfg_m___9675913f * i_vel2_range___velfg_m___a1f7aab8))) -  &
+ i_vel2_rel___velfg_map_133_scal = ((global_id_0 - (k_vel2_rel___velfg_map_133_scal *  &
+      (j_vel2_range___velfg_m___9675913f * i_vel2_range___velfg_m___a1f7aab8))) -  &
       (j_vel2_rel___velfg_map_133_scal * i_vel2_range___velfg_m___a1f7aab8))
  i_vel2___velfg_map_133_scal = (i_vel2_rel___velfg_map_133_scal + 1)
  nou7___velfg_map_133 = (dzn_0(k_vel2___velfg_map_133_scal + 1) *  &
@@ -943,15 +948,15 @@ idx = global_id
  k_vel2_range___velfg_m___a725d29e = (((90 - 1) - 1) + 1)
  j_vel2_range___velfg_m___9675913f = ((300 - 1) + 1)
  i_vel2_range___velfg_m___a1f7aab8 = ((300 - 1) + 1)
- k_vel2_rel___velfg_map_133_scal = (th_idx___velfg_map_133_scal /  &
-      (j_vel2_range___velfg_m___9675913f * i_vel2_range___velfg_m___a1f7aab8))
+ k_vel2_rel___velfg_map_133_scal = (global_id_0 / (j_vel2_range___velfg_m___9675913f *  &
+      i_vel2_range___velfg_m___a1f7aab8))
  k_vel2___velfg_map_133_scal = (k_vel2_rel___velfg_map_133_scal + 1)
- j_vel2_rel___velfg_map_133_scal = ((th_idx___velfg_map_133_scal - (k_vel2_rel___velfg_map_133_scal  &
-      * (j_vel2_range___velfg_m___9675913f * i_vel2_range___velfg_m___a1f7aab8))) /  &
+ j_vel2_rel___velfg_map_133_scal = ((global_id_0 - (k_vel2_rel___velfg_map_133_scal *  &
+      (j_vel2_range___velfg_m___9675913f * i_vel2_range___velfg_m___a1f7aab8))) /  &
       i_vel2_range___velfg_m___a1f7aab8)
  j_vel2___velfg_map_133_scal = (j_vel2_rel___velfg_map_133_scal + 1)
- i_vel2_rel___velfg_map_133_scal = ((th_idx___velfg_map_133_scal - (k_vel2_rel___velfg_map_133_scal  &
-      * (j_vel2_range___velfg_m___9675913f * i_vel2_range___velfg_m___a1f7aab8))) -  &
+ i_vel2_rel___velfg_map_133_scal = ((global_id_0 - (k_vel2_rel___velfg_map_133_scal *  &
+      (j_vel2_range___velfg_m___9675913f * i_vel2_range___velfg_m___a1f7aab8))) -  &
       (j_vel2_rel___velfg_map_133_scal * i_vel2_range___velfg_m___a1f7aab8))
  i_vel2___velfg_map_133_scal = (i_vel2_rel___velfg_map_133_scal + 1)
  nou7___velfg_map_133 = (dzn_0(k_vel2___velfg_map_133_scal + 1) *  &
@@ -980,14 +985,14 @@ idx = global_id
  k_range___velfg_map_218_scal = ((90 - 1) + 1)
  j_range___velfg_map_218_scal = ((300 - 1) + 1)
  i_range___velfg_map_218_scal = ((300 - 1) + 1)
- k_rel___velfg_map_218_scal = (th_idx___velfg_map_218_scal / (j_range___velfg_map_218_scal *  &
+ k_rel___velfg_map_218_scal = (global_id_0 / (j_range___velfg_map_218_scal *  &
       i_range___velfg_map_218_scal))
  k___velfg_map_218_scal = (k_rel___velfg_map_218_scal + 1)
- j_rel___velfg_map_218_scal = ((th_idx___velfg_map_218_scal - (k_rel___velfg_map_218_scal *  &
+ j_rel___velfg_map_218_scal = ((global_id_0 - (k_rel___velfg_map_218_scal *  &
       (j_range___velfg_map_218_scal * i_range___velfg_map_218_scal))) /  &
       i_range___velfg_map_218_scal)
  j___velfg_map_218_scal = (j_rel___velfg_map_218_scal + 1)
- i_rel___velfg_map_218_scal = ((th_idx___velfg_map_218_scal - (k_rel___velfg_map_218_scal *  &
+ i_rel___velfg_map_218_scal = ((global_id_0 - (k_rel___velfg_map_218_scal *  &
       (j_range___velfg_map_218_scal * i_range___velfg_map_218_scal))) -  &
       (j_rel___velfg_map_218_scal * i_range___velfg_map_218_scal))
  i___velfg_map_218_scal = (i_rel___velfg_map_218_scal + 1)

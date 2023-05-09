@@ -1,6 +1,6 @@
 program main
     use module_velfg_superkernel, only : velfg_superkernel
-    integer :: global_id
+    ! integer :: global_id
     ! common /ocl/ global_id
     ! Declarations
     real, dimension(-1:301) :: dx1_0
@@ -16,13 +16,13 @@ program main
     real, dimension(1:8244691) :: h_1
     integer, parameter :: ST_STAGE_KERNEL_1 = 1 ! stage_kernel_1
     integer :: state_ptr
-    integer, parameter :: niters = 5
+    integer, parameter :: niters = 10
     integer :: iter 
     ! Loops over stage calls
     state_ptr = ST_STAGE_KERNEL_1
     do iter = 1, niters
     print *, iter
-    do global_id = 1, 8510058
+    do global_id_0 = 1, 300*300*90
       call velfg_superkernel(dx1_0, dy1_0, dzn_0, dzs_0, global_id_0, u_0, v_0, w_0, f_1, g_1, h_1,state_ptr)
     end do
     end do
