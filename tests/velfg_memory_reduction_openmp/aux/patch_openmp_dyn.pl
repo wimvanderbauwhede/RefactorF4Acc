@@ -15,7 +15,7 @@ if ($wd!~/mem_reduced_inlined.Generated.Patched/) {
 
 
 # - Find the file with the main program. It is the file starting with 'gen_'
-my @main_files =  glob('gen_*.f95');
+my @main_files =  glob('gen_*_superkernel.f95');
 if (scalar @main_files>1) {
     die 'Too many main files!';
 }
@@ -35,8 +35,9 @@ my @alloc_lines = ();
 my @dealloc_lines = ();
 my $alloc=0;
 my $global_id_do=0;
+my $skip=0;
 for my $line (@main_file_lines) {
-
+$skip=0;
     $line=~/do\s+global_id/ && do {
         $global_id_do=1;
         say $SKMF '#ifdef WITH_OPENMP
@@ -50,11 +51,15 @@ for my $line (@main_file_lines) {
             say $SKMF $dealloc_line;
         }
         say $SKMF '#endif';
+        print $SKMF $line;
+        $skip=1;
     };
 
-    print $SKMF $line;
+    
 
-    $line =~/program\s+main/ && do {
+    $line =~/^\s*program\s+main/ && do {
+        $skip=1;
+        print $SKMF $line;
         say $SKMF
 '#define MM (WM*WM)
 #ifdef WITH_OPENMP    
@@ -62,7 +67,7 @@ use omp_lib
 #endif';
     };
     
-    $line=~/dimension\((.+)\)\s+::\s+(\w+)/ && do { 
+    $line=~/dimension\((.+)\)\s+::\s+(\w+)/ && $line!~/timestamp/ && do { 
         my $dim = $1;
         my $var = $2;
         push @alloc_lines, "allocate(${var}(${dim}_8*MM))";
@@ -71,24 +76,30 @@ use omp_lib
         my $stat_line=$line;
         $stat_line =~s/$dim/${dim}_8*MM/;
         $dyn_line =~s/dimension.+?\)/allocatable/;
+        $dyn_line =~s/\s*$/(:)/;
         say $SKMF '#ifdef DYN_ALLOC';
-        print $SKMF $dyn_line;
+        say $SKMF $dyn_line;
         say $SKMF '#else';
         print $SKMF $stat_line;
         say $SKMF '#endif';
+        $skip=1;
     };
-    $alloc==0 && $line=~/\s=\s/ && do { # FIXME, VERY AD-HOC
+    $alloc==0 && $line=~/timestamp/  && do { # FIXME, VERY AD-HOC
+        print $SKMF $line; $skip=1;
         $alloc=1;
+        say $SKMF '#ifdef DYN_ALLOC';
         for my $alloc_line (@alloc_lines) {
             say $SKMF $alloc_line;
         }
+        say $SKMF '#endif';
     };
-    $global_id_do==1 && $line=~/end do\s+global_id/ && do {
+    $global_id_do==1 && $line=~/end do/ && do {
+        print $SKMF $line; $skip=1;
         $global_id_do=0;
         say $SKMF '#ifdef WITH_OPENMP
 !$OMP END PARALLEL DO
 #endif'
     };
-
+    print $SKMF $line unless $skip;
 }
 close $SKMF;

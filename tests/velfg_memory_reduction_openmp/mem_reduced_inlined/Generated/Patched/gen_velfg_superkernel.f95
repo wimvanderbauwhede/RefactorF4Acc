@@ -44,10 +44,6 @@ use singleton_module_velfg_superkernel, only : velfg_superkernel
 
     call system_clock(timestamp(0), clock_rate)
     
-    ! iter loop here
-
-
-    
 !    ! Loops over stage calls
     state_ptr = st_stage_kernel_1
     do iter = 1, niters

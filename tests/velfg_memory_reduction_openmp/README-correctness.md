@@ -58,5 +58,10 @@ In the driver (gen_velfg_superkernel.f95) we add:
    324692.000
 
 4. test the single-threaded generated code with inlining
+ 4.723
+   144691.000    
+   144691.000    
+   324692.000 
+
 5. test the OpenMP generated code with inlining
 
