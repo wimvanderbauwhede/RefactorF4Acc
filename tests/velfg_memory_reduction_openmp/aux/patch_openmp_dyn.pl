@@ -37,25 +37,7 @@ my $alloc=0;
 my $global_id_do=0;
 my $skip=0;
 for my $line (@main_file_lines) {
-$skip=0;
-    $line=~/do\s+global_id/ && do {
-        $global_id_do=1;
-        say $SKMF '#ifdef WITH_OPENMP
-!$OMP PARALLEL DO
-#endif'
-    };
-
-    $line=~/end\s+program/ && do {
-        say $SKMF '#ifdef DYN_ALLOC';
-                for my $dealloc_line (@dealloc_lines) {
-            say $SKMF $dealloc_line;
-        }
-        say $SKMF '#endif';
-        print $SKMF $line;
-        $skip=1;
-    };
-
-    
+    $skip=0;
 
     $line =~/^\s*program\s+main/ && do {
         $skip=1;
@@ -66,12 +48,23 @@ $skip=0;
 use omp_lib
 #endif';
     };
+
+    $line=~/integer,\s*parameter\s*::\s*[ij]p/ && do {
+        $line=~s/\s*$/*WM/;
+        say $SKMF $line; $skip=1;
+    };
     
     $line=~/dimension\((.+)\)\s+::\s+(\w+)/ && $line!~/timestamp/ && do { 
         my $dim = $1;
         my $var = $2;
+        if ($var!~/^d[xyz]/)  {
         push @alloc_lines, "allocate(${var}(${dim}_8*MM))";
         push @dealloc_lines, "deallocate(${var})";
+        } else {
+        push @alloc_lines, "allocate(${var}(${dim}_8*WM))";
+        push @dealloc_lines, "deallocate(${var})";
+
+        }
         my $dyn_line=$line;
         my $stat_line=$line;
         $stat_line =~s/$dim/${dim}_8*MM/;
@@ -93,6 +86,14 @@ use omp_lib
         }
         say $SKMF '#endif';
     };
+
+    $line=~/do\s+global_id/ && do {
+        $global_id_do=1;
+        say $SKMF '#ifdef WITH_OPENMP
+!$OMP PARALLEL DO
+#endif'
+    };
+
     $global_id_do==1 && $line=~/end do/ && do {
         print $SKMF $line; $skip=1;
         $global_id_do=0;
@@ -100,6 +101,16 @@ use omp_lib
 !$OMP END PARALLEL DO
 #endif'
     };
+
+    $line=~/end\s+program/ && do {
+        say $SKMF '#ifdef DYN_ALLOC';
+                for my $dealloc_line (@dealloc_lines) {
+            say $SKMF $dealloc_line;
+        }
+        say $SKMF '#endif';
+        print $SKMF $line;
+        $skip=1;
+    };    
     print $SKMF $line unless $skip;
 }
 close $SKMF;
