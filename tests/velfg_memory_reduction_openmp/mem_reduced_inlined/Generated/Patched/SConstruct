@@ -6,7 +6,7 @@ fsources = ['gen_velfg_superkernel.f95', 'stage_kernel_1.f95', 'velfg_superkerne
 
 FLFLAGS = ['-Ofast','-flto']
 #FLFLAGS += ['-fopenmp','-DWITH_OPENMP', '-DWM=2']
-FLFLAGS += [ '-DWM=2']
+FLFLAGS += [ '-DWM=2','-DTIMING','-DCHECKSUM']
 FFLAGS = FLFLAGS + ['-Wall','-cpp','-m64','-ffree-form','-ffree-line-length-0','-fconvert=little-endian','-frecord-marker=4']
 
 envF=Environment(F95=FC,LINK=FC,LINKFLAGS=FLFLAGS,F95FLAGS=FFLAGS,F95PATH=['.' ,'/usr/local/include'])

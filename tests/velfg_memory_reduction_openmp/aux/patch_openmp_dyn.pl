@@ -42,15 +42,16 @@ for my $line (@main_file_lines) {
     $line =~/^\s*program\s+main/ && do {
         $skip=1;
         print $SKMF $line;
+        # define MM (WM*WM)
         say $SKMF
-'#define MM (WM*WM)
+'
 #ifdef WITH_OPENMP    
 use omp_lib
 #endif';
     };
 
     $line=~/integer,\s*parameter\s*::\s*[ij]p/ && do {
-        $line=~s/\s*$/*WM/;
+        # $line=~s/\s*$/*WM/;
         say $SKMF $line; $skip=1;
     };
     
@@ -58,17 +59,19 @@ use omp_lib
         my $dim = $1;
         my $var = $2;
         if ($var!~/^d[xyz]/)  {
-        push @alloc_lines, "allocate(${var}(${dim}_8*MM))";
+        push @alloc_lines, "allocate(${var}(${dim}))"; #_8*MM
         push @dealloc_lines, "deallocate(${var})";
         } else {
-        push @alloc_lines, "allocate(${var}(${dim}_8*WM))";
+        push @alloc_lines, "allocate(${var}(${dim}))";#_8*WM
         push @dealloc_lines, "deallocate(${var})";
 
         }
         my $dyn_line=$line;
         my $stat_line=$line;
+        # dimension(1:92*(150*WM+2)*(150*WM+3)) ::
+        # allocatable
         $stat_line =~s/$dim/${dim}_8*MM/;
-        $dyn_line =~s/dimension.+?\)/allocatable/;
+        $dyn_line =~s/dimension.+?::/allocatable ::/;
         $dyn_line =~s/\s*$/(:)/;
         say $SKMF '#ifdef DYN_ALLOC';
         say $SKMF $dyn_line;
@@ -77,7 +80,7 @@ use omp_lib
         say $SKMF '#endif';
         $skip=1;
     };
-    $alloc==0 && $line=~/timestamp/  && do { # FIXME, VERY AD-HOC
+    $alloc==0 && $line=~/\#endif/  && do { # FIXME, VERY AD-HOC
         print $SKMF $line; $skip=1;
         $alloc=1;
         say $SKMF '#ifdef DYN_ALLOC';

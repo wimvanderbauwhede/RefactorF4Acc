@@ -3,15 +3,16 @@
 In the driver (gen_velfg_superkernel.f95) we add: 
 
      integer, parameter :: ip=150*WM
-     integer, parameter :: jp=150*WM300
+     integer, parameter :: jp=150*WM
      integer, parameter :: kp=90
+
     integer :: i,j,k     
 
     ! other decls ... 
-
+#ifdef TIMING
     integer :: clock_rate
     integer (kind=4), dimension(0:1) :: timestamp 
-
+#endif
     do k = -1,kp+2
       dzn_0(k)=1.
       dzs_0(k)=1.
@@ -27,16 +28,20 @@ In the driver (gen_velfg_superkernel.f95) we add:
     f_1 = 1.0; g_1 = 1.0; h_1 = 1.0
     u_0 = 1.0; v_0 = 1.0; w_0 = 1.0
 
+#ifdef TIMING
     call system_clock(timestamp(0), clock_rate)
-
+#endif
     ! iter loop here => change to 90*150*WM*150*WM
-
+#ifdef TIMING
     call system_clock(timestamp(1), clock_rate)
     print '(f6.3)',(timestamp(1)-timestamp(0))/ real(clock_rate)
+#endif
+
+#ifdef CHECKSUM    
    print *, sum(f_1)
    print *, sum(g_1)
    print *, sum(h_1)
-
+#endif
 
 1. test the single-threaded reference
 14.338
@@ -64,6 +69,11 @@ In the driver (gen_velfg_superkernel.f95) we add:
    324692.000 
 
 5. test the OpenMP generated code with inlining
+
+ 0.808
+   144691.000    
+   144691.000    
+   324692.000 
 
 The complication here is that the WM must apply to the ip and kp, not to the overall size. So ideally, when we generate the full sizes, these should be expressions in WM rather than numeric constants. 
 

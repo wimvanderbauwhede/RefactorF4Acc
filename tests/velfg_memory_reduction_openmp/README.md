@@ -18,7 +18,7 @@ This needs to be set manually at compile time. For testing on the laptop, WM=1 i
     - run `memory_reduction.pl -C`. This should create the reduced file in `MemoryReduction/Generated`
 8. In `~/Git/RefactorF4Acc/tests/velfg_memory_reduction_openmp/MemoryReduction/`
     - patch the kernel module, the scalarised functions and the SConstruct file
-        `../aux/patch_memreduced.sh -i`
+        `../aux/patch_memreduced.sh -i` (-i is obsolete)
     - the patch does the following:
         - in `Generated`
             - remove the intent for vars that are not stage kernel args in `module_gen_*_superkernel.f95` (probably does nothing anymore )
@@ -32,6 +32,10 @@ This needs to be set manually at compile time. For testing on the laptop, WM=1 i
     - Patch the generated files and the SConstruct file:
     `perl ../../aux/patch_inlined_code.pl`
     - The patched code is in `Patched`, build using `scons`, the executable is `prog.exe`
+10. In `~/Git/RefactorF4Acc/tests/velfg_memory_reduction_openmp/mem_reduced_inlined/Generated/Patched`:
+    - Patch the generated files and the SConstruct file for OpenMP
+    `perl ../../../aux/patch_openmp_dyn.pl`
+    - The patched code is in `gen_velfg_superkernel_omp_dyn.f95`, build using `scons -f SConstruct.omp_dyn`, the executable is `prog-omp_dyn.exe`
 
 BUGS 2023-04-27
 

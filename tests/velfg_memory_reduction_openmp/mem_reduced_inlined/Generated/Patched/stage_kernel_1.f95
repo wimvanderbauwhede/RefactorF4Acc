@@ -245,28 +245,28 @@ subroutine stage_kernel_1(dx1_0,dy1_0,dzn_0,dzs_0,global_id_0,u_0,v_0,w_0,f_1,g_
  real, dimension(1:8244691) :: f_1
  real, dimension(1:8244691) :: g_1
  real, dimension(1:8244691) :: h_1
- integer, dimension(1:2), parameter :: s8=(/ 92418 , 92419 /)
- integer, dimension(1:5), parameter :: s3=(/ 605, 91809, 92110, 92111, 92412 /)
+ integer, dimension(1:2), parameter :: s7=(/ 92418 , 92419 /)
+ integer, dimension(1:5), parameter :: s1=(/ 605, 91809, 92110, 92111, 92412 /)
  real, dimension(1:2,1:5) :: svec_f_1_g_1_h_1_17
  integer :: s_idx_1
  integer :: s_idx_2
- integer, dimension(1:5), parameter :: s1=(/ 605, 91809, 91810, 92110, 92111 /)
+ integer, dimension(1:5), parameter :: s2=(/ 605, 91809, 91810, 92110, 92111 /)
  real, dimension(1:2,1:5) :: svec_f_1_g_1_h_1_18
- integer, dimension(1:4), parameter :: s2=(/ 92111, 92112, 92413, 183617 /)
+ integer, dimension(1:4), parameter :: s3=(/ 92111, 92112, 92413, 183617 /)
  real, dimension(1:2,1:4) :: svec_f_1_g_1_h_1_19
- integer, dimension(1:2), parameter :: s9=(/ 92113 , 92416 /)
+ integer, dimension(1:2), parameter :: s8=(/ 92113 , 92416 /)
  real, dimension(1:2,1:5) :: svec_f_1_g_1_h_1_20
  real, dimension(1:2,1:5) :: svec_f_1_g_1_h_1_21
  real, dimension(1:2,1:4) :: svec_f_1_g_1_h_1_22
- integer, dimension(1:2), parameter :: s7=(/ 92113 , 183922 /)
+ integer, dimension(1:2), parameter :: s9=(/ 92113 , 183922 /)
  real, dimension(1:2,1:5) :: svec_f_1_g_1_h_1_23
  real, dimension(1:2,1:5) :: svec_f_1_g_1_h_1_24
  real, dimension(1:2,1:4) :: svec_f_1_g_1_h_1_25
- integer, dimension(1:2), parameter :: s11=(/ 92113 , 92114 /)
+ integer, dimension(1:2), parameter :: s12=(/ 92113 , 92114 /)
  real, dimension(1:2,1:5) :: svec_f_1_g_1_h_1_26
  real, dimension(1:2,1:5) :: svec_f_1_g_1_h_1_27
  real, dimension(1:2,1:4) :: svec_f_1_g_1_h_1_28
- integer, dimension(1:2), parameter :: s12=(/ 92418 , 92722 /)
+ integer, dimension(1:2), parameter :: s13=(/ 92418 , 92722 /)
  real, dimension(1:2,1:5) :: svec_f_1_g_1_h_1_29
  real, dimension(1:2,1:5) :: svec_f_1_g_1_h_1_30
  real, dimension(1:2,1:4) :: svec_f_1_g_1_h_1_31
@@ -289,8 +289,8 @@ subroutine stage_kernel_1(dx1_0,dy1_0,dzn_0,dzs_0,global_id_0,u_0,v_0,w_0,f_1,g_
 !RF4A Begin Inline
  do s_idx_1 = 1,2
  do s_idx_2 = 1,5
- if (idx+s8(s_idx_1)+s3(s_idx_2)>=1 .and. idx+s8(s_idx_1)+s3(s_idx_2)<=8418552) then
- svec_f_1_g_1_h_1_17(s_idx_1, s_idx_2) = u_0(idx+s8(s_idx_1)+s3(s_idx_2))
+ if (idx+s7(s_idx_1)+s1(s_idx_2)>=1 .and. idx+s7(s_idx_1)+s1(s_idx_2)<=8418552) then
+ svec_f_1_g_1_h_1_17(s_idx_1, s_idx_2) = u_0(idx+s7(s_idx_1)+s1(s_idx_2))
  else
  svec_f_1_g_1_h_1_17(s_idx_1, s_idx_2) = u_0(idx)
  end if
@@ -298,8 +298,8 @@ subroutine stage_kernel_1(dx1_0,dy1_0,dzn_0,dzs_0,global_id_0,u_0,v_0,w_0,f_1,g_
  end do
  do s_idx_1 = 1,2
  do s_idx_2 = 1,5
- if (idx+s8(s_idx_1)+s1(s_idx_2)>=1 .and. idx+s8(s_idx_1)+s1(s_idx_2)<=8418552) then
- svec_f_1_g_1_h_1_18(s_idx_1, s_idx_2) = v_0(idx+s8(s_idx_1)+s1(s_idx_2))
+ if (idx+s7(s_idx_1)+s2(s_idx_2)>=1 .and. idx+s7(s_idx_1)+s2(s_idx_2)<=8418552) then
+ svec_f_1_g_1_h_1_18(s_idx_1, s_idx_2) = v_0(idx+s7(s_idx_1)+s2(s_idx_2))
  else
  svec_f_1_g_1_h_1_18(s_idx_1, s_idx_2) = v_0(idx)
  end if
@@ -307,8 +307,8 @@ subroutine stage_kernel_1(dx1_0,dy1_0,dzn_0,dzs_0,global_id_0,u_0,v_0,w_0,f_1,g_
  end do
  do s_idx_1 = 1,2
  do s_idx_2 = 1,4
- if (idx+s8(s_idx_1)+s2(s_idx_2)>=1 .and. idx+s8(s_idx_1)+s2(s_idx_2)<=8510058) then
- svec_f_1_g_1_h_1_19(s_idx_1, s_idx_2) = w_0(idx+s8(s_idx_1)+s2(s_idx_2))
+ if (idx+s7(s_idx_1)+s3(s_idx_2)>=1 .and. idx+s7(s_idx_1)+s3(s_idx_2)<=8510058) then
+ svec_f_1_g_1_h_1_19(s_idx_1, s_idx_2) = w_0(idx+s7(s_idx_1)+s3(s_idx_2))
  else
  svec_f_1_g_1_h_1_19(s_idx_1, s_idx_2) = w_0(idx)
  end if
@@ -316,8 +316,8 @@ subroutine stage_kernel_1(dx1_0,dy1_0,dzn_0,dzs_0,global_id_0,u_0,v_0,w_0,f_1,g_
  end do
  do s_idx_1 = 1,2
  do s_idx_2 = 1,5
- if (idx+s9(s_idx_1)+s3(s_idx_2)>=1 .and. idx+s9(s_idx_1)+s3(s_idx_2)<=8418552) then
- svec_f_1_g_1_h_1_20(s_idx_1, s_idx_2) = u_0(idx+s9(s_idx_1)+s3(s_idx_2))
+ if (idx+s8(s_idx_1)+s1(s_idx_2)>=1 .and. idx+s8(s_idx_1)+s1(s_idx_2)<=8418552) then
+ svec_f_1_g_1_h_1_20(s_idx_1, s_idx_2) = u_0(idx+s8(s_idx_1)+s1(s_idx_2))
  else
  svec_f_1_g_1_h_1_20(s_idx_1, s_idx_2) = u_0(idx)
  end if
@@ -325,8 +325,8 @@ subroutine stage_kernel_1(dx1_0,dy1_0,dzn_0,dzs_0,global_id_0,u_0,v_0,w_0,f_1,g_
  end do
  do s_idx_1 = 1,2
  do s_idx_2 = 1,5
- if (idx+s9(s_idx_1)+s1(s_idx_2)>=1 .and. idx+s9(s_idx_1)+s1(s_idx_2)<=8418552) then
- svec_f_1_g_1_h_1_21(s_idx_1, s_idx_2) = v_0(idx+s9(s_idx_1)+s1(s_idx_2))
+ if (idx+s8(s_idx_1)+s2(s_idx_2)>=1 .and. idx+s8(s_idx_1)+s2(s_idx_2)<=8418552) then
+ svec_f_1_g_1_h_1_21(s_idx_1, s_idx_2) = v_0(idx+s8(s_idx_1)+s2(s_idx_2))
  else
  svec_f_1_g_1_h_1_21(s_idx_1, s_idx_2) = v_0(idx)
  end if
@@ -334,8 +334,8 @@ subroutine stage_kernel_1(dx1_0,dy1_0,dzn_0,dzs_0,global_id_0,u_0,v_0,w_0,f_1,g_
  end do
  do s_idx_1 = 1,2
  do s_idx_2 = 1,4
- if (idx+s9(s_idx_1)+s2(s_idx_2)>=1 .and. idx+s9(s_idx_1)+s2(s_idx_2)<=8510058) then
- svec_f_1_g_1_h_1_22(s_idx_1, s_idx_2) = w_0(idx+s9(s_idx_1)+s2(s_idx_2))
+ if (idx+s8(s_idx_1)+s3(s_idx_2)>=1 .and. idx+s8(s_idx_1)+s3(s_idx_2)<=8510058) then
+ svec_f_1_g_1_h_1_22(s_idx_1, s_idx_2) = w_0(idx+s8(s_idx_1)+s3(s_idx_2))
  else
  svec_f_1_g_1_h_1_22(s_idx_1, s_idx_2) = w_0(idx)
  end if
@@ -343,8 +343,8 @@ subroutine stage_kernel_1(dx1_0,dy1_0,dzn_0,dzs_0,global_id_0,u_0,v_0,w_0,f_1,g_
  end do
  do s_idx_1 = 1,2
  do s_idx_2 = 1,5
- if (idx+s7(s_idx_1)+s3(s_idx_2)>=1 .and. idx+s7(s_idx_1)+s3(s_idx_2)<=8418552) then
- svec_f_1_g_1_h_1_23(s_idx_1, s_idx_2) = u_0(idx+s7(s_idx_1)+s3(s_idx_2))
+ if (idx+s9(s_idx_1)+s1(s_idx_2)>=1 .and. idx+s9(s_idx_1)+s1(s_idx_2)<=8418552) then
+ svec_f_1_g_1_h_1_23(s_idx_1, s_idx_2) = u_0(idx+s9(s_idx_1)+s1(s_idx_2))
  else
  svec_f_1_g_1_h_1_23(s_idx_1, s_idx_2) = u_0(idx)
  end if
@@ -352,8 +352,8 @@ subroutine stage_kernel_1(dx1_0,dy1_0,dzn_0,dzs_0,global_id_0,u_0,v_0,w_0,f_1,g_
  end do
  do s_idx_1 = 1,2
  do s_idx_2 = 1,5
- if (idx+s7(s_idx_1)+s1(s_idx_2)>=1 .and. idx+s7(s_idx_1)+s1(s_idx_2)<=8418552) then
- svec_f_1_g_1_h_1_24(s_idx_1, s_idx_2) = v_0(idx+s7(s_idx_1)+s1(s_idx_2))
+ if (idx+s9(s_idx_1)+s2(s_idx_2)>=1 .and. idx+s9(s_idx_1)+s2(s_idx_2)<=8418552) then
+ svec_f_1_g_1_h_1_24(s_idx_1, s_idx_2) = v_0(idx+s9(s_idx_1)+s2(s_idx_2))
  else
  svec_f_1_g_1_h_1_24(s_idx_1, s_idx_2) = v_0(idx)
  end if
@@ -361,8 +361,8 @@ subroutine stage_kernel_1(dx1_0,dy1_0,dzn_0,dzs_0,global_id_0,u_0,v_0,w_0,f_1,g_
  end do
  do s_idx_1 = 1,2
  do s_idx_2 = 1,4
- if (idx+s7(s_idx_1)+s2(s_idx_2)>=1 .and. idx+s7(s_idx_1)+s2(s_idx_2)<=8510058) then
- svec_f_1_g_1_h_1_25(s_idx_1, s_idx_2) = w_0(idx+s7(s_idx_1)+s2(s_idx_2))
+ if (idx+s9(s_idx_1)+s3(s_idx_2)>=1 .and. idx+s9(s_idx_1)+s3(s_idx_2)<=8510058) then
+ svec_f_1_g_1_h_1_25(s_idx_1, s_idx_2) = w_0(idx+s9(s_idx_1)+s3(s_idx_2))
  else
  svec_f_1_g_1_h_1_25(s_idx_1, s_idx_2) = w_0(idx)
  end if
@@ -370,8 +370,8 @@ subroutine stage_kernel_1(dx1_0,dy1_0,dzn_0,dzs_0,global_id_0,u_0,v_0,w_0,f_1,g_
  end do
  do s_idx_1 = 1,2
  do s_idx_2 = 1,5
- if (idx+s11(s_idx_1)+s3(s_idx_2)>=1 .and. idx+s11(s_idx_1)+s3(s_idx_2)<=8418552) then
- svec_f_1_g_1_h_1_26(s_idx_1, s_idx_2) = u_0(idx+s11(s_idx_1)+s3(s_idx_2))
+ if (idx+s12(s_idx_1)+s1(s_idx_2)>=1 .and. idx+s12(s_idx_1)+s1(s_idx_2)<=8418552) then
+ svec_f_1_g_1_h_1_26(s_idx_1, s_idx_2) = u_0(idx+s12(s_idx_1)+s1(s_idx_2))
  else
  svec_f_1_g_1_h_1_26(s_idx_1, s_idx_2) = u_0(idx)
  end if
@@ -379,8 +379,8 @@ subroutine stage_kernel_1(dx1_0,dy1_0,dzn_0,dzs_0,global_id_0,u_0,v_0,w_0,f_1,g_
  end do
  do s_idx_1 = 1,2
  do s_idx_2 = 1,5
- if (idx+s11(s_idx_1)+s1(s_idx_2)>=1 .and. idx+s11(s_idx_1)+s1(s_idx_2)<=8418552) then
- svec_f_1_g_1_h_1_27(s_idx_1, s_idx_2) = v_0(idx+s11(s_idx_1)+s1(s_idx_2))
+ if (idx+s12(s_idx_1)+s2(s_idx_2)>=1 .and. idx+s12(s_idx_1)+s2(s_idx_2)<=8418552) then
+ svec_f_1_g_1_h_1_27(s_idx_1, s_idx_2) = v_0(idx+s12(s_idx_1)+s2(s_idx_2))
  else
  svec_f_1_g_1_h_1_27(s_idx_1, s_idx_2) = v_0(idx)
  end if
@@ -388,8 +388,8 @@ subroutine stage_kernel_1(dx1_0,dy1_0,dzn_0,dzs_0,global_id_0,u_0,v_0,w_0,f_1,g_
  end do
  do s_idx_1 = 1,2
  do s_idx_2 = 1,4
- if (idx+s11(s_idx_1)+s2(s_idx_2)>=1 .and. idx+s11(s_idx_1)+s2(s_idx_2)<=8510058) then
- svec_f_1_g_1_h_1_28(s_idx_1, s_idx_2) = w_0(idx+s11(s_idx_1)+s2(s_idx_2))
+ if (idx+s12(s_idx_1)+s3(s_idx_2)>=1 .and. idx+s12(s_idx_1)+s3(s_idx_2)<=8510058) then
+ svec_f_1_g_1_h_1_28(s_idx_1, s_idx_2) = w_0(idx+s12(s_idx_1)+s3(s_idx_2))
  else
  svec_f_1_g_1_h_1_28(s_idx_1, s_idx_2) = w_0(idx)
  end if
@@ -397,8 +397,8 @@ subroutine stage_kernel_1(dx1_0,dy1_0,dzn_0,dzs_0,global_id_0,u_0,v_0,w_0,f_1,g_
  end do
  do s_idx_1 = 1,2
  do s_idx_2 = 1,5
- if (idx+s12(s_idx_1)+s3(s_idx_2)>=1 .and. idx+s12(s_idx_1)+s3(s_idx_2)<=8418552) then
- svec_f_1_g_1_h_1_29(s_idx_1, s_idx_2) = u_0(idx+s12(s_idx_1)+s3(s_idx_2))
+ if (idx+s13(s_idx_1)+s1(s_idx_2)>=1 .and. idx+s13(s_idx_1)+s1(s_idx_2)<=8418552) then
+ svec_f_1_g_1_h_1_29(s_idx_1, s_idx_2) = u_0(idx+s13(s_idx_1)+s1(s_idx_2))
  else
  svec_f_1_g_1_h_1_29(s_idx_1, s_idx_2) = u_0(idx)
  end if
@@ -406,8 +406,8 @@ subroutine stage_kernel_1(dx1_0,dy1_0,dzn_0,dzs_0,global_id_0,u_0,v_0,w_0,f_1,g_
  end do
  do s_idx_1 = 1,2
  do s_idx_2 = 1,5
- if (idx+s12(s_idx_1)+s1(s_idx_2)>=1 .and. idx+s12(s_idx_1)+s1(s_idx_2)<=8418552) then
- svec_f_1_g_1_h_1_30(s_idx_1, s_idx_2) = v_0(idx+s12(s_idx_1)+s1(s_idx_2))
+ if (idx+s13(s_idx_1)+s2(s_idx_2)>=1 .and. idx+s13(s_idx_1)+s2(s_idx_2)<=8418552) then
+ svec_f_1_g_1_h_1_30(s_idx_1, s_idx_2) = v_0(idx+s13(s_idx_1)+s2(s_idx_2))
  else
  svec_f_1_g_1_h_1_30(s_idx_1, s_idx_2) = v_0(idx)
  end if
@@ -415,8 +415,8 @@ subroutine stage_kernel_1(dx1_0,dy1_0,dzn_0,dzs_0,global_id_0,u_0,v_0,w_0,f_1,g_
  end do
  do s_idx_1 = 1,2
  do s_idx_2 = 1,4
- if (idx+s12(s_idx_1)+s2(s_idx_2)>=1 .and. idx+s12(s_idx_1)+s2(s_idx_2)<=8510058) then
- svec_f_1_g_1_h_1_31(s_idx_1, s_idx_2) = w_0(idx+s12(s_idx_1)+s2(s_idx_2))
+ if (idx+s13(s_idx_1)+s3(s_idx_2)>=1 .and. idx+s13(s_idx_1)+s3(s_idx_2)<=8510058) then
+ svec_f_1_g_1_h_1_31(s_idx_1, s_idx_2) = w_0(idx+s13(s_idx_1)+s3(s_idx_2))
  else
  svec_f_1_g_1_h_1_31(s_idx_1, s_idx_2) = w_0(idx)
  end if
@@ -424,8 +424,8 @@ subroutine stage_kernel_1(dx1_0,dy1_0,dzn_0,dzs_0,global_id_0,u_0,v_0,w_0,f_1,g_
  end do
  do s_idx_1 = 1,2
  do s_idx_2 = 1,2
- if (idx+s11(s_idx_1)+s4(s_idx_2)>=1 .and. idx+s11(s_idx_1)+s4(s_idx_2)<=8418552) then
- svec_f_1_g_1_h_1_32(s_idx_1, s_idx_2) = u_0(idx+s11(s_idx_1)+s4(s_idx_2))
+ if (idx+s12(s_idx_1)+s4(s_idx_2)>=1 .and. idx+s12(s_idx_1)+s4(s_idx_2)<=8418552) then
+ svec_f_1_g_1_h_1_32(s_idx_1, s_idx_2) = u_0(idx+s12(s_idx_1)+s4(s_idx_2))
  else
  svec_f_1_g_1_h_1_32(s_idx_1, s_idx_2) = u_0(idx)
  end if
@@ -433,8 +433,8 @@ subroutine stage_kernel_1(dx1_0,dy1_0,dzn_0,dzs_0,global_id_0,u_0,v_0,w_0,f_1,g_
  end do
  do s_idx_1 = 1,2
  do s_idx_2 = 1,3
- if (idx+s11(s_idx_1)+s6(s_idx_2)>=1 .and. idx+s11(s_idx_1)+s6(s_idx_2)<=8510058) then
- svec_f_1_g_1_h_1_33(s_idx_1, s_idx_2) = w_0(idx+s11(s_idx_1)+s6(s_idx_2))
+ if (idx+s12(s_idx_1)+s6(s_idx_2)>=1 .and. idx+s12(s_idx_1)+s6(s_idx_2)<=8510058) then
+ svec_f_1_g_1_h_1_33(s_idx_1, s_idx_2) = w_0(idx+s12(s_idx_1)+s6(s_idx_2))
  else
  svec_f_1_g_1_h_1_33(s_idx_1, s_idx_2) = w_0(idx)
  end if
@@ -442,8 +442,8 @@ subroutine stage_kernel_1(dx1_0,dy1_0,dzn_0,dzs_0,global_id_0,u_0,v_0,w_0,f_1,g_
  end do
  do s_idx_1 = 1,2
  do s_idx_2 = 1,2
- if (idx+s11(s_idx_1)+s5(s_idx_2)>=1 .and. idx+s11(s_idx_1)+s5(s_idx_2)<=8418552) then
- svec_f_1_g_1_h_1_34(s_idx_1, s_idx_2) = v_0(idx+s11(s_idx_1)+s5(s_idx_2))
+ if (idx+s12(s_idx_1)+s5(s_idx_2)>=1 .and. idx+s12(s_idx_1)+s5(s_idx_2)<=8418552) then
+ svec_f_1_g_1_h_1_34(s_idx_1, s_idx_2) = v_0(idx+s12(s_idx_1)+s5(s_idx_2))
  else
  svec_f_1_g_1_h_1_34(s_idx_1, s_idx_2) = v_0(idx)
  end if
@@ -451,8 +451,8 @@ subroutine stage_kernel_1(dx1_0,dy1_0,dzn_0,dzs_0,global_id_0,u_0,v_0,w_0,f_1,g_
  end do
  do s_idx_1 = 1,2
  do s_idx_2 = 1,2
- if (idx+s9(s_idx_1)+s4(s_idx_2)>=1 .and. idx+s9(s_idx_1)+s4(s_idx_2)<=8418552) then
- svec_f_1_g_1_h_1_35(s_idx_1, s_idx_2) = u_0(idx+s9(s_idx_1)+s4(s_idx_2))
+ if (idx+s8(s_idx_1)+s4(s_idx_2)>=1 .and. idx+s8(s_idx_1)+s4(s_idx_2)<=8418552) then
+ svec_f_1_g_1_h_1_35(s_idx_1, s_idx_2) = u_0(idx+s8(s_idx_1)+s4(s_idx_2))
  else
  svec_f_1_g_1_h_1_35(s_idx_1, s_idx_2) = u_0(idx)
  end if
@@ -460,8 +460,8 @@ subroutine stage_kernel_1(dx1_0,dy1_0,dzn_0,dzs_0,global_id_0,u_0,v_0,w_0,f_1,g_
  end do
  do s_idx_1 = 1,2
  do s_idx_2 = 1,3
- if (idx+s9(s_idx_1)+s6(s_idx_2)>=1 .and. idx+s9(s_idx_1)+s6(s_idx_2)<=8510058) then
- svec_f_1_g_1_h_1_36(s_idx_1, s_idx_2) = w_0(idx+s9(s_idx_1)+s6(s_idx_2))
+ if (idx+s8(s_idx_1)+s6(s_idx_2)>=1 .and. idx+s8(s_idx_1)+s6(s_idx_2)<=8510058) then
+ svec_f_1_g_1_h_1_36(s_idx_1, s_idx_2) = w_0(idx+s8(s_idx_1)+s6(s_idx_2))
  else
  svec_f_1_g_1_h_1_36(s_idx_1, s_idx_2) = w_0(idx)
  end if
@@ -469,8 +469,8 @@ subroutine stage_kernel_1(dx1_0,dy1_0,dzn_0,dzs_0,global_id_0,u_0,v_0,w_0,f_1,g_
  end do
  do s_idx_1 = 1,2
  do s_idx_2 = 1,2
- if (idx+s9(s_idx_1)+s5(s_idx_2)>=1 .and. idx+s9(s_idx_1)+s5(s_idx_2)<=8418552) then
- svec_f_1_g_1_h_1_37(s_idx_1, s_idx_2) = v_0(idx+s9(s_idx_1)+s5(s_idx_2))
+ if (idx+s8(s_idx_1)+s5(s_idx_2)>=1 .and. idx+s8(s_idx_1)+s5(s_idx_2)<=8418552) then
+ svec_f_1_g_1_h_1_37(s_idx_1, s_idx_2) = v_0(idx+s8(s_idx_1)+s5(s_idx_2))
  else
  svec_f_1_g_1_h_1_37(s_idx_1, s_idx_2) = v_0(idx)
  end if

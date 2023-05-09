@@ -2028,17 +2028,29 @@ buildMainProgramForSuperkernelDef unique_stage_kernel_decls stage_kernel_calls =
         "    use module_"++superkernelName++", only : "++superkernelName,
         "    ! integer :: global_id",
         "    ! common /ocl/ global_id",
-        "    ! Declarations"
+        "    ! Declarations",
+        "    integer :: i,j,k"
         ] ++
         main_program_decl_strs ++
         case_param_decl_strs ++
         [
             "    integer :: state_ptr",
             "    integer, parameter :: niters = 10",
-            "    integer :: iter ",
+            "    integer :: iter",
+            "#ifdef TIMING",
+            "    integer :: clock_rate",
+            "    integer (kind=4), dimension(0:1) :: timestamp",
+            "#endif",
+            "#ifdef TIMING",
+            "    call system_clock(timestamp(0), clock_rate)",
+            "#endif",
         "    ! Loops over stage calls"] ++
         loops_over_calls ++
         [
+            "#ifdef TIMING",
+            "    call system_clock(timestamp(1), clock_rate)",
+            "    print '(f6.3)',(timestamp(1)-timestamp(0))/ real(clock_rate)",
+            "#endif",
         "end program main  "
         ]
 

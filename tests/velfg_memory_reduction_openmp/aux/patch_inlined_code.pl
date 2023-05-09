@@ -54,7 +54,7 @@ while ( my $line = <$SMF>) {
 }
 close $SMF;
 
-my $min_dim = $params{'ip'}*$params{'jp'}*$params{'kp'};
+my $min_dim = ($params{'ip'}/2).'*WM*'.($params{'jp'}/2).'*WM*'.$params{'kp'};
 
 # - Find the file with the main program. It is the file starting with 'gen_'
     my @main_files =  glob('gen_*.f95');
@@ -124,24 +124,70 @@ my $min_dim = $params{'ip'}*$params{'jp'}*$params{'kp'};
     my @main_file_lines = <$MF>;
     close $MF;
     open $MF, '>', "Patched/$main_file"  or die $!;
-    # my $min_dim=1e12;
-    for my $line (@main_file_lines) {
-        $line=~/dimension\s*.1:(\d+)/ && do {
-            my $dim=$1;
-            if ($dim<$min_dim) {
-                $min_dim=$dim;
-            }
-        };
-    }
-
+    # my $min_dim='90*150*150*WM*WM';
+    # for my $line (@main_file_lines) {
+    #     $line=~/dimension\s*.1:(\d+)/ && do {
+    #         my $dim=$1;
+    #         if ($dim<$min_dim) {
+    #             $min_dim=$dim;
+    #         }
+    #     };
+    # }
+    my $init=0;
     for my $line (@main_file_lines) {
 
         if ($line=~/^\s*use.+only\s*:\s+$sub_name/) {
             say $MF "use $module_name, only : $sub_name";
-        } elsif ($line=~/do\s+global_id\s+=\s+1,\s*\d+/) {
+            } elsif ($line=~/implicit\s+none/) {
+                print $MF $line;
+                print $MF '     integer, parameter :: ip=150*WM
+     integer, parameter :: jp=150*WM
+     integer, parameter :: kp=90
+';
+        } elsif ($line=~/do\s+global_id_0\s+=\s+1,\s*\d+/) {
             my $rline=$line;
             $rline=~s/,\s*\d+/, $min_dim/;
             print $MF $rline;
+        } elsif ($line=~/301/) {
+            $line=~s/301/(150*WM+1)/;
+            print $MF $line;
+        } elsif ($line=~/8418552/) {
+            $line=~s/8418552/92*(150*WM+2)*(150*WM+3)/;
+            print $MF $line;
+        } elsif ($line=~/8510058/) {
+            $line=~s/8510058/93*(150*WM+2)*(150*WM+3)/;
+            print $MF $line;
+        } elsif ($line=~/8244691/) {
+            $line=~s/8244691/91*(150*WM+1)*(150*WM+1)/;
+            print $MF $line;
+        } elsif ($line=~/\#endif/ and $init==0) {
+            $init=1;
+            print $MF $line;
+             print $MF '    do k = -1,kp+2
+      dzn_0(k)=1.
+      dzs_0(k)=1.
+    end do
+    do i = -1,ip+1
+        dx1_0(i)=1.
+        ! delx1(i)=1.
+    end do
+    do j = 0,jp+1
+      dy1_0(j)=1.
+    end do
+
+    f_1 = 1.0; g_1 = 1.0; h_1 = 1.0
+    u_0 = 1.0; v_0 = 1.0; w_0 = 1.0';
+    say $MF '';
+     say $MF '';
+
+        } elsif($line=~/end\s+program/) {
+            print $MF '#ifdef CHECKSUM    
+   print *, sum(f_1)
+   print *, sum(g_1)
+   print *, sum(h_1)
+#endif';
+            say $MF '';
+            print $MF $line;
         } else {
             print $MF $line;
         }
