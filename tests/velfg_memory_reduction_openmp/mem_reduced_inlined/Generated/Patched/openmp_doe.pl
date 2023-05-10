@@ -7,7 +7,7 @@ use strict;
 my $nruns = 10;
 
 sub doe_runner { 
-    for my $nth (1,2,4,8,16,32){#,64,128,256) {
+    for my $nth (1,2,4,8,16,32,64,128,256) {
         print $nth;
         for my $run (1..$nruns) {
             print ',';
@@ -17,7 +17,7 @@ sub doe_runner {
         }
 }
 
-for my $WM (1,2) {#,4,8,14,16,32,36,50
+for my $WM (1,2,4,8,14,16,32,36,50) {
     print $WM,"\n";
 system("WM=$WM scons -s -f SConstruct.omp_dyn");
 
