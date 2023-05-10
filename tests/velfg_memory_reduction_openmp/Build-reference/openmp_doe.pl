@@ -6,12 +6,12 @@ my $nruns = 10;
 
 sub doe_runner { 
     for my $nth (1,2,4,8,16,32,64,128,256) {
-        system("OMP_NUM_THREADS=$nth ./prog-dyn.exe");
+        system("OMP_NUM_THREADS=$nth ./prog-dyn-omp.exe");
         }
 }
 
 #chdir 'Build-reference';
-system('scons -f SConstruct.dyn');
+system('WM=2 scons -f SConstruct.dyn');
 #chdir '..';
 for my $run (1..$nruns) {
     doe_runner();
