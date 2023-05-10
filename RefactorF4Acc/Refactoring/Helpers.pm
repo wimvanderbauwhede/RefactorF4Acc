@@ -607,7 +607,7 @@ sub emit_f95_var_decl {
       my $is_array = (exists $var_decl_rec->{'ArrayOrScalar'} and $var_decl_rec->{'ArrayOrScalar'} eq 'Array') ? 1 : 0;
       my $dim = $var_decl_rec->{'Dim'}; 
         if ($is_array and 
-            $const_dim==1 and exists $var_decl_rec->{'ConstDim'}
+            $const_dim==1 and exists $var_decl_rec->{'ConstDim'} and defined $var_decl_rec->{'ConstDim'}
             ) {
             $dim =$var_decl_rec->{'ConstDim'};
         } elsif (exists $var_decl_rec->{'Val'} 
@@ -732,9 +732,9 @@ sub emit_f95_var_decl {
               . $trailing_comment;
             return $decl_line;
         } else {
-    #     	      if (not defined $type) {
-    #   	croak Dumper($var_decl_rec)
-    #   }        
+            if (not defined $type) {
+      	        croak Dumper($var_decl_rec)
+            }        
 
             my $decl_line =
                 $spaces

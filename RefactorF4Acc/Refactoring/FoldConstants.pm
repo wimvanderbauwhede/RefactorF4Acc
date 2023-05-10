@@ -45,7 +45,7 @@ use Exporter;
 # That will provide a BlockID which is need to work out what is a loop iterator
 # So this requires running identify_array_accesses_in_exprs() first to identify any nested loops.
 # $ast = (fold_constants_in_expr($stref, $f, $block_id, $ast);
-sub fold_constants {
+sub fold_constants { 
     my ($stref, $f, $substitute_loop_iters_by_consts) = @_;
     if (not defined $substitute_loop_iters_by_consts) {
         $substitute_loop_iters_by_consts = 0;
@@ -180,18 +180,26 @@ sub fold_constants_no_iters {
              ) {
                 
                 my $var_name = $info->{'VarDecl'}{'Name'};
+                
                 my $subset = in_nested_set( $Sf, 'Vars', $var_name );
                 my $decl = get_var_record_from_set($Sf->{$subset},$var_name);
                 if (exists $decl->{'ArrayOrScalar'}
                 and $decl->{'ArrayOrScalar'} eq 'Array'
                 ) {
+                    
                     my $expr_str = '['.join(',',map {'['.$_->[0].','.$_->[1].']'} @{$decl->{'Dim'}}).']';
+                    
                     my ($ast,$str_,$error_,$has_funcs_)=parse_expression_no_context($expr_str);
                     my ($const_ast, $retval_) = replace_consts_in_ast_no_iters($stref, $f, $ast, $info);
                     my $const_expr_str = emit_expr_from_ast($const_ast);
+                    
                     $const_expr_str=~s/\(\//[/g;
                     $const_expr_str=~s/\/\)/]/g;
+                    
                     my $const_dims= eval( $const_expr_str );
+                    
+                    say "FOLDING $var_name in $f: $expr_str => $const_expr_str => ".Dumper($const_dims);
+                    croak if not defined $const_dims;
                     $decl->{'ConstDim'} = $const_dims;
                     $Sf->{$subset}{$var_name}{'Set'}=$decl;
                     # say "$f SUBSET: $subset => $var_name";

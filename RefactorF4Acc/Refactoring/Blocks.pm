@@ -137,7 +137,6 @@ sub _separate_blocks {
     # It is best to loop over all vars per line per block, because we can remove the encountered vars
     # TODO: no need to declare $occsref and $paramsref at this level as they are empty!
     ( $occsref, $itersref, $paramsref ) = @{ __find_vars_in_block( $stref, $f, $blocksref, $varsref, $occsref, $paramsref ) };
-
     # 4. Construct the subroutine signatures
     # This happens before reparsing so the data structures for the Decls and Args are emtpty! So need to call the init here!
     $stref = __construct_new_subroutine_signatures( $stref, $blocksref, $occsref, $itersref, $paramsref, $varsref, $f );
@@ -311,6 +310,9 @@ sub __create_new_subroutine_entries {
         $Sblock->{'FreeForm'}    = $Sf->{'FreeForm'};
         $Sblock->{'Recursive'}   = 0;
         $Sblock->{'Callers'}{$f} = [ $block_rec->{'BeginBlockIdx'} ];            
+        # WV20230510 This is to ensure Used parameters is OK
+        # croak Dumper  $Sf->{'Parameters'};
+        $Sblock->{'Parameters'} = $Sf->{'Parameters'};
 
     }
     return $stref;
@@ -336,8 +338,8 @@ sub __construct_new_subroutine_signatures {
 
         my $Sblock = $stref->{'Subroutines'}{$block};
 
-        $Sblock = initialise_per_code_unit_tables( $Sblock, $stref, $block, 0 );
-    
+        $Sblock = initialise_per_code_unit_tables( $Sblock, $stref, $block, 0); # , 1); # 1 means skip params
+        
         # Collect args for new subroutine
         ($Sblock, $args, $localvars) = __collect_args_for_new_sub($Sf,$Sblock,$block,$occsref,$varsref,$args,$localvars);
 
@@ -376,7 +378,7 @@ sub __reparse_extracted_subroutines {
         next if $block eq 'OUTER';      
         say "REPARSING $block" if $V;
         $stref = parse_fortran_src( $block, $stref );        
-    }
+    }    
     return $stref;
 }
 
@@ -501,7 +503,6 @@ sub __emit_param_lines { my ($Sblock, $varsref, $params, $param_decl_generated, 
     for my $param ( sort keys %{$params} ) {    
         # say "PAR $param";
         if (not exists $param_decl_generated->{$param}) {
-                # my $decl = get_f95_par_decl( $stref, $f, $param ); # Cleary BROKEN! FIXME
             my $decl = $varsref->{$param};
             if (exists $decl->{'InheritedParams'} and exists $decl->{'InheritedParams'}{'Set'}) {                
                 # say "has InheritedParams:";
@@ -666,7 +667,8 @@ sub __add_vardecls_and_info_to_AnnLines { my ($stref,$f,$Sf,$Sblock,$block,$iter
 
         for my $argv ( @{ $args->{$block} } ) {
             my $set = in_nested_set($Sblock,'OrigArgs',$argv);
-            my $decl = get_var_record_from_set( $Sblock->{'OrigArgs'}, $argv );
+            # if (!$set) {croak "$argv is not in OrigArgs: Vars = ".Dumper($Sblock->{'Vars'}) }
+            my $decl = get_var_record_from_set( $Sblock->{$set}, $argv );
             unshift @{ $Sblock->{'AnnLines'} },
               [
                 emit_f95_var_decl($decl),
