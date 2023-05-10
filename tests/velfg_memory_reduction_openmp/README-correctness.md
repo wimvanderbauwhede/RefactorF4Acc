@@ -120,12 +120,12 @@ sub decompose_num { (my $n) = @_;
         for my $b (0 .. 3) {
             for my $off1 (-1 .. 3) {
                 for my $off2 (-1 .. 3) {
-                    if ($n == $a*($ip+$off1)*($jp+$off2)+$b) {
-                        @factors=($a,$b,$off1,$off2);
-                        break;
+                    if ($n == $a*($ip+$off1)*($jp+$off2)+$b) {                        
+                        return $a.'*(150*WM+'.$off1.')*(150*WM+'.$off2.')+'.$b;
+                        
                     }
+                }
             }
         }
     }
-    my $expr_str = $factors[0].'*(150*WM+'.$factors[1].')+'.$factors[2]
 }

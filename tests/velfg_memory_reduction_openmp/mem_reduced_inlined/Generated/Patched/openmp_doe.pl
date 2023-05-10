@@ -2,22 +2,24 @@
 use warnings;
 use strict;
 
+# Run in Build-reference
+
 my $nruns = 10;
 
 sub doe_runner { 
-    for my $nth (1,2,4,8,16,32,64,128,256) {
-        system("OMP_NUM_THREADS=$nth ./prog-dyn.exe");
+    for my $nth (1,2,4,8,16,32){#,64,128,256) {
+        print $nth;
+        for my $run (1..$nruns) {
+            print ',';
+        system("OMP_NUM_THREADS=$nth ./prog-omp_dyn.exe");
+        }
+        print "\n";
         }
 }
 
-#chdir 'Build-reference';
-system('scons -f SConstruct.dyn');
-#chdir '..';
-for my $run (1..$nruns) {
-    doe_runner();
+for my $WM (1,2) {#,4,8,14,16,32,36,50
+    print $WM,"\n";
+system("WM=$WM scons -s -f SConstruct.omp_dyn");
+
+doe_runner();
 }
-#chdir 'mem_reduced_inlined/Generated/Patched';
-#system('scons');
-#doe_runner();
-
-

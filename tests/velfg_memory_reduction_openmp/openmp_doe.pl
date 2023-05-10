@@ -5,7 +5,7 @@ use strict;
 my $nruns = 10;
 
 sub doe_runner { 
-    for my $nth (1,2,4,8,16,32) {
+    for my $nth (1,2,4,8,16,32,64,128,256) {
         system("OMP_NUM_THREADS=$nth ./prog.exe");
     }
 }

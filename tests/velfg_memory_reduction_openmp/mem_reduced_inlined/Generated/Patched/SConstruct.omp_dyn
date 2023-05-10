@@ -1,12 +1,13 @@
 import os
 
 FC=os.environ.get('FC')
+WM=os.environ.get('WM')
 
 fsources = ['gen_velfg_superkernel_omp_dyn.f95', 'stage_kernel_1.f95', 'velfg_superkernel.f95']
 
 FLFLAGS = ['-Ofast','-flto']
 FLFLAGS += ['-fopenmp','-DWITH_OPENMP'] 
-FLFLAGS += [ '-DWM=2','-DDYN_ALLOC','-DTIMING','-DCHECKSUM'] # WM was 64
+FLFLAGS += [ '-DWM='+WM ,'-DDYN_ALLOC','-DTIMING'] #,'-DCHECKSUM'# WM was 64
 FFLAGS = FLFLAGS + ['-Wall','-cpp','-m64','-ffree-form','-ffree-line-length-0','-fconvert=little-endian','-frecord-marker=4']#, '-fopenmp']
 
 envF=Environment(F95=FC,LINK=FC,LINKFLAGS=FLFLAGS,F95FLAGS=FFLAGS,F95PATH=['.' ,'/usr/local/include'])
