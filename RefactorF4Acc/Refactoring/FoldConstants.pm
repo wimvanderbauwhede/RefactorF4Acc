@@ -198,7 +198,7 @@ sub fold_constants_no_iters {
                     
                     my $const_dims= eval( $const_expr_str );
                     
-                    say "FOLDING $var_name in $f: $expr_str => $const_expr_str => ".Dumper($const_dims);
+#say "FOLDING $var_name in $f: $expr_str => $const_expr_str => ".Dumper($const_dims);
                     croak if not defined $const_dims;
                     $decl->{'ConstDim'} = $const_dims;
                     $Sf->{$subset}{$var_name}{'Set'}=$decl;

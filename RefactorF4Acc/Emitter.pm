@@ -529,14 +529,12 @@ sub emit_AnnLines {
                   emit_f95_var_decl( $decl, $Config{'FOLD_CONSTANTS'});
                   
                 $rline = $indent . $var_decl_str;
-                say "C1:$rline";
             } else {
                 if (exists $info->{'ParsedVarDecl'}{'Vars'}) {
             # TODO EMIT  $info->{'ParsedVarDecl'};
                 my $var_decl_str =
                 emit_f95_parsed_var_decl( $info->{'ParsedVarDecl'} );
                 $rline = $indent . $var_decl_str;
-                say "C2:$rline";
                 } elsif (exists $info->{'VarDecl'}) {
                 my $var_name = $info->{'VarDecl'}{'Name'};
                 my $subset = in_nested_set( $Sf, 'Vars', $var_name );
@@ -544,7 +542,6 @@ sub emit_AnnLines {
                 my $var_decl_str =
                   emit_f95_var_decl( $decl, $Config{'FOLD_CONSTANTS'});
                   $rline = $indent . $var_decl_str;
-                  say "C3:$rline";
                 } else {
                     croak 'No decl info for '.$rline.' in '.$f;
                 }

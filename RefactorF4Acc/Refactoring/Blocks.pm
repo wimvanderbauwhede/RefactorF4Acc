@@ -338,7 +338,7 @@ sub __construct_new_subroutine_signatures {
 
         my $Sblock = $stref->{'Subroutines'}{$block};
 
-        $Sblock = initialise_per_code_unit_tables( $Sblock, $stref, $block, 0); # , 1); # 1 means skip params
+        $Sblock = initialise_per_code_unit_tables( $Sblock, $stref, $block, 0 , 0, 1); # 1 means skip params
         
         # Collect args for new subroutine
         ($Sblock, $args, $localvars) = __collect_args_for_new_sub($Sf,$Sblock,$block,$occsref,$varsref,$args,$localvars);
@@ -556,13 +556,17 @@ sub __collect_args_for_new_sub { my ($Sf,$Sblock,$block,$occsref,$varsref,$args,
         $localvars->{$block} = [];  
     # Collect args for new subroutine
     # At this stage, if a var is COMMON, it should not become an argument.
+        my $varset='Vars';
     for my $var ( sort keys %{ $occsref->{$block} } ) { 
+        say "VAR $var " if $V;
         if ( exists $occsref->{'OUTER'}{$var} ) {
             if ( not exists $Sf->{'UsedParameters'}{'Set'}{$var}
             and not exists $Sf->{'DeclaredCommonVars'}{'Set'}{$var}
             and not exists $Sf->{'UndeclaredCommonVars'}{'Set'}{$var}        
             ) {
+                say "is ARG" if $V;
                 push @{ $args->{$block} }, $var;                    
+#$varset = 'DeclaredOrigArgs';
             } 
         } else {
             # WV20190722 We must check if the var is not used by any of the other subs!
@@ -576,16 +580,19 @@ sub __collect_args_for_new_sub { my ($Sf,$Sblock,$block,$occsref,$varsref,$args,
                     and not exists $Sf->{'DeclaredCommonVars'}{'Set'}{$var}
                     and not exists $Sf->{'UndeclaredCommonVars'}{'Set'}{$var}        
                     ) {
+                        say "is ARG" if $V;
                         push @{ $args->{$block} }, $var;
-                        last;                            
+#                       $varset = 'DeclaredOrigArgs';
+                        last;
                     }
                 }
             }
             if (not $var_used_in_other_block) { # It's a local var
                 push @{ $localvars->{$block} }, $var;
+#               $varset = 'DeclaredOrigLocalVars';
             }
-        }            
-        $Sblock->{'Vars'}{$var} = $varsref->{ $var }; # FIXME: this is "inheritance, but in principle a re-parse is better?"
+        } 
+        $Sblock->{$varset}{$var} = $varsref->{ $var }; # FIXME: this is "inheritance, but in principle a re-parse is better?"
     }
     
     # We declare them right away
@@ -667,7 +674,7 @@ sub __add_vardecls_and_info_to_AnnLines { my ($stref,$f,$Sf,$Sblock,$block,$iter
 
         for my $argv ( @{ $args->{$block} } ) {
             my $set = in_nested_set($Sblock,'OrigArgs',$argv);
-            # if (!$set) {croak "$argv is not in OrigArgs: Vars = ".Dumper($Sblock->{'Vars'}) }
+            if (!$set) {croak "$argv is not in OrigArgs: Vars = ".Dumper($Sblock->{'Vars'}) }
             my $decl = get_var_record_from_set( $Sblock->{$set}, $argv );
             unshift @{ $Sblock->{'AnnLines'} },
               [
