@@ -154,7 +154,7 @@ integer, parameter :: kp=90
 !    print *, f(1,1,1)
     end do
     call system_clock(timestamp(1), clock_rate)
-    write(*,fmt='(f6.3)',advance='no') (timestamp(1)-timestamp(0))/ real(clock_rate)
+    write(*,fmt='(f8.3)',advance='no') (timestamp(1)-timestamp(0))/ real(clock_rate)
 #ifdef CHECKSUM    
    print *, sum(f)
    print *, sum(g)

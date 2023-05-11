@@ -17,7 +17,7 @@ sub doe_runner {
         }
 }
 
-for my $WM (1,2,4,8,14) {
+for my $WM (8,14,16) {
     print $WM,"\n";
 system("WM=$WM scons -s -f SConstruct.dyn.omp");
 
