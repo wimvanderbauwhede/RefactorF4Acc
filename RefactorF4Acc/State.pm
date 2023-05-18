@@ -10,6 +10,7 @@ $VERSION = "2.1.1";
 
 use warnings;
 use strict;
+use Carp;
 
 use Exporter;
 
@@ -94,8 +95,14 @@ sub init_state {
 # -----------------------------------------------------------------------------
 # Here I initialise tables for Variables and Declarations and a few other Subroutine-specific data structures
 sub initialise_per_code_unit_tables {
-	( my $Sf, my $stref, my $f, my $is_incl, my $is_mod ) = @_;
+	( my $Sf, my $stref, my $f, my $is_incl, my $is_mod, my $skipParams ) = @_;
+	if (not defined $is_mod) {
+	 	$is_mod = 0;
+	}
 	my $code_unit = $is_incl ? 'include' : $is_mod ? 'module' : 'subroutine';
+	if (not defined $skipParams) {
+	 	$skipParams = 0;
+	}
 	say "initialise_per_code_unit_tables for $code_unit $f" if $V;	
 	
 	if ( not exists $Sf->{'CommonBlocks'}) {
@@ -137,16 +144,17 @@ sub initialise_per_code_unit_tables {
 		$Sf->{'DeclaredOrigLocalVars'}   = { 'Set' => {}, 'List' => [] };
 		$Sf->{'UndeclaredOrigLocalVars'} = { 'Set' => {}, 'List' => [] };
 
-		#		$Sf->{'Parameters'} = {};
-		$Sf->{'LocalParameters'}    = { 'Set' => {}, 'List' => [] };
-		$Sf->{'IncludedParameters'} = { 'Set' => {}, 'List' => [] };
-		$Sf->{'UsedParameters'} = { 'Set' => {}, 'List' => [] }; # 
-		$Sf->{'InheritedParameters'} = { 'Set' => {}, 'List' => [] }; 
-		$Sf->{'ParametersFromContainer'} = { 
-				'Set' => {}, 
-				'List' => [] 			
-		};
-
+		if (!$skipParams) {
+			#		$Sf->{'Parameters'} = {};
+			$Sf->{'LocalParameters'}    = { 'Set' => {}, 'List' => [] };
+			$Sf->{'IncludedParameters'} = { 'Set' => {}, 'List' => [] };
+			$Sf->{'UsedParameters'} = { 'Set' => {}, 'List' => [] }; # 
+			$Sf->{'InheritedParameters'} = { 'Set' => {}, 'List' => [] }; 
+			$Sf->{'ParametersFromContainer'} = { 
+					'Set' => {}, 
+					'List' => [] 			
+			};
+		}
 		# Var decls via a 'use' declaration
 		$Sf->{'UsedLocalVars'} = { 'Set' => {}, 'List' => [] };
 		$Sf->{'UsedGlobalVars'} = { 'Set' => {}, 'List' => [] };		
@@ -219,17 +227,17 @@ sub initialise_per_code_unit_tables {
 					'ExInclArgs' => $Sf->{'ExInclArgs'}
 				}
 			};
-
-			$Sf->{'Parameters'} = {
-				'Subsets' => {
-					'LocalParameters'    => $Sf->{'LocalParameters'},
-					'IncludedParameters' => $Sf->{'IncludedParameters'},
-					'UsedParameters' => $Sf->{'UsedParameters'},
-					'ParametersFromContainer' =>
-					  $Sf->{'ParametersFromContainer'}
-				}
-			};
-
+			if (!$skipParams) {
+				$Sf->{'Parameters'} = {
+					'Subsets' => {
+						'LocalParameters'    => $Sf->{'LocalParameters'},
+						'IncludedParameters' => $Sf->{'IncludedParameters'},
+						'UsedParameters' => $Sf->{'UsedParameters'},
+						'ParametersFromContainer' =>
+						$Sf->{'ParametersFromContainer'}
+					}
+				};
+			}
 			$Sf->{'Vars'} = {
 				'Subsets' => {
 					'Args'       => $Sf->{'Args'},
@@ -240,11 +248,10 @@ sub initialise_per_code_unit_tables {
 			};
 
 		} else {    # For includes and modules
- 
 # 			say "MOD $f";
  			if ($is_mod) { 				
  				for my $sub (sort keys %{ $Sf->{Subroutines} }) {
- 					$stref->{'Subroutines'}{$sub} =initialise_per_code_unit_tables( $stref->{'Subroutines'}{$sub}, $stref, $sub,0,0);
+ 					$stref->{'Subroutines'}{$sub} =initialise_per_code_unit_tables( $stref->{'Subroutines'}{$sub}, $stref, $sub,0,0,$skipParams);
  				}		
  			}
 			# Includes can contain LocalVars, CommonVars or Parameters
@@ -257,14 +264,15 @@ sub initialise_per_code_unit_tables {
 			  	'UsedLocalVars' => $Sf->{'UsedLocalVars'} 
 			  } 
 			  };
-
-			$Sf->{'Parameters'} = {
-				'Subsets' => {
-					'LocalParameters'    => $Sf->{'LocalParameters'},
-					'IncludedParameters' => $Sf->{'IncludedParameters'},
-					'UsedParameters' => $Sf->{'UsedParameters'}
-				}
-			};
+			 if (!$skipParams) {
+				$Sf->{'Parameters'} = {
+					'Subsets' => {
+						'LocalParameters'    => $Sf->{'LocalParameters'},
+						'IncludedParameters' => $Sf->{'IncludedParameters'},
+						'UsedParameters' => $Sf->{'UsedParameters'}
+					}
+				};
+			 }
 			$Sf->{'Vars'} = {
 				'Subsets' => {
 					'LocalVars'  => $Sf->{'LocalVars'},

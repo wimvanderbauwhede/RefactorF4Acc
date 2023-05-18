@@ -151,14 +151,19 @@ sub replace_consts_in_ast_no_iters { my ($stref, $f, $ast, $state)=@_;
 			} else {
 				if ($idx==0 and (($entry & 0xFF) == 2)) { #eq '$'
 					my $mvar = $ast->[$idx+1];
-					# carp "MVAR $mvar : ".in_nested_set($stref->{'Subroutines'}{$f},'Parameters',$mvar);
+#carp "$f MVAR $mvar : ".in_nested_set($stref->{'Subroutines'}{$f},'Parameters',$mvar);
+#if (not in_nested_set($stref->{'Subroutines'}{$f},'Parameters',$mvar)) {
+#carp 'BOOM!:'.Dumper $stref->{'Subroutines'}{$f}{'Parameters'}
+#}
 					if (in_nested_set($stref->{'Subroutines'}{$f},'Parameters',$mvar)) {
 						my $param_set = in_nested_set($stref->{'Subroutines'}{$f},'Parameters',$mvar);
 						
 		  				my $decl = get_var_record_from_set( $stref->{'Subroutines'}{$f}{'Parameters'},$mvar);
+						
 		  				#The value could be an expression in terms of other parameters
 		  				my $val = $decl->{'Val'};
 		  				$ast = parse_expression($val, {},$stref,$f);
+#carp Dumper $ast;
 		  				return ($ast,1);
 					# } elsif (in_nested_set($stref->{'Subroutines'}{$f},'Args',$mvar)) {
 					# 	carp "ARG $mvar";

@@ -607,7 +607,7 @@ sub emit_f95_var_decl {
       my $is_array = (exists $var_decl_rec->{'ArrayOrScalar'} and $var_decl_rec->{'ArrayOrScalar'} eq 'Array') ? 1 : 0;
       my $dim = $var_decl_rec->{'Dim'}; 
         if ($is_array and 
-            $const_dim==1 and exists $var_decl_rec->{'ConstDim'}
+            $const_dim==1 and exists $var_decl_rec->{'ConstDim'} and defined $var_decl_rec->{'ConstDim'}
             ) {
             $dim =$var_decl_rec->{'ConstDim'};
         } elsif (exists $var_decl_rec->{'Val'} 
@@ -732,7 +732,10 @@ sub emit_f95_var_decl {
               . $trailing_comment;
             return $decl_line;
         } else {
-        	
+            if (not defined $type) {
+      	        croak Dumper($var_decl_rec)
+            }        
+
             my $decl_line =
                 $spaces
               . join( ', ', ( $type, @attrs ) ) . ' :: '
@@ -1165,6 +1168,7 @@ sub stateless_pass_reverse {
 
 
 sub emit_f95_parsed_var_decl { (my $pvd) =@_;
+# carp 'PVD:',Dumper $pvd;
     my $type= $pvd->{'TypeTup'}{'Type'} . (exists $pvd->{'TypeTup'}{'Kind'} ?  '( '.$pvd->{'TypeTup'}{'Kind'}.')' : '');
     
     my  @attrs=($type); 
@@ -1203,11 +1207,11 @@ sub emit_f95_parsed_par_decl { (my $pvd) =@_;
     my  @attrs=($type); 
 
     if (exists $pvd->{'Attributes'} ) {
-        # croak Dumper($pvd);
-        push @attrs,join(', ',@{ $pvd->{'Attributes'} });
+        push @attrs,join(', ',grep { !ref($_) } values %{$pvd->{'Attributes'}});
+        # carp Dumper($pvd->{'Attributes'}) ;
     }
     my $par_val = $pvd->{'Pars'}{'Var'}.' = '.$pvd->{'Pars'}{'Val'};
-    my $line = join(', ', @attrs).' :: '.$par_val;    
+    my $line = join(', ', @attrs).' :: '.$par_val;        
     return $line;
 }
 
