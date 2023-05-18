@@ -121,7 +121,7 @@ allocate(h_1(1:91*(150*WM+1)*(150*WM+1)))
     end do
 #ifdef TIMING
     call system_clock(timestamp(1), clock_rate)
-    write(*,fmt='(f6.3)',advance='no') (timestamp(1)-timestamp(0))/ real(clock_rate)
+    write(*,fmt='(f9.3)',advance='no') (timestamp(1)-timestamp(0))/ real(clock_rate)
     ! print '(f6.3)',(timestamp(1)-timestamp(0))/ real(clock_rate)
 #endif
 #ifdef CHECKSUM    
