@@ -90,6 +90,7 @@ sub _inline_subroutines_main { my ( $stref, $f ) = @_;
             $stref = _inline_subroutine($stref,$f,$sub,0);
         }
         $stref = _remove_duplicate_declarations($stref,$f);
+        # $stref = _remove_redundant_modules($stref,$f);
     } 
     # I definitely need a step to fuse the declarations of all inlined subs 
     
@@ -1036,4 +1037,12 @@ sub _remove_duplicate_declarations { my ($stref,$f) = @_;
     $Sf->{'RefactoredCode'} = $new_annlines;
     return $stref;
 } # END of _remove_duplicate_declarations
+
+sub _remove_redundant_modules { my ($stref,$f) =@_;
+    my $Sf = $stref->{'Subroutines'}{$f};
+    my $annlines = $Sf->{'RefactoredCode'};
+
+    croak Dumper $f;# keys %{$Sf};
+}
+
 1;
