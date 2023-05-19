@@ -1,0 +1,67 @@
+
+v_1=...
+if
+w=v_1
+v_2=...
+else
+v_3=...
+end
+
+v_5=phi(v_2,v_3)
+
+if
+y=v_5
+v_6=...
+end
+
+v_7=phi(v_5,v_6)
+
+----
+v_1=...
+if
+w_1=v_1
+w_2=...
+else
+w_3=...
+end
+w_4=phi(w_2,2_3)
+if
+y=v_1
+end
+----
+v_1=...
+if
+w_1=v_1
+w_2=...
+else
+w_3=...
+v_2=...
+end
+w_4=phi(w_2,2_3)
+v_3=phi(v_1,v_2)
+if
+y=v_3
+end
+
+In conclusion, it is not enough to just renumber
+
+After each if-block, we need a phi function. I guess I could actually make this part of the EndIf?
+
+If the if-block was an expression, the var names of the last assignment in each branch are in the phi; but if not, i.e. some branch don't assign, then we need the last assignment in the parent block, or maybe even the parent's parent. 
+if ( if_is_expr(...) ) {
+} else {
+find final assignment before the if in the parent block.
+So I think we need to track the parent of a given block, then in that parent we look at an assignment with a LineID < the first line in the if-block
+
+
+}
+
+- I think we can ignore do-blocks as they don't influence the data flow (I assume we use loop iterators read-only)
+- I exclude while()
+
+So my approach is called def-use chains (reaching definitions) and the main difference is that two subsequent blocks are quadratic rather than linear in complexity. 
+I suspect this may be a false economy as there is the complexity of calculating the Phi functions, which in practice is faster with the quadratic algorithm than with the almost-linear one.
+
+
+
+

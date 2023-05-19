@@ -3,7 +3,7 @@ use v5.10;
 use RefactorF4Acc::Config;
 use RefactorF4Acc::Utils;
 use RefactorF4Acc::Refactoring::Helpers
-  qw( create_refactored_source get_annotated_sourcelines stateless_pass
+  qw( create_refactored_source get_annotated_sourcelines stateful_pass stateless_pass
   emit_f95_var_decl
   emit_f95_parsed_var_decl
   emit_f95_parsed_par_decl
@@ -56,6 +56,7 @@ sub emit_all {
     _init_emit_all($stref) unless $DUMMY;
 
     for my $src ( keys %{ $stref->{'SourceContains'} } ) {
+        my %used_modules=();
         if (    exists $stref->{'SourceContains'}{$src}{'Path'}
             and exists $stref->{'SourceContains'}{$src}{'Path'}{'Ext'} )
         {
@@ -155,8 +156,13 @@ sub emit_all {
                     next;
                 }
 
+                if (not exists $info->{'Use'} or not exists $used_modules{$info->{'Use'}{'Name'}} ) {
+                    if ( exists $info->{'Use'}) {
+                        $used_modules{$info->{'Use'}{'Name'}}=1;
+                    }
                 #				say $mod_line->[0];
-                print $TGT $mod_line->[0];
+                    print $TGT $mod_line->[0];
+                }
                 if ( $ANN and exists $mod_line->[1]->{'Ann'} ) {
                     say $TGT ' ! ' . join( '; ', @{ $mod_line->[1]{'Ann'} } );
                 }
@@ -375,15 +381,14 @@ sub __get_src_subdirs {
 # This is a proper emitter using the AST (if it is present)
 sub emit_AnnLines {
     my ( $stref, $f, $annlines ) = @_;
-    
+    # carp "HERE: emit_AnnLines($f)\n";
     my $code_unit = sub_func_incl_mod( $f, $stref );
     my $Sf        = $stref->{$code_unit}{$f};
-
+    
     my $pass_emit_RefactoredCode = sub {
-        ( my $annline ) = @_;
+        ( my $annline, my $used_modules ) = @_;        
         ( my $line, my $info ) = @{$annline};
-
-        # say "LINE $line";# ,Dumper $info;
+        # warn "LINE $line\n";
 
         my $rline  = $line;
         # This allows to emit lines for which there is no proper $info 
@@ -442,15 +447,21 @@ sub emit_AnnLines {
 #== USE
 # WV20190626 I'm not sure why 'include' is handled in SrcReader and 'use' here ...
         }
-        elsif ( exists $info->{'Use'} ) {
+        elsif ( exists $info->{'Use'}) {
             my $module_name = $info->{'Use'}{'Name'};
+            if (not exists $used_modules->{$module_name}) {
+                $used_modules->{$module_name} = 1;
             my $only_list   = $info->{'Use'}{'Only'} // [];
             my $maybe_only =
               scalar @{$only_list}
               ? ', only : ' . join( ', ', @{$only_list} )
               : '';
-            $rline = $indent . "use $module_name $maybe_only";
-
+              
+            $rline = $indent . "use $module_name $maybe_only ! emit_AnnLines($f)";
+            # warn "EMIT $rline\n";
+            } else {
+                $rline = $indent . "! use $module_name ! emit_AnnLines($f)";
+            }
 #== CONTAINS
         }
         elsif ( exists $info->{'Contains'} ) {
@@ -736,15 +747,15 @@ sub emit_AnnLines {
         # ];
         # } else {
         # say $rline;
-        return [             
+        return ([             
             [ $rline.$block_info, $info ] 
-        ];
+        ], $used_modules);
         # }
     };
 
     # my $refactored_code_before = dclone( $Sf->{'RefactoredCode'} );
-
-    my $new_annlines = stateless_pass( $annlines, $pass_emit_RefactoredCode,
+    my $used_modules = {};
+    (my $new_annlines,$used_modules) = stateful_pass( $annlines, $pass_emit_RefactoredCode, $used_modules,
         "pass_emit_RefactoredCode($f) " . __LINE__ );
 
     # if ($f=~/test_loop/) {

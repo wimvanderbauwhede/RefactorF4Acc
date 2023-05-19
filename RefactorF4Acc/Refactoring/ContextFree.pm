@@ -406,7 +406,7 @@ sub context_free_refactorings {
 				) {
 					# This is a factored-out parameter module. 
 					# No 'Only' , FIXME!
-                	$line = "      use $tinc";
+                	$line = "      use $tinc ! context_free_refactorings 409";
                   	push @{ $info->{'Ann'} }, annotate($f, __LINE__ . ' no pars used'); #croak 'SKIP USE PARAM';									            		  	
             	} else {            		
             		# No 'Only' or 'Only' list is empty, SKIP

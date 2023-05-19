@@ -207,7 +207,7 @@ sub _split_module_per_subroutine {
 		# Now we have to create the wrapper module source which replaces the original module source
 		my @wrapper_module_annlines=( ["module $module_to_split",{'Module' => $module_to_split }]);
 		for my $sub (@subs) {
-			push @wrapper_module_annlines,[ "     use singleton_module_$sub", {'Use' =>{'Name' => "module_$sub", 'Inlineable' => 0 } } ];
+			push @wrapper_module_annlines,[ "     use singleton_module_$sub ! _split_module_per_subroutine", {'Use' =>{'Name' => "module_$sub", 'Inlineable' => 0 } } ];
 		}
 		for my $sub (@subs) {
 			push @wrapper_module_annlines,["     interface $sub",{'Interface'=> $sub }];
@@ -224,7 +224,7 @@ sub _split_module_per_subroutine {
 # This routine creates the new module source.
 # The extra argument $subname is used to split out modules per subroutine
 sub _create_module_src { (my $stref, my $src, my $subname, my $no_modules ) = @_;
-local $I=1;
+	local $I=1;
 	# This is either a subroutine or the main program
     # So I wonder why I have this code when it's a program?
 	my $is_program = ( exists $stref->{'Program'} and $stref->{'Program'} eq $src ) ? 1 : 0;
@@ -258,7 +258,7 @@ local $I=1;
 
 		next if $used_mod_name eq $mod_name;    # FIXME: ad-hoc!
 		$used_mod_name = "singleton_module_$used_mod_name";
-		my $use_mod_line = "      use $used_mod_name";
+		my $use_mod_line = "      use $used_mod_name ! _create_module_src";
 
 		# NOT OK: must check if the sub is actually used!
 		push @mod_uses, [ $use_mod_line, { 'Ref' => 1, 'Ann' => [ annotate( '', __LINE__ ) ] } ];

@@ -712,7 +712,8 @@ sub __add_include_statements_and_sig_to_AnnLine { my ($stref, $Sf,$Sblock, $sig,
             
             if (  $stref->{'Modules'}{$mod}{'Inlineable'} == 1 ) {
             $Sblock->{'Uses'}{$mod} = { 'LineID' => 2 };
-            my $line = "      use $mod";
+            my $line = "      use $mod ! sub __add_include_statements_and_sig_to_AnnLine { my ($stref, $Sf,$Sblock, $sig, $sigrec, $block)=@_; # return $Sblock;
+";
             my $info = { 'Use' => { 'Name' => $mod, 'Inlineable' => {} }  };                        
             unshift @{ $Sblock->{'AnnLines'} }, [$line , $info ];  
             ++$idx;

@@ -60,7 +60,7 @@ sub fold_constants {
         (my $line,my $info)=@{$annline};
         # From $info, find the lines that contain expressions that might have constants to fold.
         # These would the same types of lines as in identify_array_accesses_in_exprs()
-# say "LINE: $f $line";
+            # say "LINE: $f $line";
             # $stref->{'Subroutines'}{ $f }{'ArrayAccesses'} has all block ids as keys, but how is this linked to the actual loop nest?
             my $in_block = exists $info->{'Block'} ? $info->{'Block'}{'LineID'} : '-1';
             my $block_id = exists $info->{'BlockID'} ? $info->{'BlockID'}  : 0;
@@ -112,46 +112,31 @@ sub fold_constants {
 			}            
             # say "LINE: $line";
             if ($substitute_loop_iters_by_consts) {
-			if (exists $info->{'Assignment'} ) {
-                # We need the AST for LHS and RHS
-                if ($info->{'Lhs'}{'ArrayOrScalar'} eq 'Array' ) { 
-                    my $lhs_ast = $info->{'Lhs'}{'ExpressionAST'};
-                    my $const_fold_lhs_ast = fold_constants_in_expr($stref, $f, $block_id, $lhs_ast);
-                    $info->{'Lhs'}{'ExpressionAST'}=$const_fold_lhs_ast;
+                if (exists $info->{'Assignment'} ) {
+                    # We need the AST for LHS and RHS
+                    if ($info->{'Lhs'}{'ArrayOrScalar'} eq 'Array' ) { 
+                        my $lhs_ast = $info->{'Lhs'}{'ExpressionAST'};
+                        my $const_fold_lhs_ast = fold_constants_in_expr($stref, $f, $block_id, $lhs_ast);
+                        $info->{'Lhs'}{'ExpressionAST'}=$const_fold_lhs_ast;
+                    }
+                    
+                    my $rhs_ast  = $info->{'Rhs'}{'ExpressionAST'};
+                    my $const_fold_rhs_ast = fold_constants_in_expr($stref, $f, $block_id, $rhs_ast);
+                    $info->{'Rhs'}{'ExpressionAST'}=$const_fold_rhs_ast;
                 }
-                
-                my $rhs_ast  = $info->{'Rhs'}{'ExpressionAST'};
-                my $const_fold_rhs_ast = fold_constants_in_expr($stref, $f, $block_id, $rhs_ast);
-                $info->{'Rhs'}{'ExpressionAST'}=$const_fold_rhs_ast;
-			}
-	 		if (exists $info->{'If'} ) {
-                # FIXME: Surely conditions of if-statements can contain array accesses, so FIX THIS!
-                #say "IF statement, TODO: ".Dumper($info->{'Cond'}{'Expr'});
-                my $cond_expr_ast = $info->{'Cond'}{'AST'};
-                my $const_fold_cond_expr_ast = fold_constants_in_expr($stref, $f, $block_id, $cond_expr_ast);
-                $info->{'Cond'}{'AST'} = $const_fold_cond_expr_ast;
-            }
+                if (exists $info->{'If'} ) {
+                    # FIXME: Surely conditions of if-statements can contain array accesses, so FIX THIS!
+                    #say "IF statement, TODO: ".Dumper($info->{'Cond'}{'Expr'});
+                    my $cond_expr_ast = $info->{'Cond'}{'AST'};
+                    my $const_fold_cond_expr_ast = fold_constants_in_expr($stref, $f, $block_id, $cond_expr_ast);
+                    $info->{'Cond'}{'AST'} = $const_fold_cond_expr_ast;
+                }
             }
             elsif ( exists $info->{'Do'} ) { #  the expressions for the loop bounds have been folded:
                 my $block_id = $info->{'BlockID'};
-            # say Dumper $state->{'Subroutines'}{ $f }{'Blocks'}
-            # local $Data::Dumper::Indent =0;
-            # local $Data::Dumper::Terse=1;
                 my $iter =  $info->{'Do'}{'Iterator'};
-            # say $block_id,"\t$iter\t" ,Dumper $stref->{'Subroutines'}{ $f }{'ArrayAccesses'}{$block_id}{'LoopIters'};#=$range_rec;
-            # die;
-            
                 my $evaled_range = $stref->{'Subroutines'}{ $f }{'ArrayAccesses'}{$block_id}{'LoopIters'}{$iter}{'Range'};
-            # say Dumper $evaled_range;
                 $info->{'Do'}{'Range'}{'Expressions'} = $evaled_range;
-
-            # die;
-            
-            #         if (exists $info->{'Do'}{'Iterator'} ) {
-
-            #     } else {
-            #         die "ERROR: Sorry, a `do` loop without an iterator is not supported\n";
-            #     }
             }
             # } elsif ( exists $info->{'EndDo'} ) {
 
@@ -215,8 +200,6 @@ sub fold_constants_no_iters {
                 my $var_name = $info->{'VarDecl'}{'Name'};
                 my $subset = in_nested_set( $Sf, 'Vars', $var_name );
                 my $decl = get_var_record_from_set($Sf->{$subset},$var_name);
-
-
             }
             if (exists $info->{'ParamDecl'} ) {
                 
@@ -266,12 +249,16 @@ sub fold_constants_no_iters {
                         my $const_range_expr_val = keys %{$unfolded_vars} ? $const_expr_str : eval($const_expr_str);
                         push @{$const_range_exprs}, $const_range_expr_val;
                      }
-                }
-                
+                }                
                 $info->{'Do'}{'Range'}{'Expressions'} = $const_range_exprs;
                 $info->{'Do'}{'Range'}{'Vars'} = []; # FIXME! Only works if all vars have been replaced!
             }
-
+            elsif ( exists $info->{'PrintCall'} ) { 
+                my $print_args_ast = $info->{'IOCall'}{'Args'}{'AST'};
+                my $const_fold_print_args_ast = fold_constants_in_expr_no_iters($stref, $f, $print_args_ast,$info);
+                # croak Dumper $const_fold_print_args_ast;
+                $info->{'IOCall'}{'Args'}{'AST'} = $const_fold_print_args_ast;
+             }
         return [[$line,$info]];
     };
     my $annlines = $Sf->{'RefactoredCode'};
