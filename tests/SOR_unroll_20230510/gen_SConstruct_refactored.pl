@@ -21,6 +21,8 @@ envF.Program('test_sor_unroll_$unroll',fsources,LIBS=['m'],LIBPATH=['.' ,'/usr/l
 
 ENDSCONS
 
-open my $SC, '>', "./refactored-src_$unroll/src_${unroll}_postcpp";
-say $SC, $scons;
+open my $SC, '>', "./refactored-src_$unroll/src_${unroll}_postcpp/SConstruct";
+say $SC $scons;
 close $SC;
+
+say "Generated ./refactored-src_$unroll/src_${unroll}_postcpp/SConstruct";

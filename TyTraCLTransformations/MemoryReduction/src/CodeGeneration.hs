@@ -48,7 +48,7 @@ generateFortranCode decomposed_ast functionSignaturesList idSigList =
                     (mp,(mm,mme)) = generateMainProgramOrSuperkernel genModule functionSignatures ast_stages
                 in
                     (mp,(
-                        "! AST STAGES:\n"++unlines (map (\st -> "! " ++ show st) ast_stages) ++"\n"++
+                        -- "! AST STAGES:\n"++unlines (map (\st -> "! " ++ show st) ast_stages) ++"\n"++
                         mm,mme))
             | otherwise = ("! Main code not generated",("",""))
 

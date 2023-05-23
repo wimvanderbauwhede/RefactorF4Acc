@@ -33,7 +33,7 @@ use sor_params
 use sor_routines
 real, dimension(0:im+1,0:jm+1,0:km+1) :: p0
 real, dimension(0:im+1,0:jm+1,0:km+1) :: p1
-real, dimension(0:im+1,0:jm+1,0:km+1) :: rhs 
+real, dimension(0:im+1,0:jm+1,0:km+1) :: rhs
 #if UNROLL>1
 real, dimension(0:im+1,0:jm+1,0:km+1) :: p2
 #if UNROLL>2

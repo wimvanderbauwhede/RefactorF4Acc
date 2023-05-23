@@ -779,7 +779,7 @@ sub mkMapAST {
 # I should know the inputs and outputs
 # anything else is VT
     my $lhs_vars_types = zip( $mapNode->{'Lhs'}{'Vars'}, $ret_type );
-    
+
 # more than one
     my $lhs = scalar @{$mapNode->{'Lhs'}{'Vars'}} > 1
       ? '(Tuple [' . join(',', map { __mkVec($_) } @{$lhs_vars_types}) . '])'
@@ -895,7 +895,7 @@ sub __mkType { (my $t_rec, my $v_name, my $v_intent)=@_;
 
 sub __mkVec {
     my ($var_type_rec, $v_intent) = @_;
-    carp if not defined $var_type_rec;
+    carp '__mkVec: var_type_rec not defined' if not defined $var_type_rec;
     my ($v_rec, $t_rec) = @{$var_type_rec};
     # t_rec is either [Int] or [SVec,3,Int]
     my $v_name  = _mkVarName($v_rec);
