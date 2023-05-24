@@ -850,59 +850,53 @@ sub __substitute_args_core { ( my $stref, my $f , my $argmap) = @_;
 
 } #  END of __substitute_args_core
 
+# WV 20230524 The only good way to do this is by parsing the expression and manipulating the AST
+# I know this, and yet I did it with regexes.
 sub __fix_slice_indexing{my ($line,$info) = @_;
-    # say "LINE: $line";
+    # If the paren is the final char in the string, split does nothing. So I add a space.
+    # It can't be the first char so that's OK
     $line=~s/\)$/) /;
-    while ($line=~/\(\(/) {
-        $line=~s/\(\(/( (/;
-    }
-    while ($line=~/\)\)/) {
-        $line=~s/\)\)/) )/;
-    }
-
+    # Split on ')('
     my @chunks = split(/\)\(/,$line);
     my $new_line='';
     for my $idx (0 .. scalar @chunks -2 ) {
         my $left = $chunks[$idx];
-        my $right = $chunks[$idx+1];
-        # say "$idx<$left><$right>";
         my @l_chunks = split(/\(/,$left);
+        # all chars after the last '('
         my $l_last = pop @l_chunks;
+        my $right = $chunks[$idx+1];
         my @r_chunks = split(/\)/,$right);
+        # all chars before the first '('
         my $r_first = shift @r_chunks;
-        # say "<$l_last><$r_first>";
+        # split the index expressions on commas
         my @l_elts = split(/\s*,\s*/,$l_last);
         my @r_elts = split(/\s*,\s*/,$r_first);
-        # say @l_elts, ')(',@r_elts;
-        if (scalar @l_elts != 1 + scalar @r_elts) {croak $line; } else {
+        # the dummy syntax (i,:,:)(j,k) means that the last two are substituted
+        # I think by design of the memory reduction pass, the difference is alway 1
+        if (scalar @l_elts != 1 + scalar @r_elts) {
+            croak '__fix_slice_indexing():'.$line;
+        } else {
+            # Now we can simply take the first elt of the left and all of the right and merge them
             my @merge = ($l_elts[0],@r_elts);
             my $merged_str = '('.join(',',@merge).')';
+            # reconstruct the left part
             my $prev_chunk = join('(',@l_chunks);
+            # Now treat it as the right part
             my @prev_chunks =  split(/\)/,$prev_chunk);
+            # This is to remove $r_first
             if ($idx>0) {
                  shift @prev_chunks;
             }
+            # reconstruct
             $new_line.= join(')',@prev_chunks);
+            # accumulate
             $new_line.= $merged_str;
-            if ($idx ==  scalar @chunks -2) {
+            # don't forget the final chunk
+            if ($idx ==  scalar @chunks - 2) {
                 $new_line.= join(')',@r_chunks);
             }
         }
     }
-    # say "NEW LINE: $new_line";
-    # if ($line=~/\s*=\s*/) {
-    #     my ($lhs,$rhs) = split(/\s*=\s*/,$line);
-    #     $lhs=~/\(([^\)\(]+?)\)\(([^\)\(]+?)\)/ && do {
-    #         say "LHS<$1><$2>";
-    #     };
-    #     $rhs=~/\(([^\)\(]+?)\)\(([^\)\(]+?)\)/ && do {
-    #         say "RHS<$1><$2>";
-    #     };
-    # } else {
-    #     $line=~/\(([^\)\(]+?)\)\(([^\)\(]+?)\)/ && do {
-    #         say "SUB<$1><$2>";
-    #     };
-    # }
     return $new_line;
 }
 

@@ -144,12 +144,13 @@ my $min_dim = ($params{'ip'}/2).'*WM*'.($params{'jp'}/2).'*WM*'.$params{'kp'};
      integer, parameter :: jm=100
      integer, parameter :: km=80
 ';
-        } elsif ($line=~/do\s+global_id_0\s+=\s+1,\s*\d+/) {
-            my $rline=$line;
-            $rline=~s/,\s*\d+/, $min_dim/;
-            print $MF $rline;
+        # } elsif ($line=~/do\s+global_id_0\s+=\s+1,\s*\d+/) {
+        #     my $rline=$line;
+        #     $rline=~s/,\s*\d+/, $min_dim/;
+        #     print $MF $rline;
         } elsif ($line=~/niters\s*=\s*(\d+)/) { my $niters=$1;
         $line=~s/$niters/$niters_unroll/;
+        print $MF $line;
         # } elsif ($line=~/301/) {
         #     $line=~s/301/(150*WM+1)/;
         #     print $MF $line;
@@ -166,13 +167,9 @@ my $min_dim = ($params{'ip'}/2).'*WM*'.($params{'jp'}/2).'*WM*'.$params{'kp'};
             $init=1;
             print $MF $line;
              print $MF '
-    do i = 0,im+1
-        do j = 0,jm+1
-            do k = 0,km+1
-                rhs(i,j,k) = 1.0
-                p0(i,j,k) = 1.0
-            end do
-        end do
+    do i = 1,(im+1)*(jm+1)*(km+1)
+        rhs_0(i) = 1.0
+        p0_0(i) = 1.0
     end do
 ';
     say $MF '';
@@ -180,7 +177,7 @@ my $min_dim = ($params{'ip'}/2).'*WM*'.($params{'jp'}/2).'*WM*'.$params{'kp'};
 
         } elsif($line=~/end\s+program/) {
             print $MF '#ifdef CHECKSUM
-    print *, p0(im/2,jm/2,km/2)
+    print *, p0((im+2)*(jm+2)*(km+2)/2+(jm+2)*(km+2)/2+(km+2)/2)
 #endif';
             say $MF '';
             print $MF $line;

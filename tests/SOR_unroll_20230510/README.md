@@ -48,17 +48,21 @@
 			scons
 			./test_sor_unroll_{UNROLL}
 
-	* Run `../../../aux/run_autoparallel_compiler_GPU.sh`. This creates the module in Autopar_GPU
-	* In `Autopar_GPU`, patch the module file to change `get_global_id()` calls to `global_id` arguments: run `../../../aux/patch_autopar_superkernel_src.pl`
+	* Run `../../../aux/run_autoparallel_compiler_GPU.sh UNROLL`. This creates the module in `./autopar_{UNROLL}`
+	* In `autopar_{UNROLL}`, patch the module file to change `get_global_id()` calls to `global_id` arguments: run `../aux/patch_autopar_superkernel_src.pl`
 	* NOTE: this also removes the substring 'superkernel_' because the memory reduction pass relies on a single superkernel.
 	* NOTE: it is essential to remove the temp arrays from the superkernel argument list. This is what we should use 'Purpose' for.
-	* In `Autopar_GPU/Patched`, run  `memory_reduction.pl -C`, then the inliner etc.
+	* In `patched_autopar_{UNROLL}`, run  `memory_reduction.pl -C`, then the inliner etc.
 		* In `MemoryReduction/Generated`, test the code:
 
 				scons
 				./gen_sor_superkernel
 
 		* Inline the code
+			- generate the config file with `../aux/gen_cfg_inline.pl $UNROLL` if required
+			- run `refactorF4acc.pl -c rf4a_inline_$UNROLL`
+	* In `patched_autopar_{UNROLL}/mem_reduced_inlined/Generated`, run  `patch_inlined_code.pl $UNROLL`
+		- That should provide the final code in `patched_autopar_{UNROLL}/mem_reduced_inlined/Generated/Patched`
 
 
 

@@ -6,8 +6,8 @@ use warnings;
 use Cwd;
 
 my $wd=cwd;
-if ($wd!~/refactored-src_\d.src_\d_postcpp.Autopar_GPU.Patched/) {
-    die "Run this script in 'Refactored-src_{UNROLL}/src_{UNROLL}_postcpp/Autopar_GPU/Patched/'\n";
+if ($wd!~/patched_autopar_/) {
+    die "Run this script in 'patched_autopar_{UNROLL}'\n";
 }
 
 die 'Provide the unroll factor as arg'."\n" unless @ARGV;

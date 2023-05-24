@@ -38,8 +38,8 @@ stencilDefinitionsList = [("s1" , [103,10405,10407,10506,10507,10508,10607,10609
 
 mainArgDeclsList = [
       ("global_id_0" , MkFDecl "integer" Nothing (Just In) ["global_id_0"] )
-    , ("rhs_0" , MkFDecl "real"  (Just [(1,853128)]) (Just In) ["rhs_0"] )
     , ("p0_0" , MkFDecl "real"  (Just [(1,853128)]) (Just In) ["p0_0"] )
+    , ("rhs_0" , MkFDecl "real"  (Just [(1,853128)]) (Just In) ["rhs_0"] )
     , ("p4_1" , MkFDecl "real"  (Just [(1,853128)]) (Just Out) ["p4_1"] )
   ]
 

@@ -14,9 +14,12 @@ our $V=1;
 use Cwd;
 use Carp qw(croak);
 my $wd=cwd;
-if ($wd!~/refactored-src_\d.src_\d_postcpp.Autopar_GPU/) {
-    die "Run this script in 'refactored-src_{UNROLL}/src_{UNROLL}_postcpp/Autopar_GPU'\n";
+
+if ($wd!~/autopar_\d/) {
+    die "Run this script in 'autopar_{UNROLL}'\n";
 }
+my $patched_wd = $wd;
+$patched_wd =~s/autopar/patched_autopar/;
 
 # Clean up
 # unlink 'module_sor_superkernel_superkernel_init.f95';
@@ -40,14 +43,14 @@ my $superkernel_file = shift @orig_superkernel_files;
     chomp $sub_name;
     say "sub_name $sub_name" if $V;
 
-    mkdir 'Patched';
+    mkdir $patched_wd;;
 
 # - In the superkernel file, in the superkernel subroutine, add the use declarations for the stage kernels
     open my $SKMF, '<', $superkernel_file or die $!;
     my @superkernel_file_lines = <$SKMF>;
     close $SKMF;
 
-    open $SKMF, '>', "Patched/$superkernel_file" or die "$!";
+    open $SKMF, '>', "$patched_wd/$superkernel_file" or die "$!";
     my %temp_arrays=();
     for my $line (@superkernel_file_lines) {
         if ($line=~/InOut.+?::\s*(\w+)/) {
