@@ -4,11 +4,14 @@ use sor_params
 contains
 
 subroutine sor (p0,p1,rhs)
-    use sor_params
+    use sor_params    
 real, dimension(0:im+1,0:jm+1,0:km+1), intent(In) :: p0
 real, dimension(0:im+1,0:jm+1,0:km+1), intent(Out) :: p1
 real, dimension(0:im+1,0:jm+1,0:km+1), intent(In) :: rhs 
 integer :: i,j,k
+#ifdef WITH_OPENMP
+!$OMP PARALLEL DO
+#endif
 do i = 0,im+1
 do j = 0,jm+1
 do k = 0,km+1
@@ -16,6 +19,9 @@ call sor_kernel(p0,p1,rhs,i,j,k)
 end do
 end do
 end do
+#ifdef WITH_OPENMP
+!$OMP END PARALLEL DO
+#endif
 end subroutine sor
 
 subroutine sor_kernel(p0,p1,rhs,i,j,k) 

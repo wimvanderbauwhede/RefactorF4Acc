@@ -3,7 +3,11 @@ use v5.20;
 use strict;
 use warnings;
 die 'Provide the unroll factor as arg'."\n" unless @ARGV;
+my $VV=1;
+if (@ARGV==2 and $ARGV[1] eq '-s') {$VV=0;}
+
 my $unroll = shift @ARGV;
+
 my $scons = <<"ENDSCONS";
 import os
 
@@ -11,7 +15,7 @@ FC=os.environ.get('FC')
 
 fsources = ['sor_routines.f95','sor_params.f95', 'test_sor_unroll.f95']
 
-FFLAGS = ['-Wall','-cpp','-DUNROLL=$unroll', '-O3','-mcmodel=medium','-m64','-ffree-form','-ffree-line-length-0','-fconvert=little-endian','-frecord-marker=4']
+FFLAGS = ['-Wall','-cpp','-DDYN_ALLOC','-DWITH_OPENMP','-DTIMING','-DCHECKSUM','-DUNROLL=$unroll', '-Ofast','-mcmodel=medium','-m64','-ffree-form','-ffree-line-length-0','-fconvert=little-endian','-frecord-marker=4']
 
 envF=Environment(F95=FC,LINK=FC,F95FLAGS=FFLAGS,F95PATH=['.' ,'/usr/local/include'])
 
@@ -24,7 +28,7 @@ open my $SC, '>', "./src/SConstruct";
 say $SC $scons;
 close $SC;
 
-say "Generated ./src/SConstruct";
+say "Generated ./src/SConstruct" if $VV;
 
 my $macros = <<"ENDMACROS";
 #define UNROLL $unroll
@@ -34,7 +38,7 @@ open my $M_H, '>', "./src/macros.h";
 say $M_H $macros;
 close $M_H;
 
-say "Generated ./src/macros.h";
+say "Generated ./src/macros.h" if $VV;
 
 
 my $cfg = <<"ENDCFG";
@@ -57,4 +61,4 @@ open my $CFG, '>', "./rf4a_$unroll.cfg";
 say $CFG $cfg;
 close $CFG;
 
-say "Generated ./rf4a_$unroll.cfg";
+say "Generated ./rf4a_$unroll.cfg" if $VV;

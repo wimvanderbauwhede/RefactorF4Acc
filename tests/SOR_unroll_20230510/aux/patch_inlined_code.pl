@@ -177,7 +177,7 @@ my $min_dim = ($params{'ip'}/2).'*WM*'.($params{'jp'}/2).'*WM*'.$params{'kp'};
 
         } elsif($line=~/end\s+program/) {
             print $MF '#ifdef CHECKSUM
-    print *, p0((im+2)*(jm+2)*(km+2)/2+(jm+2)*(km+2)/2+(km+2)/2)
+    print *, p0_0((im+2)*(jm+2)*(km+2)/2+(jm+2)*(km+2)/2+(km+2)/2)
 #endif';
             say $MF '';
             print $MF $line;
