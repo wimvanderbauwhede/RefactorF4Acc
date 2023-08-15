@@ -9,7 +9,7 @@ use RefactorF4Acc::Refactoring::Fixes qw(
 	_declare_undeclared_variables
 	_remove_unused_variables
 	);
-use RefactorF4Acc::Parser::Expressions qw( @sigils );
+# use RefactorF4Acc::Parser::Expressions qw( @sigils );
 use RefactorF4Acc::Translation::LlvmToTyTraIR qw( generate_llvm_ir_for_TyTra );
 
 #
@@ -35,18 +35,21 @@ use Exporter;
     &translate_module_to_Uxntal
 	&translate_sub_to_Uxntal
 );
-#    &translate_all_to_C
-#    &refactor_C_targets
-#    &emit_C_targets
-#    &toUxntalType
 
-## So assuming a subroutine has been marked with
-# if (exists $stref->{'Subroutines'}{$sub}{'Translate'} and $stref->{'Subroutines'}{$sub}{'Translate'} eq 'C') {
-# 	# Then we can emit C code
-# 		translate_sub_to_Uxntal($stref,$sub);
-# }
+#### #### #### #### BEGIN OF UXNTAL TRANSLATION CODE #### #### #### ####
 
-#### #### #### #### BEGIN OF C TRANSLATION CODE #### #### #### ####
+#               0    1    2    3    4    5    6    7    8    9    10   11   12   13    14
+our @sigils = ('(', '&', '$', 'ADD', 'SUB', 'MUL', 'DIV', 'mod', 'pow', '=', '@', '#', ':' ,'//', ')('
+#                15    16    17  18   19    20     21       22       23      24       25       26
+               ,'EQU', 'NEQ', 'LTH', 'GTH', 'lte', 'gte', 'not', 'AND', 'ORA', 'EOR', '.eqv.', '.neqv.'
+#                27   28
+               ,',', '(/',
+# Constants
+#                29        30      31         32           33             34       35
+               ,'integer', 'real', 'logical', 'character', 'PlaceHolder', 'Label', 'BLANK'
+              );
+
+
 # $ocl: 0 = C, 1 = CPU/GPU OpenCL, 2 = C for TyTraIR aka TyTraC, 3 = pipe-based OpenCL for FPGAs
 # 4 = translate_to_TyTraLlvmIR, 5 = translate_to_OpenCL_memory_reduction
 sub translate_module_to_Uxntal {  (my $stref, my $module_name, my $ocl) = @_;
@@ -61,7 +64,7 @@ sub translate_module_to_Uxntal {  (my $stref, my $module_name, my $ocl) = @_;
 	$stref = pass_wrapper_subs_in_module($stref,$module_name,
 	   # module-specific passes.
        [
-           [\&_emit_OpenCL_pipe_declarations]
+        #    [\&_emit_OpenCL_pipe_declarations]
        ],
        # subroutine-specific passes
 	   [
@@ -70,12 +73,11 @@ sub translate_module_to_Uxntal {  (my $stref, my $module_name, my $ocl) = @_;
 			  \&update_arg_var_decl_sourcelines,
 			  \&_declare_undeclared_variables]
 			  ,#,\&_remove_unused_variables],
-		  [\&add_OpenCL_address_space_qualifiers],
 		  [\&translate_sub_to_Uxntal]
        ],
        $ocl);
 
-	$stref = _write_headers($stref,$ocl);
+	# $stref = _write_headers($stref,$ocl);
 	$stref = _emit_Uxntal_code($stref, $module_name, $ocl);
 	# This enables the postprocessing for custom passes
 	$stref->{'CustomPassPostProcessing'}=1;
@@ -113,9 +115,69 @@ Instead of the nice but cumbersome approach we had until now, from now on it is 
 	my $Sf = $stref->{'Subroutines'}{$f};
 	my $annlines = get_annotated_sourcelines( $stref, $f );
 
+	my $pass_pointer_analysis = sub { my ($annline,$state) = @_;
+		my ($line, $info) = @{$annline};
+	
+		if (exists $info->{'Signature'} ) {
+			$state->{'Args'} = { map { $_=>1 } @{$info->{'Signature'}{'Args'}{'List'}}};
+		}
+		elsif (exists $info->{'VarDecl'} ) {
+			my $var = $info->{'VarDecl'}{'Name'};
+			# carp "$var";
+			if (exists $state->{'Args'}{$var} ) {
+				$state->{'Pointers'}{$var}='*';
+			} else {
+				$state->{'Pointers'}{$var}='';
+				$state->{'LocalVars'}{$var}=1;
+			}
 
 
-	my $pass_translate_to_C = sub { (my $annline, my $state)=@_;
+		}
+		elsif ( exists $info->{'ParamDecl'} ) {
+				my $var = $info->{'VarDecl'}{'Name'};
+				$state->{'Pointers'}{$var}='';
+				$state->{'Parameters'}{$var}=1;
+		}
+		elsif (exists $info->{'SubroutineCall'} ) {
+			my $fname =  $info->{'SubroutineCall'}{'Name'};
+			if (not exists $F95_intrinsic_functions{$fname} ) {
+			for my $arg_expr_str (@{$info->{'SubroutineCall'}{'Args'}{'List'}}) {
+				# say "<$fname $arg_expr_str>";
+				my $arg = $info->{'SubroutineCall'}{'Args'}{'Set'}{$arg_expr_str}{'Type'} eq 'Scalar'
+				? $info->{'SubroutineCall'}{'Args'}{'Set'}{$arg_expr_str}{'Expr'}
+				: $info->{'SubroutineCall'}{'Args'}{'Set'}{$arg_expr_str}{'Arg'};
+				if (exists $state->{'LocalVars'}{$arg}) {
+					$state->{'Pointers'}{$arg}='*';
+				}
+				elsif (exists $state->{'Parameters'}{$arg}) {
+					$state->{'Pointers'}{$arg}='&';
+					carp 'TODO: a const scalar passed as arg';
+				}
+			}
+			}
+		}
+		elsif ( exists $info->{'FunctionCalls'} ) {
+			for my $entry (@{$info->{'FunctionCalls'}}) {
+				my $fname =  $entry->{'Name'};
+				if (not exists $F95_intrinsic_functions{$fname} ) {
+					# We assume intrinsics take values not pointers
+					for my $arg (sort keys %{$entry->{'Args'}}) {
+						if (exists $state->{'LocalVars'}{$arg}) {
+							$state->{'Pointers'}{$arg}='*';
+						}
+					}
+				}
+			}
+		}
+
+		return ([[$line,$info]],$state)
+	};
+
+	my $pass_state = {'Pointers'=>{},'Args' =>{},'LocalVars' =>{}, 'Parameters'=>{}};
+	(my $new_annlines_,$pass_state) = stateful_pass($annlines,$pass_pointer_analysis,$pass_state,"pass_pointer_analysis($f)");
+	$Sf->{'Pointers'} = $pass_state->{'Pointers'};
+
+	my $pass_translate_to_Uxntal = sub { (my $annline, my $state)=@_;
 		(my $line,my $info)=@{$annline};
 		my $c_line=$line;
 		(my $stref, my $f, my $pass_state)=@{$state};
@@ -123,27 +185,15 @@ Instead of the nice but cumbersome approach we had until now, from now on it is 
 		my $skip=0;
 		if (exists $info->{'Signature'} ) {
 			$pass_state->{'Args'}=$info->{'Signature'}{'Args'}{'List'};
-			if($ocl==3 and $info->{'Signature'}{'Name'} eq 'pipe_initialisation') {
-				# WV20190823 I think this is OBSOLETE
-				$c_line='';
-			} else {
 				my $sig_line = _emit_subroutine_sig_Uxntal( $stref, $f, $annline);
 				$c_line = $sig_line." {\n";
 				# RS 19/11/21
 				$pass_state->{'ForwardDecl'} = $sig_line.';' unless ($sig_line=~/int\s+main/ or ($ocl==1 or $ocl==3 or $ocl==5) and $f eq $Config{'KERNEL'});
-				if ($ocl==3 ) {
-					$c_line = '__kernel __attribute__((reqd_work_group_size(1,1,1))) '.$c_line;
-				} elsif (($ocl==1 or $ocl==5) and $f eq $Config{'KERNEL'}) {
-					$c_line = '__kernel '.$c_line;
-				}
-			}
 		}
 		elsif (exists $info->{'VarDecl'} ) {
 
 				my $var = $info->{'VarDecl'}{'Name'};
-				if (exists $stref->{'Subroutines'}{$f}{'DeclaredOrigArgs'}{'Set'}{$var}
-				or ($ocl==3 and $var=~/__pipe$/)
-				) {
+				if (exists $stref->{'Subroutines'}{$f}{'DeclaredOrigArgs'}{'Set'}{$var}) {
 					$c_line='//'.$line;
 					$skip=1;
 				} else {
@@ -153,20 +203,6 @@ Instead of the nice but cumbersome approach we had until now, from now on it is 
 				# and for an 8x8x8, v(2,:,:) would become v[1*8*8] and v(2,3,:) would be v(1*8*8+2*8)
 				# And this should be a pointer, not a value, so should it then not be &v[8]? I think so.
 					$c_line = _emit_var_decl_Uxntal($stref,$f,$var);
-					if (exists $info->{'TrailingComment'} and $info->{'TrailingComment'}=~/\$ACC\s+MemSpace\s+(\w+)/) {
-						# This code will basically only work for arrays with dimensions defined by constants and macros
-						#
-						my $decl =  get_var_record_from_set($stref->{'Subroutines'}{$f}{'Vars'},$var);
-						my $dim = $decl->{'Dim'};
-						my @sizes = map {  '('.$_->[1].' - '.$_->[0].' +1)'   } @{$dim} ; #[['1','nth']]
-						my $size_str = (scalar @sizes==1) ? $sizes[0] : join('*',@sizes);
-						my $memspace='__'.$1;
-						my $indent = ($c_line =~s/^\s+//);
-						$c_line=~s/\*//;
-						$c_line=~s/;//;
-
-						$c_line = $indent.	 $memspace.' '.$c_line.'['.uc($size_str).'];' ;
-					}
 				}
 		}
 		elsif ( exists $info->{'ParamDecl'} ) {
@@ -198,7 +234,7 @@ Instead of the nice but cumbersome approach we had until now, from now on it is 
 				$c_line='for () {';
 		}
 		if (exists $info->{'Assignment'} ) {
-				$c_line = _emit_assignment_Uxntal($stref, $f, $info).';';
+				$c_line = _emit_assignment_Uxntal($stref, $f, $info) ;
 		}
 		elsif (exists $info->{'SubroutineCall'} ) {
 			#
@@ -210,7 +246,7 @@ Instead of the nice but cumbersome approach we had until now, from now on it is 
 			# But the problem is of course that we have just replaced the called args by the sig args
 			# So what we need to do is check the type in $f and $subname, and use that to see if we need a '*' or even an '&' or nothing
 
-            $c_line = $info->{'Indent'}._emit_subroutine_call_expr_C($stref,$f,$info).';';
+            $c_line = $info->{'Indent'}._emit_subroutine_call_expr_Uxntal($stref,$f,$info);
 		}
 		elsif (exists $info->{'If'} ) {
 			$c_line = _emit_ifthen_C($stref, $f, $info);
@@ -285,7 +321,7 @@ Instead of the nice but cumbersome approach we had until now, from now on it is 
 	};
 
 	my $state = [$stref,$f, {'TranslatedCode'=>[], 'Args'=>[],'ForwardDecl'=>''}];
- 	($stref,$state) = stateful_pass_inplace($stref,$f,$pass_translate_to_C, $state,'C_translation_collect_info() ' . __LINE__  ) ;
+ 	($stref,$state) = stateful_pass_inplace($stref,$f,$pass_translate_to_Uxntal, $state,'C_translation_collect_info() ' . __LINE__  ) ;
 
  	$stref->{'Subroutines'}{$f}{'TranslatedCode'}=$state->[2]{'TranslatedCode'};
  	$stref->{'TranslatedCode'}=[$state->[2]{'ForwardDecl'},@{$stref->{'TranslatedCode'}},'',@{$state->[2]{'TranslatedCode'}}] ;
@@ -455,7 +491,9 @@ sub _emit_assignment_Uxntal { (my $stref, my $f, my $info)=@_;
 		$rhs_stripped=~s/\b$lc_macro\b/$macro/g;
 	}
 
-	my $rline = $info->{'Indent'}.$lhs.' = '.$rhs_stripped;
+	# my $rline = $info->{'Indent'}.$lhs.' = '.$rhs_stripped;
+	$lhs =~s/LDA2$//;
+	my $rline = $info->{'Indent'}.$rhs_stripped . ' '. $lhs. ' STA2';
 	if (exists $info->{'If'}) {
 		my $if_str = _emit_ifthen_C($stref,$f,$info);
 		$rline =$indent.$if_str.' '.$rline;
@@ -476,45 +514,51 @@ sub _emit_ifthen_C { (my $stref, my $f, my $info)=@_;
 	return $rline;
 }
 # I wonder if for call args it might be better to have a separate function which checks if the arg is scalar, array, array access, const
+# The AST is a tree made of a nesting of lists. Each list starts with an integer identifying its type:
+#                 0    1    2    3    4    5    6    7    8    9    10   11   12   13    14
+# our @sigils = ('(', '&', '$', '+', '-', '*', '/', '%', '**', '=', '@', '#', ':' ,'//', ')('
+#                 15    16    17  18   19    20     21       22       23      24       25       26
+#			    ,'==', '/=', '<', '>', '<=', '>=', '.not.', '.and.', '.or.', '.xor.', '.eqv.', '.neqv.'
+#                 27   28
+#			    ,',', '(/',
+# Constants
+#                 29        30      31         32           33             34       35
+#			    ,'integer', 'real', 'logical', 'character', 'PlaceHolder', 'Label', 'BLANK'
+#   );
+# $: scalar
+# &: subroutine
+# @: array
+
+
 sub _emit_expression_Uxntal { my ($ast, $stref, $f, $info)=@_;
 	my $Sf = $stref->{'Subroutines'}{$f};
 
     if (ref($ast) eq 'ARRAY') {
         if (scalar @{$ast}==3) {
-			if ($ast->[0] == 8) { #eq '^'
+			# Uxn does not have pow or mod so these would have to be functions 
+			if ($ast->[0] == 8) { # eq '^'
 				(my $op, my $arg1, my $arg2) = @{$ast};
 				$ast = [1,'pow',[27,$arg1,$arg2] ] ;
-				# $ast->[0]='pow';
-				# unshift @{$ast},1;# '&'
-
 			}
-			elsif ($ast->[0] == 1  and $ast->[1] eq 'mod') {#eq '&'
-					shift @{$ast};
-					# $ast->[0]= 7 ;# '%';
-					my $arg1 = $ast->[1][1];
-					my $arg2 = $ast->[1][2];
-					$ast = [7,$arg1,$arg2];# '%';
-					# croak Dumper $ast;
-			}
+			# elsif ($ast->[0] == 1 and $ast->[1] eq 'mod') {# eq '&'
+			# 		shift @{$ast};
+			# 		my $arg1 = $ast->[1][1];
+			# 		my $arg2 = $ast->[1][2];
+			# 		$ast = [7,$arg1,$arg2];# '%';
+			# }
 
             if ($ast->[0] == 1 or $ast->[0] ==10) { #  array access 10=='@' or function call 1=='&'
                 (my $sigil, my $name, my $args) =@{$ast};
-				# if (in_nested_set($Sf,'Vars',$name)) {
-				# 	say "NAME $name is an ARRAY (".$ast->[0].')';
-				# 	$ast->[0]=10;
-				# } else {
-				# 	say "NAME $name is a FUNCTION (".$ast->[0].')';
+				# if ($ast->[0] == 1) { # No need for this in Uxn, we might as well keep the Fortran names
+				# 	my $mvar = $name;
+				# 	# AD-HOC, replacing abs/min/max to fabs/fmin/fmax without any type checking ... FIXME!!!
+				# 	# The (float) cast is necessary because otherwise I get an "ambiguous" error
+				# 	$mvar=~s/^(abs|min|max)$/(float)f$1/;
+				# 	$mvar=~s/^am(ax|in)1$/(float)fm$1/;
+				# 	$mvar=~s/^alog$/(float)log/;
+				# 	$name = $mvar;
+				#  	$stref->{'CalledSub'}= $mvar;
 				# }
-				if ($ast->[0] == 1) {
-					my $mvar = $name;
-					# AD-HOC, replacing abs/min/max to fabs/fmin/fmax without any type checking ... FIXME!!!
-					# The (float) cast is necessary because otherwise I get an "ambiguous" error
-					$mvar=~s/^(abs|min|max)$/(float)f$1/;
-					$mvar=~s/^am(ax|in)1$/(float)fm$1/;
-					$mvar=~s/^alog$/(float)log/;
-					$name = $mvar;
-				 	$stref->{'CalledSub'}= $mvar;
-				}
 
                 if (@{$args}) {
 					if ($args->[0] != 14 ) { # NOT ')('
@@ -535,8 +579,9 @@ sub _emit_expression_Uxntal { my ($ast, $stref, $f, $info)=@_;
 						}
 
 						if ($ast->[0]==10) { # An array access
+							# In Uxntal, an array access is ;array $idx ADD2 LDA2 and if $idx is a scalar, I assume it's $idx LDA2
 							if( $args->[0]==29 and $args->[1] eq '1') { # if we have v(1)
-								return '(*'.$name.')';
+								return $name.' LDA2';
 							} else {
 								my $decl = get_var_record_from_set($stref->{'Subroutines'}{$f}{'Vars'},$name);
 								my $dims =  $decl->{'Dim'};
@@ -551,45 +596,20 @@ sub _emit_expression_Uxntal { my ($ast, $stref, $f, $info)=@_;
 									push @lower_bounds, $lb;
 								}
 								if ($ndims==1) {
-									return $name.'[F1D2C('.join(',',@lower_bounds). ' , '.join(',',@args_lst).')]';
+									return $name.' '.$args_lst[0].' ADD2 LDA2'
 								} else {
-									return $maybe_amp.$name.'[F'.$ndims.'D2C('.join(',',@ranges[0.. ($ndims-2)]).' , '.join(',',@lower_bounds). ' , '.join(',',@args_lst).')]';
+									die "No support for multidimensional arrays yet\n";
+									# return $maybe_amp.$name.'[F'.$ndims.'D2C('.join(',',@ranges[0.. ($ndims-2)]).' , '.join(',',@lower_bounds). ' , '.join(',',@args_lst).')]';
 								}
 							}
-						} else {
-							return "$name(".join(',',@args_lst).')';
+						} else { # A subroutine access. 
+							return join(' ',@args_lst).' '.$name;
 						}
 					} else { #  ')(', e.g. f(x)(y)
-					die 'ERROR: f()() is not supported, sorry!'."\n";
-						(my $sigil,my $args1, my $args2) = @{$args};
-						my $args_str1='';
-						my $args_str2='';
-						if($args1->[0] == 27) { #eq ','
-							my @args_lst1=();
-							for my $idx (1 .. scalar @{$args1}-1) {
-								my $arg = $args1->[$idx];
-								push @args_lst1, _emit_expression_Uxntal($arg, $stref, $f,$info);
-							}
-							$args_str1=join(',',@args_lst1);
-
-						} else {
-							$args_str1= _emit_expression_Uxntal($args1, $stref, $f,$info);
-						}
-						if($args2->[0] == 27) { #eq ','
-							my @args_lst2=();
-							for my $idx (1 .. scalar @{$args2}-1) {
-								my $arg = $args2->[$idx];
-								push @args_lst2, _emit_expression_Uxntal($arg, $stref, $f,$info);
-							}
-
-							$args_str2=join(',',@args_lst2);
-						} else {
-							$args_str2=_emit_expression_Uxntal($args2, $stref, $f,$info);
-						}
-						return "$name(".$args_str1.')('.$args_str2.')';
+						die 'ERROR: f()() is not supported, sorry!'."\n";
 					}
 				} else {
-					return "$name()";
+					return $name;
 				}
             } else { # not '&' or '@'
 
@@ -598,20 +618,24 @@ sub _emit_expression_Uxntal { my ($ast, $stref, $f, $info)=@_;
                 my $lv = (ref($lexp) eq 'ARRAY') ? _emit_expression_Uxntal($lexp, $stref, $f,$info) : $lexp;
                 my $rv = (ref($rexp) eq 'ARRAY') ? _emit_expression_Uxntal($rexp, $stref, $f,$info) : $rexp;
 
-                return $lv.$sigils[$opcode].$rv;
+                return "$lv $rv  ".$sigils[$opcode].'2'; # FIXME, needs refining
             }
         } elsif (scalar @{$ast}==2) { #  for '{'  and '$'
 
             (my $opcode, my $exp) =@{$ast};
-            if ($opcode==0 ) {#eq '('
+            if ($opcode==0 ) { # eq '('
                 my $v = (ref($exp) eq 'ARRAY') ? _emit_expression_Uxntal($exp, $stref, $f,$info) : $exp;
-                return "($v)";
-            } elsif ($opcode==28 ) {#eq '(/'
+                return "[ $v ]"; # FIXME
+            } elsif ($opcode==28 ) { # eq '(/'
                 my $v = (ref($exp) eq 'ARRAY') ? _emit_expression_Uxntal($exp, $stref, $f,$info) : $exp;
-                return "{ $v }";
+                return "[ $v ]"; # FIXME
             } elsif ($opcode==2 or $opcode>28) {# eq '$' or constants
 				if ($opcode == 34) {
 					die 'ERROR: Fortran LABEL as arg is not supported, sorry!'."\n"; #  "*$exp" : $exp;   # Fortran LABEL, does not exist in C
+				}
+
+				if ($exp=~/^\d+$/) {
+					$exp = sprintf("#%04x", $exp);
 				}
 				my $mvar = $ast->[1];
 				my $called_sub_name = $stref->{'CalledSub'} // '';
@@ -641,16 +665,18 @@ sub _emit_expression_Uxntal { my ($ast, $stref, $f, $info)=@_;
 
 					}
                     if ($ptr eq '') {
-                        return $exp;
+                        # return $exp;
+						return ';'.$exp.' LDA2';
                     } else {
-						return '('.$ptr.$exp.')';
+						# return '('.$ptr.$exp.')';
+						return ';'.$exp.' LDA2';
                     }
 				} else {
-					return $exp;
+					return "$exp";
 				}
             } elsif ($opcode == 21 or $opcode == 4 or $opcode == 3) {# eq '.not.' '-'
                 my $v = (ref($exp) eq 'ARRAY') ? _emit_expression_Uxntal($exp, $stref, $f,$info) : $exp;
-                return $sigils[$opcode]. $v;
+                return $v.' '.$sigils[$opcode] ;
             } elsif ($opcode == 27) { # ','
                 croak Dumper($ast) if $DBG; # WHY is this here?
                 my @args_lst=();
@@ -707,73 +733,8 @@ while ($expr=~/\.(\w+)\./) {
 }
 #### #### #### #### END OF C TRANSLATION CODE #### #### #### ####
 
-=info_emit_OpenCL_pipe_declarations
-The original proposed syntax was
 
-      integer :: velnw_0_velnw_1_smart_cache_u_i_j_k_pipe
-
-and then further on
-
-subroutine pipe_initialisation
-
-    call ocl_pipe_real(velnw_0_velnw_1_smart_cache_u_i_j_k_pipe)
-	! ...
-end subroutine pipe_initialisation
-
-But I want to replace this with
-
-      integer :: velnw_0_velnw_1_smart_cache_u_i_j_k_pipe !$OCL pipe real
-
-
-
-=cut
-
- sub _emit_OpenCL_pipe_declarations {
- (my $stref, my $f, my $ocl) = @_;
-
-if ($stref->{'OpenCL'}==3) {
-    my $pass_emit_OpenCL_pipe_declarations = sub { (my $annline, my $state)=@_;
-        (my $line,my $info)=@{$annline};
-        my $c_line=$line;
-        (my $stref, my $f, my $pass_state)=@{$state};
-#       say Dumper($stref->{'Subroutines'}{$f}{'DeletedArgs'});
-        my $skip=1;
-
-        if (exists $info->{'VarDecl'}) {
-                my $var = $info->{'VarDecl'}{'Name'};
-#               croak Dumper($stref->{'Subroutines'}{$f}{'DeclaredOrigArgs'}) if $var eq 'f';
-                if ($ocl==3 and exists $info->{'TrailingComment'} ) {#and exists $stref->{'Modules'}{$f}{'DeclaredOrigArgs'}{'Set'}{$var}) {
-                	my $decl=get_var_record_from_set($stref->{'Modules'}{$f}{'Vars'},$var);
-                	my @pragma_chunks = split(/\s+/,$info->{'TrailingComment'});
-
-                	if ($pragma_chunks[0] eq '$OCL' or $pragma_chunks[0] eq '$ACC' or $pragma_chunks[0] eq '$RF4A') {
-                		if ($pragma_chunks[1] eq 'pipe') {
-                            my $ftype = $pragma_chunks[2];
-                            $c_line = $info->{'Indent'}.'pipe '.toUxntalType($ftype).' '.$var.' __attribute__((xcl_reqd_pipe_depth(32)));'; # TODO: make configurable, this is Xilinx-specific!
-                		}
-                	}
-                    $skip=0;
-                }
-        }
-        push @{$pass_state->{'TranslatedCode'}},$info->{'Indent'}.$c_line unless $skip;
-
-        return ([$annline],[$stref,$f,$pass_state]);
-    };
-
-    my $state = [$stref,$f, {'TranslatedCode'=>[]}];
-    ($stref,$state) = stateful_pass_inplace($stref,$f,$pass_emit_OpenCL_pipe_declarations , $state,'emit_OpenCL_pipe_declarations() ' . __LINE__  ) ;
-
-    $stref->{'Modules'}{$f}{'TranslatedCode'}=$state->[2]{'TranslatedCode'};
-    $stref->{'TranslatedCode'}=[@{$stref->{'TranslatedCode'}},@{$state->[2]{'TranslatedCode'}},''];
-}
-
-    return $stref;
- } # _emit_OpenCL_pipe_declarations
-# -----------------------------------------------------------------------------
-
-
-
-sub _emit_subroutine_call_expr_C { my ($stref,$f,$info) = @_;
+sub _emit_subroutine_call_expr_Uxntal { my ($stref,$f,$info) = @_;
 	my @call_arg_expr_strs_C=();
 	my $subname = $info->{'SubroutineCall'}{'Name'};
 
@@ -856,7 +817,7 @@ sub _emit_subroutine_call_expr_C { my ($stref,$f,$info) = @_;
 	}
 	# croak Dumper join(", ", @call_arg_expr_strs_C) if  eq 'update_map_24';
 	return $subname_C.'('.join(", ", @call_arg_expr_strs_C).')';
-} # END of _emit_subroutine_call_expr_C
+} # END of _emit_subroutine_call_expr_Uxntal
 
 
 # -----------------------------------------------------------------------------

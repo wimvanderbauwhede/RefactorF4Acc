@@ -1303,6 +1303,7 @@ sub pass_wrapper_subs_in_module { (my $stref,my $module_name, my $module_pass_se
 		} 
         
 	} else { 
+        
         # Proper modules
 		for my $pass_sequence (@{$module_pass_sequences}) {    	
             for my $pass_sub_ref (@{$pass_sequence}) {          
@@ -1315,6 +1316,7 @@ sub pass_wrapper_subs_in_module { (my $stref,my $module_name, my $module_pass_se
         # But we must also check any subs that are in a separate module, via use
         my @subs_from_modules=();
         for my $sub (@subs) {
+            
             if (exists $stref->{'Subroutines'}{$sub}{'Uses'}) {
                 for my $used_module (sort keys %{$stref->{'Subroutines'}{$sub}{'Uses'}}) {
                     my $subs_from_module=
