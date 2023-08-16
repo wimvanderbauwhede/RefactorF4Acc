@@ -692,13 +692,13 @@ sub parse_expression_no_context { (my $str)=@_;
             $expr_ast=[34,$1];
             #$expr_ast=$1;#['Label',$1];
         }
-        elsif ($Config{'ALLOW_SPACES_IN_NUMBERS'}==0 and $str=~s/^(\d+)//) {
+        elsif ($Config{'ALLOW_SPACES_IN_NUMBERS'}==0 and $str=~s/^(\d+(?:_[1248])?)//) {
             # integers
             # warn 'INTEGER, ALLOW_SPACES_IN_NUMBERS==0';
             $expr_ast=[29,$1];
             #$expr_ast=$1;#['integer',$1];
         }
-        elsif ($Config{'ALLOW_SPACES_IN_NUMBERS'}==1 and $str=~s/^(\d[\d\s]*)//) {  # But spaces in numbers are allowed in fixed form. So 1 000 000 is fine. so we have (\d[\d\s]*) as the easiest one, assuming a trailing space won't harm
+        elsif ($Config{'ALLOW_SPACES_IN_NUMBERS'}==1 and $str=~s/^(\d[\d\s]*(?:_\s*[1248])?)//) {  # But spaces in numbers are allowed in fixed form. So 1 000 000 is fine. so we have (\d[\d\s]*) as the easiest one, assuming a trailing space won't harm
             # integers
             # warn 'INTEGER, ALLOW_SPACES_IN_NUMBERS==1 '.$1;
             my $num_with_spaces=$1;
