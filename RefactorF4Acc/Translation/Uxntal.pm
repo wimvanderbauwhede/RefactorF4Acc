@@ -185,10 +185,9 @@ Instead of the nice but cumbersome approach we had until now, from now on it is 
 		my $skip=0;
 		if (exists $info->{'Signature'} ) {
 			$pass_state->{'Args'}=$info->{'Signature'}{'Args'}{'List'};
-				my $sig_line = _emit_subroutine_sig_Uxntal( $stref, $f, $annline);
-				$c_line = $sig_line." {\n";
-				# RS 19/11/21
-				$pass_state->{'ForwardDecl'} = $sig_line.';' unless ($sig_line=~/int\s+main/ or ($ocl==1 or $ocl==3 or $ocl==5) and $f eq $Config{'KERNEL'});
+				my ($sig_line,$arg_decls) = _emit_subroutine_sig_Uxntal( $stref, $f, $annline);
+				@{$pass_state->{'ArgVarDecls'}}= map { $info->{'Indent'}.$_ } @{$arg_decls};
+				$c_line = $sig_line."\n";
 		}
 		elsif (exists $info->{'VarDecl'} ) {
 
@@ -202,7 +201,9 @@ Instead of the nice but cumbersome approach we had until now, from now on it is 
 				# v(2,:) would become v[8]
 				# and for an 8x8x8, v(2,:,:) would become v[1*8*8] and v(2,3,:) would be v(1*8*8+2*8)
 				# And this should be a pointer, not a value, so should it then not be &v[8]? I think so.
-					$c_line = _emit_var_decl_Uxntal($stref,$f,$var);
+					$c_line = $info->{'Indent'}. _emit_var_decl_Uxntal($stref,$f,$var);
+					$pass_state->{'ArgVarDecls'}=[@{$pass_state->{'ArgVarDecls'}},$c_line];
+					$skip=1;
 				}
 		}
 		elsif ( exists $info->{'ParamDecl'} ) {
@@ -260,12 +261,21 @@ Instead of the nice but cumbersome approach we had until now, from now on it is 
 		elsif (
 				exists $info->{'EndDo'}
 			or exists $info->{'EndIf'}
-			or exists $info->{'EndSubroutine'}
-			or exists $info->{'EndProgram'}
 			) {
-
-            $info->{'Indent'} = '' if exists $info->{'EndSubroutine'} or exists $info->{'EndProgram'} ;
+            
             $c_line = '}' ;
+
+		}
+		elsif ( exists $info->{'EndProgram'} ) {
+
+            $info->{'Indent'} = '' ;
+            $c_line = 'BRK' ;
+
+		}
+		elsif ( exists $info->{'EndSubroutine'} ) {
+
+            # $info->{'Indent'} = '' ;
+            $c_line = 'JMP2r' ;
 
 		}
 		elsif (exists $info->{'EndSelect'} ) {
@@ -320,11 +330,13 @@ Instead of the nice but cumbersome approach we had until now, from now on it is 
 		return ([$annline],[$stref,$f,$pass_state]);
 	};
 
-	my $state = [$stref,$f, {'TranslatedCode'=>[], 'Args'=>[],'ForwardDecl'=>''}];
+	my $state = [$stref,$f, {'TranslatedCode'=>[], 'Args'=>[],'ArgVarDecls'=>[]}];
  	($stref,$state) = stateful_pass_inplace($stref,$f,$pass_translate_to_Uxntal, $state,'C_translation_collect_info() ' . __LINE__  ) ;
 
  	$stref->{'Subroutines'}{$f}{'TranslatedCode'}=$state->[2]{'TranslatedCode'};
- 	$stref->{'TranslatedCode'}=[$state->[2]{'ForwardDecl'},@{$stref->{'TranslatedCode'}},'',@{$state->[2]{'TranslatedCode'}}] ;
+ 	$stref->{'TranslatedCode'}=[
+		 @{$state->[2]{'ArgVarDecls'}},
+		@{$stref->{'TranslatedCode'}},'',@{$state->[2]{'TranslatedCode'}}] ;
 	# For fixing LLVM IR
 	$stref->{'SubroutineArgs'}=$state->[2]{'Args'};
 	$stref->{'SubroutineName'}=$f;
@@ -362,7 +374,7 @@ sub _emit_Uxntal_code { (my $stref, my $module_name, my $ocl)=@_;
 	# WV 2021-06-08 I use .cc so that this is ostensibly C++ code.
 	# This is because in pure C, the switch/case does not work with const int (!)
 	# I don't want to replace the const int by #define in an ad-hoc way so C++ it is.
- 	my $ext = ($ocl and $ocl!=2) ? 'cl' : 'cc';
+ 	my $ext = 'tal';
  	my $module_src = $stref->{'Modules'}{$module_name}{'Source'};
 	if (not defined $module_src) {
 		$module_src=$Config{'MODULE_SRC'};
@@ -394,22 +406,24 @@ sub _emit_subroutine_sig_Uxntal { (my $stref, my $f, my $annline)=@_;
 
 	    my $name = $info->{'Signature'}{'Name'};
 		my $args_ref = $info->{'Signature'}{'Args'}{'List'};
-		# carp Dumper $info;
+		# croak Dumper ($info, $Sf->{'RefactoredArgs'});
 		my $c_args_ref=[];
 		for my $arg (@{ $args_ref }) {
-			($stref,my $c_arg_decl) = _emit_arg_decl_Uxntal($stref,$f,$arg);
+			($stref,my $c_arg_decl) = _emit_arg_decl_Uxntal($stref,$f,$arg,$f);
 			push @{$c_args_ref},$c_arg_decl;
 		}
-	    my $args_str = join( ',', @{$c_args_ref} );
-		my $rline = "void $name($args_str)";
+	    my $args_str = join( ' ', @{$c_args_ref} );
+		my $rline = 
+		# $args_str."\n".
+		'@'.$name;
 		if (exists $stref->{'Subroutines'}{$f}{'Program'} and $stref->{'Subroutines'}{$f}{'Program'}==1
 		) {
-			$rline = "int main($args_str)";
+			$rline = '|0100';
 		}
-		return  $rline;
+		return  ($rline,$c_args_ref);
 } # END of _emit_subroutine_sig_Uxntal
 
-sub _emit_arg_decl_Uxntal { (my $stref,my $f,my $arg)=@_;
+sub _emit_arg_decl_Uxntal { (my $stref,my $f,my $arg, my $name)=@_;
 
 	my $decl_for_iodir =	$stref->{'Subroutines'}{$f}{'RefactoredArgs'}{'Set'}{$arg};
 	my $decl =  get_var_record_from_set($stref->{'Subroutines'}{$f}{'Vars'},$arg) ;
@@ -419,8 +433,8 @@ sub _emit_arg_decl_Uxntal { (my $stref,my $f,my $arg)=@_;
 	$fkind=~s/\(kind=//;
 	$fkind=~s/\)//;
 	if ($fkind eq '') {$fkind=2};
-	my $c_type = toUxntalType($ftype,$fkind);
-	my $c_arg_decl = $c_type.' '.$arg;
+	my $uxntal_size = toUxntalType($ftype,$fkind);
+	my $c_arg_decl = '@'.$name.'_'.$arg.' $'.$uxntal_size;
 	return ($stref,$c_arg_decl);
 }
 
@@ -464,7 +478,8 @@ sub _emit_var_decl_Uxntal { (my $stref,my $f,my $var)=@_;
 	if ($fkind eq '') {$fkind=4};
 
 	my $c_type = toUxntalType($ftype,$fkind);
-	my $c_var_decl = $const.$c_type.' '.$ptr.$var.$dim.$val.';';
+	my $c_var_decl = '@'.$f.'_'.$var.' $'. $c_type;
+	# my $c_var_decl = $const.$c_type.' '.$ptr.$var.$dim.$val.';';
 	return ($stref,$c_var_decl);
 }
 
@@ -581,7 +596,7 @@ sub _emit_expression_Uxntal { my ($ast, $stref, $f, $info)=@_;
 						if ($ast->[0]==10) { # An array access
 							# In Uxntal, an array access is ;array $idx ADD2 LDA2 and if $idx is a scalar, I assume it's $idx LDA2
 							if( $args->[0]==29 and $args->[1] eq '1') { # if we have v(1)
-								return $name.' LDA2';
+								return ';'.$f.'_'.$name.' LDA2';
 							} else {
 								my $decl = get_var_record_from_set($stref->{'Subroutines'}{$f}{'Vars'},$name);
 								my $dims =  $decl->{'Dim'};
@@ -596,7 +611,7 @@ sub _emit_expression_Uxntal { my ($ast, $stref, $f, $info)=@_;
 									push @lower_bounds, $lb;
 								}
 								if ($ndims==1) {
-									return $name.' '.$args_lst[0].' ADD2 LDA2'
+									return ';'.$f.'_'.$name.' '.$args_lst[0].' ADD2 LDA2'
 								} else {
 									die "No support for multidimensional arrays yet\n";
 									# return $maybe_amp.$name.'[F'.$ndims.'D2C('.join(',',@ranges[0.. ($ndims-2)]).' , '.join(',',@lower_bounds). ' , '.join(',',@args_lst).')]';
@@ -634,8 +649,10 @@ sub _emit_expression_Uxntal { my ($ast, $stref, $f, $info)=@_;
 					die 'ERROR: Fortran LABEL as arg is not supported, sorry!'."\n"; #  "*$exp" : $exp;   # Fortran LABEL, does not exist in C
 				}
 
-				if ($exp=~/^\d+$/) {
-					$exp = sprintf("#%04x", $exp);
+				if ($exp=~/^\d+(?:_[1248])?$/) {
+					my $sz=2;
+					if ($exp=~s/_([1248])$//) { $sz=$1}
+					$exp = toHex($exp,$sz);
 				}
 				my $mvar = $ast->[1];
 				my $called_sub_name = $stref->{'CalledSub'} // '';
@@ -666,13 +683,19 @@ sub _emit_expression_Uxntal { my ($ast, $stref, $f, $info)=@_;
 					}
                     if ($ptr eq '') {
                         # return $exp;
-						return ';'.$exp.' LDA2';
+						return ';'.$f.'_'.$exp.' LDA2';
                     } else {
 						# return '('.$ptr.$exp.')';
-						return ';'.$exp.' LDA2';
+						return ';'.$f.'_'.$exp.' LDA2';
                     }
 				} else {
-					return "$exp";
+					if ($exp eq '.true.') {
+					return '#01';	
+					} elsif ($exp eq '.false.') {
+					return '#00';
+					} else {
+						return $exp;
+					}
 				}
             } elsif ($opcode == 21 or $opcode == 4 or $opcode == 3) {# eq '.not.' '-'
                 my $v = (ref($exp) eq 'ARRAY') ? _emit_expression_Uxntal($exp, $stref, $f,$info) : $exp;
@@ -828,20 +851,24 @@ sub toUxntalType {
 	if ($kind=~/kind/) {$kind=~s/kind\s*=\s*//;}; # FIXME, this should have been sorted in the Parser
 
     my %corr = (
-        'logical'          => 'int', # C has no bool
-        'integer'          => ($ftype eq 'integer' and $kind == 8 ? 'long' : 'int'),
-        'real'             => ($ftype eq 'real' and $kind == 8 ? 'double' : 'float'),
-        'double precision' => 'double',
-        'doubleprecision'  => 'double',
-        'character'        => 'char'
+        'logical'          => 1, # C has no bool
+        'integer'          =>  $kind,
+        # 'real'             => ($ftype eq 'real' and $kind == 8 ? 'double' : 'float'),
+        # 'double precision' => 'double',
+        # 'doubleprecision'  => 'double',
+        'character'        => 1
     );
     if ( exists( $corr{$ftype} ) ) {
         return $corr{$ftype};
     } else {
-        print "WARNING: NO TYPE for $ftype\n" if $W;
-        return 'NOTYPE';
+        die "TYPE for $ftype is not supported\n" if $W;
     }
 }    # END of toUxntalType()
+
+sub toHex { my ($n,$sz) = @_;
+	my $szx2 = $sz*2;
+	return sprintf("#%0${szx2}x",$n);
+}
 # -----------------------------------------------------------------------------
 sub add_to_C_build_sources {
     ( my $f, my $stref ) = @_;

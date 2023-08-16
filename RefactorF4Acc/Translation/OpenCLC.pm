@@ -279,6 +279,7 @@ Instead of the nice but cumbersome approach we had until now, from now on it is 
 		my $c_line=$line;
 		(my $stref, my $f, my $pass_state)=@{$state};
 #		say Dumper($stref->{'Subroutines'}{$f}{'DeletedArgs'});
+
 		my $skip=0;
 		if (exists $info->{'Signature'} ) {
 			$pass_state->{'Args'}=$info->{'Signature'}{'Args'}{'List'};
@@ -548,7 +549,7 @@ sub _emit_subroutine_sig_C { (my $stref, my $f, my $annline)=@_;
 
 	    my $name = $info->{'Signature'}{'Name'};
 		my $args_ref = $info->{'Signature'}{'Args'}{'List'};
-		# carp Dumper $info;
+		carp Dumper $info;
 		my $c_args_ref=[];
 		for my $arg (@{ $args_ref }) {
 			($stref,my $c_arg_decl) = _emit_arg_decl_C($stref,$f,$arg);
