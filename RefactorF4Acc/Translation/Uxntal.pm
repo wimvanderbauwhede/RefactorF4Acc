@@ -117,7 +117,7 @@ Instead of the nice but cumbersome approach we had until now, from now on it is 
 
 	my $pass_pointer_analysis = sub { my ($annline,$state) = @_;
 		my ($line, $info) = @{$annline};
-	
+
 		if (exists $info->{'Signature'} ) {
 			$state->{'Args'} = { map { $_=>1 } @{$info->{'Signature'}{'Args'}{'List'}}};
 		}
@@ -130,8 +130,6 @@ Instead of the nice but cumbersome approach we had until now, from now on it is 
 				$state->{'Pointers'}{$var}='';
 				$state->{'LocalVars'}{$var}=1;
 			}
-
-
 		}
 		elsif ( exists $info->{'ParamDecl'} ) {
 				my $var = $info->{'VarDecl'}{'Name'};
@@ -190,17 +188,11 @@ Instead of the nice but cumbersome approach we had until now, from now on it is 
 				$c_line = $sig_line."\n";
 		}
 		elsif (exists $info->{'VarDecl'} ) {
-
 				my $var = $info->{'VarDecl'}{'Name'};
 				if (exists $stref->{'Subroutines'}{$f}{'DeclaredOrigArgs'}{'Set'}{$var}) {
-					$c_line='//'.$line;
+					$c_line='( '.$line.' )';
 					$skip=1;
 				} else {
-				# WV20191106 If we always use 1-D arrays then array slices should be mimicked by
-				# multiplying the array index with the size of the first dimension, e.g for an 8x8 array
-				# v(2,:) would become v[8]
-				# and for an 8x8x8, v(2,:,:) would become v[1*8*8] and v(2,3,:) would be v(1*8*8+2*8)
-				# And this should be a pointer, not a value, so should it then not be &v[8]? I think so.
 					$c_line = $info->{'Indent'}. _emit_var_decl_Uxntal($stref,$f,$var);
 					$pass_state->{'ArgVarDecls'}=[@{$pass_state->{'ArgVarDecls'}},$c_line];
 					$skip=1;
@@ -447,40 +439,44 @@ sub _emit_var_decl_Uxntal { (my $stref,my $f,my $var)=@_;
 	my $const = '';
 	my $val='';
 	if (defined $decl->{'Parameter'}) {
-		$const = 'const ';
-		$val = ' = '.$decl->{'Val'};
-		# In the case of a constant array: replace '(/' with '{' and add '[]' to front
-		# WV 2021-10-19 This is OK but a bit hacky, because Fortran also supports the '[ ... ]' syntax
-		# It would be better to use ParsedVarDecl
-		if ($val=~s/\(\//{/) {
-			$val=~s/\/\)/}/;
-			$val = '[]' . $val;
+		my $val_str = $val; 
+		if ($val=~/[\'\"'](.+?)[\'\"]/) {
+			$val_str = "'$1";
 		}
-	}
-	my $ocl = $stref->{'OpenCL'};
-	# my $ptr = ($array && $ocl<3) ? '*' : '';
-   	# $ptr = $const eq '' ? '*' : '';
-	# RS 19/11/21 - translating multidim arrays for memory reduction.
-	my $dim= ($array && ($ocl==1 || $ocl==5)) ? '['.__C_array_size($decl->{'Dim'}).']' : '';
-	my $ptr =  $stref->{'Subroutines'}{$f}{'Pointers'}{$var} ;
-
-	my $ftype = $decl->{'Type'};
-	my $fkind = $decl->{'Attr'};
-#	carp Dumper($fkind);
-	if (ref ($ftype) eq 'HASH') {
-		if (exists $ftype->{'Kind'}) {
-			$fkind = $ftype->{'Kind'};
+		elsif ($val=~/^\d+(?:_[1248])?$/) {
+			my $sz=2;
+			if ($val=~s/_([1248])$//) { $sz=$1}
+			$val_str = toHex($val,$sz);
 		}
-		$ftype = $ftype->{'Type'};
-	}
-	$fkind=~s/\(kind=//;
-	$fkind=~s/\)//;
-	if ($fkind eq '') {$fkind=4};
+		my $par_decl_str = '%'.$var.' { '. $val_str .' }';
+		return ($stref,$par_decl_str);
+		# $const = 'const ';
+		# $val = ' = '.$decl->{'Val'};
+		# # In the case of a constant array: replace '(/' with '{' and add '[]' to front
+		# # WV 2021-10-19 This is OK but a bit hacky, because Fortran also supports the '[ ... ]' syntax
+		# # It would be better to use ParsedVarDecl
+		# if ($val=~s/\(\//{/) {
+		# 	$val=~s/\/\)/}/;
+		# 	$val = '[]' . $val;
+		# }
+	} else {
+		my $dim= $array  ? __C_array_size($decl->{'Dim'}) : 1;
+		my $ftype = $decl->{'Type'};
+		my $fkind = $decl->{'Attr'};
+		if (ref ($ftype) eq 'HASH') {
+			if (exists $ftype->{'Kind'}) {
+				$fkind = $ftype->{'Kind'};
+			}
+			$ftype = $ftype->{'Type'};
+		}
+		$fkind=~s/\(kind=//;
+		$fkind=~s/\)//;
+		if ($fkind eq '') {$fkind=4};
 
-	my $c_type = toUxntalType($ftype,$fkind);
-	my $c_var_decl = '@'.$f.'_'.$var.' $'. $c_type;
-	# my $c_var_decl = $const.$c_type.' '.$ptr.$var.$dim.$val.';';
-	return ($stref,$c_var_decl);
+		my $sz = toUxntalType($ftype,$fkind)*$dim;
+		my $c_var_decl =  '@'.$f.'_'.$var.' $'. $sz;
+		return ($stref,$c_var_decl);
+	}
 }
 
 sub _emit_assignment_Uxntal { (my $stref, my $f, my $info)=@_;
