@@ -203,6 +203,7 @@ Instead of the nice but cumbersome approach we had until now, from now on it is 
 
 				$c_line = _emit_var_decl_Uxntal($stref,$f,$var);
 		}
+		# For Uxntal, we need to turn the Case into an IfThen
 		elsif (exists $info->{'Select'} ) {
 			my $switch_expr = _emit_expression_Uxntal([2,$info->{'CaseVar'}],$stref,$f,$info); # FIXME
 			$c_line ="switch ( $switch_expr ) {";
@@ -242,10 +243,10 @@ Instead of the nice but cumbersome approach we had until now, from now on it is 
             $c_line = $info->{'Indent'}._emit_subroutine_call_expr_Uxntal($stref,$f,$info);
 		}
         elsif (exists $info->{'If'} ) {
-            $state->{'IfBranchId'} = $id;
-            my $branch_id = $state->{'IfBranchId'};
-            push @{$state->{'IfStack'}},$id;
-            $state->{'IfId'}=$id;
+            $pass_state->{'IfBranchId'} = $id;
+            my $branch_id = $pass_state->{'IfBranchId'};
+            push @{$pass_state->{'IfStack'}},$id;
+            $pass_state->{'IfId'}=$id;
 			$c_line = _emit_ifthen_Uxntal($stref, $f, $info, $branch_id);
             # say emit_uxntal_expr_str($cond) . " ,&branch$id JCN";
             # say ",&branch$id_end JMP";
@@ -257,7 +258,7 @@ Instead of the nice but cumbersome approach we had until now, from now on it is 
             # $c_line = "&branch${branch_id}_end\n";
             # $c_line .= ",&cond_end{$if_id} JMP";  
             #  $branch_id = $state->{'IfBranchId'};
-			($c_line, my $branch_id) = _emit_ifbranch_end_Uxntal($id,$state); 
+			($c_line, my $branch_id) = _emit_ifbranch_end_Uxntal($id,$pass_state); 
             # say emit_uxntal_expr_str($cond) . " ,&branch$branch_id JCN";
 			$c_line .= _emit_ifthen_Uxntal($stref, $f, $info, $branch_id);
             # say ",&branch{$branch_id}_end JMP";
@@ -269,16 +270,15 @@ Instead of the nice but cumbersome approach we had until now, from now on it is 
             # $c_line = "&branch${branch_id}_end\n";
             # $c_line .= ",&cond_end{$if_id} JMP\n";  
             # $branch_id = $state->{'IfBranchId'};
-			($c_line, my $branch_id) = _emit_ifbranch_end_Uxntal($id,$state);
+			($c_line, my $branch_id) = _emit_ifbranch_end_Uxntal($id,$pass_state);
             # $state->{'IfBranchId'} = $id;
             $c_line .= "&branch$branch_id";
             # other statements to emit ...
         } elsif (exists $info->{'EndIf'} ) {
-            $c_line = '&cond_end'.$state->{'IfId'}; 
-            pop @{$state->{'IfStack'}};
-            $state->{'IfId'}=$state->{'IfStack'}[-1];
+            $c_line = '&cond_end'.$pass_state->{'IfId'}; 
+            pop @{$pass_state->{'IfStack'}};
+            $pass_state->{'IfId'}=$pass_state->{'IfStack'}[-1];
         }
-
 		# elsif (exists $info->{'If'} ) {
 		# 	$c_line = _emit_ifthen_Uxntal($stref, $f, $info);
 		# }
@@ -290,11 +290,8 @@ Instead of the nice but cumbersome approach we had until now, from now on it is 
 		# }
 		elsif (
 				exists $info->{'EndDo'}
-			or exists $info->{'EndIf'}
 			) {
-            
             $c_line = '}' ;
-
 		}
 		elsif ( exists $info->{'EndProgram'} ) {
 
@@ -360,7 +357,9 @@ Instead of the nice but cumbersome approach we had until now, from now on it is 
 		return ([$annline],[$stref,$f,$pass_state]);
 	};
 
-	my $state = [$stref,$f, {'TranslatedCode'=>[], 'Args'=>[],'ArgVarDecls'=>[]}];
+	my $state = [$stref,$f, {'TranslatedCode'=>[], 'Args'=>[],'ArgVarDecls'=>[],
+	'IfStack'=>{},'IfId' =>0,'IfBranchId' =>0
+	}];
  	($stref,$state) = stateful_pass_inplace($stref,$f,$pass_translate_to_Uxntal, $state,'C_translation_collect_info() ' . __LINE__  ) ;
 
  	$stref->{'Subroutines'}{$f}{'TranslatedCode'}=$state->[2]{'TranslatedCode'};
