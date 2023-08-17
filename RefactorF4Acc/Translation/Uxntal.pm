@@ -179,7 +179,7 @@ Instead of the nice but cumbersome approach we had until now, from now on it is 
 		(my $line,my $info)=@{$annline};
 		my $c_line=$line;
 		(my $stref, my $f, my $pass_state)=@{$state};
-
+        my $id = $info->{'LineId'};
 		my $skip=0;
 		if (exists $info->{'Signature'} ) {
 			$pass_state->{'Args'}=$info->{'Signature'}{'Args'}{'List'};
@@ -241,15 +241,53 @@ Instead of the nice but cumbersome approach we had until now, from now on it is 
 
             $c_line = $info->{'Indent'}._emit_subroutine_call_expr_Uxntal($stref,$f,$info);
 		}
-		elsif (exists $info->{'If'} ) {
-			$c_line = _emit_ifthen_C($stref, $f, $info);
-		}
-		elsif (exists $info->{'ElseIf'} ) {
-			$c_line = '} else '._emit_ifthen_C($stref, $f, $info);
-		}
-		elsif (exists $info->{'Else'} ) {
-			$c_line = ' } else {';
-		}
+        elsif (exists $info->{'If'} ) {
+            $state->{'IfBranchId'} = $id;
+            my $branch_id = $state->{'IfBranchId'};
+            push @{$state->{'IfStack'}},$id;
+            $state->{'IfId'}=$id;
+			$c_line = _emit_ifthen_Uxntal($stref, $f, $info, $branch_id);
+            # say emit_uxntal_expr_str($cond) . " ,&branch$id JCN";
+            # say ",&branch$id_end JMP";
+            # say "&branch$id";
+            # other statements to emit ...
+        } elsif (exists $info->{'ElseIf'} ) {
+            # my $branch_id = $state->{'IfBranchId'};
+            # $state->{'IfBranchId'} = $id;
+            # $c_line = "&branch${branch_id}_end\n";
+            # $c_line .= ",&cond_end{$if_id} JMP";  
+            #  $branch_id = $state->{'IfBranchId'};
+			($c_line, my $branch_id) = _emit_ifbranch_end_Uxntal($id,$state); 
+            # say emit_uxntal_expr_str($cond) . " ,&branch$branch_id JCN";
+			$c_line .= _emit_ifthen_Uxntal($stref, $f, $info, $branch_id);
+            # say ",&branch{$branch_id}_end JMP";
+            # say "&branch{$branch_id}";
+            # other statements to emit ...
+        } elsif (exists $info->{'Else'} ) {
+            # my $branch_id = $state->{'IfBranchId'};
+            # $state->{'IfBranchId'} = $id;
+            # $c_line = "&branch${branch_id}_end\n";
+            # $c_line .= ",&cond_end{$if_id} JMP\n";  
+            # $branch_id = $state->{'IfBranchId'};
+			($c_line, my $branch_id) = _emit_ifbranch_end_Uxntal($id,$state);
+            # $state->{'IfBranchId'} = $id;
+            $c_line .= "&branch$branch_id";
+            # other statements to emit ...
+        } elsif (exists $info->{'EndIf'} ) {
+            $c_line = '&cond_end'.$state->{'IfId'}; 
+            pop @{$state->{'IfStack'}};
+            $state->{'IfId'}=$state->{'IfStack'}[-1];
+        }
+
+		# elsif (exists $info->{'If'} ) {
+		# 	$c_line = _emit_ifthen_Uxntal($stref, $f, $info);
+		# }
+		# elsif (exists $info->{'ElseIf'} ) {
+		# 	$c_line = '} else '._emit_ifthen_Uxntal($stref, $f, $info);
+		# }
+		# elsif (exists $info->{'Else'} ) {
+		# 	$c_line = ' } else {';
+		# }
 		elsif (
 				exists $info->{'EndDo'}
 			or exists $info->{'EndIf'}
@@ -448,7 +486,7 @@ sub _emit_var_decl_Uxntal { (my $stref,my $f,my $var)=@_;
 			if ($val=~s/_([1248])$//) { $sz=$1}
 			$val_str = toHex($val,$sz);
 		}
-		my $par_decl_str = '%'.$var.' { '. $val_str .' }';
+		my $par_decl_str = '%'.$f.'_'.$var.' { '. $val_str .' }';
 		return ($stref,$par_decl_str);
 		# $const = 'const ';
 		# $val = ' = '.$decl->{'Val'};
@@ -506,7 +544,7 @@ sub _emit_assignment_Uxntal { (my $stref, my $f, my $info)=@_;
 	$lhs =~s/LDA2$//;
 	my $rline = $info->{'Indent'}.$rhs_stripped . ' '. $lhs. ' STA2';
 	if (exists $info->{'If'}) {
-		my $if_str = _emit_ifthen_C($stref,$f,$info);
+		my $if_str = _emit_ifthen_Uxntal($stref,$f,$info);
 		$rline =$indent.$if_str.' '.$rline;
 	}
 	# carp "$f $rline";
@@ -515,14 +553,27 @@ sub _emit_assignment_Uxntal { (my $stref, my $f, my $info)=@_;
 
 
 
-sub _emit_ifthen_C { (my $stref, my $f, my $info)=@_;
+sub _emit_ifthen_Uxntal { (my $stref, my $f, my $info, my $branch_id)=@_;
 	my $cond_expr_ast=$info->{'Cond'}{'AST'};
 	my $cond_expr = _emit_expression_Uxntal($cond_expr_ast,$stref,$f,$info);
-	$cond_expr=_change_operators_to_Uxntal($cond_expr);
+	# $cond_expr=_change_operators_to_Uxntal($cond_expr);
 	# FIXME! fix for stray '+'
-	$cond_expr=~s/\+\>/>/g;
-	my $rline = 'if ('.$cond_expr.') '. (exists $info->{'IfThen'} ? '{' : '');
+	# $cond_expr=~s/\+\>/>/g;
+	# my $rline = 'if ('.$cond_expr.') '. (exists $info->{'IfThen'} ? '{' : '');
+	my $rline = "$cond_expr ,&branch$branch_id JCN\n" .
+	             ",&branch{$branch_id}_end JMP\n" .
+             "&branch{$branch_id}";
 	return $rline;
+}
+
+sub _emit_ifbranch_end_Uxntal { my ($if_id, $id, $state) = @_;
+	my $branch_id = $state->{'IfBranchId'};
+	my $if_id = $state->{'IfId'};
+	my $r_line = "&branch${branch_id}_end\n";
+	$r_line .= ",&cond_end{$if_id} JMP\n";
+	$state->{'IfBranchId'} = $id;
+	$branch_id = $state->{'IfBranchId'};
+	return ($r_line,$branch_id);
 }
 # I wonder if for call args it might be better to have a separate function which checks if the arg is scalar, array, array access, const
 # The AST is a tree made of a nesting of lists. Each list starts with an integer identifying its type:
