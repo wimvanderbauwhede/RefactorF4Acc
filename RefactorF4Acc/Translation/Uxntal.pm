@@ -136,23 +136,23 @@ Instead of the nice but cumbersome approach we had until now, from now on it is 
 				$state->{'Pointers'}{$var}='';
 				$state->{'Parameters'}{$var}=1;
 		}
-		elsif (exists $info->{'SubroutineCall'} ) {
+		elsif (exists $info->{'SubroutineCall'} ) { 
 			my $fname =  $info->{'SubroutineCall'}{'Name'};
 			if (not exists $F95_intrinsic_functions{$fname} ) {
-			for my $arg_expr_str (@{$info->{'SubroutineCall'}{'Args'}{'List'}}) {
-				# say "<$fname $arg_expr_str>";
-				my $arg = $info->{'SubroutineCall'}{'Args'}{'Set'}{$arg_expr_str}{'Type'} eq 'Scalar'
-				? $info->{'SubroutineCall'}{'Args'}{'Set'}{$arg_expr_str}{'Expr'}
-				: $info->{'SubroutineCall'}{'Args'}{'Set'}{$arg_expr_str}{'Arg'};
-				if (exists $state->{'LocalVars'}{$arg}) {
-					$state->{'Pointers'}{$arg}='*';
+				for my $arg_expr_str (@{$info->{'SubroutineCall'}{'Args'}{'List'}}) {
+					# say "<$fname $arg_expr_str>";
+					my $arg = $info->{'SubroutineCall'}{'Args'}{'Set'}{$arg_expr_str}{'Type'} eq 'Scalar'
+					? $info->{'SubroutineCall'}{'Args'}{'Set'}{$arg_expr_str}{'Expr'}
+					: $info->{'SubroutineCall'}{'Args'}{'Set'}{$arg_expr_str}{'Arg'};
+					if (exists $state->{'LocalVars'}{$arg}) {
+						$state->{'Pointers'}{$arg}='*';
+					}
+					elsif (exists $state->{'Parameters'}{$arg}) {
+						$state->{'Pointers'}{$arg}='&';
+						carp 'TODO: a const scalar passed as arg';
+					}
 				}
-				elsif (exists $state->{'Parameters'}{$arg}) {
-					$state->{'Pointers'}{$arg}='&';
-					carp 'TODO: a const scalar passed as arg';
-				}
-			}
-			}
+			} 
 		}
 		elsif ( exists $info->{'FunctionCalls'} ) {
 			for my $entry (@{$info->{'FunctionCalls'}}) {
@@ -177,6 +177,7 @@ Instead of the nice but cumbersome approach we had until now, from now on it is 
 
 	my $pass_translate_to_Uxntal = sub { (my $annline, my $state)=@_;
 		(my $line,my $info)=@{$annline};
+		
 		my $c_line=$line;
 		(my $stref, my $f, my $pass_state)=@{$state};
         my $id = $info->{'LineId'};
@@ -219,14 +220,22 @@ Instead of the nice but cumbersome approach we had until now, from now on it is 
 			$c_line = $info->{'Indent'}."} break;\n".$info->{'Indent'}.'default : {';
 		}
 		elsif (exists $info->{'Do'} ) {
-				$c_line='for ('.
-				$info->{'Do'}{'Iterator'}.' = '.$info->{'Do'}{'Range'}{'Expressions'}[0] .';'.
-				$info->{'Do'}{'Iterator'}.' <= '.$info->{'Do'}{'Range'}{'Expressions'}[1] .';'.
-				$info->{'Do'}{'Iterator'}.' += '.$info->{'Do'}{'Range'}{'Expressions'}[2] .') {';
+			# $pass_state->{'DoIter'} = $f.'_'.$info->{'Do'}{'Iterator'};
+			# $pass_state->{'DoStep'} = $info->{'Do'}{'Range'}{'Expressions'}[2];
+			# id, iterator, step; loop upper bound is on the wst
+			push @{$pass_state->{'DoStack'}}, [$id,$f.'_'.$info->{'Do'}{'Iterator'},$info->{'Do'}{'Range'}{'Expressions'}[2]];
+				$c_line = 
+				$info->{'Do'}{'Range'}{'Expressions'}[1] . ' ' . $info->{'Do'}{'Range'}{'Expressions'}[0] . "\n" .
+				'&loop_'.$f.'_'.$id . "\n" .
+				';'.$pass_state->{'DoIter'}.' STA2 ';
+				# $info->{'Do'}{'Iterator'}.' = '.$info->{'Do'}{'Range'}{'Expressions'}[0] .';'.
+				# $info->{'Do'}{'Iterator'}.' <= '.$info->{'Do'}{'Range'}{'Expressions'}[1] .';'.
+				# $info->{'Do'}{'Iterator'}.' += '.$info->{'Do'}{'Range'}{'Expressions'}[2] .') {';
 		}
 		elsif (exists $info->{'BeginDo'} ) {
 				$c_line='for () {';
 		}
+
 		if (exists $info->{'Assignment'} ) {
 				$c_line = _emit_assignment_Uxntal($stref, $f, $info) ;
 		}
@@ -241,6 +250,9 @@ Instead of the nice but cumbersome approach we had until now, from now on it is 
 			# So what we need to do is check the type in $f and $subname, and use that to see if we need a '*' or even an '&' or nothing
 
             $c_line = $info->{'Indent'}._emit_subroutine_call_expr_Uxntal($stref,$f,$info);
+		}
+		elsif (exists $info->{'IOCall'}) {
+			croak Dumper $info->{'IOCall'}{'Args'}{'AST'};
 		}
         elsif (exists $info->{'If'} ) {
             $pass_state->{'IfBranchId'} = $id;
@@ -291,7 +303,10 @@ Instead of the nice but cumbersome approach we had until now, from now on it is 
 		elsif (
 				exists $info->{'EndDo'}
 			) {
-            $c_line = '}' ;
+				my $do_tup = pop @{$pass_state->{'DoStack'}};
+				my ($do_id, $do_iter, $do_step) = @{$do_tup};
+				my $inc = $do_iter == 1 ? 'INC2' : toHex($do_iter,2).' ADD2';
+            $c_line = "DUP2 ;$do_iter LDA2 $inc NEQ2 ".',&loop_'.$f.'_'.$do_id.' JCN';
 		}
 		elsif ( exists $info->{'EndProgram'} ) {
 
@@ -339,17 +354,19 @@ Instead of the nice but cumbersome approach we had until now, from now on it is 
 			$line=~s/^\s*//;
 			$c_line = '#'.$line;
 		}
-		elsif (exists $info->{'Goto'} ) {
-			$c_line = $line.';';
+		elsif (exists $info->{'Goto'} ) { 
+			$c_line = ',&'.$f.'_'.$info->{'Goto'}{'Label'}.' JMP';
 		}
-		elsif (exists $info->{'Continue'}) {
-			$c_line='';
+		elsif (exists $info->{'Continue'}) { 
+			$c_line='&'.$f.'_'.$info->{'Label'};
 		}
 		elsif (exists $info->{'Common'}) {
 			$c_line='';
 		}
 		if (exists $info->{'Label'} ) {
-			$c_line = $info->{'Label'}. ' : '."\n".$info->{'Indent'}.$c_line;
+			if (not exists $info->{'Continue'}) { die "Labels can only occur on `continue` lines\n"; } 
+			# croak Dumper $info;
+			# $c_line = $info->{'Label'}. ' : '."\n".$info->{'Indent'}.$c_line;
 		}
 
 		push @{$pass_state->{'TranslatedCode'}},$info->{'Indent'}.$c_line unless $skip;
@@ -357,9 +374,15 @@ Instead of the nice but cumbersome approach we had until now, from now on it is 
 		return ([$annline],[$stref,$f,$pass_state]);
 	};
 
-	my $state = [$stref,$f, {'TranslatedCode'=>[], 'Args'=>[],'ArgVarDecls'=>[],
-	'IfStack'=>{},'IfId' =>0,'IfBranchId' =>0
-	}];
+	my $state = [$stref,$f, 
+	# pass state
+	{
+		'TranslatedCode'=>[], 
+		'Args'=>[],'ArgVarDecls'=>[],
+		'IfStack'=>{},'IfId' =>0,'IfBranchId' =>0,
+		'DoIter'=>'', 'DoId' => 0
+	}
+	];
  	($stref,$state) = stateful_pass_inplace($stref,$f,$pass_translate_to_Uxntal, $state,'C_translation_collect_info() ' . __LINE__  ) ;
 
  	$stref->{'Subroutines'}{$f}{'TranslatedCode'}=$state->[2]{'TranslatedCode'};
@@ -565,7 +588,7 @@ sub _emit_ifthen_Uxntal { (my $stref, my $f, my $info, my $branch_id)=@_;
 	return $rline;
 }
 
-sub _emit_ifbranch_end_Uxntal { my ($if_id, $id, $state) = @_;
+sub _emit_ifbranch_end_Uxntal { my ($id, $state) = @_;
 	my $branch_id = $state->{'IfBranchId'};
 	my $if_id = $state->{'IfId'};
 	my $r_line = "&branch${branch_id}_end\n";

@@ -12,12 +12,12 @@ my @supported_passes = ( "translate_to_Uxntal" );
 
 if ($opts{'h'}){
     die "
-    $0 -[hvioe]
+    $0 -[hvioe] module source file
 
     -v : verbose
     -i : module directory (default: .)
     -o : output directory (default: Uxntal)
-    -s : source file
+    # -s : module source file
     -e : Fortran source file extension (default is .f90, needs the dot)    
     \n";
 }
@@ -40,7 +40,7 @@ if ($opts{'e'}) {
     $ext = $opts{'e'};
 }
 
-my $module_src = '';
+my $module_src = $ARGV[0];
 if ($opts{'s'}) {
     $module_src = $opts{'s'};
 }
