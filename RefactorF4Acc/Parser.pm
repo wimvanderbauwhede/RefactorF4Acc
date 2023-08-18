@@ -1188,7 +1188,7 @@ or $line=~/^character\s*\(\s*len\s*=\s*[\w\*]+\s*\)/
 				#croak if $line=~/__pipe\s\!\$ACC/;
 		}
 #== F95 declaration, no need for refactoring		 	
-		 elsif ( $line =~ /^(.+)\s*::\s*(.+)(?:\s*|\s+\!\$ACC.+)$/ ) {# croak if $line=~/__pipe\s\!\$ACC/;
+		 elsif ( $line =~ /^(.+)\s*::\s*(?:.+)(?:\s*|\s+\!\$ACC.+)$/ ) {# croak if $line=~/__pipe\s\!\$ACC/;
 		 
 				( $Sf, $info ) = __parse_f95_decl( $stref, $f, $Sf, $indent, $line, $info);
 				if (exists $info->{'ParamDecl'}) {
@@ -3066,8 +3066,8 @@ sub __parse_f95_decl {
 		$info->{'ParsedParDecl'} = $pt; #WV20150709 currently used by OpenCLTranslation, TODO: use ParamDecl and the AST from the expression parser
 		
 		my $parliststr = $1;
-		( $Sf, $info ) = _parse_f77_par_decl(  $Sf, $stref, $f, $indent,  $line, $info, $parliststr );
-		# croak $line. Dumper $pt if $line=~/s3/;
+		( $Sf, $info ) = _parse_f77_par_decl(  $Sf, $stref, $f, $indent,  $line, $info, $parliststr , $pt);
+		# croak $line. Dumper $pt;# if $line=~/s3/;
 
 	} else {
 		# F95 VarDecl, continued
@@ -3289,16 +3289,20 @@ sub __parse_f95_decl {
 
 sub _parse_f77_par_decl { 
 	# F77-style parameters
-	( my $Sf, my $stref, my $f,my $indent, my $line, my $info, my $parliststr ) = @_;
+	( my $Sf, my $stref, my $f,my $indent, my $line, my $info, my $parliststr, my $pt ) = @_;
 	# say "LINE: $line";
 	
 	my $type   = 'Unknown';
 	my $typed=0;
 	my $attr = '';
+	if (defined $pt) {
+		$type = $pt->{'TypeTup'}{'Type'};
+		$attr = '(kind='.$pt->{'TypeTup'}{'Kind'}.')';
+	}
 	$indent =~ s/\S.*$//;
 
 	my $ast =  parse_expression($parliststr, $info, $stref, $f);
-	# croak Dumper( $ast) if $line=~/alpha/;
+	# croak Dumper( $ast);
 	if ($ast->[0] == 9
 	and $ast->[2][0] == 0
 	and scalar @{$ast->[2][1]} == 3
@@ -3453,6 +3457,7 @@ sub _parse_f77_par_decl {
 			'Status'    => 0,
 			'Implicit' => 0     
 		};
+		
 		$Sf->{'LocalParameters'}{'Set'}{$var}=$param_decl;		
 	}
 

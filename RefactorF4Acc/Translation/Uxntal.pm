@@ -835,10 +835,10 @@ while ($expr=~/\.(\w+)\./) {
 
 
 sub _emit_subroutine_call_expr_Uxntal { my ($stref,$f,$info) = @_;
-	my @call_arg_expr_strs_C=();
+	my @call_arg_expr_strs_Uxntal=();
 	my $subname = $info->{'SubroutineCall'}{'Name'};
 	my $Ssubname = $stref->{'Subroutines'}{$subname};
-	# croak Dumper ($info);#, $Ssubname->{'Refactore	dArgs'}) if $f=~/test_subcall/;
+	# croak Dumper ($info, $Ssubname->{'Vars'}) if $f=~/test_subcall/;
 	
 
 	my $mvar = $subname;
@@ -861,15 +861,29 @@ sub _emit_subroutine_call_expr_Uxntal { my ($stref,$f,$info) = @_;
 		# say "$sig_arg => $call_arg_expr_str";
 		my $intent = $rec->{'IODir'};
 		my $isArray = $rec->{'ArrayOrScalar'} eq 'Array';
-		# say $info->{'SubroutineCall'}{'Args'}{'Set'}{$call_arg_expr_str}{'Type'};	
-		my $isConst = (($info->{'SubroutineCall'}{'Args'}{'Set'}{$call_arg_expr_str}{'Type'} eq 'Const' ) or ($info->{'SubroutineCall'}{'Args'}{'Set'}{$call_arg_expr_str}{'Type'} eq 'Expr'));
-		if ($intent eq 'in' or $intent eq 'inout') {
-		if ($isArray) { 
-			say ';'.$f.'_'.$call_arg_expr_str;
-		} else {
-		my $arg_expr_ast = $info->{'SubroutineCall'}{'ExpressionAST'}[0] == 27 ? $info->{'SubroutineCall'}{'ExpressionAST'}[$idx] : $info->{'SubroutineCall'}{'ExpressionAST'};
-		say _emit_expression_Uxntal($arg_expr_ast, $stref, $f,$info);
+		if (not $isArray  and $rec->{'Type'} eq 'character') {
+			if ($rec->{'Attr'}=~/len=(\d+)/) {
+				my $len = $1;
+				$isArray = $len>1;
+			}
 		}
+		my $wordSz = $rec->{'Type'} eq 'character' ? 1 : 2;
+		if ($rec->{'Attr'}=~/kind=(\d+)/) {
+			$wordSz = $1;
+		}
+		# say $info->{'SubroutineCall'}{'Args'}{'Set'}{$call_arg_expr_str}{'Type'};	
+		my $isConstOrExpr = (($info->{'SubroutineCall'}{'Args'}{'Set'}{$call_arg_expr_str}{'Type'} eq 'Const' ) or ($info->{'SubroutineCall'}{'Args'}{'Set'}{$call_arg_expr_str}{'Type'} eq 'Expr'));
+		if ($intent eq 'in' or $intent eq 'inout') {
+			if ($isArray) { 
+				say ';'.$f.'_'.$call_arg_expr_str;
+			}
+			elsif (not $isConstOrExpr) { # must be a scalar variable
+				say ';'.$f.'_'.$call_arg_expr_str.' STA'.$wordSz;
+			} 
+			else {
+				my $arg_expr_ast = $info->{'SubroutineCall'}{'ExpressionAST'}[0] == 27 ? $info->{'SubroutineCall'}{'ExpressionAST'}[$idx] : $info->{'SubroutineCall'}{'ExpressionAST'};
+				say _emit_expression_Uxntal($arg_expr_ast, $stref, $f,$info);
+			}
 		}
 	}
 	say $subname;
@@ -881,94 +895,102 @@ sub _emit_subroutine_call_expr_Uxntal { my ($stref,$f,$info) = @_;
 		# say "$sig_arg => $call_arg_expr_str";
 		my $intent = $rec->{'IODir'};
 		my $isArray = $rec->{'ArrayOrScalar'} eq 'Array';
+		if (not $isArray  and $rec->{'Type'} eq 'character') {
+			if ($rec->{'Attr'}=~/len=(\d+)/) {
+				my $len = $1;
+				$isArray = $len>1;
+			}
+		}
+		my $wordSz = $rec->{'Type'} eq 'character' ? 1 : 2;
+		if ($rec->{'Attr'}=~/kind=(\d+)/) {
+			$wordSz = $1;
+		}		
 		# say $info->{'SubroutineCall'}{'Args'}{'Set'}{$call_arg_expr_str}{'Type'};	
 		my $isConst = (($info->{'SubroutineCall'}{'Args'}{'Set'}{$call_arg_expr_str}{'Type'} eq 'Const' ) or ($info->{'SubroutineCall'}{'Args'}{'Set'}{$call_arg_expr_str}{'Type'} eq 'Expr'));
 		if ($intent eq 'out' or $intent eq 'inout') {
 			if (not $isArray and not $isConst) { 
-			# 	say ';'.$f.'_'.$call_arg_expr_str;
-			# } else {
 				my $arg_expr_ast = $info->{'SubroutineCall'}{'ExpressionAST'}[0] == 27 ? $info->{'SubroutineCall'}{'ExpressionAST'}[$idx] : $info->{'SubroutineCall'}{'ExpressionAST'};
 				# say _emit_expression_Uxntal($arg_expr_ast, $stref, $f,$info);
-				say ';'.$f.'_'.$call_arg_expr_str.' STA2';
+				say ';'.$f.'_'.$call_arg_expr_str.' STA'.$wordSz;
 			}
 		}
 	}
 
 die if $f=~/test_subcall/;
 
-	for my $call_arg_expr_str (@{$info->{'SubroutineCall'}{'Args'}{'List'}}) {
+# 	for my $call_arg_expr_str (@{$info->{'SubroutineCall'}{'Args'}{'List'}}) {
 		
 
-		my $arg_type = $info->{'SubroutineCall'}{'Args'}{'Set'}{$call_arg_expr_str}{'Type'};
-			if ( $arg_type eq 'Scalar') {
-				my $ptr = '';
-				# If it is a parameter, it will get an '&'.
-				if (exists $stref->{'Subroutines'}{$f}{'Pointers'}{$call_arg_expr_str}) {
-					$ptr = $stref->{'Subroutines'}{$f}{'Pointers'}{$call_arg_expr_str};
-					$ptr = $ptr ne '&' ? '' : $ptr;
-				}
-				push @call_arg_expr_strs_C, "$ptr$call_arg_expr_str";
-			}
-			elsif ( $arg_type eq 'Array') {
-				# This is an array access.
-				my $call_arg_expr_str_C='';
-				my $name = $info->{'SubroutineCall'}{'Args'}{'Set'}{$call_arg_expr_str}{'Arg'};
-				my $args = $info->{'SubroutineCall'}{'Args'}{'Set'}{$call_arg_expr_str}{'AST'}[2];
-# croak Dumper $args if $info->{'SubroutineCall'}{'Name'} eq 'update_map_24';
-				my @args_lst=();
-				my $has_slices=0;
-				if($args->[0] == 27) { # ','
-				# more than one arg
-					for my $idx (1 .. scalar @{$args}-1) {
-						my $arg = $args->[$idx];
-						my $is_slice = $arg->[0] == 12;
-						push @args_lst, _emit_expression_Uxntal($arg, $stref, $f,$info) unless $is_slice;
-						$has_slices ||= $is_slice;
-					}
-				} else {
-					# only one arg
-					$args_lst[0] = _emit_expression_Uxntal($args, $stref, $f,$info);
-				}
+# 		my $arg_type = $info->{'SubroutineCall'}{'Args'}{'Set'}{$call_arg_expr_str}{'Type'};
+# 			if ( $arg_type eq 'Scalar') {
+# 				my $ptr = '';
+# 				# If it is a parameter, it will get an '&'.
+# 				if (exists $stref->{'Subroutines'}{$f}{'Pointers'}{$call_arg_expr_str}) {
+# 					$ptr = $stref->{'Subroutines'}{$f}{'Pointers'}{$call_arg_expr_str};
+# 					$ptr = $ptr ne '&' ? '' : $ptr;
+# 				}
+# 				push @call_arg_expr_strs_C, "$ptr$call_arg_expr_str";
+# 			}
+# 			elsif ( $arg_type eq 'Array') {
+# 				# This is an array access.
+# 				my $call_arg_expr_str_C='';
+# 				my $name = $info->{'SubroutineCall'}{'Args'}{'Set'}{$call_arg_expr_str}{'Arg'};
+# 				my $args = $info->{'SubroutineCall'}{'Args'}{'Set'}{$call_arg_expr_str}{'AST'}[2];
+# # croak Dumper $args if $info->{'SubroutineCall'}{'Name'} eq 'update_map_24';
+# 				my @args_lst=();
+# 				my $has_slices=0;
+# 				if($args->[0] == 27) { # ','
+# 				# more than one arg
+# 					for my $idx (1 .. scalar @{$args}-1) {
+# 						my $arg = $args->[$idx];
+# 						my $is_slice = $arg->[0] == 12;
+# 						push @args_lst, _emit_expression_Uxntal($arg, $stref, $f,$info) unless $is_slice;
+# 						$has_slices ||= $is_slice;
+# 					}
+# 				} else {
+# 					# only one arg
+# 					$args_lst[0] = _emit_expression_Uxntal($args, $stref, $f,$info);
+# 				}
 
-				if( $args->[0]==29 and $args->[1] eq '1') { # if we have v(1)
-					push @call_arg_expr_strs_C, '(*'.$name.')';
-				} else {
-					my $decl = get_var_record_from_set($stref->{'Subroutines'}{$f}{'Vars'},$name);
-					my $dims =  $decl->{'Dim'};
-					my $ndims = scalar @{$dims};
+# 				if( $args->[0]==29 and $args->[1] eq '1') { # if we have v(1)
+# 					push @call_arg_expr_strs_C, '(*'.$name.')';
+# 				} else {
+# 					my $decl = get_var_record_from_set($stref->{'Subroutines'}{$f}{'Vars'},$name);
+# 					my $dims =  $decl->{'Dim'};
+# 					my $ndims = scalar @{$dims};
 
-					my @ranges=();
-					my @lower_bounds=();
-					for my $boundspair (@{$dims}) {
-						(my $lb, my $hb)=@{$boundspair };
-						push @ranges, "(($hb - $lb )+1)";
-						push @lower_bounds, $lb;
-					}
-					if ($ndims==1) {
-						my $offset_expr = '-'.$lower_bounds[0];
-						if ($lower_bounds[0]<0) {
-								$offset_expr = '+'.($lower_bounds[0]*-1);
-						} elsif ($lower_bounds[0]==0) {
-							$offset_expr = '';
-						}
-						push @call_arg_expr_strs_C, '&'.$name.'['.$args_lst[0].''.$offset_expr.']'; #F1D2C('.$lower_bounds[0]. ', '.
-					} else {
-						push @call_arg_expr_strs_C, '&'.$name.'[F'.$ndims.'D2C('.join(',',@ranges[0.. ($ndims-2)]).' , '.join(',',@lower_bounds). ' , '.join(',',@args_lst).')]';
-					}
-				}
-				# push @call_arg_expr_strs_C, $call_arg_expr_str_C;
-			}
-			elsif ( $arg_type eq 'Expr') {
-				croak "TODO: Can't handle arguments of type $arg_type yet.";
-			}
-			else {
-				# Probably a Label, give up
-				croak "Can't handle arguments of type $arg_type yet.";
-			}
+# 					my @ranges=();
+# 					my @lower_bounds=();
+# 					for my $boundspair (@{$dims}) {
+# 						(my $lb, my $hb)=@{$boundspair };
+# 						push @ranges, "(($hb - $lb )+1)";
+# 						push @lower_bounds, $lb;
+# 					}
+# 					if ($ndims==1) {
+# 						my $offset_expr = '-'.$lower_bounds[0];
+# 						if ($lower_bounds[0]<0) {
+# 								$offset_expr = '+'.($lower_bounds[0]*-1);
+# 						} elsif ($lower_bounds[0]==0) {
+# 							$offset_expr = '';
+# 						}
+# 						push @call_arg_expr_strs_C, '&'.$name.'['.$args_lst[0].''.$offset_expr.']'; #F1D2C('.$lower_bounds[0]. ', '.
+# 					} else {
+# 						push @call_arg_expr_strs_C, '&'.$name.'[F'.$ndims.'D2C('.join(',',@ranges[0.. ($ndims-2)]).' , '.join(',',@lower_bounds). ' , '.join(',',@args_lst).')]';
+# 					}
+# 				}
+# 				# push @call_arg_expr_strs_C, $call_arg_expr_str_C;
+# 			}
+# 			elsif ( $arg_type eq 'Expr') {
+# 				croak "TODO: Can't handle arguments of type $arg_type yet.";
+# 			}
+# 			else {
+# 				# Probably a Label, give up
+# 				croak "Can't handle arguments of type $arg_type yet.";
+# 			}
 
-	}
-	# croak Dumper join(", ", @call_arg_expr_strs_C) if  eq 'update_map_24';
-	return $subname_C.'('.join(", ", @call_arg_expr_strs_C).')';
+# 	}
+# 	# croak Dumper join(", ", @call_arg_expr_strs_C) if  eq 'update_map_24';
+# 	return $subname_C.'('.join(", ", @call_arg_expr_strs_C).')';
 } # END of _emit_subroutine_call_expr_Uxntal
 
 

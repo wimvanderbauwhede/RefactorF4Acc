@@ -79,7 +79,7 @@ sub analyse_variables {
 			for my $mvar (@chunks) { 
 				croak "<$mvar>".Dumper(@chunks).Dumper($info) if $mvar eq 'and';
                 next if exists $stref->{'Subroutines'}{$f}{'CalledSubs'}{'Set'}{$mvar};    # Means it's a function
-				next if $mvar =~ /^\d+$/;
+				next if $mvar =~ /^\d+(?:_[1248])?$/;
 				next if not defined $mvar or $mvar eq '';
 				# Means arg was declared
 				my $in_vars_subset = in_nested_set( $Sf, 'Vars', $mvar );
