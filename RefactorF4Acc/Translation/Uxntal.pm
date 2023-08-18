@@ -323,9 +323,10 @@ Instead of the nice but cumbersome approach we had until now, from now on it is 
 
 		}
 		elsif ( exists $info->{'EndSubroutine'} ) {
-
+			# Here we must emit the code to put the values for Out and InOut args on the stack
+			$c_line = _emit_subroutine_return_vals_Uxntal($stref,$f,$info);
             # $info->{'Indent'} = '' ;
-            $c_line = 'JMP2r' ;
+            $c_line .= "\nJMP2r";
 
 		}
 		elsif (exists $info->{'EndSelect'} ) {
@@ -501,15 +502,16 @@ sub _emit_arg_decl_Uxntal { (my $stref,my $f,my $arg, my $name)=@_;
 
 
 sub _emit_var_decl_Uxntal { (my $stref,my $f,my $var)=@_;
-	my $decl =  get_var_record_from_set($stref->{'Subroutines'}{$f}{'Vars'},$var);
+	my $decl =  get_var_record_from_set($stref->{'Subroutines'}{$f}{'Vars'},$var);	
 	my $array = (exists $decl->{'ArrayOrScalar'} and $decl->{'ArrayOrScalar'} eq 'Array') ? 1 : 0;
 	# say $decl->{"ParsedVarDecl"};
 	my $const = '';
 	my $val='';
-	if (defined $decl->{'Parameter'}) {
+	if (defined $decl->{'Parameter'}) { 
+		$val = $decl->{'Val'};
 		my $val_str = $val; 
 		if ($val=~/[\'\"'](.+?)[\'\"]/) {
-			$val_str = "'$1";
+			$val_str = '"'.$1;
 		}
 		elsif ($val=~/^\d+(?:_[1248])?$/) {
 			my $sz=2;
@@ -569,10 +571,21 @@ sub _emit_assignment_Uxntal { (my $stref, my $f, my $info)=@_;
 		my $lc_macro=lc($macro);
 		$rhs_stripped=~s/\b$lc_macro\b/$macro/g;
 	}
+	if ($rhs_stripped=~/__PH/ and exists $info->{'PlaceHolders'}) { 
+		# croak $rhs_stripped.Dumper($info->{'PlaceHolders'})	
+		while ($rhs_stripped =~ /(__PH\d+__)/) {
+			my $ph=$1;
+			my $ph_str = $info->{'PlaceHolders'}{$ph};
+			$ph_str=~s/[\'\"]$//;
+			$ph_str=~s/^[\']/\"/;
+			$rhs_stripped=~s/$ph/$ph_str/;
+		}              
+	}
 
 	# my $rline = $info->{'Indent'}.$lhs.' = '.$rhs_stripped;
-	$lhs =~s/LDA2$//;
-	my $rline = $info->{'Indent'}.$rhs_stripped . ' '. $lhs. ' STA2';
+	$lhs =~s/LDA$/STA/;
+	$lhs =~s/LDA2$/STA2/;
+	my $rline = $info->{'Indent'}.$rhs_stripped . ' '. $lhs;
 	if (exists $info->{'If'}) {
 		my $if_str = _emit_ifthen_Uxntal($stref,$f,$info);
 		$rline =$indent.$if_str.' '.$rline;
@@ -758,13 +771,17 @@ sub _emit_expression_Uxntal { my ($ast, $stref, $f, $info)=@_;
 						# If the variable in question is 'Out' or 'InOut' we should use the pointer
 
 					}
-                    if ($ptr eq '') {
-                        # return $exp;
-						return ';'.$f.'_'.$exp.' LDA2';
-                    } else {
-						# return '('.$ptr.$exp.')';
-						return ';'.$f.'_'.$exp.' LDA2';
-                    }
+					if ( in_nested_set($Sf,'Parameters',$exp)) {					
+						return $f.'_'.$exp;
+					} else {
+						if ($ptr eq '') {
+							# return $exp;
+							return ';'.$f.'_'.$exp.' LDA2';
+						} else {
+							# return '('.$ptr.$exp.')';
+							return ';'.$f.'_'.$exp.' LDA2';
+						}
+					}
 				} else {
 					if ($exp eq '.true.') {
 					return '#01';	
@@ -844,9 +861,9 @@ sub _emit_subroutine_call_expr_Uxntal { my ($stref,$f,$info) = @_;
 	my $mvar = $subname;
 	# AD-HOC, replacing abs/min/max to fabs/fmin/fmax without any type checking ... FIXME!!!
 	# The (float) cast is necessary because otherwise I get an "ambiguous" error
-	$mvar=~s/^(abs|min|max)$/(float)f$1/;
-	$mvar=~s/^am(ax|in)1$/(float)fm$1/;
-	$mvar=~s/^alog$/(float)log/;
+	# $mvar=~s/^(abs|min|max)$/(float)f$1/;
+	# $mvar=~s/^am(ax|in)1$/(float)fm$1/;
+	# $mvar=~s/^alog$/(float)log/;
 	my $subname_C = $mvar;
 # What we need for every argument is IODir , ArrayOrScalar from the record
 # So we'd better loop over the List in the record. 
@@ -871,22 +888,23 @@ sub _emit_subroutine_call_expr_Uxntal { my ($stref,$f,$info) = @_;
 		if ($rec->{'Attr'}=~/kind=(\d+)/) {
 			$wordSz = $1;
 		}
+		$wordSz==1 && do {$wordSz=''};
 		# say $info->{'SubroutineCall'}{'Args'}{'Set'}{$call_arg_expr_str}{'Type'};	
 		my $isConstOrExpr = (($info->{'SubroutineCall'}{'Args'}{'Set'}{$call_arg_expr_str}{'Type'} eq 'Const' ) or ($info->{'SubroutineCall'}{'Args'}{'Set'}{$call_arg_expr_str}{'Type'} eq 'Expr'));
 		if ($intent eq 'in' or $intent eq 'inout') {
 			if ($isArray) { 
-				say ';'.$f.'_'.$call_arg_expr_str;
+				push @call_arg_expr_strs_Uxntal, ';'.$f.'_'.$call_arg_expr_str;
 			}
 			elsif (not $isConstOrExpr) { # must be a scalar variable
-				say ';'.$f.'_'.$call_arg_expr_str.' STA'.$wordSz;
+				push @call_arg_expr_strs_Uxntal, ';'.$f.'_'.$call_arg_expr_str.' STA'.$wordSz;
 			} 
 			else {
 				my $arg_expr_ast = $info->{'SubroutineCall'}{'ExpressionAST'}[0] == 27 ? $info->{'SubroutineCall'}{'ExpressionAST'}[$idx] : $info->{'SubroutineCall'}{'ExpressionAST'};
-				say _emit_expression_Uxntal($arg_expr_ast, $stref, $f,$info);
+				push @call_arg_expr_strs_Uxntal, _emit_expression_Uxntal($arg_expr_ast, $stref, $f,$info);
 			}
 		}
 	}
-	say $subname;
+	push @call_arg_expr_strs_Uxntal, $subname;
 	$idx=0;
 	for my $sig_arg (reverse @{$Ssubname->{'RefactoredArgs'}{'List'}}) {
 		$idx++;
@@ -904,19 +922,21 @@ sub _emit_subroutine_call_expr_Uxntal { my ($stref,$f,$info) = @_;
 		my $wordSz = $rec->{'Type'} eq 'character' ? 1 : 2;
 		if ($rec->{'Attr'}=~/kind=(\d+)/) {
 			$wordSz = $1;
-		}		
+		}
+		$wordSz==1 && do {$wordSz=''};
 		# say $info->{'SubroutineCall'}{'Args'}{'Set'}{$call_arg_expr_str}{'Type'};	
-		my $isConst = (($info->{'SubroutineCall'}{'Args'}{'Set'}{$call_arg_expr_str}{'Type'} eq 'Const' ) or ($info->{'SubroutineCall'}{'Args'}{'Set'}{$call_arg_expr_str}{'Type'} eq 'Expr'));
+		my $isConstOrExpr = (($info->{'SubroutineCall'}{'Args'}{'Set'}{$call_arg_expr_str}{'Type'} eq 'Const' ) or ($info->{'SubroutineCall'}{'Args'}{'Set'}{$call_arg_expr_str}{'Type'} eq 'Expr'));
 		if ($intent eq 'out' or $intent eq 'inout') {
-			if (not $isArray and not $isConst) { 
+			if (not $isArray and not $isConstOrExpr) { 
 				my $arg_expr_ast = $info->{'SubroutineCall'}{'ExpressionAST'}[0] == 27 ? $info->{'SubroutineCall'}{'ExpressionAST'}[$idx] : $info->{'SubroutineCall'}{'ExpressionAST'};
 				# say _emit_expression_Uxntal($arg_expr_ast, $stref, $f,$info);
-				say ';'.$f.'_'.$call_arg_expr_str.' STA'.$wordSz;
+				push @call_arg_expr_strs_Uxntal, ';'.$f.'_'.$call_arg_expr_str.' STA'.$wordSz;
 			}
 		}
 	}
 
-die if $f=~/test_subcall/;
+	return join("\n", @call_arg_expr_strs_Uxntal);
+# die if $f=~/test_subcall/;
 
 # 	for my $call_arg_expr_str (@{$info->{'SubroutineCall'}{'Args'}{'List'}}) {
 		
@@ -993,6 +1013,39 @@ die if $f=~/test_subcall/;
 # 	return $subname_C.'('.join(", ", @call_arg_expr_strs_C).')';
 } # END of _emit_subroutine_call_expr_Uxntal
 
+
+sub _emit_subroutine_return_vals_Uxntal { my ($stref,$f,$info) = @_;
+	my @sub_retvals_Uxntal=();
+	# my $subname = $info->{'SubroutineCall'}{'Name'};
+	my $Ssubname = $stref->{'Subroutines'}{$f};
+
+	my $idx=0;
+
+	for my $sig_arg (@{$Ssubname->{'RefactoredArgs'}{'List'}}) {
+		$idx++;
+		my $rec = $Ssubname->{'RefactoredArgs'}{'Set'}{$sig_arg};		
+		my $intent = $rec->{'IODir'};
+		my $isArray = $rec->{'ArrayOrScalar'} eq 'Array';
+		if (not $isArray  and $rec->{'Type'} eq 'character') {
+			if ($rec->{'Attr'}=~/len=(\d+)/) {
+				my $len = $1;
+				$isArray = $len>1;
+			}
+		}
+		my $wordSz = $rec->{'Type'} eq 'character' ? 1 : 2;
+		if ($rec->{'Attr'}=~/kind=(\d+)/) {
+			$wordSz = $1;
+		}						
+		$wordSz==1 && do {$wordSz=''};
+		if ($intent eq 'out' or $intent eq 'inout') {
+			if (not $isArray ) { 				
+				push @sub_retvals_Uxntal, ';'.$f.'_'.$sig_arg.' LDA'.$wordSz;
+			}
+		}
+	}
+
+	return join("\n", @sub_retvals_Uxntal);
+} # END of _emit_subroutine_return_vals_Uxntal
 
 # -----------------------------------------------------------------------------
 sub toUxntalType {
