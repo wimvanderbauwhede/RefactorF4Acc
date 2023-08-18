@@ -180,7 +180,7 @@ Instead of the nice but cumbersome approach we had until now, from now on it is 
 
 	my $pass_translate_to_Uxntal = sub { (my $annline, my $state)=@_;
 		(my $line,my $info)=@{$annline};
-		
+		say "LINE:<$line>";
 		my $c_line=$line;
 		(my $stref, my $f, my $pass_state)=@{$state};
         my $id = $info->{'LineId'};
@@ -193,6 +193,7 @@ Instead of the nice but cumbersome approach we had until now, from now on it is 
 		}
 		elsif (exists $info->{'VarDecl'} ) {
 				my $var = $info->{'VarDecl'}{'Name'};
+				carp Dumper $info;
 				if (exists $stref->{'Subroutines'}{$f}{'DeclaredOrigArgs'}{'Set'}{$var}) {
 					$c_line='( '.$line.' )';
 					$skip=1;
@@ -212,7 +213,7 @@ Instead of the nice but cumbersome approach we had until now, from now on it is 
 			my $switch_expr = _emit_expression_Uxntal([2,$info->{'CaseVar'}],$stref,$f,$info); # FIXME
 			$c_line ="switch ( $switch_expr ) {";
 		}
-		elsif (exists $info->{'Case'} ) {
+		elsif (exists $info->{'Case'} ) { croak Dumper $info;
             # FIXME: support macros
 			$c_line=$line.': {';#'case';
 			if ($info->{'Case'}>1) {
@@ -225,6 +226,8 @@ Instead of the nice but cumbersome approach we had until now, from now on it is 
 		elsif (exists $info->{'Do'} ) {
 			if (exists $info->{'Do'}{'While'}) {
 				croak 'TODO: Do While';
+				push @{$pass_state->{'DoStack'}}, [$id,$info->{'Do'}{'ExpressionsAST'}];
+				$c_line = '&while_loop_'.$f.'_'.$id . "\n" ;
 			} else {
 			# $pass_state->{'DoIter'} = $f.'_'.$info->{'Do'}{'Iterator'};
 			# $pass_state->{'DoStep'} = $info->{'Do'}{'Range'}{'Expressions'}[2];
@@ -312,9 +315,15 @@ Instead of the nice but cumbersome approach we had until now, from now on it is 
 				exists $info->{'EndDo'}
 			) {
 				my $do_tup = pop @{$pass_state->{'DoStack'}};
-				my ($do_id, $do_iter, $do_step) = @{$do_tup};
-				my $inc = $do_iter == 1 ? 'INC2' : toHex($do_iter,2).' ADD2';
-            $c_line = "DUP2 ;$do_iter LDA2 $inc NEQ2 ".',&loop_'.$f.'_'.$do_id.' JCN';
+				if (scalar @{$do_tup}== 3) {
+					my ($do_id, $do_iter, $do_step) = @{$do_tup};
+					my $inc = $do_iter == 1 ? 'INC2' : toHex($do_iter,2).' ADD2';
+            		$c_line = "DUP2 ;$do_iter LDA2 $inc NEQ2 ".',&loop_'.$f.'_'.$do_id.' JCN';
+				} else { # while
+					my ($do_id, $do_while_cond) = @{$do_tup};
+					$c_line =  _emit_expression_Uxntal($do_while_cond,$stref, $f, $info);
+					$c_line .= "\n".',&while_loop_'.$f.'_'.$do_id.' JCN';
+				}
 		}
 		elsif ( exists $info->{'EndProgram'} ) {
 
@@ -1037,6 +1046,7 @@ sub _emit_subroutine_return_vals_Uxntal { my ($stref,$f,$info) = @_;
 			$wordSz = $1;
 		}						
 		$wordSz==1 && do {$wordSz=''};
+
 		if ($intent eq 'out' or $intent eq 'inout') {
 			if (not $isArray ) { 				
 				push @sub_retvals_Uxntal, ';'.$f.'_'.$sig_arg.' LDA'.$wordSz;
@@ -1065,7 +1075,7 @@ sub toUxntalType {
     if ( exists( $corr{$ftype} ) ) {
         return $corr{$ftype};
     } else {
-        die "TYPE for $ftype is not supported\n" if $W;
+        croak "TYPE for $ftype is not supported\n" if $W;
     }
 }    # END of toUxntalType()
 

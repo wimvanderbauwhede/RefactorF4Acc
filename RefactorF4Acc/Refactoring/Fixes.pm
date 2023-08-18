@@ -1108,8 +1108,9 @@ if (not exists $Config{'FIXES'}{'_declare_undeclared_variables'}) { return $stre
  			$state->{'Args'} = $info->{'Signature'}{'Args'}{'Set'};
  		}
  		elsif (exists $info->{'Select'})  {
- 			my $select_expr_str = $info->{'CaseVar'};
- 			my $select_expr_ast=parse_expression($select_expr_str, $info,{}, '');
+ 			my $select_expr_ast = $info->{'CaseVar'};
+			# croak Dumper $info ;#unless defined $select_expr_str;
+ 			# my $select_expr_ast=parse_expression($select_expr_str, $info,{}, '');
  			my $vars = get_vars_from_expression($select_expr_ast,{});
  			$state->{'ExprVars'} ={ %{ $state->{'ExprVars'} }, %{ $vars } };
  		}

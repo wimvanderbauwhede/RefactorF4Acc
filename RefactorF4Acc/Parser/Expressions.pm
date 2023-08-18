@@ -570,7 +570,8 @@ sub parse_expression_no_context { (my $str)=@_;
     my $has_funcs=0;
     my $empty_arg_list=0;
     # carp "ORIG STR: $str";
-    croak if $DBG and not defined $str;
+    # croak if $DBG and not defined $str;
+    croak if not defined $str;
     while (length($str)>0) {
         $error=0;
 		# say "STR before prefix: $str";
@@ -694,7 +695,7 @@ sub parse_expression_no_context { (my $str)=@_;
         }
         elsif ($Config{'ALLOW_SPACES_IN_NUMBERS'}==0 and $str=~s/^(\d+(?:_[1248])?)//) {
             # integers
-            # warn 'INTEGER, ALLOW_SPACES_IN_NUMBERS==0';
+            # warn 'INTEGER, ALLOW_SPACES_IN_NUMBERS==0',$str;
             $expr_ast=[29,$1];
             #$expr_ast=$1;#['integer',$1];
         }
@@ -989,7 +990,7 @@ So it looks like I need at least 6 bits, so we'll need <<8 and 0xFF
                 # warn Dumper([27,@{$arg_expr_ast}],$str,$error,$has_funcs);
                 return ([27,@{$arg_expr_ast}],$str,$error,$has_funcs);
             }
-        }
+        }        
     } # while
 
     # So when we fall off the end of the string we need to clean up

@@ -1371,8 +1371,9 @@ or $line=~/^character\s*\(\s*len\s*=\s*[\w\*]+\s*\)/
 #@ CaseVar => $var
 #@ CaseVals => [...]
 
-			} elsif ($line=~/select\s+case\s*\((\w+)\)/) {
-					$info->{'CaseVar'} = $1; # FIXME, this can be an entire expression! Should be treated identical to the IF cond!
+			} elsif ($line=~/select\s+case\s*\((.+?)\s*\)\s*$/) {
+					my $case_cond_expr = $1;
+					$info->{'CaseVar'} = parse_expression($case_cond_expr,$info, $stref, $f);
 					$info->{ 'Control' } = 1;
                 	$info->{'HasVars'} = 1; 
 					$info->{'NonSpecificationStatement'} = 1;
@@ -4453,12 +4454,10 @@ sub _parse_IO_sub_call {
 sub _parse_if_cond {
 	( my $str ) = @_;
 
-	my $parens_count = 1;
-	
+	my $parens_count = 1;	
 	
 	my $open_paren_idx=index($str,'(');
 	my $close_paren_idx=-1;
-
 
 	for my $idx ($open_paren_idx+1 .. length($str)-1 ) {
 		my $ch = substr($str,$idx,1);
@@ -4477,10 +4476,7 @@ sub _parse_if_cond {
 	}
 	my $cond = substr($str,$open_paren_idx+1, $close_paren_idx-$open_paren_idx-1);
 	my $rest = substr($str, $close_paren_idx+1);
-#	while(substr($rest,0,1) eq ' ') {
-#		$rest = substr($rest,1);
-#	}
-#say $rest;
+
 	$rest=~s/^\s*//;
 	$rest=~s/\s*$//;
 	return ($cond,$rest); 

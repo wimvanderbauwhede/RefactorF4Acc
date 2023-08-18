@@ -6,7 +6,7 @@ use Getopt::Std;
 
 
 my %opts = ();
-getopts( 'hvi:o:e:s:', \%opts );
+getopts( 'hvdi:o:e:', \%opts );
 
 my @supported_passes = ( "translate_to_Uxntal" );
 
@@ -17,7 +17,7 @@ if ($opts{'h'}){
     -v : verbose
     -i : module directory (default: .)
     -o : output directory (default: Uxntal)
-    # -s : module source file
+    -d : debug
     -e : Fortran source file extension (default is .f90, needs the dot)    
     \n";
 }
@@ -39,10 +39,10 @@ my $ext = '.f90';
 if ($opts{'e'}) {
     $ext = $opts{'e'};
 }
-
+our $DBG='';
 my $module_src = $ARGV[0];
-if ($opts{'s'}) {
-    $module_src = $opts{'s'};
+if ($opts{'d'}) {
+    $DBG = '-d';
 }
 
 my $uxn_target = 'translate_to_Uxntal';
@@ -60,7 +60,7 @@ if (@kernel_srcs) {
         say "MODULE SRC: $kernel_src" if $V;
         if ($kernel_sub_name and $kernel_sub_name ne '') {
             my $rf4a_cfg = create_rf4a_cfg($kernel_src,$kernel_sub_name, $kernel_module_name);
-            system("refactorF4acc.pl -P $uxn_target -c $rf4a_cfg $kernel_module_name");
+            system("refactorF4acc.pl $DBG -P $uxn_target -c $rf4a_cfg $kernel_module_name");
         }
     }
 } else {
