@@ -144,6 +144,7 @@ Instead of the nice but cumbersome approach we had until now, from now on it is 
 					# say "<$fname $arg_expr_str>";
 					my $arg = ($info->{'SubroutineCall'}{'Args'}{'Set'}{$arg_expr_str}{'Type'} eq 'Scalar'
 					or $info->{'SubroutineCall'}{'Args'}{'Set'}{$arg_expr_str}{'Type'} eq 'Const'
+					or $info->{'SubroutineCall'}{'Args'}{'Set'}{$arg_expr_str}{'Type'} eq 'Expr'
 					) ? $info->{'SubroutineCall'}{'Args'}{'Set'}{$arg_expr_str}{'Expr'}
 					: $info->{'SubroutineCall'}{'Args'}{'Set'}{$arg_expr_str}{'Arg'};
 					if (exists $state->{'LocalVars'}{$arg}) {
@@ -248,7 +249,7 @@ Instead of the nice but cumbersome approach we had until now, from now on it is 
 		}
 		elsif (exists $info->{'SubroutineCall'} ) {
 			#
-			my $subcall_ast = [ 1, $info->{'SubroutineCall'}{'Name'},$info->{'SubroutineCall'}{'ExpressionAST'} ];
+			# my $subcall_ast = [ 1, $info->{'SubroutineCall'}{'Name'},$info->{'SubroutineCall'}{'ExpressionAST'} ];
 
 			# There is an issue here:
 			# We actually need to check the type of the called arg against the type of the sig arg
@@ -836,7 +837,9 @@ while ($expr=~/\.(\w+)\./) {
 sub _emit_subroutine_call_expr_Uxntal { my ($stref,$f,$info) = @_;
 	my @call_arg_expr_strs_C=();
 	my $subname = $info->{'SubroutineCall'}{'Name'};
-	croak Dumper ($info, $stref->{'Subroutines'}{$subname}{'Vars'}) if $f=~/test_subcall/;
+	my $Ssubname = $stref->{'Subroutines'}{$subname};
+	# croak Dumper ($info);#, $Ssubname->{'Refactore	dArgs'}) if $f=~/test_subcall/;
+	
 
 	my $mvar = $subname;
 	# AD-HOC, replacing abs/min/max to fabs/fmin/fmax without any type checking ... FIXME!!!
@@ -845,8 +848,56 @@ sub _emit_subroutine_call_expr_Uxntal { my ($stref,$f,$info) = @_;
 	$mvar=~s/^am(ax|in)1$/(float)fm$1/;
 	$mvar=~s/^alog$/(float)log/;
 	my $subname_C = $mvar;
+# What we need for every argument is IODir , ArrayOrScalar from the record
+# So we'd better loop over the List in the record. 
+	#  "inout" args will occur in both places if required.
+	my @in_args=();
+	my @out_args=();
+	my $idx=0;
+	for my $sig_arg (@{$Ssubname->{'RefactoredArgs'}{'List'}}) {
+		$idx++;
+		my $rec = $Ssubname->{'RefactoredArgs'}{'Set'}{$sig_arg};
+		my $call_arg_expr_str = $info->{'SubroutineCall'}{'ArgMap'}{$sig_arg};
+		# say "$sig_arg => $call_arg_expr_str";
+		my $intent = $rec->{'IODir'};
+		my $isArray = $rec->{'ArrayOrScalar'} eq 'Array';
+		# say $info->{'SubroutineCall'}{'Args'}{'Set'}{$call_arg_expr_str}{'Type'};	
+		my $isConst = (($info->{'SubroutineCall'}{'Args'}{'Set'}{$call_arg_expr_str}{'Type'} eq 'Const' ) or ($info->{'SubroutineCall'}{'Args'}{'Set'}{$call_arg_expr_str}{'Type'} eq 'Expr'));
+		if ($intent eq 'in' or $intent eq 'inout') {
+		if ($isArray) { 
+			say ';'.$f.'_'.$call_arg_expr_str;
+		} else {
+		my $arg_expr_ast = $info->{'SubroutineCall'}{'ExpressionAST'}[0] == 27 ? $info->{'SubroutineCall'}{'ExpressionAST'}[$idx] : $info->{'SubroutineCall'}{'ExpressionAST'};
+		say _emit_expression_Uxntal($arg_expr_ast, $stref, $f,$info);
+		}
+		}
+	}
+	say $subname;
+	$idx=0;
+	for my $sig_arg (reverse @{$Ssubname->{'RefactoredArgs'}{'List'}}) {
+		$idx++;
+		my $rec = $Ssubname->{'RefactoredArgs'}{'Set'}{$sig_arg};
+		my $call_arg_expr_str = $info->{'SubroutineCall'}{'ArgMap'}{$sig_arg};
+		# say "$sig_arg => $call_arg_expr_str";
+		my $intent = $rec->{'IODir'};
+		my $isArray = $rec->{'ArrayOrScalar'} eq 'Array';
+		# say $info->{'SubroutineCall'}{'Args'}{'Set'}{$call_arg_expr_str}{'Type'};	
+		my $isConst = (($info->{'SubroutineCall'}{'Args'}{'Set'}{$call_arg_expr_str}{'Type'} eq 'Const' ) or ($info->{'SubroutineCall'}{'Args'}{'Set'}{$call_arg_expr_str}{'Type'} eq 'Expr'));
+		if ($intent eq 'out' or $intent eq 'inout') {
+			if (not $isArray and not $isConst) { 
+			# 	say ';'.$f.'_'.$call_arg_expr_str;
+			# } else {
+				my $arg_expr_ast = $info->{'SubroutineCall'}{'ExpressionAST'}[0] == 27 ? $info->{'SubroutineCall'}{'ExpressionAST'}[$idx] : $info->{'SubroutineCall'}{'ExpressionAST'};
+				# say _emit_expression_Uxntal($arg_expr_ast, $stref, $f,$info);
+				say ';'.$f.'_'.$call_arg_expr_str.' STA2';
+			}
+		}
+	}
+
+die if $f=~/test_subcall/;
 
 	for my $call_arg_expr_str (@{$info->{'SubroutineCall'}{'Args'}{'List'}}) {
+		
 
 		my $arg_type = $info->{'SubroutineCall'}{'Args'}{'Set'}{$call_arg_expr_str}{'Type'};
 			if ( $arg_type eq 'Scalar') {
