@@ -136,13 +136,15 @@ Instead of the nice but cumbersome approach we had until now, from now on it is 
 				$state->{'Pointers'}{$var}='';
 				$state->{'Parameters'}{$var}=1;
 		}
-		elsif (exists $info->{'SubroutineCall'} ) { 
+		elsif (exists $info->{'SubroutineCall'} ) {
+			# croak Dumper $info; 
 			my $fname =  $info->{'SubroutineCall'}{'Name'};
 			if (not exists $F95_intrinsic_functions{$fname} ) {
 				for my $arg_expr_str (@{$info->{'SubroutineCall'}{'Args'}{'List'}}) {
 					# say "<$fname $arg_expr_str>";
-					my $arg = $info->{'SubroutineCall'}{'Args'}{'Set'}{$arg_expr_str}{'Type'} eq 'Scalar'
-					? $info->{'SubroutineCall'}{'Args'}{'Set'}{$arg_expr_str}{'Expr'}
+					my $arg = ($info->{'SubroutineCall'}{'Args'}{'Set'}{$arg_expr_str}{'Type'} eq 'Scalar'
+					or $info->{'SubroutineCall'}{'Args'}{'Set'}{$arg_expr_str}{'Type'} eq 'Const'
+					) ? $info->{'SubroutineCall'}{'Args'}{'Set'}{$arg_expr_str}{'Expr'}
 					: $info->{'SubroutineCall'}{'Args'}{'Set'}{$arg_expr_str}{'Arg'};
 					if (exists $state->{'LocalVars'}{$arg}) {
 						$state->{'Pointers'}{$arg}='*';
@@ -220,6 +222,9 @@ Instead of the nice but cumbersome approach we had until now, from now on it is 
 			$c_line = $info->{'Indent'}."} break;\n".$info->{'Indent'}.'default : {';
 		}
 		elsif (exists $info->{'Do'} ) {
+			if (exists $info->{'Do'}{'While'}) {
+				croak 'TODO: Do While';
+			} else {
 			# $pass_state->{'DoIter'} = $f.'_'.$info->{'Do'}{'Iterator'};
 			# $pass_state->{'DoStep'} = $info->{'Do'}{'Range'}{'Expressions'}[2];
 			# id, iterator, step; loop upper bound is on the wst
@@ -231,8 +236,10 @@ Instead of the nice but cumbersome approach we had until now, from now on it is 
 				# $info->{'Do'}{'Iterator'}.' = '.$info->{'Do'}{'Range'}{'Expressions'}[0] .';'.
 				# $info->{'Do'}{'Iterator'}.' <= '.$info->{'Do'}{'Range'}{'Expressions'}[1] .';'.
 				# $info->{'Do'}{'Iterator'}.' += '.$info->{'Do'}{'Range'}{'Expressions'}[2] .') {';
+			}
 		}
 		elsif (exists $info->{'BeginDo'} ) {
+			croak 'TODO: BeginDo: what is this?';
 				$c_line='for () {';
 		}
 
@@ -829,6 +836,7 @@ while ($expr=~/\.(\w+)\./) {
 sub _emit_subroutine_call_expr_Uxntal { my ($stref,$f,$info) = @_;
 	my @call_arg_expr_strs_C=();
 	my $subname = $info->{'SubroutineCall'}{'Name'};
+	croak Dumper ($info, $stref->{'Subroutines'}{$subname}{'Vars'}) if $f=~/test_subcall/;
 
 	my $mvar = $subname;
 	# AD-HOC, replacing abs/min/max to fabs/fmin/fmax without any type checking ... FIXME!!!
@@ -839,6 +847,7 @@ sub _emit_subroutine_call_expr_Uxntal { my ($stref,$f,$info) = @_;
 	my $subname_C = $mvar;
 
 	for my $call_arg_expr_str (@{$info->{'SubroutineCall'}{'Args'}{'List'}}) {
+
 		my $arg_type = $info->{'SubroutineCall'}{'Args'}{'Set'}{$call_arg_expr_str}{'Type'};
 			if ( $arg_type eq 'Scalar') {
 				my $ptr = '';
