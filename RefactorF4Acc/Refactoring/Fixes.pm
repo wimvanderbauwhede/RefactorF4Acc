@@ -1181,7 +1181,7 @@ if (not exists $Config{'FIXES'}{'_declare_undeclared_variables'}) { return $stre
 
 		if (not exists $state->{'DeclaredVars'}{$expr_var} ) {
 			# FIXME: this variable could be declared through Use or at module level!	
-			has_module_level_declaration($stref,$f,$expr_var);
+			__has_module_level_declaration($stref,$f,$expr_var);
 			
 			$state->{'UndeclaredVars'}{$expr_var}='real'; # the default
 		}
@@ -1265,7 +1265,7 @@ if (not exists $Config{'FIXES'}{'_declare_undeclared_variables'}) { return $stre
 } # END of _declare_undeclared_variables()
 
 # A variable could be declared through Use or at module level!	
-sub has_module_level_declaration { my ($stref,$f,$var)=@_;
+sub __has_module_level_declaration { my ($stref,$f,$var)=@_;
 	# $stref->{'Subroutines'}{$f}
 	if ( exists $stref->{'Subroutines'}{$f}{'InModule'} ) { 
 		my $mod_name = $stref->{'Subroutines'}{$f}{'InModule'};
@@ -1276,12 +1276,29 @@ sub has_module_level_declaration { my ($stref,$f,$var)=@_;
 			# also check module-level Use declarations, recursively.
 			if ( exists $stref->{'Modules'}{$mod_name}{'Uses'} ) {
 				croak 'TODO: Uses: ',Dumper( $stref->{'Modules'}{$mod_name}{'Uses'} );
+
 			}
 		}
 	} else { 
 		return 0; 
 	}
-} # has_module_level_declaration
+} # __has_module_level_declaration
+
+sub __check_for_decl_in_used_modules { my ($stref,$f,$current_mod_name,$var) = @_;
+	# if the decl is in the current module, return
+	# else go through the list of used modules
+	if (in_nested_set($stref->{'Modules'}{$current_mod_name}, 'Vars', $var)) {
+		return 1;
+	} elsif ( exists $stref->{'Modules'}{$current_mod_name}{'Uses'} ) {
+		for my $used_mod_name ( ) {
+			__check_for_decl_in_used_modules($stref,$f,$used_mod_name,$var);
+		}
+	} else {
+		return 0;
+	}
+
+
+}
 
 # ================================================================================================================================================
 # Gavin's code has _ptr arrays to pass scalar pointers. This is necessary for actual Fortran code, not for code that is to be translated to OpenCL
