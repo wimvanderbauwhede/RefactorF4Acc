@@ -1180,7 +1180,10 @@ if (not exists $Config{'FIXES'}{'_declare_undeclared_variables'}) { return $stre
 		next if $expr_var=~/^\d/;
 
 		if (not exists $state->{'DeclaredVars'}{$expr_var} ) {
-				$state->{'UndeclaredVars'}{$expr_var}='real'; # the default
+			# FIXME: this variable could be declared through Use or at module level!	
+			__has_module_level_declaration($stref,$f,$expr_var);
+			
+			$state->{'UndeclaredVars'}{$expr_var}='real'; # the default
 		}
 	}
 	for my $lhs_var (keys %{ $state->{'AssignedVars'} } ) {
@@ -1199,7 +1202,7 @@ if (not exists $Config{'FIXES'}{'_declare_undeclared_variables'}) { return $stre
 			my $var = $info->{'Lhs'}{'VarName'};
 			if (exists $pass_state->{'UndeclaredVars'}{$var}) {
 #				say "$f VAR: $var is UNDECLARED" if $var=~/range/;
-			# Now from this list via
+				# Now from this list via
 				my $var_type = 'integer';
 				for my $rhs_var (@{ $info->{'Rhs'}{'Vars'}{'List'} } ) {
 					next if exists $Config{'Macros'}{uc($rhs_var)};
@@ -1260,6 +1263,43 @@ if (not exists $Config{'FIXES'}{'_declare_undeclared_variables'}) { return $stre
 
 	return $stref;
 } # END of _declare_undeclared_variables()
+
+# A variable could be declared through Use or at module level!	
+sub __has_module_level_declaration { my ($stref,$f,$var)=@_;
+	# $stref->{'Subroutines'}{$f}
+	if ( exists $stref->{'Subroutines'}{$f}{'InModule'} ) { 
+		my $mod_name = $stref->{'Subroutines'}{$f}{'InModule'};
+		# check module-level Var/Par declarations 
+		if (in_nested_set($stref->{'Modules'}{$mod_name}, 'Vars', $var)) {
+			return 1;
+		} else {
+			# also check module-level Use declarations, recursively.
+			if ( exists $stref->{'Modules'}{$mod_name}{'Uses'} ) {
+				croak 'TODO: Uses: ',Dumper( $stref->{'Modules'}{$mod_name}{'Uses'} );
+
+			}
+		}
+	} else { 
+		return 0; 
+	}
+} # __has_module_level_declaration
+
+sub __check_for_decl_in_used_modules { my ($stref,$f,$current_mod_name,$var) = @_;
+	# if the decl is in the current module, return
+	# else go through the list of used modules
+	if (in_nested_set($stref->{'Modules'}{$current_mod_name}, 'Vars', $var)) {
+		return 1;
+	} elsif ( exists $stref->{'Modules'}{$current_mod_name}{'Uses'} ) {
+		for my $used_mod_name ( ) {
+			__check_for_decl_in_used_modules($stref,$f,$used_mod_name,$var);
+		}
+	} else {
+		return 0;
+	}
+
+
+}
+
 # ================================================================================================================================================
 # Gavin's code has _ptr arrays to pass scalar pointers. This is necessary for actual Fortran code, not for code that is to be translated to OpenCL
 sub _fix_scalar_ptr_args { (my $stref, my $f)=@_;
