@@ -180,10 +180,10 @@ Instead of the nice but cumbersome approach we had until now, from now on it is 
 
 	my $pass_translate_to_Uxntal = sub { (my $annline, my $state)=@_;
 		(my $line,my $info)=@{$annline};
-		say "LINE:<$line>";
+		say "LINE:<$line> ";
 		my $c_line=$line;
 		(my $stref, my $f, my $pass_state)=@{$state};
-        my $id = $info->{'LineId'};
+        my $id = $info->{'LineID'};
 		my $skip=0;
 		if (exists $info->{'Signature'} ) {
 			$pass_state->{'Args'}=$info->{'Signature'}{'Args'}{'List'};
@@ -248,7 +248,7 @@ Instead of the nice but cumbersome approach we had until now, from now on it is 
 		}
 
 		if (exists $info->{'Assignment'} ) {
-				$c_line = _emit_assignment_Uxntal($stref, $f, $info) ;
+				($c_line,$pass_state) = _emit_assignment_Uxntal($stref, $f, $info,$pass_state) ;
 		}
 		elsif (exists $info->{'SubroutineCall'} ) {
 			#
@@ -266,11 +266,10 @@ Instead of the nice but cumbersome approach we had until now, from now on it is 
 			croak Dumper $info->{'IOCall'}{'Args'}{'AST'};
 		}
         elsif (exists $info->{'If'} ) {
-            $pass_state->{'IfBranchId'} = $id;
-            my $branch_id = $pass_state->{'IfBranchId'};
+            $pass_state->{'IfBranchId'} = $id;            
             push @{$pass_state->{'IfStack'}},$id;
             $pass_state->{'IfId'}=$id;
-			$c_line = _emit_ifthen_Uxntal($stref, $f, $info, $branch_id);
+			$c_line = _emit_ifthen_Uxntal($stref, $f, $info, $id);
             # say emit_uxntal_expr_str($cond) . " ,&branch$id JCN";
             # say ",&branch$id_end JMP";
             # say "&branch$id";
@@ -397,8 +396,8 @@ Instead of the nice but cumbersome approach we had until now, from now on it is 
 	{
 		'TranslatedCode'=>[], 
 		'Args'=>[],'ArgVarDecls'=>[],
-		'IfStack'=>{},'IfId' =>0,'IfBranchId' =>0,
-		'DoIter'=>'', 'DoId' => 0
+		'IfStack'=>[],'IfId' =>0,'IfBranchId' =>0,
+		'DoStack'=>[], 'DoIter'=>'', 'DoId' => 0,
 	}
 	];
  	($stref,$state) = stateful_pass_inplace($stref,$f,$pass_translate_to_Uxntal, $state,'C_translation_collect_info() ' . __LINE__  ) ;
@@ -558,7 +557,7 @@ sub _emit_var_decl_Uxntal { (my $stref,my $f,my $var)=@_;
 	}
 }
 
-sub _emit_assignment_Uxntal { (my $stref, my $f, my $info)=@_;
+sub _emit_assignment_Uxntal { (my $stref, my $f, my $info, my $pass_state)=@_;
 	my $lhs_ast =  $info->{'Lhs'}{'ExpressionAST'};
 	my $lhs = _emit_expression_Uxntal($lhs_ast,$stref,$f,$info);
 
@@ -596,16 +595,23 @@ sub _emit_assignment_Uxntal { (my $stref, my $f, my $info)=@_;
 	$lhs =~s/LDA2$/STA2/;
 	my $rline = $info->{'Indent'}.$rhs_stripped . ' '. $lhs;
 	if (exists $info->{'If'}) {
-		my $if_str = _emit_ifthen_Uxntal($stref,$f,$info);
+		my $id = $info->{'LineID'};
+		$pass_state->{'IfBranchId'} = $id;
+		my $branch_id = $pass_state->{'IfBranchId'};
+		push @{$pass_state->{'IfStack'}},$id;
+		$pass_state->{'IfId'}=$id;
+
+		my $if_str = _emit_ifthen_Uxntal($stref,$f,$info,$branch_id);
 		$rline =$indent.$if_str.' '.$rline;
 	}
 	# carp "$f $rline";
-	return $rline;
-}
+	return ($rline,$pass_state);
+} # END of _emit_assignment_Uxntal
 
 
 
 sub _emit_ifthen_Uxntal { (my $stref, my $f, my $info, my $branch_id)=@_;
+croak if not defined $branch_id;
 	my $cond_expr_ast=$info->{'Cond'}{'AST'};
 	my $cond_expr = _emit_expression_Uxntal($cond_expr_ast,$stref,$f,$info);
 	# $cond_expr=_change_operators_to_Uxntal($cond_expr);
