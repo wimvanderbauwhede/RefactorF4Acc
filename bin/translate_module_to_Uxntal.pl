@@ -6,7 +6,7 @@ use Getopt::Std;
 
 
 my %opts = ();
-getopts( 'hvdi:o:e:', \%opts );
+getopts( 'hvdi:o:e:w:', \%opts );
 
 my @supported_passes = ( "translate_to_Uxntal" );
 
@@ -15,6 +15,7 @@ if ($opts{'h'}){
     $0 -[hvioe] module source file
 
     -v : verbose
+    -w : warnings
     -i : module directory (default: .)
     -o : output directory (default: Uxntal)
     -d : debug
@@ -22,8 +23,10 @@ if ($opts{'h'}){
     \n";
 }
 our $V=0;
+our $VV='';
 if ($opts{'v'}) {
     $V=1;
+    $VV = '-v -i -w 4';
 }
 my $kernels_dir = '.';
 
@@ -60,7 +63,7 @@ if (@kernel_srcs) {
         say "MODULE SRC: $kernel_src" if $V;
         if ($kernel_sub_name and $kernel_sub_name ne '') {
             my $rf4a_cfg = create_rf4a_cfg($kernel_src,$kernel_sub_name, $kernel_module_name);
-            system("refactorF4acc.pl $DBG -P $uxn_target -c $rf4a_cfg $kernel_module_name");
+            system("refactorF4acc.pl $DBG $VV -P $uxn_target -c $rf4a_cfg $kernel_module_name");
         }
     }
 } else {

@@ -47,7 +47,7 @@ use Exporter;
   &pass_wrapper_subs_in_module
   &update_arg_var_decl_sourcelines
   &substitute_placeholders
-  %f95ops  
+  %f95ops
 );
 
 our %f95ops = (
@@ -75,49 +75,49 @@ sub create_refactored_source {
 
     for my $annline ( @{$annlines} ) {
 
-       ( my $line , my $info ) = @{ $annline};        
+       ( my $line , my $info ) = @{ $annline};
 
         if ( not exists $info->{'Comments'} and ( exists $info->{'InBlock'} or not exists $info->{'Deleted'} ) ) {
             print $line, "\n" if $DBG;
 				if (not exists $info->{'ReadCall'} and not exists $info->{'WriteCall'} and not exists $info->{'PrintCall'} ) {
-					
-					# Problem is of course that strings can contain comments and comments can contain quotes. 
-					# So placeholder strings can in principle occur in comments. That is what we are looking for here, trailing comments	
+
+					# Problem is of course that strings can contain comments and comments can contain quotes.
+					# So placeholder strings can in principle occur in comments. That is what we are looking for here, trailing comments
 					# So we must exclude the strings that look like comments, hence the PlaceHolders trick.
 					# So in principle I must look for the first ! outside any pair of ' or "
-					# say I split a line on ' => pre ' str1 ' sep1 ' str2 ' sep2_maybe_! ' 
+					# say I split a line on ' => pre ' str1 ' sep1 ' str2 ' sep2_maybe_! '
 					# So I remove pre; then I remove str then look at sep. If sep has ! => OK, found comment.
-					
-					my $line_without_comment = $line;  
+
+					my $line_without_comment = $line;
 					if ($DBG) {
 					my $replace_PHs = 1;
 					if ($replace_PHs and exists $info->{'PlaceHolders'} ) {
 					 	my $ph_line=$line;
 					 	my $phs={};
-					 	for my $ph (keys %{$info->{'PlaceHolders'}} ) { 
+					 	for my $ph (keys %{$info->{'PlaceHolders'}} ) {
                             my $ph_str = $info->{'PlaceHolders'}{$ph};
                             $phs->{$ph_str}=$ph;
 					 	}
                             while ( $ph_line =~ /(\'.*?\')/ ) {
                                 my $strconst = $1;
-                                my $ph       = $phs->{$strconst};                               
+                                my $ph       = $phs->{$strconst};
                                 $ph_line =~ s/\'.*?\'/$ph/;
                             }
                             while ( $ph_line =~ /(\".*?\")/ ) {
                                 my $strconst = $1;
-                                my $ph       = $phs->{$strconst};                               
+                                my $ph       = $phs->{$strconst};
                                 $ph_line =~ s/\".*?\"/$ph/;
                             }
 					 	$line_without_comment = $ph_line;
 					}
-					}				 
+					}
 				    my $comment = '';
 				    if ($DBG) {
-					# So after putting the strings back we check for a !	 
+					# So after putting the strings back we check for a !
 					if ($line_without_comment =~/\!(.+)$/) { say "<$line>\n<$line_without_comment>";# if $line_without_comment=~/__PH\d+_/ ;
 #					say $info->{'TrailingComment'};
 						 	# found a comment, remove it from the line with placeholders (?!)
-						 	$comment=$1;  	
+						 	$comment=$1;
 						 	$line_without_comment = $line; # This is the line with placeholders
 						 	$line_without_comment =~s/\!$comment//; # So this should only work if there were no matched quotes in the comment!
 					} else {
@@ -125,14 +125,14 @@ sub create_refactored_source {
 					}
 				    }
  	           	    my @split_lines = $Config{'SPLIT_LONG_LINES'} ? split_long_line($line_without_comment) : ( $line_without_comment );
-    	         	for my $sline (@split_lines) {    	         			
+    	         	for my $sline (@split_lines) {
         	            	push @{$refactored_lines}, [ $sline, $info ];
             	    }
             	    if ($DBG) {
             	    if ($comment ne '') {
             	    		$refactored_lines->[-1][0].=' !'.$comment;
-            	    }           
-            	    } 	    
+            	    }
+            	    }
 				} else {
 					push @{$refactored_lines}, [ $line, $info ];
 				}
@@ -147,10 +147,10 @@ sub create_refactored_source {
 # A convenience function to split long lines.
 # - count the number of characters, i.e. length()
 # - find the last comma before we exceed 64 characters (I guess it's really 72-5?):
-# There is a problem with trailing comments 
+# There is a problem with trailing comments
 # So I have to remove these first, then see if the line must be split, then append the comment to the last segment
 
-sub split_long_line { 
+sub split_long_line {
     my $line = shift;
     $line=~s/\s+/ /g unless $line=~/[\'\"]/; # replace multiple spaces by a single one if there are no string constants on the line
     my @chunks = @_;
@@ -305,10 +305,10 @@ sub get_annotated_sourcelines {
                 } else {
                     die 'get_annotated_sourcelines: no AnnLines for ' . $f;
                 }
-            } else {        	
+            } else {
                 $annlines = $Sf->{'RefactoredCode'};           # Here a ref is OK
             }
-        } else {    	
+        } else {
             print "WARNING: get_annotated_sourcelines($f) STATUS: "
             . show_status( $Sf->{'Status'} ). shortmess()
             if $DBG;
@@ -328,10 +328,10 @@ sub get_annotated_sourcelines {
 # -----------------------------------------------------------------------------
 
 # -----------------------------------------------------------------------------
-sub get_f95_var_decl {	
+sub get_f95_var_decl {
     (my $stref, my $f, my $var) = @_;
     my $sub_or_func_or_inc = sub_func_incl_mod( $f, $stref );
-	my $Sf= $stref->{$sub_or_func_or_inc}{$f};    
+	my $Sf= $stref->{$sub_or_func_or_inc}{$f};
     my $spaces = '      ';
     my $intent = 'Unknown';
     my $dim  = [];
@@ -339,7 +339,7 @@ sub get_f95_var_decl {
     my $type   = 'Unknown';
     my $nvar   = $var;
     my $array_or_scalar = 'Unknown';
-    
+
     my $subset = in_nested_set($Sf, 'Vars', $var); # Should tell us exactly where we are
 
     if ($subset ne '' and exists $Sf->{$subset}{'Set'}{$var} and ref($Sf->{$subset}{'Set'}{$var}) eq 'HASH') {
@@ -363,16 +363,16 @@ sub get_f95_var_decl {
         # 'Name' => $nvar,
             $decl->{'Status'} = 1;
             return $decl;
-            
+
 	        # $spaces =$decl->{'Indent'};
 	        # $spaces =~ s/\S.*$//;
 	        # $dim = $decl->{'Dim'};
 	        # $type  = $decl->{'Type'};
 	        # $attr  = $decl->{'Attr'};
-	        # $intent = $decl->{'IODir'};     
-            # $array_or_scalar = $decl->{'ArrayOrScalar'};           
+	        # $intent = $decl->{'IODir'};
+            # $array_or_scalar = $decl->{'ArrayOrScalar'};
 
-    } elsif ( defined $f and defined $stref and defined $var ) {   
+    } elsif ( defined $f and defined $stref and defined $var ) {
         croak "WARNING: VAR $var declared via IMPLICITS in get_f95_var_decl()!" if $DBG;
         warning("VAR $var declared via IMPLICITS in get_f95_var_decl()",$WW);
         ( $type, my $kind, $attr ) = type_via_implicits( $stref, $f, $var );
@@ -387,7 +387,7 @@ sub get_f95_var_decl {
             'Name' => $nvar,
             'Status' => 1,
             'MemSpace' => 'Global'
-        };        
+        };
     } else {
         croak
 "Can't type $var, not in Vars and format_f95_var_decl() called the wrong way for implicits" if $DBG;
@@ -402,7 +402,7 @@ sub get_f95_var_decl {
 
 sub format_f95_par_decl {
     ( my $stref, my $f, my $var_rec ) = @_;
-    
+
     if ( ref($var_rec) eq 'HASH' && $var_rec->{'Status'} == 1 ) {
         return $var_rec;
     }
@@ -417,10 +417,10 @@ sub format_f95_par_decl {
     my $sub_or_func_or_inc = sub_func_incl_mod( $f, $stref );
     my $Sf = $stref->{$sub_or_func_or_inc}{$f};
     my $par_rec = get_var_record_from_set( $Sf->{'Parameters'},$var);
-    
+
     my $val = $par_rec->{'Val'};
 
-	my $type = defined $par_rec->{'Type'} ? $par_rec->{'Type'} : 'Unknown'; 
+	my $type = defined $par_rec->{'Type'} ? $par_rec->{'Type'} : 'Unknown';
 	my $attr = defined $par_rec->{'Attr'} ? $par_rec->{'Attr'} :  '';
     my $spaces = ' ' x 6;
 	my $dim = [];
@@ -428,10 +428,10 @@ sub format_f95_par_decl {
         $dim=$par_rec->{'Dim'};
     }
 
-	if (not defined $par_rec->{'Type'} or $par_rec->{'Type'} eq 'Unknown') {		
+	if (not defined $par_rec->{'Type'} or $par_rec->{'Type'} eq 'Unknown') {
 		my $Sv = get_var_record_from_set($Sf->{'LocalVars'},$var);
 		if (not defined $Sv) {
-            say "WARNING: PARAMETER $var is probably local to $f in format_f95_par_decl(). If $f is a parameter include file, that is OK." if $W;			
+            say "WARNING: PARAMETER $var is probably local to $f in format_f95_par_decl(). If $f is a parameter include file, that is OK." if $W;
 		} else {
 			$spaces = $Sv->{'Indent'};
 			$dim=$Sv->{'Dim'};
@@ -440,11 +440,11 @@ sub format_f95_par_decl {
 			) {
 				say "WARNINGL: IMPLICIT TYPING OF PARAM $var from $f" if $W;
 				($type, my $array_or_scalar, $attr) =type_via_implicits( $stref, $f, $var);
-			} else {	
+			} else {
 				$type = $Sv->{'Type'};
 			}
 		}
-	}    
+	}
     # Can't trust the type set via implicits! WEAK! FIXME!
     if ($val=~/^[\+\-\*\d]+$/) {
        	$type = 'integer';
@@ -454,14 +454,14 @@ sub format_f95_par_decl {
         my $len = length($val) -2;
         $type = 'character';
         $attr="(len=$len)";
-    } elsif ($val=~/^__PH\d+__/) {       		
+    } elsif ($val=~/^__PH\d+__/) {
         $type = 'character';
         $attr='len=*';
-    }	
+    }
 
     # FIXME: for multiple vars, we need to split this in multiple statements.
     # So I guess as soon as the Dim is not empty, need to split.
-    my $shape = $dim;    
+    my $shape = $dim;
     my $dimrec = [];
     if ( @{$shape} ) {
         $dimrec = $shape; #', dimension(' . join( ',', @dims ) . ') ';
@@ -470,23 +470,23 @@ sub format_f95_par_decl {
     my $final_par_rec=
      {
         'Indent' => $spaces,
-        'Type' => $type, 
-        'Attr' => $attr, 
-        'Dim' => $dimrec, 
+        'Type' => $type,
+        'Attr' => $attr,
+        'Dim' => $dimrec,
         'Parameter' => 'parameter',
-        'Name' => [ $var, $val ] ,        
+        'Name' => [ $var, $val ] ,
         'Status' => 1
     };
     # if ($isArray) {
     #     $final_par_rec->{'Dimension'} = [];
     # }
-    
+
      carp "FINAL PAR REC $f:".Dumper($final_par_rec) if $DBG and $type eq 'Unknown';
 #     if ($type eq 'Unknown') {
 #     	$final_par_rec->{'Type'} = 'real';
-#     } 
+#     }
 
-    return $final_par_rec; 
+    return $final_par_rec;
 }    # format_f95_par_decl()
 
 
@@ -497,7 +497,7 @@ sub get_f95_par_decl {
     my $sub_or_func_or_inc = sub_func_incl_mod( $f, $stref );
     my $Sf = $stref->{$sub_or_func_or_inc}{$f};
     my $Sv = get_var_record_from_set($Sf->{'Parameters'},$var);
-        
+
     if ( not defined $Sv ) {
         print
 "WARNING: PARAMETER $var is probably local to $f in format_f95_par_decl(). If $f is a parameter include file, that is OK.\n"
@@ -513,15 +513,15 @@ sub get_f95_par_decl {
 	my $val = $Sv->{'Val'};
     return {
         'Indent' => $spaces,
-        'Type' => $Sv->{'Type'}, 
-        'Attr' => $Sv->{'Attr'}, 
-        'Dim' => $dim, 
+        'Type' => $Sv->{'Type'},
+        'Attr' => $Sv->{'Attr'},
+        'Dim' => $dim,
         'Parameter' => 'parameter',
         'Name' => [ $var, $val ] ,
-        'Var' => $var, 
+        'Var' => $var,
         'Val' => $val,
         'Status' => 1
-    };    
+    };
 }    # get_f95_par_decl()
 # -----------------------------------------------------------------------------
 
@@ -551,9 +551,9 @@ sub _rename_conflicting_global_pars {
             $i++;
         }
     }
-    for my $v (@rhs_vals) { 
+    for my $v (@rhs_vals) {
         my $nv = shift @n_rhs_vals;
-        if ( $nv ne $v ) {            
+        if ( $nv ne $v ) {
             $rhs_expr =~ s/\b$v\b/$nv/g;
         }
     }
@@ -574,14 +574,14 @@ sub _rename_conflicting_global_pars {
         }
     }
     return ( $nk, $rhs_expr );
-} # _rename_conflicting_global_pars() 
+} # _rename_conflicting_global_pars()
 
 sub emit_f95_var_decl {
     ( my $var_decl_rec , my $const_dim) = @_;
     if (not defined $const_dim) {
         $const_dim=0;
     }
-    
+
     # carp Dumper($var_decl_rec);
 	if (not defined $var_decl_rec) {
 		confess('Argument to emit_f95_var_decl is not defined!')  if $DBG;
@@ -592,8 +592,8 @@ sub emit_f95_var_decl {
     my $external = exists $var_decl_rec->{'External'} ? 1 : 0;
     my $spaces = $var_decl_rec->{'Indent'};
     croak Dumper($var_decl_rec) if $DBG and not defined $spaces;
-    
-      my $type = $var_decl_rec->{'Type'}; 
+
+      my $type = $var_decl_rec->{'Type'};
       if (not defined $type) {
       	croak Dumper($var_decl_rec) if $DBG;
         #    Dumper($stref->{'Subroutines'}{  $var_decl_rec->{'Name'});
@@ -601,36 +601,36 @@ sub emit_f95_var_decl {
       	# Contains Type and Kind
       	my $ttype=$type->{'Type'};
       	my $tkind=$type->{'Kind'};
-      	$type= $ttype . (defined $tkind ?  "($tkind)" : '');       	
-      } 
-      my $attr= $var_decl_rec->{'Attr'}; 
+      	$type= $ttype . (defined $tkind ?  "($tkind)" : '');
+      }
+      my $attr= $var_decl_rec->{'Attr'};
       my $is_array = (exists $var_decl_rec->{'ArrayOrScalar'} and $var_decl_rec->{'ArrayOrScalar'} eq 'Array') ? 1 : 0;
-      my $dim = $var_decl_rec->{'Dim'}; 
-        if ($is_array and 
+      my $dim = $var_decl_rec->{'Dim'};
+        if ($is_array and
             $const_dim==1 and exists $var_decl_rec->{'ConstDim'} and defined $var_decl_rec->{'ConstDim'}
             ) {
             $dim =$var_decl_rec->{'ConstDim'};
-        } elsif (exists $var_decl_rec->{'Val'} 
+        } elsif (exists $var_decl_rec->{'Val'}
             and $var_decl_rec->{'Val'}=~/^(\(\/|\[)/
         ) {
             my $const_array_sz = scalar split(/\s*\,\s*/,$var_decl_rec->{'Val'});
             $dim = [[1,$const_array_sz]];
             $var_decl_rec->{'ConstDim'} = $dim;
         } elsif ($DBG) {
-            carp "VAR has no ConstDim: ". Dumper($var_decl_rec);# ->{'Name'} 
-            
+            carp "VAR has no ConstDim: ". Dumper($var_decl_rec);# ->{'Name'}
+
             # WV: TODO: created ConstDim here if the InheritedParams allow it
         }
-      
+
       my $is_par = exists $var_decl_rec->{'Parameter'} ? 1 : 0;
       # We seem to have three ways of encoding the (var,val) pairs
       my ($var,$val);
       if ($is_par) {
-          
+
         if (exists $var_decl_rec->{'Name'}) {
             if (ref(  $var_decl_rec->{'Name'} ) eq 'ARRAY'  and scalar @{ $var_decl_rec->{'Name'} } == 2 ) {
                 ($var,$val) = @{	$var_decl_rec->{'Name'} };
-            } elsif (ref(  $var_decl_rec->{'Name'} ) ne 'ARRAY'  and exists $var_decl_rec->{'Val'} ) { 
+            } elsif (ref(  $var_decl_rec->{'Name'} ) ne 'ARRAY'  and exists $var_decl_rec->{'Val'} ) {
                 $var = $var_decl_rec->{'Name'};
                 $val = $var_decl_rec->{'Val'};
             }
@@ -639,29 +639,29 @@ sub emit_f95_var_decl {
             if (ref(  $var_decl_rec->{'Var'} ) eq 'ARRAY'  and scalar @{ $var_decl_rec->{'Var'} } == 2 ) {
                 ($var,$val) = @{	$var_decl_rec->{'Var'} };
                 croak 'SHOULD NEVER HAPPEN!' if $DBG;
-            } elsif (ref(  $var_decl_rec->{'Var'} ) ne 'ARRAY'  and exists $var_decl_rec->{'Val'} ) { 
+            } elsif (ref(  $var_decl_rec->{'Var'} ) ne 'ARRAY'  and exists $var_decl_rec->{'Val'} ) {
                 $var = $var_decl_rec->{'Var'};
                 $val = $var_decl_rec->{'Val'};
-            }          
+            }
         } elsif(exists $var_decl_rec->{'Names'}) {
             if (scalar @{ $var_decl_rec->{'Names'} } == 1 and ref($var_decl_rec->{'Names'}[0]) eq 'ARRAY') {
                 ($var,$val) = @{ $var_decl_rec->{'Names'}[0] };
             } else {
                 croak 'Parameter declaration record is incorrect: '.Dumper($var_decl_rec) if $DBG;
             }
-            
+
         }
       } else {
       	$var = $var_decl_rec->{'Name'};
       }
-      
+
     my $dimstr = '';
     if ( ref($dim) eq 'ARRAY' and scalar @{$dim}>0) {
         my @dimpairs = map { $_->[0].':'.$_->[1] } @{ $dim };
         $dimstr = 'dimension(' . join( ',', @dimpairs) . ')';
     }
     my @attrs = ();
-    if ($attr) {    	
+    if ($attr) {
     	if ( $type eq 'character') {
     	if ($attr=~/len/) {
     		$type.='('.$attr.')';
@@ -695,11 +695,11 @@ sub emit_f95_var_decl {
     if ( not $is_par ) {
         # Variable
         my $intent    =  $var_decl_rec->{'IODir'};
-        
+
         if (not defined $intent or $intent eq '') {
 #        	carp 'Intent not defined for '.Dumper($var_decl_rec) if $W;
         	say 'WARNING: Intent not known for declaration of '.$var if $WWW;#.' '.$var_decl_rec->{'Ann'} if $W;
-        	$intent='Unknown'; 
+        	$intent='Unknown';
         }
         if (ref($intent) eq 'ARRAY' and scalar @{$intent}==0) {
         	say "INFO: Intent is [] for $var, setting to Unknown" if $I;
@@ -707,25 +707,25 @@ sub emit_f95_var_decl {
         }
         my $trailing_comment='';
         my $intentstr = '';
-        
+
         if ( $intent ne 'Unknown' and $intent ne 'Ignore' ) {
-        	$intentstr ='intent('.$intent.')'; 
-		} 
-		elsif ($intent eq 'Ignore' and $DBG) {			
-			$trailing_comment=" ! Intent $intent"; 
+        	$intentstr ='intent('.$intent.')';
 		}
-		
+		elsif ($intent eq 'Ignore' and $DBG) {
+			$trailing_comment=" ! Intent $intent";
+		}
+
         if (not $external) {
 	        if ($intentstr) {
     	        push @attrs, $intentstr;
-        	} 
+        	}
         } else {
         	    push @attrs, 'external';
         }
-        
+
         if ( @attrs && $attrs[0] =~ /^\s*\(/ ) {
             my $decl_line =
-                $spaces 
+                $spaces
               . $type
               . join( ', ', @attrs ) . ' :: '
               . $var
@@ -734,7 +734,7 @@ sub emit_f95_var_decl {
         } else {
             if (not defined $type) {
       	        croak Dumper($var_decl_rec)
-            }        
+            }
 
             my $decl_line =
                 $spaces
@@ -744,23 +744,23 @@ sub emit_f95_var_decl {
               #say 'emit_f95_var_decl 2'.$decl_line ;
             return $decl_line;
         }
-        
+
     } else {
-        # Parameter        
+        # Parameter
 #        say Dumper($var_decl_rec);
     if ($dimstr) {$dimstr.=', '}
         croak Dumper($var_decl_rec) if $DBG and not defined $val;
         my $var_val = ref($var) eq 'ARRAY' ? $var->[0] . '=' . $var->[1] :  $var.'='.$val;
         my $decl_line =
-            $spaces 
-          . $type  
-          . $attr . ', ' 
-          . $dimstr 
+            $spaces
+          . $type
+          . $attr . ', '
+          . $dimstr
           . 'parameter' . ' :: '
           . $var_val;
 
           #say 'emit_f95_var_decl PARAM: '.$decl_line ;
-        
+
         return $decl_line;
     }
 } # END of emit_f95_var_decl();
@@ -790,7 +790,7 @@ sub splice_additional_lines {
 
     for my $annline ( @{$annlines} ) {
         ( my $line, my $info ) = @{$annline};
-        
+
         if ( $info->{'LineID'} == $insert_pos_lineID and $once ) {
             $once = 0;
 
@@ -815,22 +815,22 @@ sub splice_additional_lines {
             push @{$merged_annlines}, $annline;
         }
     }
-    
+
     return $merged_annlines;
 
 }    # END of splice_additional_lines()
 
-# Usage: 
+# Usage:
 # $merged_annlines = splice_additional_lines_cond_inplace( $stref, $f, $insert_cond_subref, $old_annlines, $new_annlines, $insert_before, $skip_insert_pos_line, $once )
 #- Go through the AnnLines
 #- Find the hook based on a condition on the $annline (i.e. $insert_cond_subref->($annline) )
 #- splice the new lines before/after the hook depending on $insert_before
 #- if $once is 0, do this whenever the condition is met. Otherwise do it once
-# NOTE that get_annotated_sourcelines will preferentially use RefactoredCode rather than AnnLines 
+# NOTE that get_annotated_sourcelines will preferentially use RefactoredCode rather than AnnLines
 # If this is unwanted, pass in $old_annlines explicitly
 sub splice_additional_lines_cond_inplace {
     (
-        my $stref, 
+        my $stref,
         my $f,
         my $insert_cond_subref,
         my $old_annlines,
@@ -842,13 +842,13 @@ sub splice_additional_lines_cond_inplace {
     say "SPLICE on condition for $f" if ($V||$DBG);
     my $sub_or_func_or_mod = sub_func_incl_mod( $f, $stref );
     my $Sf                 = $stref->{$sub_or_func_or_mod}{$f};
-    
+
     my $annlines           = scalar @{$old_annlines} ? $old_annlines : get_annotated_sourcelines( $stref, $f );
     croak if $DBG and scalar @{$annlines}==0;
     my $nextLineID         = scalar @{$annlines} + 1;
     my $merged_annlines    = [];
     $do_once = defined $do_once ? $do_once : 1;
-    my $once=1;      
+    my $once=1;
 
     for my $annline ( @{$annlines} ) {
         ( my $line, my $info ) = @{$annline};
@@ -856,8 +856,8 @@ sub splice_additional_lines_cond_inplace {
         if ( $insert_cond_subref->($annline) and $once ) {
             $once = 0 unless $do_once==0;
             if (not $insert_before ) {
-            	say $annline->[0] if $DBG; 
-                if ( not $skip_insert_pos_line ) {                
+            	say $annline->[0] if $DBG;
+                if ( not $skip_insert_pos_line ) {
                     push @{$merged_annlines}, $annline;
                 } else {
             	   # Skip; but I comment out instead if $DBG is on
@@ -872,10 +872,10 @@ sub splice_additional_lines_cond_inplace {
                 $ninfo->{'LineID'} = $nextLineID++;
                 say $nline if $DBG;
                 push @{$merged_annlines}, [ $nline, $ninfo ];
-            }            
+            }
             if ($insert_before ) {
                 say $annline->[0] if $DBG;
-                if ( not $skip_insert_pos_line ) {                
+                if ( not $skip_insert_pos_line ) {
                     push @{$merged_annlines}, $annline;
                 } else {
                    # Skip; but I comment out instead if $DBG is on
@@ -905,20 +905,20 @@ sub splice_additional_lines_cond {
         my $skip_insert_pos_line,
         my $do_once
     ) = @_;
-    
+
     croak if $DBG and scalar @{$annlines}==0;
     my $nextLineID         = scalar @{$annlines} + 1;
     my $merged_annlines    = [];
     $do_once = defined $do_once ? $do_once : 1;
-    my $once=1;      
+    my $once=1;
 
     for my $annline ( @{$annlines} ) {
         ( my $line, my $info ) = @{$annline};
         if ( $insert_cond_subref->($annline) and $once ) {
             $once = 0 unless $do_once==0;
             if (not $insert_before ) {
-            	say $annline->[0] if $DBG; 
-                if ( not $skip_insert_pos_line ) {                
+            	say $annline->[0] if $DBG;
+                if ( not $skip_insert_pos_line ) {
                     push @{$merged_annlines}, $annline;
                 } else {
             	   # Skip; but I comment out instead if $DBG is on
@@ -933,10 +933,10 @@ sub splice_additional_lines_cond {
                 $ninfo->{'LineID'} = $nextLineID++;
                 say $nline if $DBG;
                 push @{$merged_annlines}, [ $nline, $ninfo ];
-            }            
+            }
             if ($insert_before ) {
                 say $annline->[0] if $DBG;
-                if ( not $skip_insert_pos_line ) {                
+                if ( not $skip_insert_pos_line ) {
                     push @{$merged_annlines}, $annline;
                 } else {
                    # Skip; but I comment out instead if $DBG is on
@@ -951,12 +951,12 @@ sub splice_additional_lines_cond {
             push @{$merged_annlines}, $annline;
         }
     }
-    
+
     return $merged_annlines;
 
 }    # END of splice_additional_lines_cond()
 
-# Return the first slice of AnnLines matching the conditions for begin and end lines 
+# Return the first slice of AnnLines matching the conditions for begin and end lines
 # $cond_* :: AnnLine -> Bool -- give the conditions for the first and last line of the slice :: AnnLine -> Bool
 # $skip_*_line :: Bool
 # stateless_pass :: AnnLines -> (AnnLine -> Bool) -> (AnnLine -> Bool) -> Bool -> Bool -> AnnLines
@@ -970,13 +970,13 @@ sub slice_annlines_cond {
     }
     my $annlines_slice=[];
     my $in_slice = 0;
-    for my $annline ( @{$annlines} ) {    
-        if ($cond_begin->($annline)) { 
-            $in_slice=1; 
+    for my $annline ( @{$annlines} ) {
+        if ($cond_begin->($annline)) {
+            $in_slice=1;
             next if $skip_begin_line;
         }
-        if ($in_slice and $cond_end->($annline)) { 
-            $in_slice=0; 
+        if ($in_slice and $cond_end->($annline)) {
+            $in_slice=0;
             push @{$annlines_slice},$annline unless $skip_end_line;
             last;
         }
@@ -991,7 +991,7 @@ sub slice_annlines_cond {
 # TODO: add some control over this
 sub stateless_pass_inplace {
     (my $stref, my $f, my $pass_actions, my $pass_info, my $keep_deleted) = @_;
-    
+
     # say "STATELESS PASS INPLACE ".Dumper($pass_info)." for $f" if $DBG;
     my $sub_or_func_or_mod = sub_func_incl_mod( $f, $stref );
     my $Sf                 = $stref->{$sub_or_func_or_mod}{$f};
@@ -999,10 +999,10 @@ sub stateless_pass_inplace {
     my $annlines           = get_annotated_sourcelines( $stref, $f );
     my $nextLineID         = scalar @{$annlines} + 1;
     my $new_annlines=[];
-    for my $annline ( @{$annlines} ) {    
+    for my $annline ( @{$annlines} ) {
     	if (not exists $annline->[1]{'Deleted'}) {
-	        my $pass_annlines = $pass_actions->($annline); # returns an ARRAY ref            
-	        for my $new_annline (@{ $pass_annlines }) { 
+	        my $pass_annlines = $pass_actions->($annline); # returns an ARRAY ref
+	        for my $new_annline (@{ $pass_annlines }) {
                 if (not exists $new_annline->[1]{'Deleted'}) {
 	        	    push @{$new_annlines}, $new_annline;
                 }
@@ -1015,19 +1015,19 @@ sub stateless_pass_inplace {
     }
     $Sf->{'RefactoredCode'} = $new_annlines;
     return $stref;
-} # END of stateless_pass_inplace() 
+} # END of stateless_pass_inplace()
 
-# This version of the stateless pass takes $annlines as argument and returns $new_annlines 
+# This version of the stateless pass takes $annlines as argument and returns $new_annlines
 sub stateless_pass {
     my ($annlines, $pass_actions, $pass_info, $keep_deleted) = @_;
-    
+
     # say "STATELESS PASS ".Dumper($pass_info) if $DBG;
     my $new_annlines=[];
-    for my $annline ( @{$annlines} ) {    
+    for my $annline ( @{$annlines} ) {
     	if (not exists $annline->[1]{'Deleted'}) {
 	        my $pass_annlines = $pass_actions->($annline); # returns an ARRAY ref
             croak if ref($pass_annlines) ne 'ARRAY';
-	        for my $new_annline (@{ $pass_annlines }) { 
+	        for my $new_annline (@{ $pass_annlines }) {
                 if (not exists $new_annline->[1]{'Deleted'}) {
 	        	push @{$new_annlines}, $new_annline;
                 }
@@ -1039,26 +1039,26 @@ sub stateless_pass {
     	}
     }
     return $new_annlines;
-} # END of stateless_pass() 
+} # END of stateless_pass()
 
-# original  annlines are taken from $Sf->{'AnnLines'} or $Sf->{'RefactoredCode'} 
-# updated annlines are stored in $Sf->{'RefactoredCode'} 
+# original  annlines are taken from $Sf->{'AnnLines'} or $Sf->{'RefactoredCode'}
+# updated annlines are stored in $Sf->{'RefactoredCode'}
 sub stateful_pass_inplace { my ( $stref, $f, $pass_actions, $state, $pass_info, $keep_deleted ) = @_;
     # return ($stref,$state);
 #    local $Data::Dumper::Indent =0;
 #    local $Data::Dumper::Terse=1;
-    # say "STATEFUL PASS INPLACE ".Dumper($pass_info)." for $f" if $DBG; 
+    # say "STATEFUL PASS INPLACE ".Dumper($pass_info)." for $f" if $DBG;
     my $sub_or_func_or_mod = sub_func_incl_mod( $f, $stref );
-     
-    my $Sf                 = $stref->{$sub_or_func_or_mod}{$f};    
+
+    my $Sf                 = $stref->{$sub_or_func_or_mod}{$f};
     my $annlines           = get_annotated_sourcelines( $stref, $f );
-    
+
     my $nextLineID         = scalar @{$annlines} + 1;
     my $new_annlines=[];
-    for my $annline ( @{$annlines} ) {    	
-    	if (not exists $annline->[1]{'Deleted'}) {    	
+    for my $annline ( @{$annlines} ) {
+    	if (not exists $annline->[1]{'Deleted'}) {
 	        (my $pass_annlines, $state) = $pass_actions->($annline, $state);
-    	    for my $new_annline (@{ $pass_annlines }) { 
+    	    for my $new_annline (@{ $pass_annlines }) {
                 if (not exists $new_annline->[1]{'Deleted'}) {
         		push @{$new_annlines}, $new_annline;
                 }
@@ -1067,23 +1067,23 @@ sub stateful_pass_inplace { my ( $stref, $f, $pass_actions, $state, $pass_info, 
             if (defined $keep_deleted) {
     		push @{$new_annlines}, $annline;
             }
-    	}        	
+    	}
     }
     $Sf->{'RefactoredCode'} = $new_annlines;
-    
+
     return ($stref,$state);
 } # END of stateful_pass_inplace()
 
-# This version of the stateful pass takes $annlines as argument and returns $new_annlines 
+# This version of the stateful pass takes $annlines as argument and returns $new_annlines
 sub stateful_pass { my ( $annlines, $pass_actions, $state, $pass_info, $keep_deleted ) = @_; # return ($new_annlines,$state);
-    # say "STATEFUL PASS ".Dumper($pass_info) if $DBG;      
-    
+    # say "STATEFUL PASS ".Dumper($pass_info) if $DBG;
+
     my $nextLineID         = scalar @{$annlines} + 1;
     my $new_annlines=[];
-    for my $annline ( @{$annlines} ) {    	
-    	if (not exists $annline->[1]{'Deleted'}) {    	
+    for my $annline ( @{$annlines} ) {
+    	if (not exists $annline->[1]{'Deleted'}) {
 	        (my $pass_annlines, $state) = $pass_actions->($annline, $state);
-    	    for my $new_annline (@{ $pass_annlines }) { 
+    	    for my $new_annline (@{ $pass_annlines }) {
                 if (not exists $new_annline->[1]{'Deleted'}) {
         		push @{$new_annlines}, $new_annline;
                 }
@@ -1092,37 +1092,37 @@ sub stateful_pass { my ( $annlines, $pass_actions, $state, $pass_info, $keep_del
             if (defined $keep_deleted) {
     		push @{$new_annlines}, $annline;
             }
-    	}        	
+    	}
     }
-    
+
     return ($new_annlines,$state);
 } # END of stateful_pass()
 
 sub stateful_pass_reverse_inplace {
     (my $stref, my $f, my $pass_actions, my $state, my $pass_info, my $keep_deleted ) = @_;
     my $sub_or_func_or_mod = sub_func_incl_mod( $f, $stref );
-     
-    my $Sf                 = $stref->{$sub_or_func_or_mod}{$f};    
+
+    my $Sf                 = $stref->{$sub_or_func_or_mod}{$f};
     my $annlines           = get_annotated_sourcelines( $stref, $f );
-    
+
     my $nextLineID         = scalar @{$annlines} + 1;
     my $new_annlines=[];
     for my $annline ( reverse @{$annlines} ) {
 #    	if (ref(    	$annline->[1] ) ne 'HASH') {croak 'ANNLINE: '. Dumper($annline);}
-    	if (not exists $annline->[1]{'Deleted'}) {    	
+    	if (not exists $annline->[1]{'Deleted'}) {
 	        (my $pass_annlines, $state) = $pass_actions->($annline, $state);
-    	    for my $new_annline (@{ $pass_annlines }) { 
+    	    for my $new_annline (@{ $pass_annlines }) {
         		push @{$new_annlines}, $new_annline;
         	}
     	} else {
             if (defined $keep_deleted) {
     		push @{$new_annlines}, $annline;
             }
-    	}        	        	
+    	}
     }
-    $new_annlines =[ reverse @{ $new_annlines  } ]; 
+    $new_annlines =[ reverse @{ $new_annlines  } ];
     $Sf->{'RefactoredCode'} = $new_annlines;
-    
+
     return ($stref,$state);
 } # END of stateful_pass_inplace()
 
@@ -1130,19 +1130,19 @@ sub stateful_pass_reverse {
    my ($annlines, $pass_actions, $state, $pass_info, $keep_deleted ) = @_;
     my $new_annlines_rev=[];
     for my $annline ( reverse @{$annlines} ) {
-    	if (not exists $annline->[1]{'Deleted'}) {    	
+    	if (not exists $annline->[1]{'Deleted'}) {
 	        (my $pass_annlines, $state) = $pass_actions->($annline, $state);
-    	    for my $new_annline (@{ $pass_annlines }) { 
+    	    for my $new_annline (@{ $pass_annlines }) {
         		push @{$new_annlines_rev}, $new_annline;
         	}
     	} else {
             if (defined $keep_deleted) {
     		    push @{$new_annlines_rev}, $annline;
             }
-    	}        	        	
+    	}
     }
-    my $new_annlines =[ reverse @{ $new_annlines_rev  } ]; 
-    
+    my $new_annlines =[ reverse @{ $new_annlines_rev  } ];
+
     return ($new_annlines,$state);
 } # END of stateful_pass_reverse()
 
@@ -1150,19 +1150,19 @@ sub stateless_pass_reverse {
    my ($annlines, $pass_actions, $pass_info, $keep_deleted ) = @_;
     my $new_annlines_rev=[];
     for my $annline ( reverse @{$annlines} ) {
-    	if (not exists $annline->[1]{'Deleted'}) {    	
+    	if (not exists $annline->[1]{'Deleted'}) {
 	        my $pass_annlines = $pass_actions->($annline);
-    	    for my $new_annline (@{ $pass_annlines }) { 
+    	    for my $new_annline (@{ $pass_annlines }) {
         		push @{$new_annlines_rev}, $new_annline;
         	}
     	} else {
             if (defined $keep_deleted) {
     		    push @{$new_annlines_rev}, $annline;
             }
-    	}        	        	
+    	}
     }
-    my $new_annlines =[ reverse @{ $new_annlines_rev  } ]; 
-    
+    my $new_annlines =[ reverse @{ $new_annlines_rev  } ];
+
     return $new_annlines;
 } # END of stateless_pass_reverse()
 
@@ -1170,8 +1170,8 @@ sub stateless_pass_reverse {
 sub emit_f95_parsed_var_decl { (my $pvd) =@_;
 # carp 'PVD:',Dumper $pvd;
     my $type= $pvd->{'TypeTup'}{'Type'} . (exists $pvd->{'TypeTup'}{'Kind'} ?  '( '.$pvd->{'TypeTup'}{'Kind'}.')' : '');
-    
-    my  @attrs=($type); 
+
+    my  @attrs=($type);
     if (exists $pvd->{'Attributes'}{'Allocatable'}) {
         push @attrs, 'allocatable';
     }
@@ -1181,98 +1181,98 @@ sub emit_f95_parsed_var_decl { (my $pvd) =@_;
     if (exists $pvd->{'Attributes'}{'Intent'} ) {
         push @attrs,'intent('. $pvd->{'Attributes'}{'Intent'} .')' ;
     }
-    
+
     if (exists $pvd->{'InitExprAST'}) {
         my @init_expr_strs=();
         my $init_expr_ast =$pvd->{'InitExprAST'};
         push @init_expr_strs, emit_expr_from_ast($init_expr_ast);
-        
+
         my @init_pairs=();
         for my $var (@{  $pvd->{'Vars'} } ){
             my $init_expr_str = shift @init_expr_strs;
             push @init_pairs, $var.' = '.$init_expr_str;
         }
         my $init_pairs_str = join(', ',@init_pairs);
-        my $line = join(', ', @attrs) . ' :: ' . $init_pairs_str;    
+        my $line = join(', ', @attrs) . ' :: ' . $init_pairs_str;
         return $line;
     } else {
         my $vars = join(', ',@{  $pvd->{'Vars'} });
-        my $line = join(', ', @attrs).' :: '.$vars;    
+        my $line = join(', ', @attrs).' :: '.$vars;
         return $line;
     }
 }
 
 sub emit_f95_parsed_par_decl { (my $pvd) =@_;
-    my $type= $pvd->{'TypeTup'}{'Type'} . (exists $pvd->{'TypeTup'}{'Kind'} ?  '( '.$pvd->{'TypeTup'}{'Kind'}.')' : '');    
-    my  @attrs=($type); 
+    my $type= $pvd->{'TypeTup'}{'Type'} . (exists $pvd->{'TypeTup'}{'Kind'} ?  '( '.$pvd->{'TypeTup'}{'Kind'}.')' : '');
+    my  @attrs=($type);
 
     if (exists $pvd->{'Attributes'} ) {
         push @attrs,join(', ',grep { !ref($_) } values %{$pvd->{'Attributes'}});
         # carp Dumper($pvd->{'Attributes'}) ;
     }
     my $par_val = $pvd->{'Pars'}{'Var'}.' = '.$pvd->{'Pars'}{'Val'};
-    my $line = join(', ', @attrs).' :: '.$par_val;        
+    my $line = join(', ', @attrs).' :: '.$par_val;
     return $line;
 }
 
 sub top_src_is_module {( my $stref, my $s) = @_;
-    my $sub_func_incl = sub_func_incl_mod( $s, $stref ); 
+    my $sub_func_incl = sub_func_incl_mod( $s, $stref );
     if ($sub_func_incl eq 'Modules') { return 1};
 	my $is_incl = exists $stref->{'IncludeFiles'}{$s} ? 1 : 0;
     my $f = $is_incl ? $s : $stref->{$sub_func_incl}{$s}{'Source'};
-    if ( defined $f ) {    	        
+    if ( defined $f ) {
 		for my $item ( @{ $stref->{'SourceContains'}{$f}{'List'} } ) {
-			# If $s is a subroutine, it could be that the source file is a Module, and then we should set that as the entry source type            
+			# If $s is a subroutine, it could be that the source file is a Module, and then we should set that as the entry source type
 			if ($stref->{'SourceContains'}{$f}{'Set'}{$item} eq 'Modules') {
 				my @subs_in_mod= @{ $stref->{'Modules'}{$item}{'Contains'} };
 				if (grep {$_ eq $s} @subs_in_mod) {
 					return 1;
 				}
-			}		                
+			}
 		}
-    }	
-	return 0;        
+    }
+	return 0;
 }
 
 # This is a wrapper to get the subroutines out of a module and then call other passes on these subroutines
-# It does this for all sources but in practice it assumes a single source, so it might be better to pass this source name in as an arg instead 
+# It does this for all sources but in practice it assumes a single source, so it might be better to pass this source name in as an arg instead
 sub pass_wrapper_subs_in_module { (my $stref,my $module_name, my $module_pass_sequences, my $sub_pass_sequences, my @rest) = @_;
 # say "CALL to pass_wrapper_subs_in_module($module_name)";
 # local $V=1;
 	if ($module_name eq ''
     or not exists $stref->{'Modules'}{$module_name}
     ) {
-       
+
 		my %is_existing_module = ();
 	    my %existing_module_name = ();
 		# croak $module_name.Dumper [ $stref->{'SourceContains'},$stref->{'Top'}, $stref->{'Program'}] ;
         say "NOT A MODULE NAME: <$module_name>" if $V;
-		for my $src (keys %{ $stref->{'SourceContains'} } ) {		
-			
+		for my $src (keys %{ $stref->{'SourceContains'} } ) {
+
             if ($module_name eq  $stref->{'Top'}) {
                 next unless $src eq  $stref->{'Program'};
             }
 			if (exists $stref->{'SourceContains'}{$src}{'Path'}
-			and  exists $stref->{'SourceContains'}{$src}{'Path'}{'Ext'} ) {	
-			  # External, SKIP! 
-				say "SKIPPING $src";			
-			} else {		
-	    		# Get the unit name from the list	    		
+			and  exists $stref->{'SourceContains'}{$src}{'Path'}{'Ext'} ) {
+			  # External, SKIP!
+				say "SKIPPING $src";
+			} else {
+	    		# Get the unit name from the list
 			    for my $sub_or_func_or_mod ( @{  $stref->{'SourceContains'}{$src}{'List'}   } ) {
 			    	# Get its type
 			        my $sub_func_type= $stref->{'SourceContains'}{$src}{'Set'}{$sub_or_func_or_mod};
 			        if ($sub_func_type eq 'Modules') {
 			        	$is_existing_module{$src}=1;
 			        	$existing_module_name{$src} = $sub_or_func_or_mod;
-			        }		
+			        }
 			    }
 			}
 			my $has_contains = ( $is_existing_module{$src} and exists $stref->{'Modules'}{$existing_module_name{$src}}{'Contains'}  ) ? 1 : 0;
-        
-			my @subs = $is_existing_module{$src}  
-                ? $has_contains 
-                    ? @{ $stref->{'Modules'}{$existing_module_name{$src}}{'Contains'} } 
-                    : ()  
+
+			my @subs = $is_existing_module{$src}
+                ? $has_contains
+                    ? @{ $stref->{'Modules'}{$existing_module_name{$src}}{'Contains'} }
+                    : ()
                 :  grep {$_ ne 'UNKNOWN_SRC' and (
                 $_ eq $module_name or
                 exists $stref->{'Subroutines'}{$module_name}{'CalledSubs'}{'Set'}{$_}
@@ -1286,43 +1286,43 @@ sub pass_wrapper_subs_in_module { (my $stref,my $module_name, my $module_pass_se
             #     }
             # }
             # die;
-			for my $pass_sequence (@{$sub_pass_sequences}) {	
+			for my $pass_sequence (@{$sub_pass_sequences}) {
 				for my $f ( @subs ) {
                     # my $pass_sub_ctr = 1;
-					for my $pass_sub_ref (@{$pass_sequence}) {	
+					for my $pass_sub_ref (@{$pass_sequence}) {
                     # warn Dumper sort keys %{$stref->{'Subroutines'}{$f}} if $f=~/_scal/;
                     # warn "NOT IN MODULE: $src $pass_ctr $f $pass_sub_ctr ";
                     say "SUB PASS ".coderef_to_subname($pass_sub_ref)."($f)" if $V;
 
 						$stref=$pass_sub_ref->($stref, $f, @rest);
-                    #   ++$pass_sub_ctr; 
-					}			
+                    #   ++$pass_sub_ctr;
+					}
 				}
                 # ++$pass_ctr;
 			}
-		} 
-        
-	} else { 
-        
+		}
+
+	} else {
+
         # Proper modules
-		for my $pass_sequence (@{$module_pass_sequences}) {    	
-            for my $pass_sub_ref (@{$pass_sequence}) {          
+		for my $pass_sequence (@{$module_pass_sequences}) {
+            for my $pass_sub_ref (@{$pass_sequence}) {
                 say "MODULE PASS ".coderef_to_subname($pass_sub_ref)."($module_name)" if $V;
                 $stref=$pass_sub_ref->($stref, $module_name, @rest);
-            }           
-		}				
+            }
+		}
         my $has_contains = exists $stref->{'Modules'}{$module_name}{'Contains'}  ? 1 : 0;
         my @subs =  $has_contains ? @{ $stref->{'Modules'}{$module_name}{'Contains'} } : ()  ;
         # But we must also check any subs that are in a separate module, via use
         my @subs_from_modules=();
         for my $sub (@subs) {
-            
+
             if (exists $stref->{'Subroutines'}{$sub}{'Uses'}) {
                 for my $used_module (sort keys %{$stref->{'Subroutines'}{$sub}{'Uses'}}) {
                     my $subs_from_module=
-                        scalar @{$stref->{'Subroutines'}{$sub}{'Uses'}{$used_module}}>0 
+                        scalar @{$stref->{'Subroutines'}{$sub}{'Uses'}{$used_module}}>0
                         ? $stref->{'Subroutines'}{$sub}{'Uses'}{$used_module}
-                        : (exists $stref->{'Modules'}{$used_module}{'Contains'} and 
+                        : (exists $stref->{'Modules'}{$used_module}{'Contains'} and
                         scalar @{$stref->{'Modules'}{$used_module}{'Contains'}} > 0)
                         ? $stref->{'Modules'}{$used_module}{'Contains'}
                         : [];
@@ -1336,13 +1336,13 @@ sub pass_wrapper_subs_in_module { (my $stref,my $module_name, my $module_pass_se
                 }
             }
         }
-    
-        for my $pass_sequence (@{$sub_pass_sequences}) {    
+
+        for my $pass_sequence (@{$sub_pass_sequences}) {
             for my $f ( @subs,  @subs_from_modules) {
-                for my $pass_sub_ref (@{$pass_sequence}) {          
+                for my $pass_sub_ref (@{$pass_sequence}) {
                     say "SUB PASS ".coderef_to_subname($pass_sub_ref)."($f)" if $V;
                     $stref=$pass_sub_ref->($stref, $f, @rest);
-                }           
+                }
             }
         }
 	}
@@ -1352,7 +1352,7 @@ sub pass_wrapper_subs_in_module { (my $stref,my $module_name, my $module_pass_se
 # Emit a new source line based on the variable name in $info and the $decl record in RefactoredArgs
 # I might have a flag here to say "use the name from the record"
 sub update_arg_var_decl_sourcelines { (my $stref, my $f)=@_;
-	my $pass_update_arg_var_decls = sub { (my $annline, my $state)=@_;	
+	my $pass_update_arg_var_decls = sub { (my $annline, my $state)=@_;
 		(my $line,my $info)=@{$annline};
 		(my $stref, my $f) = @{$state};
 		if ( exists $info->{'VarDecl'} ) {
@@ -1364,42 +1364,42 @@ sub update_arg_var_decl_sourcelines { (my $stref, my $f)=@_;
 				# Then we put $pvar back into the $decl, which will put it back into $stref
                 my $pvar =$decl->{'Name'};
                 $decl->{'Name'}=$var;
-			    $line = emit_f95_var_decl($decl);                
+			    $line = emit_f95_var_decl($decl);
                 $decl->{'Name'}=$pvar;
 			}
-		}				
+		}
 		return ([[$line,$info]],$state);
 	};
-	
+
 	my $state=[$stref,$f];
- 	($stref,$state) = stateful_pass_inplace($stref,$f,$pass_update_arg_var_decls, $state,'pass_update_arg_var_decls() ' . __LINE__  ) ;	
+ 	($stref,$state) = stateful_pass_inplace($stref,$f,$pass_update_arg_var_decls, $state,'pass_update_arg_var_decls() ' . __LINE__  ) ;
     return $stref;
 } # END of update_arg_var_decl_sourcelines
 
 
 sub substitute_placeholders { (my $stref)=@_;
-	for my $f ( keys %{ $stref->{'Subroutines'} } ) {		
+	for my $f ( keys %{ $stref->{'Subroutines'} } ) {
 		next if exists $stref->{'Entries'}{$f};
 		$stref=_substitute_placeholders_per_source($stref,$f);
-	}	
+	}
 	return $stref;
 } # END of substitute_placeholders
 
 sub _substitute_placeholders_per_source { (my $stref,my $f) =@_;
-	
+
 	my $pass_action = sub { (my $annline, my $prev_annline)=@_;
-		(my $line,my $info)=@{$annline};	
-		if (exists $info->{'PlaceHolders'}) {					
+		(my $line,my $info)=@{$annline};
+		if (exists $info->{'PlaceHolders'}) {
 			while ($line =~ /(__PH\d+__)/) {
 				my $ph=$1;
 				my $ph_str = $info->{'PlaceHolders'}{$ph};
 				$line=~s/$ph/$ph_str/;
-			}                                    
+			}
 			$annline = [$line, $info];
 		}
-		return [$annline];						
+		return [$annline];
 	};
-	
+
  	$stref = stateless_pass_inplace($stref,$f,$pass_action, '_substitute_placeholders_per_source() ' . __LINE__  ) ;
 	return $stref
 } # END of _substitute_placeholders_per_source

@@ -1,9 +1,9 @@
 package RefactorF4Acc::State;
 use v5.10;
 use RefactorF4Acc::Config;
-# 
+#
 #   (c) 2010-2017 Wim Vanderbauwhede <wim@dcs.gla.ac.uk>
-#   
+#
 
 use vars qw( $VERSION );
 $VERSION = "2.1.1";
@@ -26,14 +26,14 @@ sub init_state {
     my $subname = $vref;
     if (ref($vref) eq 'HASH') {
         $subname =$vref->{'Top'};
-    } 
+    }
 
     # Nodes|Subroutines|Includes|NId|BuildSources|Indents
     my $stateref = {
         'Top'          => $subname,
-        'IncludeFiles' => {},		
+        'IncludeFiles' => {},
         'Subroutines'  => {}, # {$f}{Function} = 1
-        'SourceFiles' => {}, # This is for anything not in a code unit, usually just comments and blank lines 
+        'SourceFiles' => {}, # This is for anything not in a code unit, usually just comments and blank lines
         'BuildSources' => {}
         ,    # sources to be built, can be C, H (header) or F (Fortran)
         'Indents' => 0,    # bit silly, purely for pretty-printing
@@ -52,7 +52,7 @@ sub init_state {
         	'All' => {}
         }
     };
-    
+
     if ($Config{'MACRO_SRC'} ne '' ){
     	my $macro_src =$Config{'MACRO_SRC'};
     	if ( -e $macro_src ) {
@@ -76,12 +76,12 @@ sub init_state {
                 	$stateref->{'Macros'}{'All'}{$macro}=$macro;
                 	$Config{'Macros'}{$macro}=$macro;
                 	next;
-            	};             	           
+            	};
         	}
         	close $MACROS;
-	    }    	
+	    }
     }
-    
+
     if (ref($vref) eq 'HASH') {
         for my $k (keys %{$vref}) {
             $stateref->{$k} = $vref->{$k};
@@ -103,15 +103,15 @@ sub initialise_per_code_unit_tables {
 	if (not defined $skipParams) {
 	 	$skipParams = 0;
 	}
-	say "initialise_per_code_unit_tables for $code_unit $f" if $V;	
-	
+	say "initialise_per_code_unit_tables for $code_unit $f" if $V;
+
 	if ( not exists $Sf->{'CommonBlocks'}) {
 		$Sf->{'CommonBlocks'} = {};
 	}
 # 	if ( not exists $Sf->{'ExMismatchedCommonArgs'} ) {
 # 		# List gets orig names. Set gets prefixes as values
 # 		$Sf->{'ExMismatchedCommonArgs'} = { 'List' => [], 'Set' => {} };
-# 	}	
+# 	}
 	if ( not exists $Sf->{'ReferencedLabels'}) {
 		$Sf->{'ReferencedLabels'}={};
 	}
@@ -123,7 +123,7 @@ sub initialise_per_code_unit_tables {
 	}
 	if ( not exists $Sf->{'InlinedCalls'} ) {
 		$Sf->{'InlinedCalls'} = { 'List' => [], 'Set' => {} };
-	}	
+	}
 	if ( not exists $Sf->{'CalledEntries'} ) {
 		$Sf->{'CalledEntries'} = { 'List' => [], 'Set' => {} };
 	}
@@ -149,24 +149,24 @@ sub initialise_per_code_unit_tables {
 			$Sf->{'LocalParameters'}    = { 'Set' => {}, 'List' => [] };
 			$Sf->{'IncludedParameters'} = { 'Set' => {}, 'List' => [] };
 			$Sf->{'UsedParameters'} = { 'Set' => {}, 'List' => [] }; # 
-			$Sf->{'InheritedParameters'} = { 'Set' => {}, 'List' => [] }; 
-			$Sf->{'ParametersFromContainer'} = { 
-					'Set' => {}, 
-					'List' => [] 			
+			$Sf->{'InheritedParameters'} = { 'Set' => {}, 'List' => [] };
+			$Sf->{'ParametersFromContainer'} = {
+					'Set' => {},
+					'List' => []
 			};
 		}
 		# Var decls via a 'use' declaration
 		$Sf->{'UsedLocalVars'} = { 'Set' => {}, 'List' => [] };
-		$Sf->{'UsedGlobalVars'} = { 'Set' => {}, 'List' => [] };		
+		$Sf->{'UsedGlobalVars'} = { 'Set' => {}, 'List' => [] };
 
 		# This is only for testing which vars are commons, nothing else.
-		$Sf->{'Commons'} = {}; 
+		$Sf->{'Commons'} = {};
 
-# FIXME At the moment we assume automatically that CommonVars become ExGlobArgs 
-# WV20170607 I now also assume that any var declared in a USEd module is a global, so will become ExGlobArg   
-		$Sf->{'DeclaredCommonVars'}   = { 'Set' => {}, 'List' => [] };						
+# FIXME At the moment we assume automatically that CommonVars become ExGlobArgs
+# WV20170607 I now also assume that any var declared in a USEd module is a global, so will become ExGlobArg
+		$Sf->{'DeclaredCommonVars'}   = { 'Set' => {}, 'List' => [] };
 		$Sf->{'UndeclaredCommonVars'} = { 'Set' => {}, 'List' => [] };
-		
+
 		$Sf->{'CommonVars'}           = {
 			'Subsets' => {
 				'DeclaredCommonVars'   => $Sf->{'DeclaredCommonVars'}, # I overload this to contain UsedGlobalVars
@@ -179,25 +179,25 @@ sub initialise_per_code_unit_tables {
 				'DeclaredOrigLocalVars' => $Sf->{'DeclaredOrigLocalVars'},
 				'UndeclaredOrigLocalVars' => $Sf->{'UndeclaredOrigLocalVars'}
 			}
-		};		
-		
+		};
+
 		if ( not $is_incl and not $is_mod ) {
 
  # WV: Maybe I should have an additional record 'FromInclude' in the set record!
  # This seemed like a good idea but it requires so many changes. Instead I think I'll just populate ExGlobArgs on the fly
-# 			$Sf->{'ExInclGlobArgs'} = { 
-#				'Set' => {}, 'List' => [] 
+# 			$Sf->{'ExInclGlobArgs'} = {
+#				'Set' => {}, 'List' => []
 #			};
-# 			$Sf->{'ExContainerGlobArgs'} = { 
-#				'Set' => {}, 'List' => [] 
+# 			$Sf->{'ExContainerGlobArgs'} = {
+#				'Set' => {}, 'List' => []
 #			};
- 
+
 			$Sf->{'RenamedInheritedExGlobs'}  = { 'List' => [], 'Set' => {}};
-			
-			$Sf->{'ExGlobArgs'} = { 
-				'Set' => {}, 'List' => [] 
+
+			$Sf->{'ExGlobArgs'} = {
+				'Set' => {}, 'List' => []
 			};
-    
+
 			$Sf->{'ExInclArgs'}         = { 'Set' => {}, 'List' => [] };
 			$Sf->{'DeclaredOrigArgs'}   = { 'Set' => {}, 'List' => [] };
 			$Sf->{'UndeclaredOrigArgs'} = { 'Set' => {}, 'List' => [] };
@@ -208,10 +208,10 @@ sub initialise_per_code_unit_tables {
 				'Subsets' => {
 					'OrigLocalVars'   => $Sf->{'OrigLocalVars'},
 					'ExInclLocalVars' => $Sf->{'ExInclLocalVars'},
-					'UsedLocalVars' => $Sf->{'UsedLocalVars'}, # presumably this is always empty					
+					'UsedLocalVars' => $Sf->{'UsedLocalVars'}, # presumably this is always empty
 				}
 			};
-			
+
 			$Sf->{'OrigArgs'} = {
 				'Subsets' => {
 					'UndeclaredOrigArgs' => $Sf->{'UndeclaredOrigArgs'},
@@ -219,7 +219,7 @@ sub initialise_per_code_unit_tables {
 				},
 				'List' => [],
 			};
-			
+
 			$Sf->{'Args'} = {
 				'Subsets' => {
 					'OrigArgs'   => $Sf->{'OrigArgs'},
@@ -249,20 +249,20 @@ sub initialise_per_code_unit_tables {
 
 		} else {    # For includes and modules
 # 			say "MOD $f";
- 			if ($is_mod) { 				
+ 			if ($is_mod) {
  				for my $sub (sort keys %{ $Sf->{Subroutines} }) {
  					$stref->{'Subroutines'}{$sub} =initialise_per_code_unit_tables( $stref->{'Subroutines'}{$sub}, $stref, $sub,0,0,$skipParams);
- 				}		
+ 				}
  			}
 			# Includes can contain LocalVars, CommonVars or Parameters
 			# Commons can't be Args so they will go in ExInclLocalVars?
-			# I guess includes can contain other includes that contain all this as well, how do I deal with that?			
+			# I guess includes can contain other includes that contain all this as well, how do I deal with that?
 
 			$Sf->{'LocalVars'} =
-			  { 'Subsets' => { 
+			  { 'Subsets' => {
 			  	'OrigLocalVars' => $Sf->{'OrigLocalVars'},
-			  	'UsedLocalVars' => $Sf->{'UsedLocalVars'} 
-			  } 
+			  	'UsedLocalVars' => $Sf->{'UsedLocalVars'}
+			  }
 			  };
 			 if (!$skipParams) {
 				$Sf->{'Parameters'} = {
