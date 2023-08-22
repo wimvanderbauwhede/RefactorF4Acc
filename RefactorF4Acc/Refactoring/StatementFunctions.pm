@@ -13,7 +13,7 @@ use v5.10;
 use RefactorF4Acc::Config;
 use RefactorF4Acc::Utils;
 use RefactorF4Acc::Parser qw( parse_fortran_src );
-use RefactorF4Acc::Refactoring::Helpers qw( 
+use RefactorF4Acc::Refactoring::Helpers qw(
 	stateful_pass_inplace
 	splice_additional_lines_cond_inplace
 	);
@@ -43,19 +43,19 @@ sub move_StatementFunctions_after_SpecificationStatements { my ( $stref, $f, $an
 		(my $line,my $info)=@{$annline};
 		#  say "LINE:$line ".Dumper(sort keys %{$info});
 		my $new_annlines = [$annline];
-		if (exists $info->{'StatementFunction'}) {	
-			
-					$new_annlines =[ 
-					["! Removed statement function ".$info->{'StatementFunction'},{'Comments' => 1}],					
-					]; 
+		if (exists $info->{'StatementFunction'}) {
+
+					$new_annlines =[
+					["! Removed statement function ".$info->{'StatementFunction'},{'Comments' => 1}],
+					];
 					push @{$state},$annline;
-		}		
-		
+		}
+
 		return ($new_annlines,$state);
 	};
-	
+
 	my $statement_function_annlines = [['! Moved statement functions',{'Comments' => 1}]];
- 	($stref,$statement_function_annlines) = stateful_pass_inplace($stref,$f,$pass_cut_out_StatementFunction_lines, $statement_function_annlines,'_cut_out_StatementFunctions §' . __LINE__  ) ;	
+ 	($stref,$statement_function_annlines) = stateful_pass_inplace($stref,$f,$pass_cut_out_StatementFunction_lines, $statement_function_annlines,'_cut_out_StatementFunctions §' . __LINE__  ) ;
 	#  carp Dumper(pp_annlines($statement_function_annlines));
 	 if (scalar @{ $statement_function_annlines } > 1) {
 	my $merged_annlines = splice_additional_lines_cond_inplace(
@@ -65,7 +65,7 @@ sub move_StatementFunctions_after_SpecificationStatements { my ( $stref, $f, $an
 			(my $line,my $info)=@{$annline};
 			return (
 				exists $info->{'HasVars'}
-			or exists $info->{'Control'}			
+			or exists $info->{'Control'}
 			or exists $info->{'EndControl'}
 			) ? 1 : 0;
 		},
@@ -80,7 +80,7 @@ sub move_StatementFunctions_after_SpecificationStatements { my ( $stref, $f, $an
 	 } else {
 	return $Sf->{'RefactoredCode'};
 	 }
-	
+
 } # END of move_StatementFunctions_after_SpecificationStatements
 
 

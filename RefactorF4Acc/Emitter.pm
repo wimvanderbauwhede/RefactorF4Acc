@@ -128,7 +128,7 @@ sub emit_all {
         else {
             say "INFO: Emitter: New source: $targetdir/$nsrc ($src)" if ( $I or $DBG );
             show_annlines( $stref->{'AnnLines'}{$src}, 0 );
-            
+
             my $mod_lines = $stref->{'RefactoredCode'}{$src};
 
             if ( exists $stref->{'SourceFiles'}{$src}{'AnnLines'} ) {
@@ -139,7 +139,7 @@ sub emit_all {
                 }
             }
 
-            show_annlines( $mod_lines, 0 ) if $SHOW;  
+            show_annlines( $mod_lines, 0 ) if $SHOW;
 
             open my $TGT, '>', "$targetdir/$nsrc"
               or die $! . ": $targetdir/$nsrc";
@@ -325,7 +325,7 @@ sub _emit_refactored_include {
 sub _gen_noop {
     ( my $tgtdir ) = @_;
     open my $NOOP, '>', "$tgtdir/noop.c";
-    print $NOOP '// Instead of continue, use a subroutine to do nothing. 
+    print $NOOP '// Instead of continue, use a subroutine to do nothing.
 //Purely for translation, to get around a bug in F2C_ACC: in the C code we drop them!
 void noop_ () {
     return;
@@ -384,14 +384,14 @@ sub emit_AnnLines {
     # carp "HERE: emit_AnnLines($f)\n";
     my $code_unit = sub_func_incl_mod( $f, $stref );
     my $Sf        = $stref->{$code_unit}{$f};
-    
+
     my $pass_emit_RefactoredCode = sub {
-        ( my $annline, my $used_modules ) = @_;        
+        ( my $annline, my $used_modules ) = @_;
         ( my $line, my $info ) = @{$annline};
         # warn "LINE $line\n";
 
         my $rline  = $line;
-        # This allows to emit lines for which there is no proper $info 
+        # This allows to emit lines for which there is no proper $info
         if (exists $info->{'Textual'}) {
             say $line;
             return [ [ $annline ] ];
@@ -456,7 +456,7 @@ sub emit_AnnLines {
               scalar @{$only_list}
               ? ', only : ' . join( ', ', @{$only_list} )
               : '';
-              
+
             $rline = $indent . "use $module_name $maybe_only ! emit_AnnLines($f)";
             # warn "EMIT $rline\n";
             } else {
@@ -526,7 +526,7 @@ sub emit_AnnLines {
 #@    Characteristic => pure | elemental | recursive
             ( $rline, $info ) = emit_subroutine_sig($annline);
         }
-#== VARIABLE AND PARAMETER DECLARATION        
+#== VARIABLE AND PARAMETER DECLARATION
         elsif ( exists $info->{'ParsedVarDecl'} ) {
             # say "$f RLINE:$rline";
             # say Dumper $info;
@@ -538,7 +538,7 @@ sub emit_AnnLines {
                 # carp Dumper $decl;
                 my $var_decl_str =
                   emit_f95_var_decl( $decl, $Config{'FOLD_CONSTANTS'});
-                  
+
                 $rline = $indent . $var_decl_str;
             } else {
                 if (exists $info->{'ParsedVarDecl'}{'Vars'}) {
@@ -549,7 +549,7 @@ sub emit_AnnLines {
                 } elsif (exists $info->{'VarDecl'}) {
                 my $var_name = $info->{'VarDecl'}{'Name'};
                 my $subset = in_nested_set( $Sf, 'Vars', $var_name );
-                my $decl = get_var_record_from_set($Sf->{$subset},$var_name);                
+                my $decl = get_var_record_from_set($Sf->{$subset},$var_name);
                 my $var_decl_str =
                   emit_f95_var_decl( $decl, $Config{'FOLD_CONSTANTS'});
                   $rline = $indent . $var_decl_str;
@@ -557,7 +557,7 @@ sub emit_AnnLines {
                     croak 'No decl info for '.$rline.' in '.$f;
                 }
 
-                
+
             }
         }
         elsif ( exists $info->{'ParamDecl'} ) {
@@ -568,13 +568,13 @@ sub emit_AnnLines {
 
             $rline = $indent . $par_decl_str;
         }
-#== WHILE        
+#== WHILE
         elsif ( exists $info->{'While'} ) {
             my $ast         = $info->{'Do'}{'ExpressionsAST'};
             my $do_expr_str = emit_expr_from_ast($ast);
             $rline = $indent . 'do while (' . $do_expr_str . ')';
         }
-#== DO        
+#== DO
         elsif ( exists $info->{'Do'} ) {
 
             # 'Iterator' => $iter,
@@ -610,13 +610,15 @@ sub emit_AnnLines {
             # };
 
         }
-#== SELECT/CASE        
+#== SELECT/CASE
         elsif ( exists $info->{'CaseVar'} ) {
             $rline = $indent . 'select case ( ' . $info->{'CaseVar'} . ' )';
         }
         elsif ( exists $info->{'CaseVals'} ) {
             my $case_vals = $info->{'CaseVals'};
-            $rline = $indent . 'case ( ' . join( ', ', @{$case_vals} ) . ' )';
+            $rline = $indent . 'case ( ' . join( ', ', map {
+                ref($_) eq 'ARRAY' ? join(':',@{$_}) : $_
+            } @{$case_vals} ) . ' )';
         }
         elsif ( exists $info->{'CaseDefault'} ) {
             $rline = $indent . 'case default';
@@ -629,7 +631,7 @@ sub emit_AnnLines {
 #== IF -- Block, Arithmetic and logical IF statements
 # st can be any executable statement, except a DO block, IF, ELSE IF, ELSE,
 # END IF, END, or another logical IF statement.
-#@ Cond 
+#@ Cond
 #@  Expr => $cond
 #@  AST => $ast
 #@  Vars =>
@@ -640,9 +642,9 @@ sub emit_AnnLines {
         elsif ( exists $info->{'IfThen'} ) {
             my $ast           = $info->{'Cond'}{'AST'};
             my $cond_expr_str = emit_expr_from_ast($ast);
-            
 
-        
+
+
         if ( exists $info->{'ElseIf'} ) {
 
             my $ast = $info->{'Cond'}{'AST'};
@@ -666,7 +668,7 @@ sub emit_AnnLines {
             my $exprs_str = emit_expr_from_ast($exprs_ast);
             if ( $exprs_str ne '' ) {
                 $exprs_str .= ', ';
-            }            
+            }
             $rline =
                 $indent
               . $maybe_cond
@@ -722,7 +724,7 @@ sub emit_AnnLines {
 #@ ExprVars => $expr_other_vars
 #@ IsExternal => $bool
 
-        elsif ( exists $info->{'SubroutineCall'} ) { 
+        elsif ( exists $info->{'SubroutineCall'} ) {
             # $rline =  'CALL: '.$rline;
             my ($call_str, $info_) = emit_subroutine_call( $stref, $f, $annline );
             # croak Dumper $call_str;
@@ -741,14 +743,14 @@ sub emit_AnnLines {
             $block_info='';
         }
         # if ($block_info ne '') {
-        # return [ 
+        # return [
         #     [ $block_info, {}],
-        #     [ $rline, $info ] 
+        #     [ $rline, $info ]
         # ];
         # } else {
         # say $rline;
-        return ([             
-            [ $rline.$block_info, $info ] 
+        return ([
+            [ $rline.$block_info, $info ]
         ], $used_modules);
         # }
     };

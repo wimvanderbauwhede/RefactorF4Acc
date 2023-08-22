@@ -340,19 +340,22 @@ The final data structure that matters is:
 			 $done=1;
  		}
 		elsif (exists $info->{'CaseVals'})  {
-			for my $val (@{ $info->{'CaseVals'} }) {
-				if ($val=~/^[a-z]\w*/) {
- 					$state->{'ExprVars'}{$val}{'Counter'}++;
-					push @{$state->{'ExprVars'}{$val}{'LineIDs'}}, $info->{'LineID'};
- 				} else  {
-					my $case_expr_ast=parse_expression($val, $info,{}, '');
- 					my $vars = get_vars_from_expression($case_expr_ast,{});
- 					for my $var (keys %{ $vars } ) {
- 						# $state->{'ExprVars'}{$var}{'Counter'}++;
-						# push @{$state->{'ExprVars'}{$var}{'LineIDs'}}, $info->{'LineID'};
-						$state = _add_var_to_state($var,$state,$info,'ExprVars');
- 					}
- 				}
+			for my $tval (@{ $info->{'CaseVals'} }) {
+				my @vals = ref($tval) eq 'ARRAY' ? @{$tval} : ( $tval ) ;
+				for my $val (@vals) {
+					if ($val=~/^[a-z]\w*/) {
+						$state->{'ExprVars'}{$val}{'Counter'}++;
+						push @{$state->{'ExprVars'}{$val}{'LineIDs'}}, $info->{'LineID'};
+					} else  {
+						my $case_expr_ast=parse_expression($val, $info,{}, '');
+						my $vars = get_vars_from_expression($case_expr_ast,{});
+						for my $var (keys %{ $vars } ) {
+							# $state->{'ExprVars'}{$var}{'Counter'}++;
+							# push @{$state->{'ExprVars'}{$var}{'LineIDs'}}, $info->{'LineID'};
+							$state = _add_var_to_state($var,$state,$info,'ExprVars');
+						}
+					}
+				}
 			}
 			$done=1;
 		}

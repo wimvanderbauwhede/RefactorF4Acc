@@ -279,18 +279,21 @@ croak "Fixes::_remove_unused_variables is OBSOLETE, please use package Refactori
 			 $done=1;
  		}
 		elsif (exists $info->{'CaseVals'})  {
-			for my $val (@{ $info->{'CaseVals'} }) {
-				if ($val=~/^[a-z]\w*/) {
- 					$state->{'ExprVars'}{$val}{'Counter'}++;
-					push @{$state->{'ExprVars'}{$val}{'LineIDs'}}, $info->{'LineID'};
- 				} else  {
-					my $case_expr_ast=parse_expression($val, $info,{}, '');
- 					my $vars = get_vars_from_expression($case_expr_ast,{});
- 					for my $var (keys %{ $vars } ) {
- 						$state->{'ExprVars'}{$var}{'Counter'}++;
-						push @{$state->{'ExprVars'}{$var}{'LineIDs'}}, $info->{'LineID'};
- 					}
- 				}
+			for my $tval (@{ $info->{'CaseVals'} }) {
+				my @vals = ref($tval) eq 'ARRAY' ? @{$tval} : ( $tval ) ;
+				for my $val (@vals) {
+					if ($val=~/^[a-z]\w*/) {
+						$state->{'ExprVars'}{$val}{'Counter'}++;
+						push @{$state->{'ExprVars'}{$val}{'LineIDs'}}, $info->{'LineID'};
+					} else  {
+						my $case_expr_ast=parse_expression($val, $info,{}, '');
+						my $vars = get_vars_from_expression($case_expr_ast,{});
+						for my $var (keys %{ $vars } ) {
+							$state->{'ExprVars'}{$var}{'Counter'}++;
+							push @{$state->{'ExprVars'}{$var}{'LineIDs'}}, $info->{'LineID'};
+						}
+					}
+				}
 			}
 			$done=1;
 		}
@@ -1115,14 +1118,17 @@ if (not exists $Config{'FIXES'}{'_declare_undeclared_variables'}) { return $stre
  			$state->{'ExprVars'} ={ %{ $state->{'ExprVars'} }, %{ $vars } };
  		}
 		elsif (exists $info->{'CaseVals'})  {
-			for my $val (@{ $info->{'CaseVals'} }) {
-				if ($val=~/^[a-z]\w*/) {
- 					$state->{'ExprVars'}{$val}=1;
- 				} else  {
-					my $case_expr_ast=parse_expression($val, $info,{}, '');
- 					my $vars = get_vars_from_expression($case_expr_ast,{});
- 					$state->{'ExprVars'} ={ %{ $state->{'ExprVars'} }, %{ $vars } };
- 				}
+			for my $tval (@{ $info->{'CaseVals'} }) {
+				my @vals = ref($tval) eq 'ARRAY' ? @{$tval} : ( $tval ) ;
+				for my $val (@vals) {
+					if ($val=~/^[a-z]\w*/) {
+						$state->{'ExprVars'}{$val}=1;
+					} else  {
+						my $case_expr_ast=parse_expression($val, $info,{}, '');
+						my $vars = get_vars_from_expression($case_expr_ast,{});
+						$state->{'ExprVars'} ={ %{ $state->{'ExprVars'} }, %{ $vars } };
+					}
+				}
 			}
 		}
 		elsif ( exists $info->{'VarDecl'} ) {
