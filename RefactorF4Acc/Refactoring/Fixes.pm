@@ -1187,9 +1187,9 @@ if (not exists $Config{'FIXES'}{'_declare_undeclared_variables'}) { return $stre
 
 		if (not exists $state->{'DeclaredVars'}{$expr_var} ) {
 			# FIXME: this variable could be declared through Use or at module level!	
-			__has_module_level_declaration($stref,$f,$expr_var);
-			
-			$state->{'UndeclaredVars'}{$expr_var}='real'; # the default
+			if (not __has_module_level_declaration($stref,$f,$expr_var)) {			
+				$state->{'UndeclaredVars'}{$expr_var}='real'; # the default
+			}
 		}
 	}
 	for my $lhs_var (keys %{ $state->{'AssignedVars'} } ) {
@@ -1296,14 +1296,13 @@ sub __check_for_decl_in_used_modules { my ($stref,$f,$current_mod_name,$var) = @
 	if (in_nested_set($stref->{'Modules'}{$current_mod_name}, 'Vars', $var)) {
 		return 1;
 	} elsif ( exists $stref->{'Modules'}{$current_mod_name}{'Uses'} ) {
-		for my $used_mod_name ( ) {
+		# $Sf->{'Uses'}{$name} = $only_list;		
+		for my $used_mod_name ( sort keys %{ $stref->{'Modules'}{$current_mod_name}{'Uses'} } ) {
 			__check_for_decl_in_used_modules($stref,$f,$used_mod_name,$var);
 		}
 	} else {
 		return 0;
 	}
-
-
 }
 
 # ================================================================================================================================================
