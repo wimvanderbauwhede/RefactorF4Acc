@@ -1270,33 +1270,35 @@ if (not exists $Config{'FIXES'}{'_declare_undeclared_variables'}) { return $stre
 	return $stref;
 } # END of _declare_undeclared_variables()
 
-# A variable could be declared through Use or at module level!	
+# A variable could be declared through Use or at module level!
 sub __has_module_level_declaration { my ($stref,$f,$var)=@_;
 	# $stref->{'Subroutines'}{$f}
-	if ( exists $stref->{'Subroutines'}{$f}{'InModule'} ) { 
+	if ( exists $stref->{'Subroutines'}{$f}{'InModule'} ) {
 		my $mod_name = $stref->{'Subroutines'}{$f}{'InModule'};
-		# check module-level Var/Par declarations 
-		if (in_nested_set($stref->{'Modules'}{$mod_name}, 'Vars', $var)) {
-			return 1;
+		# check module-level Var/Par declarations
+		my $nested_set = in_nested_set($stref->{'Modules'}{$mod_name}, 'Vars', $var);
+		if ($nested_set) {
+			return $nested_set;
 		} else {
 			# also check module-level Use declarations, recursively.
 			if ( exists $stref->{'Modules'}{$mod_name}{'Uses'} ) {
-				croak 'TODO: Uses: ',Dumper( $stref->{'Modules'}{$mod_name}{'Uses'} );
-
+				# croak 'TODO: Uses: ',Dumper( $stref->{'Modules'}{$mod_name}{'Uses'} );
+				__check_for_decl_in_used_modules($stref,$f,$mod_name,$var);
 			}
 		}
-	} else { 
-		return 0; 
+	} else {
+		return 0;
 	}
 } # __has_module_level_declaration
 
 sub __check_for_decl_in_used_modules { my ($stref,$f,$current_mod_name,$var) = @_;
 	# if the decl is in the current module, return
 	# else go through the list of used modules
-	if (in_nested_set($stref->{'Modules'}{$current_mod_name}, 'Vars', $var)) {
-		return 1;
+	my $nested_set = in_nested_set($stref->{'Modules'}{$current_mod_name}, 'Vars', $var);
+	if ($nested_set) {
+		return $nested_set;
 	} elsif ( exists $stref->{'Modules'}{$current_mod_name}{'Uses'} ) {
-		# $Sf->{'Uses'}{$name} = $only_list;		
+		# $Sf->{'Uses'}{$name} = $only_list;
 		for my $used_mod_name ( sort keys %{ $stref->{'Modules'}{$current_mod_name}{'Uses'} } ) {
 			__check_for_decl_in_used_modules($stref,$f,$used_mod_name,$var);
 		}
