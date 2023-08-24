@@ -79,8 +79,10 @@ sub replace_case_by_if { my ( $stref, $f, $annlines ) = @_;
 			# Turn into ( $expr == $v )
 			# The nested pairs are b,e => (b <= v) and  (v <= e)
 			my $case_expr_lst = $info->{'CaseVals'};
-			$info->{'Cond'}{'AST'}=  __replace_seq_by_ors($select_expr_ast,$case_expr_lst);
-
+			$info->{'Cond'}{'AST'} =  __replace_seq_by_ors($select_expr_ast,$case_expr_lst);
+			$info->{'Cond'}{'Expr'}  = emit_expr_from_ast($info->{'Cond'}{'AST'});
+			$info->{'CondVars'}{'Set'} = get_vars_from_expression($case_expr_lst);
+			$info->{'CondVars'}{'List'} = sort keys %{$info->{'CondVars'}{'Set'}};
 		}
 		elsif (exists $info->{'CaseDefault'}) {
 			$info->{'Else'}=1;
@@ -104,29 +106,26 @@ sub replace_case_by_if { my ( $stref, $f, $annlines ) = @_;
  	($stref,$state) = stateful_pass_inplace($stref,$f,$pass_replace_case_by_if, $state,'pass_replace_case_by_if() ' . __LINE__  ) ;
 	return $stref;
 } # END of replace_case_by_if
-sub __replace_range_by_inequalities { my ($x,$lb,$ub) = @_;
-#(AST,String,Error,HasFuncs)
-	my ($lb_ast,$r1,$e1,$f1) = parse_expression_no_context($lb);
-	my ($ub_ast,$r2,$e2,$f2) = parse_expression_no_context($ub);
-	# croak Dumper emit_expr_from_ast([0, [22,[20,$x,$lb_ast],[19,$x,$ub_ast] ]]);
-	return [0,[22,[20,$x,$lb_ast],[19,$x,$ub_ast] ]];
-} # END of __replace_range_by_inequalities
 
 sub __replace_seq_by_ors { my ($x,$seq) = @_;
-#(AST,String,Error,HasFuncs)
-	my @item_asts=();
-	for my $item (@{$seq}) {
-		if (ref($item) eq 'ARRAY') {
-			push @item_asts, __replace_range_by_inequalities($x,@{$item});
-		} else {
-			my ($item_ast,$r,$e,$f) = parse_expression_no_context($item);
-			push @item_asts, [15, $x,$item_ast];
+	#(AST,String,Error,HasFuncs)
+	if (scalar @{$seq} == 1) {
+		return parse_expression_no_context($seq->[0]);
+	} else {
+		my @item_asts=();
+		for my $item (@{$seq}) {
+			if (ref($item) eq 'ARRAY') {
+				push @item_asts, __replace_range_by_inequalities($x,@{$item});
+			} else {
+				my ($item_ast,$r,$e,$f) = parse_expression_no_context($item);
+				push @item_asts, [15, $x,$item_ast];
+			}
 		}
+		# croak Dumper @item_asts;
+	# [or,[or,[or,$item_ast,$item_ast],$item_ast],$item_ast]]
+		# croak emit_expr_from_ast( __build_or_seq_rec( @item_asts ) ) if @item_asts>2;
+		return __build_or_seq_rec( @item_asts );
 	}
-	# croak Dumper @item_asts;
-# [or,[or,[or,$item_ast,$item_ast],$item_ast],$item_ast]]
-	croak emit_expr_from_ast( __build_or_seq_rec( @item_asts ) ) if @item_asts>2;
-	
 } # END of __replace_range_by_inequalities
 
 sub __build_or_seq_rec { my @item_asts = @_;
@@ -138,5 +137,13 @@ sub __build_or_seq_rec { my @item_asts = @_;
 		return [23,pop @item_asts,__build_or_seq_rec(@item_asts)];
 	}
 }
+
+sub __replace_range_by_inequalities { my ($x,$lb,$ub) = @_;
+#(AST,String,Error,HasFuncs)
+	my ($lb_ast,$r1,$e1,$f1) = parse_expression_no_context($lb);
+	my ($ub_ast,$r2,$e2,$f2) = parse_expression_no_context($ub);
+	# croak Dumper emit_expr_from_ast([0, [22,[20,$x,$lb_ast],[19,$x,$ub_ast] ]]);
+	return [0,[22,[20,$x,$lb_ast],[19,$x,$ub_ast] ]];
+} # END of __replace_range_by_inequalities
 
 1;
