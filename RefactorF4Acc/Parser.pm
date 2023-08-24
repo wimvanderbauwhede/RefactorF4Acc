@@ -1387,10 +1387,11 @@ or $line=~/^character\s*\(\s*len\s*=\s*[\w\*]+\s*\)/
 					my @case_vals = _parse_comma_sep_expr_list($case_vals_str);
 					# But they can also be separated by ':'
 					# Those pairs are nested lists
+					# croak Dumper @case_vals if @case_vals>2;
 					my @nested_case_vals = map {
 							$_=~/:/ ? [  split(/:/,$_) ] : $_
 						} @case_vals;
-					$info->{'CaseVals'} = [@case_vals];
+					$info->{'CaseVals'} = [@nested_case_vals];
 					$info->{ 'Control' } = 1;
 					$info->{'NonSpecificationStatement'} = 1;
                 	$info->{'HasVars'} = 1;

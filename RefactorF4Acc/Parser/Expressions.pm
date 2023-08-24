@@ -59,6 +59,14 @@ our @sigils = ('(', '&', '$', '+', '-', '*', '/', '%', '**', '=', '@', '#', ':' 
 #                29        30      31         32           33             34       35
                ,'integer', 'real', 'logical', 'character', 'PlaceHolder', 'Label', 'BLANK'
               );
+
+# '&','@': my ($sigil, $var_name_str, $args) = @{$ast}; # [1|10,'v',[...]]
+# '$': my ($sigil,$var_name_str) = @{$ast};
+# '(': my ($sigil, my $exp) = @{$ast};
+# ',': my ($comma, @items) = @{$ast}; # [',',11,22,33,...] 
+# Binops: my ($binop,$left_expr,$right_expr) = @{$ast};
+# Constants : my ($type,$val_str) = @{$ast};
+
 my $opcode=0;
 our %sigil_codes = map { $_ => $opcode++  } @sigils;
 
@@ -453,22 +461,20 @@ sub _fix_string_concat_in_expr { (my $ast)=@_;
 
 	        if ($i==0 and ref($elt) eq 'ARRAY' and $elt->[1] eq '_CONCAT_PRE_') {
 	        	my $concat_code =  13+($Fortran::Expression::Evaluator::Parser::nodeId++<<8);
-	            $elt = [$concat_code,$cloned_ast->[$i+2]];#'//'
+	            $elt = [$concat_code,$cloned_ast->[$i+2]]; # '//'
 	            push @{$new_ast}, $elt;
 	            $cloned_ast->[$i+1]=undef;
-#	            $cloned_ast->[$i+2]=undef;
 	            next;
 	        }
 	        if (ref($cloned_ast->[$i+1]) eq 'ARRAY' and $cloned_ast->[$i+1][1] eq '_CONCAT_PRE_') {
 	        	my $concat_code =  13+($Fortran::Expression::Evaluator::Parser::nodeId++<<8);
-	            $elt=[$concat_code, $elt];# '//'
+	            $elt=[$concat_code, $elt]; # '//'
 	            if (defined $cloned_ast->[$i+2]) {
 	                push @{$elt},$cloned_ast->[$i+2];
 	            }
 	            push @{$new_ast}, $elt;
 	            $cloned_ast->[$i+1]=undef;
 	            $cloned_ast->[$i+2]=undef;
-#	            $cloned_ast->[$i+3]=undef;
 	            next;
 	        }
 	        push @{$new_ast}, $elt;
@@ -1147,8 +1153,8 @@ sub emit_expr_from_ast { (my $ast)=@_;
             }
         } elsif (scalar @{$ast}==2) { #  for '('  and '$'
             (my $opcode, my $exp) =@{$ast};
-            if ($opcode == 0 ) {#eq '('
-            # warn Dumper($exp);
+            if ($opcode == 0 ) { # eq '('
+                # warn Dumper($exp);
                 my $v = (ref($exp) eq 'ARRAY') ? emit_expr_from_ast($exp) : $exp;
                 if (not defined $v) {
                     croak Dumper($ast) if $DBG;
@@ -1159,7 +1165,7 @@ sub emit_expr_from_ast { (my $ast)=@_;
                 return "(/ $v /)";
             } elsif ($opcode == 2 or $opcode>28) {# eq '$' or constants
                 return ($opcode == 34) ?  "*$exp" : $exp;
-            } elsif ($opcode == 21 or $opcode == 4 or $opcode == 3) {# eq '.not.' '-'
+            } elsif ($opcode == 21 or $opcode == 4 or $opcode == 3) {# '.not.' '+' '-'
                 my $v = (ref($exp) eq 'ARRAY') ? emit_expr_from_ast($exp) : $exp;
                 return $sigils[$opcode]. $v;
             } elsif ($opcode == 27) { # ','

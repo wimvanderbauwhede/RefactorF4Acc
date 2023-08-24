@@ -9,6 +9,7 @@ use RefactorF4Acc::Refactoring::Fixes qw(
 	_declare_undeclared_variables
 	_remove_unused_variables
 	);
+use RefactorF4Acc::Refactoring::CaseToIf qw( replace_case_by_if )	;
 # use RefactorF4Acc::Parser::Expressions qw( @sigils );
 use RefactorF4Acc::Translation::LlvmToTyTraIR qw( generate_llvm_ir_for_TyTra );
 
@@ -71,7 +72,8 @@ sub translate_module_to_Uxntal {  (my $stref, my $module_name, my $ocl) = @_;
 		  [
 			  \&determine_argument_io_direction_rec,
 			  \&update_arg_var_decl_sourcelines,
-			  \&_declare_undeclared_variables]
+			  \&_declare_undeclared_variables,
+			  \&replace_case_by_if]
 			  ,#,\&_remove_unused_variables],
 		  [\&translate_sub_to_Uxntal]
        ],
@@ -210,17 +212,20 @@ Instead of the nice but cumbersome approach we had until now, from now on it is 
 		}
 		# For Uxntal, we need to turn the Case into an IfThen
 		elsif (exists $info->{'Select'} ) {
+			croak 'SHOULD NOT HAPPEN!';
 			my $switch_expr = _emit_expression_Uxntal([2,$info->{'CaseVar'}],$stref,$f,$info); # FIXME
 			$c_line ="switch ( $switch_expr ) {";
 		}
-		elsif (exists $info->{'Case'} ) { croak Dumper $info;
+		elsif (exists $info->{'Case'} ) { 
+			croak 'SHOULD NOT HAPPEN!';
             # FIXME: support macros
-			$c_line=$line.': {';#'case';
-			if ($info->{'Case'}>1) {
-				$c_line = $info->{'Indent'}."} break;\n".$info->{'Indent'}.$c_line;
-			}
+			# $c_line=$line.': {';#'case';
+			# if ($info->{'Case'}>1) {
+			# 	$c_line = $info->{'Indent'}."} break;\n".$info->{'Indent'}.$c_line;
+			# }
 		}
 		elsif (exists $info->{'CaseDefault'}) {
+			croak 'SHOULD NOT HAPPEN!';
 			$c_line = $info->{'Indent'}."} break;\n".$info->{'Indent'}.'default : {';
 		}
 		elsif (exists $info->{'Do'} ) {
@@ -338,6 +343,7 @@ Instead of the nice but cumbersome approach we had until now, from now on it is 
 
 		}
 		elsif (exists $info->{'EndSelect'} ) {
+			croak 'SHOULD NOT HAPPEN!';
 				 $c_line = '    }'."\n".$info->{'Indent'}.'}';
 		}
 
