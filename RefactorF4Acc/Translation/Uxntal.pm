@@ -181,8 +181,8 @@ Instead of the nice but cumbersome approach we had until now, from now on it is 
 	(my $new_annlines_,$pass_state) = stateful_pass($annlines,$pass_pointer_analysis,$pass_state,"pass_pointer_analysis($f)");
 	$Sf->{'Pointers'} = $pass_state->{'Pointers'};
 
-    my $tannlines           = get_annotated_sourcelines( $stref, $f );
-	emit_AnnLines($stref, $f, $tannlines);
+    # my $tannlines           = get_annotated_sourcelines( $stref, $f );
+	# emit_AnnLines($stref, $f, $tannlines);
 
 	my $pass_translate_to_Uxntal = sub { (my $annline, my $state)=@_;
 		(my $line,my $info)=@{$annline};
@@ -274,37 +274,20 @@ Instead of the nice but cumbersome approach we had until now, from now on it is 
 		elsif (exists $info->{'IOCall'}) {
 			croak Dumper $info->{'IOCall'}{'Args'}{'AST'};
 		}
-        elsif (exists $info->{'If'} ) {
+		elsif (exists $info->{'If'} and not exists $info->{'IfThen'} ) {
+			croak 'TODO: If without Then'. Dumper($info);
+		}
+        elsif (exists $info->{'IfThen'} and not exists $info->{'ElseIf'} ) {
             $pass_state->{'IfBranchId'} = $id;            
             push @{$pass_state->{'IfStack'}},$id;
             $pass_state->{'IfId'}=$id;
 			$c_line = _emit_ifthen_Uxntal($stref, $f, $info, $id);
-            # say emit_uxntal_expr_str($cond) . " ,&branch$id JCN";
-            # say ",&branch$id_end JMP";
-            # say "&branch$id";
-            # other statements to emit ...
         } elsif (exists $info->{'ElseIf'} ) {
-            # my $branch_id = $state->{'IfBranchId'};
-            # $state->{'IfBranchId'} = $id;
-            # $c_line = "&branch${branch_id}_end\n";
-            # $c_line .= ",&cond_end{$if_id} JMP";  
-            #  $branch_id = $state->{'IfBranchId'};
 			($c_line, my $branch_id) = _emit_ifbranch_end_Uxntal($id,$pass_state); 
-            # say emit_uxntal_expr_str($cond) . " ,&branch$branch_id JCN";
 			$c_line .= _emit_ifthen_Uxntal($stref, $f, $info, $branch_id);
-            # say ",&branch{$branch_id}_end JMP";
-            # say "&branch{$branch_id}";
-            # other statements to emit ...
         } elsif (exists $info->{'Else'} ) {
-            # my $branch_id = $state->{'IfBranchId'};
-            # $state->{'IfBranchId'} = $id;
-            # $c_line = "&branch${branch_id}_end\n";
-            # $c_line .= ",&cond_end{$if_id} JMP\n";  
-            # $branch_id = $state->{'IfBranchId'};
 			($c_line, my $branch_id) = _emit_ifbranch_end_Uxntal($id,$pass_state);
-            # $state->{'IfBranchId'} = $id;
             $c_line .= "&branch$branch_id";
-            # other statements to emit ...
         } elsif (exists $info->{'EndIf'} ) {
             $c_line = '&cond_end'.$pass_state->{'IfId'}; 
             pop @{$pass_state->{'IfStack'}};
@@ -396,8 +379,8 @@ Instead of the nice but cumbersome approach we had until now, from now on it is 
 			# $c_line = $info->{'Label'}. ' : '."\n".$info->{'Indent'}.$c_line;
 		}
 
-		push @{$pass_state->{'TranslatedCode'}},$info->{'Indent'}.$c_line unless $skip;
-
+		push @{$pass_state->{'TranslatedCode'}},$c_line unless $skip;
+		# push @{$pass_state->{'TranslatedCode'}},$info->{'Indent'}.$c_line unless $skip;
 		return ([$annline],[$stref,$f,$pass_state]);
 	};
 
@@ -566,7 +549,19 @@ sub _emit_var_decl_Uxntal { (my $stref,my $f,my $var)=@_;
 		return ($stref,$c_var_decl);
 	}
 }
-
+sub __substitute_PlaceHolders { my ($expr_str,$info) = @_;
+	if ($expr_str=~/__PH/ and exists $info->{'PlaceHolders'}) { 
+		# croak $expr_str.Dumper($info->{'PlaceHolders'})	
+		while ($expr_str =~ /(__PH\d+__)/) {
+			my $ph=$1;
+			my $ph_str = $info->{'PlaceHolders'}{$ph};
+			$ph_str=~s/[\'\"]$//;
+			$ph_str=~s/^[\']/\"/;
+			$expr_str=~s/$ph/$ph_str/;
+		}              
+	}
+	return $expr_str;
+} # END of __substitute_PlaceHolders
 sub _emit_assignment_Uxntal { (my $stref, my $f, my $info, my $pass_state)=@_;
 	my $lhs_ast =  $info->{'Lhs'}{'ExpressionAST'};
 	my $lhs = _emit_expression_Uxntal($lhs_ast,$stref,$f,$info);
@@ -589,22 +584,13 @@ sub _emit_assignment_Uxntal { (my $stref, my $f, my $info, my $pass_state)=@_;
 		my $lc_macro=lc($macro);
 		$rhs_stripped=~s/\b$lc_macro\b/$macro/g;
 	}
-	if ($rhs_stripped=~/__PH/ and exists $info->{'PlaceHolders'}) { 
-		# croak $rhs_stripped.Dumper($info->{'PlaceHolders'})	
-		while ($rhs_stripped =~ /(__PH\d+__)/) {
-			my $ph=$1;
-			my $ph_str = $info->{'PlaceHolders'}{$ph};
-			$ph_str=~s/[\'\"]$//;
-			$ph_str=~s/^[\']/\"/;
-			$rhs_stripped=~s/$ph/$ph_str/;
-		}              
-	}
+	$rhs_stripped=__substitute_PlaceHolders($rhs_stripped,$info);
 
 	# my $rline = $info->{'Indent'}.$lhs.' = '.$rhs_stripped;
 	$lhs =~s/LDA$/STA/;
 	$lhs =~s/LDA2$/STA2/;
 	my $rline = $info->{'Indent'}.$rhs_stripped . ' '. $lhs;
-	if (exists $info->{'If'}) {
+	if (exists $info->{'If'}) { croak 'TODO: If without Then';
 		my $id = $info->{'LineID'};
 		$pass_state->{'IfBranchId'} = $id;
 		my $branch_id = $pass_state->{'IfBranchId'};
@@ -620,8 +606,7 @@ sub _emit_assignment_Uxntal { (my $stref, my $f, my $info, my $pass_state)=@_;
 
 
 
-sub _emit_ifthen_Uxntal { (my $stref, my $f, my $info, my $branch_id)=@_;
-croak if not defined $branch_id;
+sub _emit_ifthen_Uxntal { (my $stref, my $f, my $info, my $branch_id)=@_;	
 	my $cond_expr_ast=$info->{'Cond'}{'AST'};
 	my $cond_expr = _emit_expression_Uxntal($cond_expr_ast,$stref,$f,$info);
 	# $cond_expr=_change_operators_to_Uxntal($cond_expr);
@@ -638,7 +623,7 @@ sub _emit_ifbranch_end_Uxntal { my ($id, $state) = @_;
 	my $branch_id = $state->{'IfBranchId'};
 	my $if_id = $state->{'IfId'};
 	my $r_line = "&branch${branch_id}_end\n";
-	$r_line .= ",&cond_end{$if_id} JMP\n";
+	$r_line .= ",&cond_end${if_id} JMP\n";
 	$state->{'IfBranchId'} = $id;
 	$branch_id = $state->{'IfBranchId'};
 	return ($r_line,$branch_id);
@@ -733,7 +718,11 @@ sub _emit_expression_Uxntal { my ($ast, $stref, $f, $info)=@_;
 								}
 							}
 						} else { # A subroutine access. 
-							return join(' ',@args_lst).' '.$name;
+							if ($name ne 'achar') {
+								return join(' ',@args_lst).' '.$name;
+							} else {
+								return join(' ',@args_lst);
+							}
 						}
 					} else { #  ')(', e.g. f(x)(y)
 						die 'ERROR: f()() is not supported, sorry!'."\n";
@@ -762,6 +751,7 @@ sub _emit_expression_Uxntal { my ($ast, $stref, $f, $info)=@_;
                 my $v = (ref($exp) eq 'ARRAY') ? _emit_expression_Uxntal($exp, $stref, $f,$info) : $exp;
                 return "[ $v ]"; # FIXME
             } elsif ($opcode==2 or $opcode>28) {# eq '$' or constants
+				$exp = __substitute_PlaceHolders($exp,$info) if $opcode == 33;
 				if ($opcode == 34) {
 					die 'ERROR: Fortran LABEL as arg is not supported, sorry!'."\n"; #  "*$exp" : $exp;   # Fortran LABEL, does not exist in C
 				}
@@ -772,7 +762,7 @@ sub _emit_expression_Uxntal { my ($ast, $stref, $f, $info)=@_;
 					if ($exp=~s/_([1248])$//) { $sz=$1}
 					$exp = toHex($exp,$sz);
 				}
-				my $mvar = $ast->[1]; # Why is this not $exp?
+				my $mvar = $ast->[1]; # Why is this not $exp?				
 				my $called_sub_name = $stref->{'CalledSub'} // '';
 				if (exists $stref->{'Subroutines'}{$f}{'Pointers'}{$mvar} ) {
 					# Meaning that $mvar is a pointer in $f
