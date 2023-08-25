@@ -74,6 +74,7 @@ sub create_rf4a_cfg {
     my ($kernel_src,$kernel_sub_name, $kernel_module_name) = @_;
 
     my $rf4a_cfg = <<"ENDCFG";
+PRESERVE_CASE = 1
 MODULE = $kernel_module_name
 MODULE_SRC = $kernel_src
 TOP = $kernel_sub_name

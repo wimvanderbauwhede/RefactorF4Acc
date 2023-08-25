@@ -439,7 +439,7 @@ sub parse_args { (my $args)=@_;
         $gen_scons = 1;
     }
 
-    return (lc($code_unit_name),$gen_scons,$build,$call_tree_only, $pass);
+    return (toLower($code_unit_name),$gen_scons,$build,$call_tree_only, $pass);
 } # END of parse_args()
 
 

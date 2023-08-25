@@ -62,6 +62,7 @@ use Exporter;
     &is_array_decl
     &warning
     &coderef_to_subname
+    &toLower
 );
 
 
@@ -263,6 +264,9 @@ sub pp_info { my ($info, $full) = @_;
         }
     }
     return $pp_info;
+}
+sub toLower { (my $str) = @_;
+    if ($Config{'PRESERVE_CASE'}) { return $str } else { return lc($str) }
 }
 # -----------------------------------------------------------------------------
 sub get_maybe_args_globs {

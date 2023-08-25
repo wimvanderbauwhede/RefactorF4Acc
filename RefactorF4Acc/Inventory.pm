@@ -23,7 +23,7 @@ use Exporter;
 use File::Find;
 use Cwd qw( cwd );
 use RefactorF4Acc::Config;
-use RefactorF4Acc::Utils qw(module_has_only module_has_also);
+use RefactorF4Acc::Utils qw(module_has_only module_has_also toLower);
 
 # Find all source files in the current directory
 # The files are parsed to determine the following information:
@@ -369,7 +369,7 @@ sub _process_src {
             $in_module=1; 
             $srctype='Modules';
             $stref->{'SourceFiles'}{$src}{'SourceType'}='Modules';
-            $mod_name = lc($1); #die $line.':'.$mod_name;
+            $mod_name = toLower($1); #die $line.':'.$mod_name;
             $stref->{'SourceFiles'}{$src}{'ModuleName'}=$mod_name;
             say "SRC $src IS MODULE SRC: $mod_name" if $DBG;
 #                $f=$mod_name;
@@ -433,7 +433,7 @@ sub _process_src {
                 my @maybe_type = grep { $_!~/pure|elemental|recursive|function|subroutine|entry|program/ } ( map { lc($_) } @proc_type_chunks) ;
                 my $has_type = @maybe_type ? $maybe_type[0] : '';
 #                say "$line => $has_type" if $has_type;   
-                my $sub  = lc($proc_name);                
+                my $sub  = toLower($proc_name);                
                 if ( $is_prog == 1 ) {
                     print "Found program $sub in $src\n" if $V;
                     # If there is no TOP, the PROGRAM is the top
@@ -455,7 +455,7 @@ sub _process_src {
                 if ( $is_block_data == 1 ) { 
                 	if (lc($sub) eq 'data') {
                 		$sub = 'block_data';
-                		$line=~/block\s*data\s{1,4}(\w+)/i && do { $sub=lc($1) };
+                		$line=~/block\s*data\s{1,4}(\w+)/i && do { $sub=toLower($1) };
                 	}
 					say "Found block data $sub in $src: $line" if $V;
                 }
@@ -604,7 +604,7 @@ sub _process_src {
             
             # Find use statements, for F90/F95. 
             $line =~/^\s*use\s+([_\w]+)(?:\s*,\s*only\s*:\s*(.+)\s*)?/i && do { #FIXME: no support for R1108 rename ; R1109 is incomplete; no support for R1110, R1111           
-                my $mod = lc($1); 
+                my $mod = toLower($1); 
                 my $only_list = $2;
                 if ($in_module) {
                     $stref->{'Modules'}{$mod_name}{'Uses'}{$mod}={};

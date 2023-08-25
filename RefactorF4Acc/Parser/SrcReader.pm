@@ -2,7 +2,7 @@ package RefactorF4Acc::Parser::SrcReader;
 use v5.10;
 use RefactorF4Acc::Config;
 use RefactorF4Acc::Utils
-  qw( sub_func_incl_mod show_status show_annlines %F95_reserved_words %F95_types pp_annlines);
+  qw( sub_func_incl_mod show_status show_annlines %F95_reserved_words %F95_types pp_annlines toLower);
 use RefactorF4Acc::Preconditioning qw( split_multiblock_common_lines );
 use RefactorF4Acc::Refactoring::Helpers;
 use Fortran::F95Normaliser qw( normalise_F95_src );
@@ -1508,7 +1508,7 @@ sub _procLine {
           )
         {
             my $keyword = lc($1);
-            my $name    = defined $2 ? lc($2) : 'NO_NAME';
+            my $name    = defined $2 ? toLower($2) : 'NO_NAME';
             if ( $keyword eq 'block' and $name eq 'data' ) {
                 $keyword = 'block data';
                 $name    = 'block_data';
@@ -1540,16 +1540,16 @@ sub _procLine {
             else {
                 $info->{'SubroutineSig'} = [ $spaces, $name, [] ];
             }
-            $line = lc($line);
+            $line = toLower($line);
         }
         elsif (
             $line =~ /^\s*end\s+(subroutine|module|function|program)\s+(\w+)/i )
         {
             # This will likely only work for F95 code
             my $unit_type = ucfirst( lc($1) );
-            my $unit_name = lc($2);
+            my $unit_name = toLower($2);
             $info->{ 'End' . $unit_type } = $unit_name;
-            $line = lc($line);
+            $line = toLower($line);
         }
         elsif ( $line =~ /^\s*$/ ) {
             $line = '';
@@ -1576,7 +1576,7 @@ sub _procLine {
             my $lcline =
               ( substr( $line, 0, 2 ) eq '! ' )
               ? $line
-              : lc($line);
+              : toLower($line);
             $lcline =~ s/__ph(\d+)__/__PH$1__/g;
             $line = $lcline;
             $info->{'PlaceHolders'} = $phs_ref

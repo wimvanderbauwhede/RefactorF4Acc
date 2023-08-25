@@ -214,7 +214,7 @@ sub varlist_parser {
         #, {'VarsDims' =>sepByChar(',',  choice( regex('^[^,\)\(]+?(?:\([^,\)\(]+\))[^,\(\)]+'), regex('^[^,\)\(]+?(?:\([^,\)\(]+\))'),regex('^[^,\)]+') )   )}
         , {'VarsDims' => sepByChar(',',#comma, 
                 sequence [
-                    {'Var' => word}, 
+                    {'Var' => mixedCaseWord}, 
                     {'Dim' => parens(
                             {'Sep' => sepBy(comma, symbol(':')) } 
                     )
@@ -222,13 +222,13 @@ sub varlist_parser {
                 ]
 #                choice(  regex('\w+\(:\)') , regex('\w+\(:,:\)'), regex('\w+\(:,:,:\)') )  
             ) }
-        ,{'Vars' => sepByChar(',',word) } )
+        ,{'Vars' => sepByChar(',',mixedCaseWord) } )
 	] )
 }
 
 sub param_assignment {
     sequence( [
-        {'Lhs' => word },
+        {'Lhs' => mixedCaseWord },
         symbol('='),                
 		{'Rhs' => choice(
 			regex('^[\w\s\*\+\-\/]+'),

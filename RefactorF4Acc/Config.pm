@@ -111,6 +111,7 @@ our %Config=(
 'INLINE_INCLUDES' => 0,
 'RENAME_PARS_IN_INLINED_SUBS' => 1,
 'RENAME_VARS_IN_INLINED_SUBS' => 1,
+'PRESERVE_CASE' => 0,
 'FOLD_CONSTANTS' => 0,
 'SPLIT_LONG_LINES' => $SPLIT_LONG_LINES,
 'MAX_LINE_LENGTH' =>  $MAX_LINE_LENGTH,
@@ -199,7 +200,7 @@ sub read_rf4a_config {
 		my @vs=split(/\s*,\s*/,$v);
 		$Config{$k}= { map {$_ => 1} @vs};
 	} elsif ($k eq 'TOP') {
-		$Config{$k}=lc($v);
+		$Config{$k}= $Config{'PRESERVE_CASE'} ? $v : lc($v);
     } else {
         $Config{$k}=$v;
     }

@@ -66,6 +66,7 @@ sub translate_module_to_Uxntal {  (my $stref, my $module_name, my $ocl) = @_;
 	$stref = pass_wrapper_subs_in_module($stref,$module_name,
 	   # module-specific passes.
        [
+		[\&translate_module_decls_to_Uxntal]
         #    [\&_emit_OpenCL_pipe_declarations]
        ],
        # subroutine-specific passes
@@ -135,6 +136,7 @@ Instead of the nice but cumbersome approach we had until now, from now on it is 
 			}
 		}
 		elsif ( exists $info->{'ParamDecl'} ) {
+			croak "SHOULD NOT HAPPEN";
 				my $var = $info->{'VarDecl'}{'Name'};
 				$state->{'Pointers'}{$var}='';
 				$state->{'Parameters'}{$var}=1;
@@ -183,7 +185,7 @@ Instead of the nice but cumbersome approach we had until now, from now on it is 
 
     # my $tannlines           = get_annotated_sourcelines( $stref, $f );
 	# emit_AnnLines($stref, $f, $tannlines);
-
+# --------------------------------------------------------------------------------------------
 	my $pass_translate_to_Uxntal = sub { (my $annline, my $state)=@_;
 		(my $line,my $info)=@{$annline};
 		say "LINE:<$line> ";#.Dumper($info);©766
@@ -194,7 +196,7 @@ Instead of the nice but cumbersome approach we had until now, from now on it is 
 		if (exists $info->{'Signature'} ) {
 			$pass_state->{'Args'}=$info->{'Signature'}{'Args'}{'List'};
 				my ($sig_line,$arg_decls) = _emit_subroutine_sig_Uxntal( $stref, $f, $annline);
-				@{$pass_state->{'ArgVarDecls'}}= map { $info->{'Indent'}.$_ } @{$arg_decls};
+				@{$pass_state->{'ArgVarDecls'}}= map { $_ } @{$arg_decls};
 				$c_line = $sig_line."\n";
 		}
 		elsif (exists $info->{'VarDecl'} ) {
@@ -204,7 +206,7 @@ Instead of the nice but cumbersome approach we had until now, from now on it is 
 					$c_line='( '.$line.' )';
 					$skip=1;
 				} else {
-					$c_line = $info->{'Indent'}. _emit_var_decl_Uxntal($stref,$f,$var);
+					$c_line =  _emit_var_decl_Uxntal($stref,$f,$var);
 					$pass_state->{'ArgVarDecls'}=[@{$pass_state->{'ArgVarDecls'}},$c_line];
 					$skip=1;
 				}
@@ -230,7 +232,7 @@ Instead of the nice but cumbersome approach we had until now, from now on it is 
 		}
 		elsif (exists $info->{'CaseDefault'}) {
 			croak 'SHOULD NOT HAPPEN!';
-			$c_line = $info->{'Indent'}."} break;\n".$info->{'Indent'}.'default : {';
+			# $c_line = $info->{'Indent'}."} break;\n".$info->{'Indent'}.'default : {';
 		}
 		elsif (exists $info->{'Do'} ) {
 			if (exists $info->{'Do'}{'While'}) {
@@ -269,7 +271,7 @@ Instead of the nice but cumbersome approach we had until now, from now on it is 
 			# But the problem is of course that we have just replaced the called args by the sig args
 			# So what we need to do is check the type in $f and $subname, and use that to see if we need a '*' or even an '&' or nothing
 
-            $c_line = $info->{'Indent'}._emit_subroutine_call_expr_Uxntal($stref,$f,$info);
+            $c_line = _emit_subroutine_call_expr_Uxntal($stref,$f,$info);
 		}
 		elsif (exists $info->{'IOCall'}) {
 			croak Dumper $info->{'IOCall'}{'Args'}{'AST'};
@@ -331,7 +333,7 @@ Instead of the nice but cumbersome approach we had until now, from now on it is 
 		}
 		elsif (exists $info->{'EndSelect'} ) {
 			croak 'SHOULD NOT HAPPEN!';
-				 $c_line = '    }'."\n".$info->{'Indent'}.'}';
+				#  $c_line = '    }'."\n".$info->{'Indent'}.'}';
 		}
 
 		elsif (exists $info->{'Comments'} ) {
@@ -405,6 +407,38 @@ Instead of the nice but cumbersome approach we had until now, from now on it is 
  	return $stref;
 
 } # END of translate_sub_to_Uxntal()
+
+sub translate_module_decls_to_Uxntal { (my $stref, my $mod_name, my $ocl) = @_;
+
+    my $pass_emit_module_declarations = sub { (my $annline, my $state)=@_;
+        (my $line,my $info)=@{$annline};
+		say "MOD LINE: <$line>";
+        my $c_line=$line;
+        (my $stref, my $mod_name, my $pass_state)=@{$state};
+        my $skip=1;
+
+        if (exists $info->{'VarDecl'}) {
+                my $var = $info->{'VarDecl'}{'Name'};
+				$c_line = _emit_var_decl_Uxntal( $stref, $mod_name, $var);
+				$skip=0;
+        }
+		elsif ( exists $info->{'ParamDecl'} ) {
+			croak "SHOULD NOT HAPPEN";
+			my $var = $info->{'VarDecl'}{'Name'};			
+		}
+        push @{$pass_state->{'TranslatedCode'}},$c_line unless $skip;
+
+        return ([$annline],[$stref,$mod_name,$pass_state]);
+    };
+
+    my $state = [$stref,$mod_name, {'TranslatedCode'=>[]}];
+    ($stref,$state) = stateful_pass_inplace($stref,$mod_name,$pass_emit_module_declarations , $state,'emit_module_declarations() ' . __LINE__  ) ;
+
+    $stref->{'Modules'}{$mod_name}{'TranslatedCode'}=$state->[2]{'TranslatedCode'};
+    $stref->{'TranslatedCode'}=[@{$stref->{'TranslatedCode'}},@{$state->[2]{'TranslatedCode'}},''];
+
+    return $stref;
+} # END of translate_module_decls_to_Uxntal
 
 # FIXME: only include if they are actually used in the code!
 # $ocl: 0 = C, 1 = CPU/GPU OpenCL, 2 = C for TyTraIR aka TyTraC, 3 = pipe-based OpenCL for FPGAs
@@ -503,7 +537,8 @@ sub _emit_arg_decl_Uxntal { (my $stref,my $f,my $arg, my $name)=@_;
 
 
 sub _emit_var_decl_Uxntal { (my $stref,my $f,my $var)=@_;
-	my $decl =  get_var_record_from_set($stref->{'Subroutines'}{$f}{'Vars'},$var);	
+	my $sub_or_module = sub_func_incl_mod( $f, $stref );
+	my $decl =  get_var_record_from_set($stref->{$sub_or_module}{$f}{'Vars'},$var);	
 	my $array = (exists $decl->{'ArrayOrScalar'} and $decl->{'ArrayOrScalar'} eq 'Array') ? 1 : 0;
 	# say $decl->{"ParsedVarDecl"};
 	my $const = '';
@@ -548,7 +583,8 @@ sub _emit_var_decl_Uxntal { (my $stref,my $f,my $var)=@_;
 		my $c_var_decl =  '@'.$f.'_'.$var.' $'. $sz;
 		return ($stref,$c_var_decl);
 	}
-}
+} # END of _emit_var_decl_Uxntal
+
 sub __substitute_PlaceHolders { my ($expr_str,$info) = @_;
 	if ($expr_str=~/__PH/ and exists $info->{'PlaceHolders'}) { 
 		# croak $expr_str.Dumper($info->{'PlaceHolders'})	
@@ -562,6 +598,7 @@ sub __substitute_PlaceHolders { my ($expr_str,$info) = @_;
 	}
 	return $expr_str;
 } # END of __substitute_PlaceHolders
+
 sub _emit_assignment_Uxntal { (my $stref, my $f, my $info, my $pass_state)=@_;
 	my $lhs_ast =  $info->{'Lhs'}{'ExpressionAST'};
 	my $lhs = _emit_expression_Uxntal($lhs_ast,$stref,$f,$info);
@@ -812,7 +849,12 @@ sub _emit_expression_Uxntal { my ($ast, $stref, $f, $info)=@_;
 					} elsif ($exp eq '.false.') {
 						return '#00';
 					} else {
+						my ($mod_name, $set) = __has_module_level_declaration($stref,$f,$exp) ;							 
+						if ($mod_name) {
+							return $mod_name.'_'.$exp
+						} else {
 						return $exp;
+						}
 					}
 				}
             } elsif ($opcode == 21 or $opcode == 4 or $opcode == 3) {# eq '.not.' '-'
