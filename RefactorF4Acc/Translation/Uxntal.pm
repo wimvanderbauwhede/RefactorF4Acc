@@ -89,6 +89,40 @@ sub translate_module_to_Uxntal {  (my $stref, my $module_name, my $ocl) = @_;
     $stref->{'SourceContains'}={};
 } # END of translate_module_to_Uxntal
 
+# TODO: This should include handling of 'use' declarations.
+# Unfortunately for those we will need to split the module level declarations from the subroutines.
+sub translate_module_decls_to_Uxntal { (my $stref, my $mod_name, my $ocl) = @_;
+
+    my $pass_emit_module_declarations = sub { (my $annline, my $state)=@_;
+        (my $line,my $info)=@{$annline};
+		say "MOD LINE: <$line>";
+        my $c_line=$line;
+        (my $stref, my $mod_name, my $pass_state)=@{$state};
+        my $skip=1;
+
+        if (exists $info->{'VarDecl'}) {
+                my $var = $info->{'VarDecl'}{'Name'};
+				$c_line = _emit_var_decl_Uxntal( $stref, $mod_name, $var);
+				$skip=0;
+        }
+		elsif ( exists $info->{'ParamDecl'} ) {
+			croak "SHOULD NOT HAPPEN";
+			my $var = $info->{'VarDecl'}{'Name'};			
+		}
+        push @{$pass_state->{'TranslatedCode'}},$c_line unless $skip;
+
+        return ([$annline],[$stref,$mod_name,$pass_state]);
+    };
+
+    my $state = [$stref,$mod_name, {'TranslatedCode'=>[]}];
+    ($stref,$state) = stateful_pass_inplace($stref,$mod_name,$pass_emit_module_declarations , $state,'emit_module_declarations() ' . __LINE__  ) ;
+
+    $stref->{'Modules'}{$mod_name}{'TranslatedCode'}=$state->[2]{'TranslatedCode'};
+    $stref->{'TranslatedCode'}=[@{$stref->{'TranslatedCode'}},@{$state->[2]{'TranslatedCode'}},''];
+
+    return $stref;
+} # END of translate_module_decls_to_Uxntal
+
 sub translate_sub_to_Uxntal {  (my $stref, my $f, my $ocl) = @_;
 
 =info
@@ -396,49 +430,20 @@ Instead of the nice but cumbersome approach we had until now, from now on it is 
 	}
 	];
  	($stref,$state) = stateful_pass_inplace($stref,$f,$pass_translate_to_Uxntal, $state,'pass_translate_to_Uxntal() ' . __LINE__  ) ;
-
+# --------------------------------------------------------------------------------------------
  	$stref->{'Subroutines'}{$f}{'TranslatedCode'}=$state->[2]{'TranslatedCode'};
  	$stref->{'TranslatedCode'}=[
-		 @{$state->[2]{'ArgVarDecls'}},
-		@{$stref->{'TranslatedCode'}},'',@{$state->[2]{'TranslatedCode'}}] ;
-	# For fixing LLVM IR
-	$stref->{'SubroutineArgs'}=$state->[2]{'Args'};
-	$stref->{'SubroutineName'}=$f;
+		@{$stref->{'TranslatedCode'}},'',
+		 @{$state->[2]{'ArgVarDecls'}},'',
+		 @{$state->[2]{'TranslatedCode'}}
+		 ] ;
+	# # For fixing LLVM IR
+	# $stref->{'SubroutineArgs'}=$state->[2]{'Args'};
+	# $stref->{'SubroutineName'}=$f;
  	return $stref;
 
 } # END of translate_sub_to_Uxntal()
 
-sub translate_module_decls_to_Uxntal { (my $stref, my $mod_name, my $ocl) = @_;
-
-    my $pass_emit_module_declarations = sub { (my $annline, my $state)=@_;
-        (my $line,my $info)=@{$annline};
-		say "MOD LINE: <$line>";
-        my $c_line=$line;
-        (my $stref, my $mod_name, my $pass_state)=@{$state};
-        my $skip=1;
-
-        if (exists $info->{'VarDecl'}) {
-                my $var = $info->{'VarDecl'}{'Name'};
-				$c_line = _emit_var_decl_Uxntal( $stref, $mod_name, $var);
-				$skip=0;
-        }
-		elsif ( exists $info->{'ParamDecl'} ) {
-			croak "SHOULD NOT HAPPEN";
-			my $var = $info->{'VarDecl'}{'Name'};			
-		}
-        push @{$pass_state->{'TranslatedCode'}},$c_line unless $skip;
-
-        return ([$annline],[$stref,$mod_name,$pass_state]);
-    };
-
-    my $state = [$stref,$mod_name, {'TranslatedCode'=>[]}];
-    ($stref,$state) = stateful_pass_inplace($stref,$mod_name,$pass_emit_module_declarations , $state,'emit_module_declarations() ' . __LINE__  ) ;
-
-    $stref->{'Modules'}{$mod_name}{'TranslatedCode'}=$state->[2]{'TranslatedCode'};
-    $stref->{'TranslatedCode'}=[@{$stref->{'TranslatedCode'}},@{$state->[2]{'TranslatedCode'}},''];
-
-    return $stref;
-} # END of translate_module_decls_to_Uxntal
 
 # FIXME: only include if they are actually used in the code!
 # $ocl: 0 = C, 1 = CPU/GPU OpenCL, 2 = C for TyTraIR aka TyTraC, 3 = pipe-based OpenCL for FPGAs
