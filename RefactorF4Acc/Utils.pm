@@ -144,6 +144,7 @@ sub numeric  ($$) { $_[0] <=> $_[1]; }
 
 sub sub_func_incl_mod {
     ( my $f, my $stref ) = @_;
+    local $DBG=1;
     if (not defined $stref) {croak "arg not defined sub_func_incl_mod" }
     croak join(' ; ', caller )  if $DBG and $stref!~/0x/;
     croak if $DBG and not defined $f;        

@@ -1421,6 +1421,7 @@ sub find_vars_in_ast { my ( $ast, $vars)=@_;
     if(scalar @{$ast}==0) {
         return {};
     }
+    croak Dumper($ast) if $ast->[0]=~/__PH/;
     if ( ($ast->[0] & 0xFF) == 1 or
         ($ast->[0] & 0xFF) == 10 ) { # array var or function/subroutine call
 

@@ -434,9 +434,9 @@ sub emit_AnnLines {
             my $module_name = $info->{'Module'};
             $rline = "module $module_name";
         }
-        elsif ( exists $info->{'End'} ) {
+        elsif ( exists $info->{'End'} ) { 
             my $kw = $info->{'End'};
-            my $name = exists $info->{'End'.ucfirst($kw)}{'Name'} ? $info->{'End'.ucfirst($kw)}{'Name'} : '';
+            my $name = ref($info->{'End'.ucfirst($kw)}) eq 'HASH' ? exists $info->{'End'.ucfirst($kw)}{'Name'} ? $info->{'End'.ucfirst($kw)}{'Name'} : '' : '';
             $rline = $indent."end $kw $name"
 
         }
@@ -611,10 +611,10 @@ sub emit_AnnLines {
 
         }
 #== SELECT/CASE
-        elsif ( exists $info->{'CaseVar'} ) {
+        elsif ( exists $info->{'CaseVar'} ) { 
             $rline = $indent . 'select case ( ' . $info->{'CaseVar'} . ' )';
         }
-        elsif ( exists $info->{'CaseVals'} ) {
+        elsif ( exists $info->{'CaseVals'} ) { 
             my $case_vals = $info->{'CaseVals'};
             $rline = $indent . 'case ( ' . join( ', ', map {
                 ref($_) eq 'ARRAY' ? join(':',@{$_}) : $_
@@ -643,15 +643,14 @@ sub emit_AnnLines {
             my $ast           = $info->{'Cond'}{'AST'};
             my $cond_expr_str = emit_expr_from_ast($ast);
 
-
-
-        if ( exists $info->{'ElseIf'} ) {
-
-            my $ast = $info->{'Cond'}{'AST'};
-            $rline = $indent . 'else if ( ' . $cond_expr_str . ' ) then';
-        } else {
-            $rline = $indent . 'if ( ' . $cond_expr_str . ' ) then';
-        }
+            if ( exists $info->{'ElseIf'} ) {
+                # my $ast = $info->{'Cond'}{'AST'};
+                $rline = $indent . 'else if ( ' . $cond_expr_str . ' ) then';
+            } else {
+                $rline = $indent . 'if ( ' . $cond_expr_str . ' ) then';
+            }
+        } elsif ( exists $info->{'EndIf'} ) {
+            $rline = $indent . 'end if';
 #== BACKSPACE, ENDFILE statements
         }
         elsif ( exists $info->{'IO'} ) {
@@ -749,6 +748,7 @@ sub emit_AnnLines {
         # ];
         # } else {
         # say $rline;
+        say Dumper([ $rline.$block_info, $info ]);
         return ([
             [ $rline.$block_info, $info ]
         ], $used_modules);

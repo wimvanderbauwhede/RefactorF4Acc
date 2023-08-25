@@ -13,7 +13,7 @@ use v5.10;
 use RefactorF4Acc::Config;
 use RefactorF4Acc::Utils;
 use RefactorF4Acc::Parser qw( parse_fortran_src );
-use RefactorF4Acc::Parser::Expressions qw( parse_expression_no_context emit_expr_from_ast );
+use RefactorF4Acc::Parser::Expressions qw( parse_expression_no_context emit_expr_from_ast get_vars_from_expression );
 use RefactorF4Acc::Refactoring::Helpers qw(
 	stateful_pass_inplace
 	splice_additional_lines_cond_inplace
@@ -58,39 +58,48 @@ sub replace_case_by_if { my ( $stref, $f, $annlines ) = @_;
 		my $c_line=$line;
 		(my $stref, my $f, my $pass_state)=@{$state};
         my $id = $info->{'LineId'};
-		my $skip=0;
+		# my $skip=0;
 		if (exists $info->{'CaseVar'}) {
 			push @{$pass_state->{'CaseStack'}}, dclone($info->{'CaseVar'}); 
 			delete $info->{'CaseVar'};
 			delete $info->{'Select'};
-			$skip=1;
+			$info->{'Deleted'}=1;
+			# $skip=1;
 		}
 		elsif (exists $info->{'Case'}) {
-			if ($pass_state->{'CaseElseIf'} == 0) {$pass_state->{'CaseElseIf'}=0}
+			
 			if ($pass_state->{'CaseElseIf'}) {
 				$info->{'ElseIf'} = 1;
 			} else {
-				$info->{'If'} = 1;
+				if ($pass_state->{'CaseElseIf'} == 0) {$pass_state->{'CaseElseIf'}=1}
 			}
+			$info->{'If'} = 1;
+			$info->{'IfThen'} = 1;
+			
 			delete $info->{'Case'};
 			my $select_expr_ast = $pass_state->{'CaseStack'}[-1];
 			
 			# The comma-separated expressions:
 			# Turn into ( $expr == $v )
 			# The nested pairs are b,e => (b <= v) and  (v <= e)
-			my $case_expr_lst = $info->{'CaseVals'};
-			$info->{'Cond'}{'AST'} =  __replace_seq_by_ors($select_expr_ast,$case_expr_lst);
+			my $case_expr_lst = dclone($info->{'CaseVals'});
+			if (ref($case_expr_lst) ne 'ARRAY') {
+				$case_expr_lst = [$case_expr_lst];
+			}
+			$info->{'Cond'}{'AST'} =  __replace_seq_by_ors($select_expr_ast,$case_expr_lst);			
 			$info->{'Cond'}{'Expr'}  = emit_expr_from_ast($info->{'Cond'}{'AST'});
-			$info->{'CondVars'}{'Set'} = get_vars_from_expression($case_expr_lst);
-			$info->{'CondVars'}{'List'} = sort keys %{$info->{'CondVars'}{'Set'}};
+			$info->{'CondVars'}{'Set'} = get_vars_from_expression($info->{'Cond'}{'AST'});
+			$info->{'CondVars'}{'List'} = [sort keys %{$info->{'CondVars'}{'Set'}}];
+			delete $info->{'CaseVals'};
 		}
-		elsif (exists $info->{'CaseDefault'}) {
+		elsif (exists $info->{'CaseDefault'}) { 
 			$info->{'Else'}=1;
 			delete $info->{'CaseDefault'};
 		}
-		elsif (exists $info->{'EndSelect'} ) {
+		elsif (exists $info->{'EndSelect'} ) { 
 			$info->{'EndIf'} = 1;
 			delete $info->{'EndSelect'};
+			$info->{'End'} = 'if';
 			pop @{$pass_state->{'CaseStack'}};
 		}
 
@@ -110,7 +119,9 @@ sub replace_case_by_if { my ( $stref, $f, $annlines ) = @_;
 sub __replace_seq_by_ors { my ($x,$seq) = @_;
 	#(AST,String,Error,HasFuncs)
 	if (scalar @{$seq} == 1) {
-		return parse_expression_no_context($seq->[0]);
+		 my ($item_ast,$r,$e,$f) = parse_expression_no_context($seq->[0]);
+		 croak Dumper($item_ast,$r,$e,$f) if $seq->[0] =~/_1/;
+		 return [15, $x,$item_ast];
 	} else {
 		my @item_asts=();
 		for my $item (@{$seq}) {

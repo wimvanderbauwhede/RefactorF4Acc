@@ -8,11 +8,12 @@ use RefactorF4Acc::Refactoring::Helpers qw( stateful_pass stateful_pass_inplace 
 use RefactorF4Acc::Refactoring::Fixes qw(
 	_declare_undeclared_variables
 	_remove_unused_variables
+	__has_module_level_declaration
 	);
 use RefactorF4Acc::Refactoring::CaseToIf qw( replace_case_by_if )	;
 # use RefactorF4Acc::Parser::Expressions qw( @sigils );
 use RefactorF4Acc::Translation::LlvmToTyTraIR qw( generate_llvm_ir_for_TyTra );
-
+use RefactorF4Acc::Emitter qw( emit_AnnLines );
 #
 #   (c) 2010-2017 Wim Vanderbauwhede <wim@dcs.gla.ac.uk>
 #
@@ -41,7 +42,7 @@ use Exporter;
 
 #               0    1    2    3    4    5    6    7    8    9    10   11   12   13    14
 our @sigils = ('(', '&', '$', 'ADD', 'SUB', 'MUL', 'DIV', 'mod', 'pow', '=', '@', '#', ':' ,'//', ')('
-#                15    16    17  18   19    20     21       22       23      24       25       26
+#                15    16      17    18      19     20     21     22     23     24       25       26
                ,'EQU', 'NEQ', 'LTH', 'GTH', 'lte', 'gte', 'not', 'AND', 'ORA', 'EOR', '.eqv.', '.neqv.'
 #                27   28
                ,',', '(/',
@@ -180,9 +181,12 @@ Instead of the nice but cumbersome approach we had until now, from now on it is 
 	(my $new_annlines_,$pass_state) = stateful_pass($annlines,$pass_pointer_analysis,$pass_state,"pass_pointer_analysis($f)");
 	$Sf->{'Pointers'} = $pass_state->{'Pointers'};
 
+    my $tannlines           = get_annotated_sourcelines( $stref, $f );
+	emit_AnnLines($stref, $f, $tannlines);
+
 	my $pass_translate_to_Uxntal = sub { (my $annline, my $state)=@_;
 		(my $line,my $info)=@{$annline};
-		say "LINE:<$line> ";
+		say "LINE:<$line> ";#.Dumper($info);©766
 		my $c_line=$line;
 		(my $stref, my $f, my $pass_state)=@{$state};
         my $id = $info->{'LineID'};
@@ -353,12 +357,12 @@ Instead of the nice but cumbersome approach we had until now, from now on it is 
 			if ($ocl==3 and $line=~/\$pragma/i) {
 				$c_line=~s/\!\$/#/;
 			} else {
-			$c_line=~s/\!/\/\//;
+			$c_line = '( '.$c_line.' )';
 			}
 		}
 		elsif (exists $info->{'Use'}) {
 			if ($line=~/$f/) {
-				$c_line = '//'.$line; $skip=1;
+				$c_line = '( '.$line.' )'; $skip=1;
 			} else {
 			# We should parse the module, or we can simply assume that we replace it with an include with the same name
 			warn "Replacing USE with #include: ".$line;
@@ -625,8 +629,8 @@ croak if not defined $branch_id;
 	# $cond_expr=~s/\+\>/>/g;
 	# my $rline = 'if ('.$cond_expr.') '. (exists $info->{'IfThen'} ? '{' : '');
 	my $rline = "$cond_expr ,&branch$branch_id JCN\n" .
-	             ",&branch{$branch_id}_end JMP\n" .
-             "&branch{$branch_id}";
+	             ",&branch${branch_id}_end JMP\n" .
+             "&branch${branch_id}";
 	return $rline;
 }
 
@@ -751,10 +755,10 @@ sub _emit_expression_Uxntal { my ($ast, $stref, $f, $info)=@_;
             (my $opcode, my $exp) =@{$ast};
             if ($opcode==0 ) { # eq '('
                 my $v = (ref($exp) eq 'ARRAY') ? _emit_expression_Uxntal($exp, $stref, $f,$info) : $exp;
-				croak 'TODO: ( ... )';
-                return "[ $v ]"; # FIXME
+				# croak 'TODO: ( ... ) '.Dumper( $exp);
+                return "[ $v ]"; # FIXME, but of course this is valid Uxntal
             } elsif ($opcode==28 ) { # eq '(/'
-			croak 'TODO: (/ ... /)';
+			croak 'TODO: (/ ... /) '.Dumper( $exp);
                 my $v = (ref($exp) eq 'ARRAY') ? _emit_expression_Uxntal($exp, $stref, $f,$info) : $exp;
                 return "[ $v ]"; # FIXME
             } elsif ($opcode==2 or $opcode>28) {# eq '$' or constants
@@ -799,6 +803,10 @@ sub _emit_expression_Uxntal { my ($ast, $stref, $f, $info)=@_;
 						# What is lacking here is a check in the container.
 						# That would be 
 						return $f.'_'.$exp;
+					}
+					elsif ( __has_module_level_declaration($stref,$f,$exp) ) {
+						
+						croak Dumper __has_module_level_declaration($stref,$f,$exp);
 					} else {
 						if ($ptr eq '') {
 							# return $exp;

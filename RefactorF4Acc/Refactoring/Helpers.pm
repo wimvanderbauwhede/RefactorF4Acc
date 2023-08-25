@@ -1052,6 +1052,7 @@ sub stateful_pass_inplace { my ( $stref, $f, $pass_actions, $state, $pass_info, 
 
     my $Sf                 = $stref->{$sub_or_func_or_mod}{$f};
     my $annlines           = get_annotated_sourcelines( $stref, $f );
+    
 
     my $nextLineID         = scalar @{$annlines} + 1;
     my $new_annlines=[];

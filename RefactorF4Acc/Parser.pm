@@ -1397,7 +1397,7 @@ or $line=~/^character\s*\(\s*len\s*=\s*[\w\*]+\s*\)/
                 	$info->{'HasVars'} = 1;
 					$info->{ 'Case' } = ++$case_counter;
 					$info->{'NonSpecificationStatement'} = 1;
-				} elsif ($line=~/case\s+\default/) {
+				} elsif ($line=~/case\s+default/) {
 					$info->{'CaseDefault'} = 1;
 					$info->{ 'Control' } = 1;
 					$info->{'NonSpecificationStatement'} = 1;

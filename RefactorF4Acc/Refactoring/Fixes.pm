@@ -50,6 +50,7 @@ our @EXPORT_OK = qw(
 	&_fix_scalar_ptr_args_subcall
 	&_make_dim_vars_scalar_consts_in_sigs
 	&remove_redundant_arguments_and_fix_intents
+	&__has_module_level_declaration
 );
 
 # ================================================================================================================================================
