@@ -746,26 +746,29 @@ sub _emit_expression_Uxntal { my ($ast, $stref, $f, $info)=@_;
 
                 return "$lv $rv  ".$sigils[$opcode].'2'; # FIXME, needs refining
             }
-        } elsif (scalar @{$ast}==2) { #  for '{'  and '$'
+        } elsif (scalar @{$ast}==2) { #  for '('  and '$'
 
             (my $opcode, my $exp) =@{$ast};
             if ($opcode==0 ) { # eq '('
                 my $v = (ref($exp) eq 'ARRAY') ? _emit_expression_Uxntal($exp, $stref, $f,$info) : $exp;
+				croak 'TODO: ( ... )';
                 return "[ $v ]"; # FIXME
             } elsif ($opcode==28 ) { # eq '(/'
+			croak 'TODO: (/ ... /)';
                 my $v = (ref($exp) eq 'ARRAY') ? _emit_expression_Uxntal($exp, $stref, $f,$info) : $exp;
                 return "[ $v ]"; # FIXME
             } elsif ($opcode==2 or $opcode>28) {# eq '$' or constants
 				if ($opcode == 34) {
 					die 'ERROR: Fortran LABEL as arg is not supported, sorry!'."\n"; #  "*$exp" : $exp;   # Fortran LABEL, does not exist in C
 				}
-
+				# Handle integers, also with size notations, e.g. 11_1, 22_2
+				# Transform into hex
 				if ($exp=~/^\d+(?:_[1248])?$/) {
 					my $sz=2;
 					if ($exp=~s/_([1248])$//) { $sz=$1}
 					$exp = toHex($exp,$sz);
 				}
-				my $mvar = $ast->[1];
+				my $mvar = $ast->[1]; # Why is this not $exp?
 				my $called_sub_name = $stref->{'CalledSub'} // '';
 				if (exists $stref->{'Subroutines'}{$f}{'Pointers'}{$mvar} ) {
 					# Meaning that $mvar is a pointer in $f
@@ -792,7 +795,9 @@ sub _emit_expression_Uxntal { my ($ast, $stref, $f, $info)=@_;
 						# If the variable in question is 'Out' or 'InOut' we should use the pointer
 
 					}
-					if ( in_nested_set($Sf,'Parameters',$exp)) {					
+					if ( in_nested_set($Sf,'Parameters',$exp)) {
+						# What is lacking here is a check in the container.
+						# That would be 
 						return $f.'_'.$exp;
 					} else {
 						if ($ptr eq '') {
@@ -805,9 +810,9 @@ sub _emit_expression_Uxntal { my ($ast, $stref, $f, $info)=@_;
 					}
 				} else {
 					if ($exp eq '.true.') {
-					return '#01';	
+						return '#01';
 					} elsif ($exp eq '.false.') {
-					return '#00';
+						return '#00';
 					} else {
 						return $exp;
 					}

@@ -462,7 +462,7 @@ ENDH
 sub show_status {
     (my $st)=@_;
     my @status_str = ( 'UNREAD', 'INVENTORIED', 'READ', 'PARSED', 'FROM_BLOCK', 'C_SOURCE','FILE_NOT_FOUND' );
-    return $status_str[$st];    
+    return $status_str[$st];
 }
 # Test if a var is an element of a nested set. Returns the innermost set 
 sub in_nested_set { (my $set, my $set_key, my $var)=@_;
@@ -482,7 +482,7 @@ sub in_nested_set { (my $set, my $set_key, my $var)=@_;
         } else {
         	return ''; # This returns to the caller, does not end the recursion
         }
-    } else {    	
+    } else {
         return '';
     }
 } # END of in_nested_set
