@@ -12,11 +12,11 @@ my @supported_passes = ( "translate_to_Uxntal" );
 
 if ($opts{'h'}){
     die "
-    $0 -[hvioe] module source file
+    $0 -[hvioe] module/program source file
 
     -v : verbose
     -w : warnings
-    -i : module directory (default: .)
+    -i : module/program directory (default: .)
     -o : output directory (default: Uxntal)
     -d : debug
     -e : Fortran source file extension (default is .f90, needs the dot)    
@@ -95,7 +95,7 @@ sub get_kernel_and_module_names {
     open my $SRC, '<', $kernel_src or die $!;
     my @src_lines = <$SRC>;
     close $SRC;
-    my ($kernel_sub_name)    = map {/^.*subroutine\s+(\w+)/; $1} grep { /^.*subroutine\s+\w+/ } @src_lines;
+    my ($kernel_sub_name)    = map {/^.*(?:subroutine|program)\s+(\w+)/; $1} grep { /^.*(?:subroutine|program)\s+\w+/ } @src_lines;
     say "SUB NAME: <$kernel_sub_name>" if $V;
     my ($kernel_module_name) = map { /^\s*module\s+(\w+)/; $1 } grep {/^\s*module\s+\w+/} @src_lines;
     say "MODULE NAME: <$kernel_module_name>" if $V;
