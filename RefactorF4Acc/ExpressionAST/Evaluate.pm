@@ -155,10 +155,11 @@ sub replace_consts_in_ast_no_iters { my ($stref, $f, $ast, $state)=@_;
 #if (not in_nested_set($stref->{'Subroutines'}{$f},'Parameters',$mvar)) {
 #carp 'BOOM!:'.Dumper $stref->{'Subroutines'}{$f}{'Parameters'}
 #}
-					if (in_nested_set($stref->{'Subroutines'}{$f},'Parameters',$mvar)) {
-						my $param_set = in_nested_set($stref->{'Subroutines'}{$f},'Parameters',$mvar);
+					my $sub_or_func = sub_func_incl_mod($f,$stref);
+					if (in_nested_set($stref->{$sub_or_func}{$f},'Parameters',$mvar)) {
+						my $param_set = in_nested_set($stref->{$sub_or_func}{$f},'Parameters',$mvar);
 						
-		  				my $decl = get_var_record_from_set( $stref->{'Subroutines'}{$f}{'Parameters'},$mvar);
+		  				my $decl = get_var_record_from_set( $stref->{$sub_or_func}{$f}{'Parameters'},$mvar);
 						
 		  				#The value could be an expression in terms of other parameters
 		  				my $val = $decl->{'Val'};

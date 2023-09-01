@@ -36,6 +36,7 @@ use Exporter;
 @RefactorF4Acc::Refactoring::FoldConstants::EXPORT_OK = qw(
     fold_constants_all
     fold_constants
+    fold_constants_no_iters
     fold_constants_in_decls
 );
 
@@ -51,7 +52,7 @@ sub fold_constants {
         $substitute_loop_iters_by_consts = 0;
     }
     # carp $f. ref($stref);
-    my $Sf = $stref->{'Subroutines'}{$f};
+    my $Sf = $stref->{'Subroutines'}{$f};    
     # Chicken and egg!
     $stref = identify_array_accesses_in_exprs($stref,$f);
     # die;
@@ -154,7 +155,8 @@ sub fold_constants {
 # This routine folds constants in declarations and statements but only based on parameters
 sub fold_constants_no_iters {
     my ($stref, $f) = @_;
-    my $Sf = $stref->{'Subroutines'}{$f};
+    my $mod_or_sub = sub_func_incl_mod($f,$stref);
+    my $Sf = $stref->{$mod_or_sub}{$f};
 
     my $pass_fold_constants = sub { (my $annline)=@_;
         (my $line,my $info)=@{$annline};
@@ -183,8 +185,8 @@ sub fold_constants_no_iters {
                     
                     my $const_dims= eval( $const_expr_str );
                     
-#say "FOLDING $var_name in $f: $expr_str => $const_expr_str => ".Dumper($const_dims);
-                    croak if not defined $const_dims;
+# say "FOLDING $var_name in $f: $expr_str => $const_expr_str => ".Dumper($const_dims);
+                    croak $const_expr_str if not defined $const_dims;
                     $decl->{'ConstDim'} = $const_dims;
                     $Sf->{$subset}{$var_name}{'Set'}=$decl;
                     # say "$f SUBSET: $subset => $var_name";
@@ -261,7 +263,7 @@ sub fold_constants_no_iters {
              }
         return [[$line,$info]];
     };
-    my $annlines = $Sf->{'RefactoredCode'};
+    my $annlines =  get_annotated_sourcelines($stref,$f); # was $Sf->{'RefactoredCode'};
     my $new_annlines = stateless_pass($annlines,$pass_fold_constants,"pass_fold_constants($f) " . __LINE__  ) ;
     return ($stref,$new_annlines);
 } # END of fold_constants_no_iters

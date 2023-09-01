@@ -542,7 +542,6 @@ sub emit_AnnLines {
                 $rline = $indent . $var_decl_str;
             } else {
                 if (exists $info->{'ParsedVarDecl'}{'Vars'}) {
-            # TODO EMIT  $info->{'ParsedVarDecl'};
                 my $var_decl_str =
                 emit_f95_parsed_var_decl( $info->{'ParsedVarDecl'} );
                 $rline = $indent . $var_decl_str;
@@ -761,9 +760,9 @@ sub emit_AnnLines {
         "pass_emit_RefactoredCode($f) " . __LINE__ );
 
     # if ($f=~/test_loop/) {
-    # map { say $_} @{ pp_annlines( $new_annlines ) };
+    map { say $_} @{ pp_annlines( $new_annlines ) };
 
-    # die;
+    die;
     # }
     $Sf->{'RefactoredCode'}=$new_annlines;
     return $stref;

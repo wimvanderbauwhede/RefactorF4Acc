@@ -1196,10 +1196,11 @@ sub emit_f95_parsed_var_decl { (my $pvd) =@_;
         my $init_pairs_str = join(', ',@init_pairs);
         my $line = join(', ', @attrs) . ' :: ' . $init_pairs_str;
         return $line;
-    } else {
+    } elsif (exists $pvd->{'Vars'} and defined $pvd->{'Vars'}) {
         my $vars = join(', ',@{  $pvd->{'Vars'} });
         my $line = join(', ', @attrs).' :: '.$vars;
         return $line;
+    } elsif (exists $pvd->{'Pars'} and defined $pvd->{'Pars'}) { croak Dumper $pvd;
     }
 }
 

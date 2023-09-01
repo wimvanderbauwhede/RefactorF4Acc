@@ -119,19 +119,6 @@ sub find_subroutines_functions_and_includes {
             $srcname =~s/^\.\///;  # e.g. admin/aadmn.f
             my $srcdir = $filepath;  
             $srcdir=~s/\/.+$//;        # i.e. $path # e.g. admin
-            # say "$srcname $srcdir $has_pattern <$excl_srcs_regex> ",(($has_pattern and $srcname=~$excl_srcs_regex) ? 1 : 0);
-            # say( 'not ('.
-            #     ((exists $excluded_sources{$srcname})?1:0).' or '.
-            #     ((exists $excluded_sources{"./$srcname"})?1:0).' or '.
-            #     (($has_pattern and $srcname=~$excl_srcs_regex)?1:0)
-            #     .') and not '. ((exists $excluded_dirs{$srcdir})?1:0) # this does not work as the $srcdir is simply '.' 
-            # );
-            # say( not (
-            #     exists $excluded_sources{$srcname} or 
-            #     exists $excluded_sources{"./$srcname"} or
-            #     ($has_pattern and $srcname=~$excl_srcs_regex)
-            #     ) and not exists $excluded_dirs{$srcdir} # this does not work as the $srcdir is simply '.' 
-            # );
 
             if (not (
                 exists $excluded_sources{$srcname} or 
@@ -215,11 +202,11 @@ sub find_subroutines_functions_and_includes {
         
     # die;
     if (!$incl) {
-    _find_external_modules($stref);
-    
-    _test_can_be_inlined_all_modules($stref);    
-    
-    _add_path_to_includes($stref);
+        _find_external_modules($stref);
+        
+        _test_can_be_inlined_all_modules($stref);    
+        
+        _add_path_to_includes($stref);
     }
     
     return $stref;
@@ -740,13 +727,13 @@ sub _find_external_modules { (my $stref) =@_;
 	my $prefix = $stref->{'Prefix'};
 	
 	for my $mod ( keys %{$stref->{'Modules'} } ) {
-	                if ( $stref->{'Modules'}{$mod}{'Status'} == $UNREAD ) {
-	                	say "MODULE $mod is EXTERNAL" if $V;
-						$stref->{'Modules'}{$mod}{'ModType'} = 'External';                		
-	                } else {
-	                	$stref->{'Modules'}{$mod}{'ModType'} = 'Local';
-	                }                                        
-                }
+        if ( $stref->{'Modules'}{$mod}{'Status'} == $UNREAD ) {
+            say "MODULE $mod is EXTERNAL" if $V;
+            $stref->{'Modules'}{$mod}{'ModType'} = 'External';                		
+        } else {
+            $stref->{'Modules'}{$mod}{'ModType'} = 'Local';
+        }                                        
+    }
                          
 	return $stref;
 }

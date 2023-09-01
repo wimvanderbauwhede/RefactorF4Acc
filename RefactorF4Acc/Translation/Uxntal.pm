@@ -11,6 +11,7 @@ use RefactorF4Acc::Refactoring::Fixes qw(
 	__has_module_level_declaration
 	);
 use RefactorF4Acc::Refactoring::CaseToIf qw( replace_case_by_if )	;
+use RefactorF4Acc::Refactoring::FoldConstants qw( fold_constants_no_iters )	;
 # use RefactorF4Acc::Parser::Expressions qw( @sigils );
 use RefactorF4Acc::Translation::LlvmToTyTraIR qw( generate_llvm_ir_for_TyTra );
 use RefactorF4Acc::Emitter qw( emit_AnnLines );
@@ -40,7 +41,7 @@ use Exporter;
 
 #### #### #### #### BEGIN OF UXNTAL TRANSLATION CODE #### #### #### ####
 
-#               0    1    2    3    4    5    6    7    8    9    10   11   12   13    14
+#               0    1    2    3      4      5      6      7      8      9   10   11   12   13    14
 our @sigils = ('(', '&', '$', 'ADD', 'SUB', 'MUL', 'DIV', 'mod', 'pow', '=', '@', '#', ':' ,'//', ')('
 #                15    16      17    18      19     20     21     22     23     24       25       26
                ,'EQU', 'NEQ', 'LTH', 'GTH', 'lte', 'gte', 'not', 'AND', 'ORA', 'EOR', '.eqv.', '.neqv.'
@@ -54,10 +55,12 @@ our @sigils = ('(', '&', '$', 'ADD', 'SUB', 'MUL', 'DIV', 'mod', 'pow', '=', '@'
 
 # $ocl: 0 = C, 1 = CPU/GPU OpenCL, 2 = C for TyTraIR aka TyTraC, 3 = pipe-based OpenCL for FPGAs
 # 4 = translate_to_TyTraLlvmIR, 5 = translate_to_OpenCL_memory_reduction
-sub translate_module_to_Uxntal {  (my $stref, my $module_name, my $ocl) = @_;
-
-	if (not defined $ocl) {$ocl=0;}
-	$stref->{'OpenCL'}=$ocl;
+sub translate_module_to_Uxntal {  (my $stref, my $module_name) = @_;
+	
+	($stref,my $new_annlines) = fold_constants_no_iters($stref,$module_name);
+	# $stref = emit_AnnLines( $stref,$module_name,$new_annlines);
+	# croak Dumper pp_annlines($stref->{'RefactoredCode'});
+	# croak Dumper pp_annlines($new_annlines,1);
 	$stref->{'TranslatedCode'}=[];
 	$Config{'FIXES'}={
 	_declare_undeclared_variables => 1,
@@ -78,11 +81,11 @@ sub translate_module_to_Uxntal {  (my $stref, my $module_name, my $ocl) = @_;
 			  \&replace_case_by_if]
 			  ,#,\&_remove_unused_variables],
 		  [\&translate_sub_to_Uxntal]
-       ],
-       $ocl);
+       ]
+       );
 
 	# $stref = _write_headers($stref,$ocl);
-	$stref = _emit_Uxntal_code($stref, $module_name, $ocl);
+	$stref = _emit_Uxntal_code($stref, $module_name);
 	# This enables the postprocessing for custom passes
 	$stref->{'CustomPassPostProcessing'}=1;
     # This makes sure that no fortran is emitted by emit_all()
@@ -91,7 +94,7 @@ sub translate_module_to_Uxntal {  (my $stref, my $module_name, my $ocl) = @_;
 
 # TODO: This should include handling of 'use' declarations.
 # Unfortunately for those we will need to split the module level declarations from the subroutines.
-sub translate_module_decls_to_Uxntal { (my $stref, my $mod_name, my $ocl) = @_;
+sub translate_module_decls_to_Uxntal { (my $stref, my $mod_name) = @_;
 
     my $pass_emit_module_declarations = sub { (my $annline, my $state)=@_;
         (my $line,my $info)=@{$annline};
@@ -102,7 +105,7 @@ sub translate_module_decls_to_Uxntal { (my $stref, my $mod_name, my $ocl) = @_;
 
         if (exists $info->{'VarDecl'}) {
                 my $var = $info->{'VarDecl'}{'Name'};
-				$c_line = _emit_var_decl_Uxntal( $stref, $mod_name, $var);
+				$c_line = _emit_var_decl_Uxntal( $stref, $mod_name, $info, $var);
 				$skip=0;
         }
 		elsif ( exists $info->{'ParamDecl'} ) {
@@ -240,7 +243,7 @@ Instead of the nice but cumbersome approach we had until now, from now on it is 
 					$c_line='( '.$line.' )';
 					$skip=1;
 				} else {
-					$c_line =  _emit_var_decl_Uxntal($stref,$f,$var);
+					$c_line =  _emit_var_decl_Uxntal($stref,$f,$info,$var);
 					$pass_state->{'ArgVarDecls'}=[@{$pass_state->{'ArgVarDecls'}},$c_line];
 					$skip=1;
 				}
@@ -248,7 +251,7 @@ Instead of the nice but cumbersome approach we had until now, from now on it is 
 		elsif ( exists $info->{'ParamDecl'} ) {
 				my $var = $info->{'VarDecl'}{'Name'};
 
-				$c_line = _emit_var_decl_Uxntal($stref,$f,$var);
+				$c_line = _emit_var_decl_Uxntal($stref,$f,$info,$var);
 		}
 		# For Uxntal, we need to turn the Case into an IfThen
 		elsif (exists $info->{'Select'} ) {
@@ -541,13 +544,14 @@ sub _emit_arg_decl_Uxntal { (my $stref,my $f,my $arg, my $name)=@_;
 
 
 
-sub _emit_var_decl_Uxntal { (my $stref,my $f,my $var)=@_;
+sub _emit_var_decl_Uxntal { (my $stref,my $f,my $info,my $var)=@_;
 	my $sub_or_module = sub_func_incl_mod( $f, $stref );
 	my $decl =  get_var_record_from_set($stref->{$sub_or_module}{$f}{'Vars'},$var);	
 	my $array = (exists $decl->{'ArrayOrScalar'} and $decl->{'ArrayOrScalar'} eq 'Array') ? 1 : 0;
 	# say $decl->{"ParsedVarDecl"};
 	my $const = '';
 	my $val='';
+	
 	if (defined $decl->{'Parameter'}) { 
 		$val = $decl->{'Val'};
 		my $val_str = $val; 
@@ -558,6 +562,13 @@ sub _emit_var_decl_Uxntal { (my $stref,my $f,my $var)=@_;
 			my $sz=2;
 			if ($val=~s/_([1248])$//) { $sz=$1}
 			$val_str = toHex($val,$sz);
+		} 
+		elsif (exists $decl->{'AST'}) {
+			my $ast = $decl->{'AST'};
+			$val_str = _emit_expression_Uxntal($ast,$stref, $f, $info);
+			
+		} else {
+			croak "ParsedParDecl without AST, FIXME!";
 		}
 		my $par_decl_str = '%'.$f.'_'.$var.' { '. $val_str .' }';
 		return ($stref,$par_decl_str);
@@ -1169,6 +1180,7 @@ sub add_to_C_build_sources {
 } # END of add_to_C_build_sources()
 
 sub __C_array_size { (my $dims) = @_;
+carp Dumper $dims;
 	my $array_size=1;
 	for my $dim (@{$dims}) {
 		my $lb=$dim->[0];

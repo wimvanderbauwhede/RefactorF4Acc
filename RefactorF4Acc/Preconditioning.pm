@@ -759,9 +759,12 @@ sub _split_multivar_decls {
                         my $val = ref($rinfo{'ParsedParDecl'}{'Pars'}{'Val'}) eq 'ARRAY' 
                         ? $rinfo{'ParsedParDecl'}{'Pars'}{'Val'}[$idx]
                         :  $rinfo{'ParsedParDecl'}{'Pars'}{'Val'};
+                        # WV20230901 This is hacky because if $val would be an array, this would not work. FIXME!
+                        my $ast = ref($rinfo{'ParsedParDecl'}{'Pars'}{'Val'}) eq 'ARRAY' ? $rinfo{'ParsedParDecl'}{'Pars'}{'AST'}[$idx] : $rinfo{'ParsedParDecl'}{'Pars'}{'AST'};
                         $rinfo{'ParsedParDecl'}{'Pars'} = {
                         'Var' => $var,
-                        'Val' => $val
+                        'Val' => $val,
+                        'AST' => $ast
                         };
 
                     }    

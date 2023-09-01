@@ -43,7 +43,7 @@ use Exporter;
 
 # -----------------------------------------------------------------------------
 
-sub refactor_all {
+sub refactor_all { 
 	( my $stref, my $code_unit_name, my $is_source_file_path) = @_;
 
 	my $sub_or_func_or_mod = sub_func_incl_mod( $code_unit_name, $stref );

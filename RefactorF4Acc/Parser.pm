@@ -1194,6 +1194,7 @@ or $line=~/^character\s*\(\s*len\s*=\s*[\w\*]+\s*\)/
 		 elsif ( $line =~ /^(.+)\s*::\s*(?:.+)(?:\s*|\s+\!\$ACC.+)$/ ) {# croak if $line=~/__pipe\s\!\$ACC/;
 
 				( $Sf, $info ) = __parse_f95_decl( $stref, $f, $Sf, $indent, $line, $info);
+				
 				if (exists $info->{'ParamDecl'}) {
 					$has_pars=1;
 					$Sf->{'HasParameters'}=1;
@@ -3082,9 +3083,13 @@ sub __parse_f95_decl {
 		my $parliststr = $1;
 		( $Sf, $info ) = _parse_f77_par_decl(  $Sf, $stref, $f, $indent,  $line, $info, $parliststr , $pt);
 		# croak $line. Dumper $pt;# if $line=~/s3/;
+		# croak $line. Dumper($pt,$info) if $line=~/funktalBoolToken/;
 
 	} else {
 		# F95 VarDecl, continued
+		if (not defined $pt->{'Vars'}[0] and exists $pt->{'Pars'} and defined $pt->{'Pars'}{'Var'}) { 
+			$pt->{'Vars'} = [$pt->{'Pars'}{'Var'}];
+		}
 
 		if (    not exists $info->{'ParsedVarDecl'}
 			and not exists $info->{'VarDecl'} )
@@ -3143,7 +3148,9 @@ sub __parse_f95_decl {
 				$decl->{'ArrayOrScalar'} = 'Scalar';
 				$decl->{'Dim'}           = [];
 				$decl->{'MemSpace'}		 = $pragmas->{'MemSpace'};
-
+				if (exists $pt->{'Pars'}) {
+					$decl->{'InitialValue'} = $pt->{'Pars'}{'Val'};
+				}
 				my $type =$decl->{'Type'};
 				if ( exists $pt->{'Attributes'} ) {
 					if ( exists $pt->{'Attributes'}{'Dim'} ) {
@@ -3316,7 +3323,7 @@ sub _parse_f77_par_decl {
 	$indent =~ s/\S.*$//;
 
 	my $ast =  parse_expression($parliststr, $info, $stref, $f);
-	# croak Dumper( $ast);
+	
 	if ($ast->[0] == 9
 	and $ast->[2][0] == 0
 	and scalar @{$ast->[2][1]} == 3
@@ -3473,8 +3480,19 @@ sub _parse_f77_par_decl {
 		};
 
 		$Sf->{'LocalParameters'}{'Set'}{$var}=$param_decl;
+		if (exists $info->{'ParsedParDecl'}) { 
+			if (scalar @param_names==1) {
+				$info->{'ParsedParDecl'}{'Pars'}{'AST'} = $param_decl->{'AST'};
+			} else {
+				if (not exists $info->{'ParsedParDecl'}{'Pars'}{'AST'}) {
+					$info->{'ParsedParDecl'}{'Pars'}{'AST'}[0] = $param_decl->{'AST'};
+				} else {
+					push @{$info->{'ParsedParDecl'}{'Pars'}{'AST'}}, $param_decl->{'AST'};
+				}
+			}
+		}
 	}
-
+	
 	return ( $Sf, $info );
 
 }    # END of _parse_f77_par_decl()
@@ -4901,10 +4919,12 @@ sub _get_var_recs_from_parse_tree { (my $tpt, my $vspt)=@_;
 	} else { # single elt
 		@vpts = ( $vspt );
 	}
+	## Now, it is possible that these variables are initialised. Keep only the LHS of the assignment.
+	@vpts = map { $_->[0] == 9 ? $_->[1] : $_  }  @vpts;
 	## then
 
 	for my $vpt (@vpts) {
-		# it can be either a scalar, an array, or an expression with '*' and a scalar or array
+		# it can be either a scalar, an array, or an expression with '*' and a scalar or array		
 		my $tvpt=$vpt;
 
 		if ($vpt->[0] == 5) {
