@@ -7,6 +7,7 @@ my $VV=1;
 if (@ARGV==2 and $ARGV[1] eq '-s') {$VV=0;}
 
 my $unroll = shift @ARGV;
+my $wd = shift @ARGV;
 
 my $scons = <<"ENDSCONS";
 import os
@@ -15,7 +16,7 @@ FC=os.environ.get('FC')
 
 fsources = ['sor_routines.f95','sor_params.f95', 'test_sor_unroll.f95']
 
-FFLAGS = ['-Wall','-cpp','-DDYN_ALLOC','-DWITH_OPENMP','-DTIMING','-DCHECKSUM','-DUNROLL=$unroll', '-Ofast','-mcmodel=medium','-m64','-ffree-form','-ffree-line-length-0','-fconvert=little-endian','-frecord-marker=4']
+FFLAGS = ['-Wall','-cpp','-DDYN_ALLOC','-DWITH_OPENMP','-DTIMING','-DCHECKSUM','-DWD=$wd','-DUNROLL=$unroll', '-Ofast','-mcmodel=medium','-m64','-ffree-form','-ffree-line-length-0','-fconvert=little-endian','-frecord-marker=4']
 
 envF=Environment(F95=FC,LINK=FC,F95FLAGS=FFLAGS,F95PATH=['.' ,'/usr/local/include'])
 

@@ -12,7 +12,7 @@ if ($wd!~/patched_autopar_/) {
 
 die 'Provide the unroll factor as arg'."\n" unless @ARGV;
 my $unroll = shift @ARGV;
-
+# my $wd = shift @ARGV;
 
 
 
@@ -31,7 +31,7 @@ ONE_SUB_PER_MODULE = 0
 
 ENDCFG
 
-open my $CFG, '>', "./MemoryReduction/rf4a_inline_$unroll.cfg";
+open my $CFG, '>', "./MemoryReduction/rf4a_inline_${unroll}.cfg";
 say $CFG $cfg;
 close $CFG;
 

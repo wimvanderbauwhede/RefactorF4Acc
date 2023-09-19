@@ -36,7 +36,7 @@ if ($wd!~/mem_reduced_inlined.Generated/) {
 die 'Provide the unroll factor as arg'."\n" unless @ARGV;
 my $unroll = shift @ARGV;
 
-my $niters_unroll = 1200/$unroll;
+my $niters_unroll = 12/$unroll;
 
 # Clean up
 unlink glob('f_*');
@@ -140,29 +140,13 @@ my $min_dim = ($params{'ip'}/2).'*WM*'.($params{'jp'}/2).'*WM*'.$params{'kp'};
             say $MF "use $module_name, only : $sub_name";
             } elsif ($line=~/implicit\s+none/) {
                 print $MF $line;
-                print $MF '     integer, parameter :: im=100
-     integer, parameter :: jm=100
-     integer, parameter :: km=80
-';
-        # } elsif ($line=~/do\s+global_id_0\s+=\s+1,\s*\d+/) {
-        #     my $rline=$line;
-        #     $rline=~s/,\s*\d+/, $min_dim/;
-        #     print $MF $rline;
+                say $MF '     integer, parameter :: im='.$params{'im'};#100
+                say $MF '     integer, parameter :: jm='.$params{'jm'};#100
+                say $MF '     integer, parameter :: km='.$params{'km'};#80
+
         } elsif ($line=~/niters\s*=\s*(\d+)/) { my $niters=$1;
         $line=~s/$niters/$niters_unroll/;
         print $MF $line;
-        # } elsif ($line=~/301/) {
-        #     $line=~s/301/(150*WM+1)/;
-        #     print $MF $line;
-        # } elsif ($line=~/8418552/) {
-        #     $line=~s/8418552/92*(150*WM+2)*(150*WM+3)/;
-        #     print $MF $line;
-        # } elsif ($line=~/8510058/) {
-        #     $line=~s/8510058/93*(150*WM+2)*(150*WM+3)/;
-        #     print $MF $line;
-        # } elsif ($line=~/8244691/) {
-        #     $line=~s/8244691/91*(150*WM+1)*(150*WM+1)/;
-        #     print $MF $line;
         } elsif ($line=~/\#endif/ and $init==0) {
             $init=1;
             print $MF $line;
@@ -212,17 +196,6 @@ for my $stage_kernel_name (@stage_kernel_names) {
     for my $line (@stage_kernel_file_lines) {
         # Remove use lines
         $line=~/use singleton_module/ && next;
-        # if ($line=~/integer\s*,\s*intent\(\w+\)\s+::\s+global_id/) {
-        #     $has_global_id_decl=1
-        #     }
-        # replace `call get_global_id(idx,0,global_id)` by `idx=global_id`
-        # if ($line=~/subroutine\s+stage_kernel_\d+\(([\w,\s]+)\)/) {
-        #     my $args_str = $1;
-        #     my @args = split(/\s*,\s*/,$args_str);
-        #     %stage_kernel_args = map {$_=>1} @args;
-        #     $line=~s/\)\s*$/,global_id)/;
-        #     $line.="\n";
-        # }
         # strip intent
         if ($line=~/intent\(\w+\)\s*::\s*(\w+)/) {
             my $var = $1;
@@ -230,91 +203,11 @@ for my $stage_kernel_name (@stage_kernel_names) {
                 $line=~s/,\s*intent\(\w+\)//;
             }
         }
-        # if ($line=~/30([0123])/) {
-        #     my $offset = $1;
-        #     my $val = '150*WM+'.$offset;
-        #     $line=~s/30[0123]/$val/;
-        # } elsif ($line=~/8418552/) {
-        #     $line=~s/8418552/92*(150*WM+2)*(150*WM+3)/;
-        # } elsif ($line=~/8510058/) {
-        #     $line=~s/8510058/93*(150*WM+2)*(150*WM+3)/;
-        # } elsif ($line=~/8244691/) {
-        #     $line=~s/8244691/91*(150*WM+1)*(150*WM+1)/;
-        # } elsif ($line=~/\(\/\s*(.+?)\s*\/\)/) {
-        #     my $ns_str = $1; my @ns = split(/\s*,\s*/,$ns_str);
-        #     my @n_expr_strs=();
-        #     for my $n (@ns) {
-        #         my $dn = decompose_num($n);
-        #         warn "$n => $dn" if $dn eq '';
-        #         push @n_expr_strs, $dn;
-        #     }
-        #     my $array_str = '(/ '.join(' , ',@n_expr_strs).' /)';
-        #     $line=~s/\(\/.+$/$array_str/;
-        # }
-        # if ($line=~/integer :: global_id___/) {next;} # does not happen
-        # $line=~s/global_id___\w+\b/global_id/g; # does not happen
-        # if ($line=~/^\s*call\s+get_global_id/ ) { # does not happen
-        #     if ( $first_call_to_get_global_id) {
-        #         say $SKF "integer, intent(In) :: global_id" unless $has_global_id_decl;
-        #         say $SKF "idx = global_id";
-        #         $first_call_to_get_global_id=0;
-        #     } else {
-        #         next;
-        #     }
-        # } else {
         print $SKF $line;
-        # }
     }
     close $SKF;
     system "cat Patched/$stage_kernel_file" if $V;
 }
-
-# # Patch the _scal files
-# # We need to substitute the parameters from the original module, so get them first
-
-
-# for my $scal_f_name (sort keys %scalar_functions) {
-#     my $f_name = $scal_f_name;
-#     $f_name=~s/_scal/.f95/;
-#     open my $SFF, '<', '../../MemoryReduction/Scalarized/'.$f_name or die $!;
-#     my @lines = <$SFF>;
-#     close $SFF;
-#     open $SFF, '>', "Patched/$f_name" or die $!;
-#     my $has_global_id_decl=0;
-#     my $first_decl=1;
-#     for my $line (@lines) {
-
-#         if ($line=~/dimension/) {
-#             for my $par (sort keys %params) {
-#                 my $val = $params{$par};
-#                 $line=~s/\b$par\b/$val/;
-#             }
-#         }
-#         if ($line=~/integer\s+::\s+global_id/) {
-#             $line=~s/integer/integer, intent(In)/;
-#             $has_global_id_decl=1
-#             }
-#         if ($line=~/subroutine\s+$scal_f_name\s*\(/) {
-#             $line=~s/$scal_f_name\s*\(/$scal_f_name(global_id,/;
-#             $line=~s/subroutine/pure subroutine/;
-#         } elsif ($line=~/get_global_id/) {
-#             $line = '!'.$line;
-#         }
-#         if ($line=~/globalIdInitialisation/ and $has_global_id_decl==0) {
-#             say $SFF "integer, intent(In) :: global_id";
-#             $has_global_id_decl=1;
-#         }
-#         if ($line!~/::/ and $line=~/=/ and $first_decl==1 and $has_global_id_decl==0) {
-#             say $SFF "integer, intent(In) :: global_id";
-#             $has_global_id_decl=1;
-#             $first_decl=0;
-#         }
-
-#         print $SFF $line;
-#     }
-#     close $SFF;
-#     system "cat Patched/$f_name" if $V;
-# }
 
 # Create a SConstruct file if it does not exists
 
