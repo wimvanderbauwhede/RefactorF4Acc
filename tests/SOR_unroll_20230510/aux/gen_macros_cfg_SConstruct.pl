@@ -7,7 +7,7 @@ my $VV=1;
 if (@ARGV==2 and $ARGV[1] eq '-s') {$VV=0;}
 
 my $unroll = shift @ARGV;
-my $wd = shift @ARGV;
+my $wm = shift @ARGV;
 
 my $scons = <<"ENDSCONS";
 import os
@@ -16,11 +16,11 @@ FC=os.environ.get('FC')
 
 fsources = ['sor_routines.f95','sor_params.f95', 'test_sor_unroll.f95']
 
-FFLAGS = ['-Wall','-cpp','-DDYN_ALLOC','-DWITH_OPENMP','-DTIMING','-DCHECKSUM','-DWD=$wd','-DUNROLL=$unroll', '-Ofast','-mcmodel=medium','-m64','-ffree-form','-ffree-line-length-0','-fconvert=little-endian','-frecord-marker=4']
+FFLAGS = ['-Wall','-cpp','-DDYN_ALLOC','-DWITH_OPENMP','-DTIMING','-DCHECKSUM','-DWM=$wm','-DUNROLL=$unroll', '-Ofast','-mcmodel=medium','-m64','-ffree-form','-ffree-line-length-0','-fconvert=little-endian','-frecord-marker=4']
 
 envF=Environment(F95=FC,LINK=FC,F95FLAGS=FFLAGS,F95PATH=['.' ,'/usr/local/include'])
 
-envF.Program('test_sor_unroll_$unroll',fsources,LIBS=['m'],LIBPATH=['.' ,'/usr/lib','/usr/local/lib'])
+envF.Program('test_sor_unroll_${unroll}_$wm',fsources,LIBS=['m'],LIBPATH=['.' ,'/usr/lib','/usr/local/lib'])
 
 
 ENDSCONS
@@ -33,6 +33,7 @@ say "Generated ./src/SConstruct" if $VV;
 
 my $macros = <<"ENDMACROS";
 #define UNROLL $unroll
+#define WM $wm
 ENDMACROS
 
 open my $M_H, '>', "./src/macros.h";
@@ -44,9 +45,9 @@ say "Generated ./src/macros.h" if $VV;
 
 my $cfg = <<"ENDCFG";
 # Relative path to the original Fortran source code
-SRCDIRS = src_${unroll}_postcpp
+SRCDIRS = src_${unroll}_${wm}_postcpp
 # Relative path to the refactored Fortran source code
-NEWSRCPATH = refactored-src_$unroll
+NEWSRCPATH = refactored-src_${unroll}_$wm
 # Name of the subroutine to start from. If this is the main program, leave blank.
 # TOP =
 EXT = .f95
@@ -58,8 +59,8 @@ FOLD_CONSTANTS = 1
 
 ENDCFG
 
-open my $CFG, '>', "./rf4a_$unroll.cfg";
+open my $CFG, '>', "./rf4a_${unroll}_${wm}.cfg";
 say $CFG $cfg;
 close $CFG;
 
-say "Generated ./rf4a_$unroll.cfg" if $VV;
+say "Generated ./rf4a_${unroll}_${wm}.cfg" if $VV;

@@ -3316,9 +3316,11 @@ sub _parse_f77_par_decl {
 	my $type   = 'Unknown';
 	my $typed=0;
 	my $attr = '';
-	if (defined $pt) {
+	if (defined $pt and exists $pt->{'TypeTup'}) {
 		$type = $pt->{'TypeTup'}{'Type'};
-		$attr = '(kind='.$pt->{'TypeTup'}{'Kind'}.')';
+		$attr = exists $pt->{'TypeTup'}{'Kind'} ? '(kind='.$pt->{'TypeTup'}{'Kind'}.')' : '(kind=4)';
+	} else {
+		die "Error in parameter declaration: $line\n";
 	}
 	$indent =~ s/\S.*$//;
 

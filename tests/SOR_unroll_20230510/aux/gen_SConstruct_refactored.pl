@@ -2,9 +2,9 @@
 use v5.20;
 use strict; 
 use warnings;
-die 'Provide the unroll factor and WD as arg'."\n" unless @ARGV;
+die 'Provide the unroll factor and WM as arg'."\n" unless @ARGV;
 my $unroll = shift @ARGV;
-my $wd = shift @ARGV;
+my $wm = shift @ARGV;
 my $scons = <<"ENDSCONS";
 import os
 
@@ -18,12 +18,12 @@ FFLAGS = ['-Wall', '-O3','-mcmodel=medium','-fno-automatic', '-ffree-form','-ffr
 
 envF=Environment(F95=FC,LINK=FC,F95FLAGS=FFLAGS,F95PATH=['.' ,'/usr/local/include'])
 
-envF.Program('test_sor_unroll_${unroll}_$wd',fsources,LIBS=['m'],LIBPATH=['.' ,'/usr/lib','/usr/local/lib'])
+envF.Program('test_sor_unroll_${unroll}_$wm',fsources,LIBS=['m'],LIBPATH=['.' ,'/usr/lib','/usr/local/lib'])
 
 ENDSCONS
 
-open my $SC, '>', "./refactored-src_${unroll}_$wd/src_${unroll}_${wd}_postcpp/SConstruct";
+open my $SC, '>', "./refactored-src_${unroll}_$wm/src_${unroll}_${wm}_postcpp/SConstruct" or die $!;
 say $SC $scons;
 close $SC;
 
-say "Generated ./refactored-src_${unroll}_$wd/src_${unroll}_${wd}_postcpp/SConstruct";
+say "Generated ./refactored-src_${unroll}_$wm/src_${unroll}_${wm}_postcpp/SConstruct";

@@ -382,8 +382,7 @@ sub _rename_array_accesses_to_scalars {
                 my $scalar_assignment_line =
                     '      '
                   . $stream_var . ' = '
-                  . $state->{'StreamVars'}{$var}{'Set'}{$stream_var}
-                  {'ArrayIndexExpr'};
+                  . $state->{'StreamVars'}{$var}{'Set'}{$stream_var}{'ArrayIndexExpr'};
                 my $array_assignment_line =
                   '      '
                   . $state->{'StreamVars'}{$var}{'Set'}{$stream_var}
@@ -1290,6 +1289,13 @@ sub _scalarise_array_accesses_in_ast {
                         $var_str =~ s/\+/p/g;
                         $var_str =~ s/\-/m/g;
                         $var_str =~ s/\*/t/g;
+                        # WV20230920 edge case: * 1 is removed later because of constant folding
+                        # $var_str =~ s/t1//g;
+                        #  In general, $x t $y should be evaluated here
+                        while ($var_str=~/(\d+)t(\d+)/) {
+                          my $val=$1*$2;
+                          $var_str=~s/\d+t\d+/$val/;
+                        }
 
 # carp "STREAM VAR STR: $expr_str => $var_str";
 # Taking the IODir from the orig var is not optimal: it leads to many InOut that actually are Out

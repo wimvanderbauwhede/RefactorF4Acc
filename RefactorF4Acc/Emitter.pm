@@ -747,7 +747,7 @@ sub emit_AnnLines {
         # ];
         # } else {
         # say $rline;
-        say Dumper([ $rline.$block_info, $info ]);
+#say Dumper([ $rline.$block_info, $info ]);
         return ([
             [ $rline.$block_info, $info ]
         ], $used_modules);
@@ -760,9 +760,9 @@ sub emit_AnnLines {
         "pass_emit_RefactoredCode($f) " . __LINE__ );
 
     # if ($f=~/test_loop/) {
-    map { say $_} @{ pp_annlines( $new_annlines ) };
+#map { say $_} @{ pp_annlines( $new_annlines ) };
 
-    die;
+#   die;
     # }
     $Sf->{'RefactoredCode'}=$new_annlines;
     return $stref;
