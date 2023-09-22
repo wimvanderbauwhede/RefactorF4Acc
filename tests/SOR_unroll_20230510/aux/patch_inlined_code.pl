@@ -167,12 +167,12 @@ close $SMF;
 ';
     say $MF '';
      say $MF '';
-        } elsif ($line=~/do\s+global_id_\d) {
-            $line=~s/1,\s*\d+/1,im*jm*km/;
+        } elsif ($line=~/do\s+global_id_\d/) {
+            $line=~s/\,\s*\d+/\,im\*jm\*km/;
             print $MF $line;
         } elsif($line=~/end\s+program/) {
             print $MF '#ifdef CHECKSUM
-    print *, p'.$unroll.'_1((im+2)*(jm+2)*(km+2)/2+(jm+2)*(km+2)/2+(km+2)/2)
+    print *, p' . $unroll . '_1((im+2)*(jm+2)*(km+2)/2+(jm+2)*(km+2)/2+(km+2)/2)
 #endif';
             say $MF '';
             print $MF $line;
