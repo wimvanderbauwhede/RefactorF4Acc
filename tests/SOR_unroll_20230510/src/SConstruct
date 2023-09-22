@@ -4,11 +4,11 @@ FC=os.environ.get('FC')
 
 fsources = ['sor_routines.f95','sor_params.f95', 'test_sor_unroll.f95']
 
-FFLAGS = ['-Wall','-cpp','-DDYN_ALLOC','-DWITH_OPENMP','-DTIMING','-DCHECKSUM','-DWM=1','-DUNROLL=1', '-Ofast','-mcmodel=medium','-m64','-ffree-form','-ffree-line-length-0','-fconvert=little-endian','-frecord-marker=4']
+FFLAGS = ['-Wall','-cpp','-DDYN_ALLOC','-DWITH_OPENMP','-DTIMING','-DCHECKSUM','-DWM=1','-DUNROLL=2', '-Ofast','-mcmodel=medium','-m64','-ffree-form','-ffree-line-length-0','-fconvert=little-endian','-frecord-marker=4']
 
 envF=Environment(F95=FC,LINK=FC,F95FLAGS=FFLAGS,F95PATH=['.' ,'/usr/local/include'])
 
-envF.Program('test_sor_unroll_1_1',fsources,LIBS=['m'],LIBPATH=['.' ,'/usr/lib','/usr/local/lib'])
+envF.Program('test_sor_unroll_2_1',fsources,LIBS=['m'],LIBPATH=['.' ,'/usr/lib','/usr/local/lib'])
 
 
 

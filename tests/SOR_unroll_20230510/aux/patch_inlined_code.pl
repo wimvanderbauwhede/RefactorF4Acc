@@ -35,6 +35,7 @@ if ($wd!~/mem_reduced_inlined.Generated/) {
 
 die 'Provide the unroll factor as arg'."\n" unless @ARGV;
 my $unroll = shift @ARGV;
+my $wm = shift @ARGV;
 
 my $niters_unroll = 12/$unroll;
 
@@ -49,17 +50,18 @@ if (scalar @orig_superkernel_files>1) {
 my $orig_superkernel_file = shift @orig_superkernel_files;
 # Get the parames from the original superkernel
 my %params=();
-open my $SMF, '<', $orig_superkernel_file or die $!;
+my $params_file = "../../../src_${unroll}_${wm}_postcpp/sor_params.f95";
+open my $SMF, '<', $params_file or die $!;
 while ( my $line = <$SMF>) {
     if ($line=~/integer\s*,\s*parameter\s*::\s*(\w+)\s*=\s*(\d+)/) {
         my $par =$1;
         my $val = $2;
-        $params{$par}=$val;
+        $params{$par}=eval("$val");
     }
 }
 close $SMF;
 
-my $min_dim = ($params{'ip'}/2).'*WM*'.($params{'jp'}/2).'*WM*'.$params{'kp'};
+# my $min_dim = ($params{'ip'}/2).'*WM*'.($params{'jp'}/2).'*WM*'.$params{'kp'};
 
 # - Find the file with the main program. It is the file starting with 'gen_'
     my @main_files =  glob('gen_*.f95');
@@ -138,30 +140,39 @@ my $min_dim = ($params{'ip'}/2).'*WM*'.($params{'jp'}/2).'*WM*'.$params{'kp'};
 
         if ($line=~/^\s*use.+only\s*:\s+$sub_name/) {
             say $MF "use $module_name, only : $sub_name";
-            } elsif ($line=~/implicit\s+none/) {
-                print $MF $line;
+        } elsif ($line=~/implicit\s+none/) {
+            print $MF $line;
+            if (exists $params{'im'}) {
                 say $MF '     integer, parameter :: im='.$params{'im'};#100
+            } else {die "Parameter im not defined\n";}
+            if (exists $params{'jm'}) {
                 say $MF '     integer, parameter :: jm='.$params{'jm'};#100
+            } else {die "Parameter jm not defined\n";}
+            if (exists $params{'km'}) {
                 say $MF '     integer, parameter :: km='.$params{'km'};#80
+            } else {die "Parameter km not defined\n";}
 
-        } elsif ($line=~/niters\s*=\s*(\d+)/) { my $niters=$1;
-        $line=~s/$niters/$niters_unroll/;
-        print $MF $line;
+        } elsif ($line=~/niters\s*=\s*(\d+)/) { 
+            my $niters=$1;
+            $line=~s/$niters/$niters_unroll/;
+            print $MF $line;
         } elsif ($line=~/\#endif/ and $init==0) {
             $init=1;
             print $MF $line;
              print $MF '
-    do i = 1,(im+1)*(jm+1)*(km+1)
+    do i = 1,(im+2)*(jm+2)*(km+2)
         rhs_0(i) = 1.0
         p0_0(i) = 1.0
     end do
 ';
     say $MF '';
      say $MF '';
-
+        } elsif ($line=~/do\s+global_id_\d) {
+            $line=~s/1,\s*\d+/1,im*jm*km/;
+            print $MF $line;
         } elsif($line=~/end\s+program/) {
             print $MF '#ifdef CHECKSUM
-    print *, p0_0((im+2)*(jm+2)*(km+2)/2+(jm+2)*(km+2)/2+(km+2)/2)
+    print *, p'.$unroll.'_1((im+2)*(jm+2)*(km+2)/2+(jm+2)*(km+2)/2+(km+2)/2)
 #endif';
             say $MF '';
             print $MF $line;
@@ -232,58 +243,4 @@ ENDSC
 print $SC $sconstruct_file;
 close $SC;
 
-}
-
-
-sub decompose_num { (my $n) = @_;
-    my $a=1;
-    my $ip=300;my $jp=300;
-    my @factors=();
-    # 1. small or large?
-    if ($n < ($ip-3)*($jp-3)) {
-        # small
-        $a =int($n/$ip); # e.g. 2
-        warn "$n => $a " unless $a<=2;
-
-        # now brute-force:
-        for my $b (0 .. 3) {
-            for my $off1 (-1 .. 3) {
-                if ($n == $a*($ip+$off1)+$b) {
-                    $a=($a==2?'2*':'');
-                    return $a.'(150*WM+'.$off1.')'.($b==0?'':'+'.$b);
-                }
-            }
-        }
-    } else {
-        # medium or large?
-        if ($n > ($ip+3)*($jp+3)+3) {
-            $a=int($n/(($ip-3)*($jp-3)));
-            warn "$n => $a " unless $a<=2;
-        } else {
-            $a=1;
-        }
-
-        for my $b (0 .. 3) {
-            for my $off1 (0.. 6) {
-                for my $off2 (0..4) {
-                    # warn $a*($ip+$off1)*($jp+$off2)+$b,"\n";
-                    if ($n == $a*($ip+$off1)*($jp+$off2)+$b) {
-                        $a=($a==2?'2*':'');
-                        return $a.'(150*WM+'.$off1.')*(150*WM+'.$off2.')'.($b==0?'':'+'.$b);
-                    }
-                }
-            }
-        }
-        for my $b (0 .. 6) {
-            for my $off1 (0.. 6) {
-                for my $off2 (0..4) {
-                    # warn $a*($ip+$off1)*($jp+$off2)+$b,"\n";
-                    if ($n == $a*($ip+$off1)*($jp+$off2)+$ip+$b) {
-                        $a=($a==2?'2*':'');
-                        return $a.'(150*WM+'.$off1.')*(150*WM+'.$off2.')+150*WM'.($b==0?'':'+'.$b);
-                    }
-                }
-            }
-        }
-    }
 }

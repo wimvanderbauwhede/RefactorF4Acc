@@ -21,9 +21,9 @@ if (! -d './aux') {
 	# * The file `macros.h` defines the UNROLL macro
 
 # We go up to 32 even though 20 is likely the upper limit
-for my $WM (1 .. 32) { 
+for my $WM (1,2,4,8,12,16,20,24,28,32) { 
     say "WM: $WM";
-for my $UNROLL ( 1 .. 4) {
+for my $UNROLL ( 2 .. 4) {
     say "UNROLL: $UNROLL";
     system("./aux/gen_macros_cfg_SConstruct.pl $UNROLL $WM");
     chdir "$wd/src";
@@ -56,13 +56,13 @@ for my $UNROLL ( 1 .. 4) {
     system("../aux/gen_cfg_inline.pl $UNROLL");
 
     chdir "$wd/patched_autopar_${UNROLL}_${WM}/MemoryReduction";
-die cwd();
-    system("refactorF4acc.pl -c rf4a_inline_${UNROLL}");
 
+    system("refactorF4acc.pl -c rf4a_inline_${UNROLL}.cfg");
     chdir "$wd/patched_autopar_${UNROLL}_${WM}/mem_reduced_inlined/Generated";
     system("../../../aux/patch_inlined_code.pl $UNROLL $WM");
     # -  final code in `patched_autopar_{UNROLL}_${WM}/mem_reduced_inlined/Generated/Patched`
-    system("cp -r $wd/patched_autopar_${UNROLL}_$WM/mem_reduced_inlined/Generated/Patched $wd/unroll_${UNROLL}_${WM}")
+    system("cp -r $wd/patched_autopar_${UNROLL}_$WM/mem_reduced_inlined/Generated/Patched $wd/unroll_${UNROLL}_${WM}");
+die cwd();
 
 }
 }
