@@ -747,7 +747,7 @@ sub emit_AnnLines {
         # ];
         # } else {
         # say $rline;
-        say Dumper([ $rline.$block_info, $info ]);
+#say Dumper([ $rline.$block_info, $info ]);
         return ([
             [ $rline.$block_info, $info ]
         ], $used_modules);

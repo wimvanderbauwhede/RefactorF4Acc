@@ -94,7 +94,7 @@ end do
 end do
 end do
 
-niters = 12/UNROLL
+niters = 24/UNROLL
 #ifdef TIMING
     call system_clock(timestamp(0), clock_rate)
 #endif
