@@ -16,7 +16,7 @@ use singleton_module_sor_superkernel, only : sor_superkernel
     real, dimension(1:2125568) :: p2_1
       integer(kind=4), parameter :: st_stage_kernel_1=1
     integer :: state_ptr
-      integer(kind=4), parameter :: niters=6
+      integer(kind=4), parameter :: niters=12
     integer :: iter
 #ifdef TIMING
     integer :: clock_rate

@@ -4,7 +4,7 @@ use v5.30;
 use strict;
 use warnings;
 our $VV=1;
-our $GEN=0;
+our $GEN=1;
 use Cwd;
 use Carp qw(croak);
 my $wd=cwd;
@@ -23,7 +23,7 @@ if (! -d './aux') {
 # We go up to 32 even though 20 is likely the upper limit
 for my $WM (1,2,4,8,12,16,20,24,28,32) { 
     say "WM: $WM";
-    for my $UNROLL ( 1) {
+    for my $UNROLL ( 1 .. 4) {
         if ($GEN) {
             chdir $wd;
             say "UNROLL: $UNROLL";

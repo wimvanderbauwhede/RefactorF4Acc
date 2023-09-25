@@ -240,7 +240,7 @@ else if ( j___sor_map_47_scal == 0 ) then
       5) + reltmp___sor_map_47_scal
  end if
  end do
- sv_rhs_0_in___f_comp_p4_1_8(i___f_maps_p4_1_7) = svec_p4_1_14(i___f_maps_p4_1_7)
+ sv_rhs_0_in___f_comp_p4_1_8(i___f_maps_p4_1_7) = svec_p4_1_13(i___f_maps_p4_1_7,i___f_maps_p4_1_7) 
  end do
  do i___f_maps_p4_1_0=1,9
  i_range___sor_map_71_scal = ((151 - 0) + 1)

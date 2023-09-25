@@ -25,9 +25,9 @@ functionSignaturesList = [
 stencilDefinitionsList = [("s1" , [4803,23059205,23059207,23064006,23064007,23064008,23068807,23068809,46123211] )]
 
 mainArgDeclsList = [
-      ("global_id_0" , MkFDecl "integer" Nothing (Just In) ["global_id_0"] )
+      ("p0_0" , MkFDecl "real"  (Just [(1,2121446768)]) (Just In) ["p0_0"] )
+    , ("global_id_0" , MkFDecl "integer" Nothing (Just In) ["global_id_0"] )
     , ("rhs_0" , MkFDecl "real"  (Just [(1,2121446768)]) (Just In) ["rhs_0"] )
-    , ("p0_0" , MkFDecl "real"  (Just [(1,2121446768)]) (Just In) ["p0_0"] )
     , ("p1_1" , MkFDecl "real"  (Just [(1,2121446768)]) (Just Out) ["p1_1"] )
   ]
 

@@ -16,7 +16,7 @@ use singleton_module_sor_superkernel, only : sor_superkernel
     real, dimension(1:2125568) :: p1_1
       integer(kind=4), parameter :: st_stage_kernel_1=1
     integer :: state_ptr
-      integer(kind=4), parameter :: niters=12
+      integer(kind=4), parameter :: niters=24
     integer :: iter
 #ifdef TIMING
     integer :: clock_rate
@@ -36,7 +36,7 @@ use singleton_module_sor_superkernel, only : sor_superkernel
     state_ptr = st_stage_kernel_1
     do iter = 1, niters
     print *, iter
-    do global_id_0 = 1, 2125568
+    do global_id_0 = 1,im*jm*km
       call sor_superkernel(global_id_0, p0_0, rhs_0, p1_1,state_ptr)
     end do
     end do
