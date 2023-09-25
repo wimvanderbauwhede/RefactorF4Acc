@@ -1,3 +1,3 @@
-#define UNROLL 2
-#define WM 1
+#define UNROLL 4
+#define WM 32
 

@@ -37,7 +37,7 @@ die 'Provide the unroll factor as arg'."\n" unless @ARGV;
 my $unroll = shift @ARGV;
 my $wm = shift @ARGV;
 
-my $niters_unroll = 12/$unroll;
+my $niters_unroll = 24/$unroll;
 
 # Clean up
 unlink glob('f_*');
