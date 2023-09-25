@@ -394,7 +394,7 @@ Instead of the nice but cumbersome approach we had until now, from now on it is 
 			warn "Replacing USE with #include: ".$line;
 			$line=~s/^\s*use\s+//;
 			$line=~s/\s*$//;
-			$c_line = '#include "'.$line.'.h"';
+			$c_line = "( from $line )";
 			}
 		}
 		elsif (
