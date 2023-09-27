@@ -13,12 +13,12 @@ use v5.10;
 use RefactorF4Acc::Config;
 use RefactorF4Acc::Utils;
 use RefactorF4Acc::Parser qw( parse_fortran_src );
-use RefactorF4Acc::Refactoring::Helpers qw( 
-	emit_f95_var_decl 
+use RefactorF4Acc::Refactoring::Helpers qw(
+	emit_f95_var_decl
 	stateful_pass_inplace
 	splice_additional_lines_cond_inplace
 	);
-use RefactorF4Acc::Refactoring::ContextFree qw( context_free_refactorings );	
+use RefactorF4Acc::Refactoring::ContextFree qw( context_free_refactorings );
 use RefactorF4Acc::Refactoring::Subroutines::Emitters qw( emit_subroutine_sig );
 use RefactorF4Acc::Refactoring::Common qw( refactor_COMMON_blocks_and_CONTAINed_subs );
 use RefactorF4Acc::Refactoring::Equivalence qw( change_EQUIVALENCE_to_assignment_lines );
@@ -44,7 +44,7 @@ Subroutines
     refactor_all_subroutines
     _refactor_subroutine_main
     _refactor_globals
-    _refactor_calls_globals 
+    _refactor_calls_globals
 =cut
 
 # -----------------------------------------------------------------------------
@@ -53,7 +53,7 @@ sub refactor_all_subroutines {
 	( my $stref ) = @_;
 
 	for my $f ( sort keys %{ $stref->{'Subroutines'} } ) {
-		
+
 		next if ( $f eq '' or $f eq 'UNKNOWN_SRC' or not defined $f );
 		next if exists $stref->{'Entries'}{$f};
 
@@ -90,7 +90,7 @@ Essentially, call `_refactor_globals()` on every sub
 for every line:
 
 - check if it needs changing:
-- need to mark the insert points for subroutine calls that replace the refactored blocks! 
+- need to mark the insert points for subroutine calls that replace the refactored blocks!
 This is a node called 'RefactoredSubroutineCall'
 - we also need the "entry point" for adding the declarations for the localized global variables 'ExGlobArgs'
 
@@ -98,11 +98,11 @@ This is a node called 'RefactoredSubroutineCall'
 (* VarDecls: keep as is)
 * ExGlobArgs: add new var decls
 * SubroutineCall: add globals for that subroutine to the call
-* RefactoredSubroutineCall: insert a new subroutine call instead of the "begin of block" comment. 
+* RefactoredSubroutineCall: insert a new subroutine call instead of the "begin of block" comment.
 * InBlock: skip; we need to handle the blocks separately
 * BeginBlock: insert the new subroutine signature and variable declarations
 * EndBlock: insert END
-                      
+
 =end markdown
 =cut
 
@@ -113,7 +113,7 @@ sub _refactor_subroutine_main {
 	#    local $I=1;
 	#    local $W=1;
 	my $Sf = $stref->{'Subroutines'}{$f};
-	
+
 	my $is_block_data =
 	  ( exists $Sf->{'BlockData'} and $Sf->{'BlockData'} == 1 ) ? 1 : 0;
 	if ($V) {
@@ -129,14 +129,14 @@ sub _refactor_subroutine_main {
 		say "context_free_refactorings($f)";
 	}
 
-	$stref = context_free_refactorings( $stref, $f );    # FIXME maybe do this later	
+	$stref = context_free_refactorings( $stref, $f );    # FIXME maybe do this later
 
 	# say "get_annotated_sourcelines($f)" if $V;
 	my $annlines = $Sf->{'RefactoredCode'};
 
-	
+
 	if ( $Sf->{'HasCommons'} and $Config{'INLINE_INCLUDES'}==0 ) {
-		# If there are no COMMON blocks the argument list should not change, so there should be no need to do this		
+		# If there are no COMMON blocks the argument list should not change, so there should be no need to do this
 		$annlines = _group_local_param_decls_at_top( $stref, $f, $annlines );
 	}
 
@@ -146,19 +146,18 @@ sub _refactor_subroutine_main {
 		)
 	  )
 	{
-		print "REFACTORING COMMONS for SUBROUTINE $f\n" if $V; 
+		print "REFACTORING COMMONS for SUBROUTINE $f\n" if $V;
 
-		if ( $Sf->{'RefactorGlobals'} == 1 ) { 
-
+		if ( $Sf->{'RefactorGlobals'} == 1 ) {
 			($stref,$annlines) = refactor_COMMON_blocks_and_CONTAINed_subs( $stref, $f, $annlines );
 
 		} elsif ( $DBG and $Sf->{'RefactorGlobals'} == 2 ) {
 			croak 'SHOULD BE OBSOLETE!';
 		}
 	}
-	
+
 	$annlines = _fix_end_lines( $stref, $f, $annlines );    # FIXME maybe do this later
-	
+
 	if ($is_block_data) {
 		$annlines = _add_extra_assignments_in_block_data( $stref, $f, $annlines );
 	}
@@ -176,7 +175,7 @@ sub _refactor_subroutine_main {
 		#	    $stref = parse_fortran_src($f, $stref);
 		#	    $annlines=$Sf->{'AnnLines'};
 	}
-	
+
 	$annlines = change_EQUIVALENCE_to_assignment_lines( $stref, $f, $annlines );
 
 	#	$Sf->{'AnnLines'} = $annlines;
@@ -232,11 +231,11 @@ sub _fix_end_lines {
 			}
 			my $indent = $info->{'Indent'} // '      ';
 			my $end_sub_line = $indent.'end '.$sub_or_prog.' '.$f;
-			
+
 			if (exists $info->{'Label'} ) {
 				my $label = $info->{'Label'};
-				if ( exists $Sf->{'ReferencedLabels'}{$label} ) {		
-							
+				if ( exists $Sf->{'ReferencedLabels'}{$label} ) {
+
 					$end_sub_line = $indent.$label.' end '.$sub_or_prog.' '.$f;
 					croak $end_sub_line.Dumper($info);
 				}
@@ -250,14 +249,14 @@ sub _fix_end_lines {
 
 		if ( $line =~ /^\s*contains\s*$/ ) {
 			$line =~ s/\s+$//;
-			$annline->[1]{'Contains'}=1;			
-			push @{$rlines}, $annline;			
+			$annline->[1]{'Contains'}=1;
+			push @{$rlines}, $annline;
 			push @{$rlines}, [ "end $sub_or_prog $f", $info ];
 			$done_fix_end = 1;
 		}
 	}
 
-=pod 
+=pod
 Info bug to be fixed
 The code below fails because for structures like
 
@@ -291,16 +290,16 @@ the block detection is incorrect and so the final `end` is identified as EndDo
 # 		if  ( exists $info->{'EndSubroutine'}
 # 		or exists $info->{'EndFunction'}
 # 		or exists $info->{'EndProgram'}
-# 		 ) { 
+# 		 ) {
 # 			 warn 'HERE';
 # 			if ($is_block_data) {
 # 				$info->{'EndBlockData'} = 1;
-# 			}			 
+# 			}
 # 			my $indent = $info->{'Indent'} // '      ';
 # 			my $end_sub_line = $indent.'end '.$sub_or_prog.' '.$info->{'End'.ucfirst($sub_or_prog)}{'Name'};
 # 			if (exists $info->{'Label'} ) {
 # 				my $label = $info->{'Label'};
-# 				if ( exists $Sf->{'ReferencedLabels'}{$label} ) {				
+# 				if ( exists $Sf->{'ReferencedLabels'}{$label} ) {
 # 					$end_sub_line = $indent.$label.' end '.$sub_or_prog.' '.$info->{'End'.ucfirst($sub_or_prog)}{'Name'};
 # 				}
 # 		 	}
@@ -308,7 +307,7 @@ the block detection is incorrect and so the final `end` is identified as EndDo
 # 			push @{$rlines}, [$end_sub_line,$info];
 # 			$done_fix_end = 1;
 # 			last;
-# 		}	
+# 		}
 #
 # 		# TODO make this $info->{'Contains'}
 # 		elsif ( $line =~ /^\s*contains\s*$/ ) {
@@ -434,7 +433,7 @@ sub _add_implicit_none {
 				  if $V;
 				my $r_info = {};
 				my $indent = ' ' x 6;
-				$r_info->{'LineID'}       = $prev_line_id - 1; # ad hoc! 
+				$r_info->{'LineID'}       = $prev_line_id - 1; # ad hoc!
 				$r_info->{'Indent'}       = $indent;
 				$r_info->{'ImplicitNone'} = 1;
 				$r_info->{'Ann'}          = [ annotate( $f, __LINE__ ) ];
@@ -469,8 +468,8 @@ sub _add_ExMismatchedCommonArg_assignment_lines {
 			and $first_vardecl == 1 )
 		{
 			$first_vardecl = 0;
-			
-			for my $rline ( @{ $stref->{'Subroutines'}{$f}{'ExMismatchedCommonArgs'}{'ArgAssignmentLines'} } ) {				
+
+			for my $rline ( @{ $stref->{'Subroutines'}{$f}{'ExMismatchedCommonArgs'}{'ArgAssignmentLines'} } ) {
 				# push @{$rlines}, $rline ;
 				push @{$rlines}, [$rline->[0].' ! ArgAssignmentLines', $rline->[1]] ;
 			}
@@ -503,15 +502,15 @@ sub _emit_refactored_signatures {
 	for my $annline ( @{$annlines} ) {
 		( my $line, my $info ) = @{$annline};
 		if ( exists $info->{'Signature'} ) {
-			@{$annline} = emit_subroutine_sig($annline);			
+			@{$annline} = emit_subroutine_sig($annline);
 			( my $line, my $info ) = @{$annline};
 			if (exists $info->{'Signature'}{'ReturnType'}) {
 				$has_return_type=1;
 				$fname=$info->{'Signature'}{'Name'};
 			}
 		}
-		if ( $has_return_type 
-		and exists $info->{'VarDecl'} 
+		if ( $has_return_type
+		and exists $info->{'VarDecl'}
 		and $info->{'VarDecl'}{'Name'} eq $fname
 		) {
 			$info->{'Deleted'}=1;
@@ -524,30 +523,30 @@ sub _emit_refactored_signatures {
 	return $rlines;
 }    # END of _emit_refactored_signatures
 
-# We take the parameter declaration lines out of the annlines, and then re-insert them before the first variable declaration 
+# We take the parameter declaration lines out of the annlines, and then re-insert them before the first variable declaration
 sub _group_local_param_decls_at_top { my ( $stref, $f ) = @_;
 	my $Sf = $stref->{'Subroutines'}{$f};
 	my $pass_split_out_ParamDecls = sub {
 		(my $annline, my $state)=@_;
 		(my $line,my $info)=@{$annline};
 		my $new_annlines = [$annline];
-		if (exists $info->{'ParamDecl'}) {				
-					$new_annlines =[ 
+		if (exists $info->{'ParamDecl'}) {
+					$new_annlines =[
 					["! Moved param decl for ".
-					(ref($info->{'ParamDecl'}{'Name'}) eq 'ARRAY' ? 
+					(ref($info->{'ParamDecl'}{'Name'}) eq 'ARRAY' ?
 					$info->{'ParamDecl'}{'Name'} [0] :
 					$info->{'ParamDecl'}{'Name'}
-					). ' in '.$f.' to top of code unit'					
-					,{'Comments' => 1}],					
+					). ' in '.$f.' to top of code unit'
+					,{'Comments' => 1}],
 					];
 					$info->{'Ann'}       = [ annotate( $f, __LINE__ . ' :  _group_local_param_decls_at_top'  ) ];
 					push @{$state},[ $line , $info];
-		}		
-		
+		}
+
 		return ($new_annlines,$state);
 	};
 	my $param_decl_annlines = [['! Grouped Parameter Declarations',{'Comments' => 1}]];
- 	($stref,$param_decl_annlines) = stateful_pass_inplace($stref,$f,$pass_split_out_ParamDecls, $param_decl_annlines,'_split_out_ParamDecls ' . __LINE__  ) ;	
+ 	($stref,$param_decl_annlines) = stateful_pass_inplace($stref,$f,$pass_split_out_ParamDecls, $param_decl_annlines,'_split_out_ParamDecls ' . __LINE__  ) ;
 	 if (scalar @{ $param_decl_annlines } > 1) {
 		 # This does not work if there are no VarDecls so in that case put them before the first NonSpecificationStatement
 		my $merged_annlines = splice_additional_lines_cond_inplace(

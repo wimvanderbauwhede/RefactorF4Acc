@@ -77,7 +77,7 @@ sub analyse_variables {
 			# -------------------------------------------------------------------------------------------------------------------
 
 			for my $mvar (@chunks) {
-				croak "<$mvar>".Dumper(@chunks).Dumper($info) if $mvar eq 'and';
+				# croak "<$mvar>".Dumper(@chunks).Dumper($annline) if $mvar eq 'kind';
                 next if exists $stref->{'Subroutines'}{$f}{'CalledSubs'}{'Set'}{$mvar};    # Means it's a function
 				next if $mvar =~ /^\d+(?:_[1248])?$/;
 				next if not defined $mvar or $mvar eq '';

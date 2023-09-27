@@ -373,7 +373,7 @@ sub get_f95_var_decl {
             # $array_or_scalar = $decl->{'ArrayOrScalar'};
 
     } elsif ( defined $f and defined $stref and defined $var ) {
-        croak "WARNING: VAR $var declared via IMPLICITS in get_f95_var_decl()!" if $DBG;
+        croak "WARNING: VAR $var declared via IMPLICITS in get_f95_var_decl()!" if $var eq '.true.' ;#$DBG;
         warning("VAR $var declared via IMPLICITS in get_f95_var_decl()",$WW);
         ( $type, my $kind, $attr ) = type_via_implicits( $stref, $f, $var );
         return {
@@ -616,10 +616,10 @@ sub emit_f95_var_decl {
             my $const_array_sz = scalar split(/\s*\,\s*/,$var_decl_rec->{'Val'});
             $dim = [[1,$const_array_sz]];
             $var_decl_rec->{'ConstDim'} = $dim;
-        } elsif ($DBG) {
+        } elsif ($DBG and $is_array) {
             carp "VAR has no ConstDim: ". Dumper($var_decl_rec);# ->{'Name'}
 
-            # WV: TODO: created ConstDim here if the InheritedParams allow it
+            # WV: TODO: create ConstDim here if the InheritedParams allow it
         }
 
       my $is_par = exists $var_decl_rec->{'Parameter'} ? 1 : 0;

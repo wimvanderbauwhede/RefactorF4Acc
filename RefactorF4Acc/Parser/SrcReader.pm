@@ -89,7 +89,7 @@ sub read_fortran_src {
         if ( not exists $stref->{'SourceContains'}{$fpath}
             or ( scalar @{ $stref->{'SourceContains'}{$fpath}{'List'} } == 0 ) )
         {
-            $no_need_to_read = 0; 
+            $no_need_to_read = 0;
         }
         else {
 
@@ -201,10 +201,10 @@ line_p1 &
 (&) line_p3
 
 so, as soon as we detect an & at the end of a line, we are in multi-line parsing mode
--If we find a non-blank, non-comment line without & at the end, that's the end of the multi-line 
+-If we find a non-blank, non-comment line without & at the end, that's the end of the multi-line
 -If we find a comment, we push it on the stack, and we emit all comments before the multi-line
 -Blanks are simply skipped
--Comments at the end of a line are discarded                                                                         
+-Comments at the end of a line are discarded
 
 So, in this case, is there any reason to look ahead?
 Suppose we don't:
@@ -293,7 +293,7 @@ Suppose we don't:
                         }
                         $line =~ s/\x{d}//;
                     }
-                    
+
                     while (@lines) {
 
 # OK, this is a HACK but I will remove anything after the 72nd character
@@ -1103,7 +1103,7 @@ Suppose we don't:
                     }
 ####### POSTAMBLE
                     if (
-                      $DBG and 
+                      $DBG and
                         not
                         exists $stref->{$srctype}{$code_unit_name}{'Status'} )
                     {
@@ -1194,6 +1194,7 @@ sub _pushAnnLine {
 
         if ( exists $info->{'EndModule'} and $srctype eq 'Subroutines' ) {
             if ( $f ne 'UNKNOWN_SRC' ) {
+              if ( not defined $stref->{$srctype}{$f}{'Status'}  ) { croak $f,Dumper $stref->{$srctype}{$f}; }
                 if ( $stref->{$srctype}{$f}{'Status'} < $READ ) {
                     $stref->{$srctype}{$f}{'Status'} = $READ;
                 }
@@ -1404,7 +1405,7 @@ sub _procLine {
     }
 
     # FIXME: trailing comments. I think they are discarded!
-    elsif ( $line =~ /.\!.*$/ ) { 
+    elsif ( $line =~ /.\!.*$/ ) {
         my $tline = $line;
         my $nline = '';
         my $i     = 0;

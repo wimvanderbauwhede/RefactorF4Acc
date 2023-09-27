@@ -1,9 +1,9 @@
 # Fold all constants in a code unit
 # This is done primarily for analysis, but it is of course a program transformation
 package RefactorF4Acc::Refactoring::FoldConstants;
-# 
+#
 #   (c) 2021 Wim Vanderbauwhede <Wim.Vanderbauwhede@Glasgow.ac.uk>
-#   
+#
 
 use vars qw( $VERSION );
 $VERSION = "2.1.1";
@@ -17,11 +17,11 @@ use RefactorF4Acc::Config;
 use RefactorF4Acc::Utils;
 use RefactorF4Acc::Refactoring::Helpers qw( get_annotated_sourcelines stateless_pass );
 use RefactorF4Acc::Analysis::ArrayAccessPatterns qw( identify_array_accesses_in_exprs );
-use RefactorF4Acc::ExpressionAST::Evaluate qw( 
-    fold_constants_in_expr 
+use RefactorF4Acc::ExpressionAST::Evaluate qw(
+    fold_constants_in_expr
     fold_constants_in_expr_no_iters
     replace_consts_in_ast_no_iters
-    eval_expression_with_parameters     
+    eval_expression_with_parameters
     );
 use RefactorF4Acc::Parser::Expressions qw( emit_expr_from_ast parse_expression_no_context get_vars_from_expression);
 use RefactorF4Acc::Emitter qw( emit_AnnLines );
@@ -42,17 +42,17 @@ use Exporter;
 
 # foldConstants :: ProgUnit Anno -> ProgUnit Anno
 # We'll take ProgUnit to mean a subroutine
-# To do this right, I need to indentify the nested loops in the subroutine. 
+# To do this right, I need to indentify the nested loops in the subroutine.
 # That will provide a BlockID which is need to work out what is a loop iterator
 # So this requires running identify_array_accesses_in_exprs() first to identify any nested loops.
 # $ast = (fold_constants_in_expr($stref, $f, $block_id, $ast);
-sub fold_constants { 
+sub fold_constants {
     my ($stref, $f, $substitute_loop_iters_by_consts) = @_;
     if (not defined $substitute_loop_iters_by_consts) {
         $substitute_loop_iters_by_consts = 0;
     }
     # carp $f. ref($stref);
-    my $Sf = $stref->{'Subroutines'}{$f};    
+    my $Sf = $stref->{'Subroutines'}{$f};
     # Chicken and egg!
     $stref = identify_array_accesses_in_exprs($stref,$f);
     # die;
@@ -65,9 +65,9 @@ sub fold_constants {
             # $stref->{'Subroutines'}{ $f }{'ArrayAccesses'} has all block ids as keys, but how is this linked to the actual loop nest?
             my $in_block = exists $info->{'Block'} ? $info->{'Block'}{'LineID'} : '-1';
             my $block_id = exists $info->{'BlockID'} ? $info->{'BlockID'}  : 0;
-            
+
 			# The array dimensions have already been folded and are stored in
-            # $state->{'Subroutines'}{ $f }{'Blocks'}{ $block_id }{'Arrays'}{$array_var}{'Dims'} 
+            # $state->{'Subroutines'}{ $f }{'Blocks'}{ $block_id }{'Arrays'}{$array_var}{'Dims'}
             # i.e. in $stref->{}
 			# if ( exists $info->{'Signature'} ) {
 			# }
@@ -76,7 +76,7 @@ sub fold_constants {
             if (exists $info->{'VarDecl'} and not exists $info->{'ParamDecl'}
             #  and is_array_decl($info)
              ) {
-                
+
                 my $var_name = $info->{'VarDecl'}{'Name'};
                 my $subset = in_nested_set( $Sf, 'Vars', $var_name );
                 my $decl = get_var_record_from_set($Sf->{$subset},$var_name);
@@ -94,10 +94,10 @@ sub fold_constants {
                     $Sf->{$subset}{$var_name}{'Set'}=$decl;
                     # say "$f SUBSET: $subset => $var_name";
                     $Sf->{$subset}{'Set'}{$var_name} = $decl;
-                    my $pv_dims = [ 
-                        map {  $_->[0].':'.$_->[1] } 
+                    my $pv_dims = [
+                        map {  $_->[0].':'.$_->[1] }
                         @{$const_dims}
-                    ]; 
+                    ];
                     $info->{'ParsedVarDecl'}{'Attributes'}{'Dim'}=$pv_dims;
                 }
 
@@ -110,17 +110,17 @@ sub fold_constants {
                 my $evaled_val = eval_expression_with_parameters($val_expr_str,$info, $stref, $f) ;
                 $info->{'ParsedParDecl'}{'Pars'}{'Val'} = $evaled_val;
                 # warn 'TODO!';
-			}            
+			}
             # say "LINE: $line";
             if ($substitute_loop_iters_by_consts) {
                 if (exists $info->{'Assignment'} ) {
                     # We need the AST for LHS and RHS
-                    if ($info->{'Lhs'}{'ArrayOrScalar'} eq 'Array' ) { 
+                    if ($info->{'Lhs'}{'ArrayOrScalar'} eq 'Array' ) {
                         my $lhs_ast = $info->{'Lhs'}{'ExpressionAST'};
                         my $const_fold_lhs_ast = fold_constants_in_expr($stref, $f, $block_id, $lhs_ast);
                         $info->{'Lhs'}{'ExpressionAST'}=$const_fold_lhs_ast;
                     }
-                    
+
                     my $rhs_ast  = $info->{'Rhs'}{'ExpressionAST'};
                     my $const_fold_rhs_ast = fold_constants_in_expr($stref, $f, $block_id, $rhs_ast);
                     $info->{'Rhs'}{'ExpressionAST'}=$const_fold_rhs_ast;
@@ -165,36 +165,36 @@ sub fold_constants_no_iters {
             if (exists $info->{'VarDecl'} and not exists $info->{'ParamDecl'}
             #  and is_array_decl($info)
              ) {
-                
+
                 my $var_name = $info->{'VarDecl'}{'Name'};
-                
+
                 my $subset = in_nested_set( $Sf, 'Vars', $var_name );
                 my $decl = get_var_record_from_set($Sf->{$subset},$var_name);
                 if (exists $decl->{'ArrayOrScalar'}
                 and $decl->{'ArrayOrScalar'} eq 'Array'
                 ) {
-                    
+
                     my $expr_str = '['.join(',',map {'['.$_->[0].','.$_->[1].']'} @{$decl->{'Dim'}}).']';
-                    
+
                     my ($ast,$str_,$error_,$has_funcs_)=parse_expression_no_context($expr_str);
                     my ($const_ast, $retval_) = replace_consts_in_ast_no_iters($stref, $f, $ast, $info);
                     my $const_expr_str = emit_expr_from_ast($const_ast);
-                    
+
                     $const_expr_str=~s/\(\//[/g;
                     $const_expr_str=~s/\/\)/]/g;
-                    
+
                     my $const_dims= eval( $const_expr_str );
-                    
+
 # say "FOLDING $var_name in $f: $expr_str => $const_expr_str => ".Dumper($const_dims);
                     croak $const_expr_str if not defined $const_dims;
                     $decl->{'ConstDim'} = $const_dims;
                     $Sf->{$subset}{$var_name}{'Set'}=$decl;
                     # say "$f SUBSET: $subset => $var_name";
                     $Sf->{$subset}{'Set'}{$var_name} = $decl;
-                    my $pv_dims = [ 
-                        map {  $_->[0].':'.$_->[1] } 
+                    my $pv_dims = [
+                        map {  $_->[0].':'.$_->[1] }
                         @{$const_dims}
-                    ]; 
+                    ];
                     $info->{'ParsedVarDecl'}{'Attributes'}{'Dim'}=$pv_dims;
                 }
 			}
@@ -204,7 +204,7 @@ sub fold_constants_no_iters {
                 my $decl = get_var_record_from_set($Sf->{$subset},$var_name);
             }
             if (exists $info->{'ParamDecl'} ) {
-                
+
                 my $var_name = $info->{'ParsedParDecl'}{'Pars'}{'Var'};
                 my $val_expr_str = $info->{'ParsedParDecl'}{'Pars'}{'Val'};
                 # WV 2021-06-16 FIXME: somehow $info->{'ParsedParDecl'}{'Pars'}{'Val'} only has the integer part of the value!
@@ -215,15 +215,15 @@ sub fold_constants_no_iters {
                 my $evaled_val = eval_expression_with_parameters($val_expr_str,$info, $stref, $f) ;
                 # croak "$f LINE $line => $evaled_val" if $line=~/cn4s/;
                 $info->{'ParsedParDecl'}{'Pars'}{'Val'} = $evaled_val;
-			}            
+			}
 			if (exists $info->{'Assignment'} ) {
                 # We need the AST for LHS and RHS
-                if ($info->{'Lhs'}{'ArrayOrScalar'} eq 'Array' ) { 
+                if ($info->{'Lhs'}{'ArrayOrScalar'} eq 'Array' ) {
                     my $lhs_ast = $info->{'Lhs'}{'ExpressionAST'};
                     my $const_fold_lhs_ast = fold_constants_in_expr_no_iters($stref, $f, $lhs_ast,$info);
                     $info->{'Lhs'}{'ExpressionAST'}=$const_fold_lhs_ast;
                 }
-                
+
                 my $rhs_ast  = $info->{'Rhs'}{'ExpressionAST'};
                 my $const_fold_rhs_ast = fold_constants_in_expr_no_iters($stref, $f, $rhs_ast,$info);
                 $info->{'Rhs'}{'ExpressionAST'}=$const_fold_rhs_ast;
@@ -233,15 +233,15 @@ sub fold_constants_no_iters {
                 #say "IF statement, TODO: ".Dumper($info->{'Cond'}{'Expr'});
                 my $cond_expr_ast = $info->{'Cond'}{'AST'};
                 my $const_fold_cond_expr_ast = fold_constants_in_expr_no_iters($stref, $f, $cond_expr_ast,$info);
-                $info->{'Cond'}{'AST'} = $const_fold_cond_expr_ast;                
-            }            
+                $info->{'Cond'}{'AST'} = $const_fold_cond_expr_ast;
+            }
             elsif ( exists $info->{'Do'} ) { #  the expressions for the loop bounds have been folded:
                 my $iter =  $info->{'Do'}{'Iterator'};
                 my $const_range_exprs = [];
                 for my $range_expr_str (@{$info->{'Do'}{'Range'}{'Expressions'}}) {
                      if( $range_expr_str =~ /^[\+\-\d]+$/) {
                          push @{$const_range_exprs}, $range_expr_str*1;
-                     } else {                        
+                     } else {
                         my ($ast,$str_,$error_,$has_funcs_)=parse_expression_no_context($range_expr_str);
                         my ($const_ast, $retval_) = replace_consts_in_ast_no_iters($stref, $f, $ast, $info);
                         my $unfolded_vars = get_vars_from_expression($const_ast) // {};
@@ -251,11 +251,11 @@ sub fold_constants_no_iters {
                         my $const_range_expr_val = keys %{$unfolded_vars} ? $const_expr_str : eval($const_expr_str);
                         push @{$const_range_exprs}, $const_range_expr_val;
                      }
-                }                
+                }
                 $info->{'Do'}{'Range'}{'Expressions'} = $const_range_exprs;
                 $info->{'Do'}{'Range'}{'Vars'} = []; # FIXME! Only works if all vars have been replaced!
             }
-            elsif ( exists $info->{'PrintCall'} ) { 
+            elsif ( exists $info->{'PrintCall'} ) {
                 my $print_args_ast = $info->{'IOCall'}{'Args'}{'AST'};
                 my $const_fold_print_args_ast = fold_constants_in_expr_no_iters($stref, $f, $print_args_ast,$info);
                 # croak Dumper $const_fold_print_args_ast;
@@ -294,7 +294,7 @@ sub fold_constants_all {
         $stref = emit_AnnLines($stref,$f,$new_annlines) ;
         # croak Dumper $Sf->{'RefactoredCode'} ;
 	}
-    
+
 	return $stref;
 }    # END of fold_constants_all()
 
@@ -305,13 +305,13 @@ sub fold_constants_in_decls {
     my $pass_fold_constants_in_decls = sub { (my $annline)=@_;
         (my $line,my $info)=@{$annline};
             if (exists $info->{'VarDecl'} and not exists $info->{'ParamDecl'}
-             ) {     
+             ) {
                 my $var_name = $info->{'VarDecl'}{'Name'};
                 my $subset = in_nested_set( $Sf, 'Vars', $var_name );
                 my $decl = get_var_record_from_set($Sf->{$subset},$var_name);
                 if (exists $decl->{'ArrayOrScalar'}
                 and $decl->{'ArrayOrScalar'} eq 'Array'
-                ) {           
+                ) {
                     my $dims = $decl->{'Dim'};
                     $decl->{'ConstDim'}=[];
                     for my $dim (@{$dims}) {
@@ -325,7 +325,7 @@ sub fold_constants_in_decls {
                                 push @{$const_dim},  $expr_str;
                             }
                         }
-                        push @{$decl->{'ConstDim'}}, $const_dim;                    
+                        push @{$decl->{'ConstDim'}}, $const_dim;
                     }
                     $Sf->{$subset}{'Set'}{$var_name} = $decl;
                 }

@@ -1,41 +1,49 @@
-# F77 parser
+# This is primarily a parser for F77 but I have gradually been adding support for F90/95
 #
-# Statements currently not supported
-# ♦ means not part of the F77 specification
+
+# Statements that are currently not supported
+# A `♦` suffix means not part of the F77 specification
+# A `(E)` suffix means using this statement results in a parse error
+# A `(I)` suffix means using this statement is ignored in the analysis
 
 # Fortran 77
 
 # As these are not in the spec, they will be very low priority.
-# MAP/END MAP♦
-# STRUCTURE/END STRUCTURE♦
-# UNION/END UNION♦
-# +RECORD♦
+# MAP/END MAP♦ (E)
+# STRUCTURE/END STRUCTURE♦ (E)
+# UNION/END UNION♦ (E)
+# RECORD♦ (E)
 
-# OPTIONS♦
+# OPTIONS♦ (E)
 # PRAGMA♦ => we support $RF4A, not $PRAGMA
 
 # Fortran 90/95
+
 # • Specification Statements
-# +ALLOCATABLE
-# +INTENT
-# +OPTIONAL
-# +POINTER
-# +PRIVATE
-# +PUBLIC
-# +TARGET
-# +MODULE PROCEDURE
-# +SEQUENCE
-# +TYPE
+# ALLOCATABLE (I)
+# INTENT (I)
+# OPTIONAL (I)
+# POINTER (I)
+# PRIVATE (I)
+# PUBLIC (I)
+# TARGET (I)
+# STATIC♦ (I)
+# AUTOMATIC♦ (I)
+# VOLATILE♦ (I)
+# VALUE♦ (I)
+# MODULE PROCEDURE (E)
+# SEQUENCE (E)
+# TYPE (E)
 # • Control Statements:
-# CYCLE
-# EXIT
-# WHERE/ELSEWHERE/END WHERE
+# CYCLE (I)
+# EXIT (I)
+# WHERE/ELSEWHERE/END WHERE (E)
 # • Assignment and Storage Statements
-# ALLOCATE
-# DEALLOCATE
-# NULLIFY
+# ALLOCATE (I)
+# DEALLOCATE (I)
+# NULLIFY (I)
 # • Program Structure Statements
-# INTERFACE
+# INTERFACE (E)
 
 package RefactorF4Acc::Parser;
 #
@@ -108,7 +116,12 @@ use Exporter;
 sub parse_fortran_src {
 	( my $f, my $stref, my $is_source_file_path ) = @_;  # NOTE $f is not the name of the source but of the sub/func/incl/module.
 
-	# local $V=1;
+	 my %called_subs = map {$_=>1} @{ $stref->{'CallStack'} };
+	 if (exists $called_subs{$f}) {
+		say "LOOP for $f: [". join(', ',@{$stref->{'CallStack'}}).'], SKIPPING' if $V;
+	 } else {
+		push @{ $stref->{'CallStack'} }, $f;
+
 	say "parse_fortran_src(): PARSING $f" if $V;
 
 ## 1. Read the source and do some minimal processsing, unless it's already been done (i.e. for extracted blocks)
@@ -201,7 +214,8 @@ sub parse_fortran_src {
 	   		$stref = parse_fortran_src($sub, $stref);
 	   	}
 	   }
-
+	pop @{ $stref->{'CallStack'} };
+	 }
 	return $stref;
 
 }    # END of parse_fortran_src()
@@ -280,7 +294,7 @@ sub analyse_lines {
 			# Unsupported features that result in error
 			#fortran 77 extensions
 			if ($lline=~/^(map|structure|union|record|options)/) {
-				die die 'Sorry, the '.uc($1).' statement is not part of the F77 specification and currently not supported.'."\n";
+				die 'Sorry, the '.uc($1).' statement is not part of the F77 specification and currently not supported.'."\n";
 			}
 			#fortran 90/95
 			if ($lline=~/^(interface|module\s*procedure|sequence|where|elsewhere)/) {
@@ -388,18 +402,54 @@ sub analyse_lines {
 
 			#= SUBROUTINE FUNCTION PROGRAM
 			# Procedure block identification
-			($line =~ /^(\w+\s+\w+\s+(?:function|subroutine)|\w+\s+subroutine|[\*\(\)\w]+\s+function|function|subroutine|program|module|block)\s+(\w+)/
+
+			($line =~ /^
+				(
+  					  (?:\w+(?:\((?:\w+=)?[\*\d]+\))?\s+)*function
+					| (?:(?:pure|elemental|recursive)\s+)*subroutine
+					| program
+					| module
+					| block
+				)\s+(\w+)
+				/x
+			# ($line =~ /^(\w+\s+\w+\s+(?:function|subroutine)|\w+\s+subroutine|[\*\(\)\w]+\s+function|function|subroutine|program|module|block)\s+(\w+)/
 			or $line =~ /^(blockdata)/
 			) && do {
 				my $full_proc_type=$1;
 				my $proc_name=$2;
 #				say "PROC NAME in $f: $proc_name" if $f ne $proc_name;
-				my $proc_type = $full_proc_type=~/program/ ? 'program' :
-					$full_proc_type=~/subroutine/ ? 'subroutine' :
-					($full_proc_type eq 'block' and $proc_name eq 'data'
-					or $full_proc_type eq 'blockdata'
-					) ? 'block data' :
-					'function';
+				$full_proc_type=~s/double\s+precision/doubleprecision/;
+				my @proc_type_chunks = split(/\s+/,$full_proc_type);
+				my %proc_type_constituents = map {$_=>1} @proc_type_chunks;
+				my $proc_type = '';
+				my @valid_procs = qw(program subroutine block blockdata function);
+				for my $valid_proc (@valid_procs) {
+					if (exists $proc_type_constituents{$valid_proc} ) {
+						if ($valid_proc eq 'block' and $proc_name eq 'data'
+							or $valid_proc eq 'blockdata'
+						) {
+							$proc_type = 'block data';
+						} else {
+							$proc_type = $valid_proc;
+						}
+						last;
+					}
+				}
+				my @valid_qualifiers = qw(pure recursive elemental);
+				my %procs_qualifiers = map {$_=>1} (@valid_qualifiers,@valid_procs);
+				my $proc_return_type = '';
+				for my $maybe_type (@proc_type_chunks ) {
+					if (not exists $procs_qualifiers{$maybe_type}) {
+						$proc_return_type = $maybe_type;
+						last;
+					}
+				}
+				# my $proc_type = $full_proc_type=~/program/ ? 'program' :
+				# 	$full_proc_type=~/subroutine/ ? 'subroutine' :
+				# 	($full_proc_type eq 'block' and $proc_name eq 'data'
+				# 	or $full_proc_type eq 'blockdata'
+				# 	) ? 'block data' :
+				# 	'function';
 				if ($proc_type eq 'block data') {
 					$full_proc_type = 'block data';
 					$proc_name = 'block_data';
@@ -407,25 +457,43 @@ sub analyse_lines {
 				}
 				# If it's a function, create a record for the return value
 				if ($proc_type eq 'function') {
-					$full_proc_type=~s/\s+$//;
-					if ($full_proc_type ne 'function') {
-						$full_proc_type=~s/\s+function//;
-						$full_proc_type=~s/\s*(?:pure|recursive|elemental)\s*//;
-						if ($full_proc_type ne '' and $full_proc_type ne 'block data') {
-							$Sf->{'DeclaredOrigLocalVars'}{'Set'}{$proc_name}={
-								'Indent'=> $indent,
-								'Type'          => $full_proc_type ,
-								'ArrayOrScalar' => 'Scalar',
-								'Dim'           => [],
-								'Attr' => '',
-								'IODir' => 'Out',
-								'Name'=>$proc_name,
-								'Implicit' => 0
-							};
-							push @{ $Sf->{'DeclaredOrigLocalVars'}{'List'} },$proc_name;
-						}
+					my $result_var=$proc_name;
+					if ($line =~ /function\s+\w+\s*\(.*\)\s+result\s*\((\w+)\)/ ) {
+						$result_var=$1;
 					}
+					$Sf->{'DeclaredOrigLocalVars'}{'Set'}{$result_var}={
+						'Indent'=> $indent,
+						'Type'          => $proc_return_type ,
+						'ArrayOrScalar' => 'Scalar',
+						'Dim'           => [],
+						'Attr' => '',
+						'IODir' => 'Out',
+						'Name'=>$result_var,
+						'Implicit' => 0
+					};
+					push @{ $Sf->{'DeclaredOrigLocalVars'}{'List'} },$result_var;
 				}
+
+				# if ($proc_type eq 'function') {
+				# 	$full_proc_type=~s/\s+$//;
+				# 	if ($full_proc_type ne 'function') {
+				# 		$full_proc_type=~s/\s+function//;
+				# 		$full_proc_type=~s/\s*(?:pure|recursive|elemental)\s*//;
+				# 		if ($full_proc_type ne '' and $full_proc_type ne 'block data') {
+				# 			$Sf->{'DeclaredOrigLocalVars'}{'Set'}{$proc_name}={
+				# 				'Indent'=> $indent,
+				# 				'Type'          => $full_proc_type ,
+				# 				'ArrayOrScalar' => 'Scalar',
+				# 				'Dim'           => [],
+				# 				'Attr' => '',
+				# 				'IODir' => 'Out',
+				# 				'Name'=>$proc_name,
+				# 				'Implicit' => 0
+				# 			};
+				# 			push @{ $Sf->{'DeclaredOrigLocalVars'}{'List'} },$proc_name;
+				# 		}
+				# 	}
+				# }
 				++$block_nest_counter;
 				++$block_counter;
 
@@ -535,7 +603,8 @@ PROGRAM
 SUBROUTINE
 +VIRTUAL
 
-From the F77 spec, & means executable statement; > means I/O; $ means program structure
+From the F77 spec; & means executable statement; > means I/O; $ means program structure
+
 &ACCEPT
 &ASSIGN
 +AUTOMATIC♦
@@ -1194,7 +1263,7 @@ or $line=~/^character\s*\(\s*len\s*=\s*[\w\*]+\s*\)/
 		 elsif ( $line =~ /^(.+)\s*::\s*(?:.+)(?:\s*|\s+\!\$ACC.+)$/ ) {# croak if $line=~/__pipe\s\!\$ACC/;
 
 				( $Sf, $info ) = __parse_f95_decl( $stref, $f, $Sf, $indent, $line, $info);
-				
+
 				if (exists $info->{'ParamDecl'}) {
 					$has_pars=1;
 					$Sf->{'HasParameters'}=1;
@@ -1269,6 +1338,11 @@ or $line=~/^character\s*\(\s*len\s*=\s*[\w\*]+\s*\)/
 				$info->{ 'End'} = $kw;
 				$info->{ 'End' . ucfirst($kw) } = { 'Name' => $name };
 				$info->{'NonSpecificationStatement'} = 1;
+			}
+			elsif (
+				$line =~ /^end\s+type/
+				) {
+					die "TYPE declarations are not (yet) supported\n";
 			}
 			elsif (  # incorrect end of block, handle it anyway via the info from the start of the block
 				$line =~ /^end/
@@ -1681,12 +1755,12 @@ END IF
 				$info->{'NonSpecificationStatement'} = 1;
 			 }
 #== CONTINUE statement.
-			elsif ($line=~/continue/) {
+			elsif ($line=~/\bcontinue\b/) {
 				$info->{'Continue'}={};
 				$info->{'NonSpecificationStatement'} = 1;
 			}
 #== DECODE/ENCODE statement.
-			elsif ($line=~/(decode|encode)/) {
+			elsif ($line=~/\b(decode|encode)\b/) {
 				my $keyword = $1;
 				$info->{ ucfirst($keyword) } = 1;
 				$info->{'IO'}=$keyword;
@@ -1696,14 +1770,14 @@ END IF
 			}
 #== Placeholders for unsupported statements
 # • control statements:
-			elsif ($line=~/(cycle|exit)/) {
+			elsif ($line=~/\b(cycle|exit)\b/) {
 				my $keyword = $1;
 				$info->{ ucfirst($keyword) } = 1;
 				warning(uc($keyword).' is ignored in analysis',3);
 				$info->{'NonSpecificationStatement'} = 1;
 			}
 # • assignment and storage statements
-			elsif ($line=~/^(allocate|deallocate|nullify)/) {
+			elsif ($line=~/^(allocate|deallocate|nullify)\b/) {
 				my $keyword = $1;
 				$info->{ ucfirst($keyword) } = 1;
 				$info->{'IO'}=$keyword;
@@ -1824,7 +1898,7 @@ END IF
 	}
 
 	return $stref;
-}    # END of analyse_lines()
+} # END of analyse_lines()
 
 # -----------------------------------------------------------------------------
 # For every 'include' statement in a subroutine
@@ -2350,7 +2424,7 @@ sub _parse_subroutine_and_function_calls {
 						}
 					}
 					for my $sub_or_func (keys %sub_func_as_arg) {
-						if (  $sub_or_func ne $f
+						if (  $sub_or_func ne $f # This is not strong enough because mutual recursions are not caught.
 								and (not exists $stref->{'Subroutines'}{$sub_or_func}
 								or not exists $stref->{'Subroutines'}{$sub_or_func}{'Status'}
 								or $stref->{'Subroutines'}{$sub_or_func}{'Status'} < $PARSED)
@@ -2778,15 +2852,16 @@ sub __parse_sub_func_prog_decls {
 	# Determine the subroutine arguments
 	my $name = '';
 	if (   $line =~ /^\s*subroutine\s+(\w+)\s*\((.*)\)/
-		or $line =~ /^\s*(?:pure|elemental|recursive)\s+subroutine\s+(\w+)\s*\((.*)\)/
-		or $line =~ /^\s*(?:\w+\s+)*[\w\(\)\*]+\s+function\s+(\w+)\s*\((.*)\)/
-		or $line =~ /^\s*function\s+(\w+)\s*\((.*)\)/ )
+		or $line =~ /^\s*(?:(?:pure|elemental|recursive)\s+)+subroutine\s+(\w+)\s*\((.*)\)/
+		or $line =~ /^\s*function\s+(\w+)\s*\((.*)\)/
+		or $line =~ /^\s*(?:\w+(?:\((?:\w+=)?[\*\d]+\))?\s+)+function\s+(\w+)\s*\((.*)\)/
+		 )
 	{
 		 $name   = $1;
 		my $argstr = $2;
-
 		$argstr =~ s/^\s+//;
-		$argstr =~ s/\s+$//;
+		$argstr =~ s/\s+result.+$//;
+		$argstr =~ s/\)?\s*$//;
 		my @args = split( /\s*,\s*/, $argstr );
 
 		$info->{'Signature'}{'Args'}{'List'} = [@args];
@@ -2814,7 +2889,7 @@ sub __parse_sub_func_prog_decls {
 					$info->{'Signature'}{'ReturnTypeAttr'} = defined $maybe_attr ? $maybe_attr : '';
 				}
 			}
-			if ($line =~ /function\s+\w+\s*\(.*\)\s+result\s+(\w+)/ ) {
+			if ($line =~ /function\s+\w+\s*\(.*\)\s+result\s*\((\w+)\)/ ) {
                 my $result_var=$1;
                 $info->{'Signature'}{'ResultVar'} = $result_var;
             }
@@ -3087,7 +3162,7 @@ sub __parse_f95_decl {
 
 	} else {
 		# F95 VarDecl, continued
-		if (not defined $pt->{'Vars'}[0] and exists $pt->{'Pars'} and defined $pt->{'Pars'}{'Var'}) { 
+		if (not defined $pt->{'Vars'}[0] and exists $pt->{'Pars'} and defined $pt->{'Pars'}{'Var'}) {
 			$pt->{'Vars'} = [$pt->{'Pars'}{'Var'}];
 		}
 
@@ -3169,9 +3244,17 @@ sub __parse_f95_decl {
 					}
 					if ( exists $pt->{'Attributes'}{'Allocatable'}) {
 						$decl->{'Allocatable'}='allocatable';
+
 						my $alloc_dim = $pt->{'Attributes'}{'Dim'}[$idx];
+						if ($alloc_dim==0) {
+							if ($pt->{'TypeTup'}{'Kind'} eq ':'	) {
+								# TODO: allocatable character string
+							}
+						} else {
+						# So what we do is replace every value with this pair of empty strings.
 						my @dims = map { ['',''] } @{$alloc_dim};
 						$decl->{'Dim'}           = \@dims;
+						}
 					}
 				}
                 # We ignore the halo attribute unless it's an array
@@ -3325,7 +3408,7 @@ sub _parse_f77_par_decl {
 	$indent =~ s/\S.*$//;
 
 	my $ast =  parse_expression($parliststr, $info, $stref, $f);
-	
+
 	if ($ast->[0] == 9
 	and $ast->[2][0] == 0
 	and scalar @{$ast->[2][1]} == 3
@@ -3482,7 +3565,7 @@ sub _parse_f77_par_decl {
 		};
 
 		$Sf->{'LocalParameters'}{'Set'}{$var}=$param_decl;
-		if (exists $info->{'ParsedParDecl'}) { 
+		if (exists $info->{'ParsedParDecl'}) {
 			if (scalar @param_names==1) {
 				$info->{'ParsedParDecl'}{'Pars'}{'AST'} = $param_decl->{'AST'};
 			} else {
@@ -3494,7 +3577,7 @@ sub _parse_f77_par_decl {
 			}
 		}
 	}
-	
+
 	return ( $Sf, $info );
 
 }    # END of _parse_f77_par_decl()
@@ -4316,8 +4399,11 @@ sub _parse_assignment {
 	$tline =~ s/^\s+//;       # remove blanks
 	$tline =~ s/\s+$//;       # remove blanks
 
-	( my $lhs, my $rhs ) = split( /\s*=\s*/, $tline );
-
+	( my $lhs, my $rhs, my @rest ) = split( /\s*=\s*/, $tline );
+	if (@rest) {
+		$rhs = join('=',($rhs,@rest));
+	}
+# die "<$line>".Dumper($lhs,$rhs,@rest) if $line=~/iachar.+kind/;
 	#     say "LHS: $lhs, RHS: $rhs";
 	my $lhs_ast = parse_expression( $lhs, $info, $stref, $f );
 
@@ -4369,7 +4455,7 @@ sub _parse_assignment {
 		$rhs_ast->[1]='_OPEN_CONST_ARRAY_';
 	}
 
-	#	say 'RHS_AST:'.Dumper($rhs_ast );
+		# say 'RHS_AST:'.$rhs.Dumper($rhs_ast ); die if $line=~/,kind=/;
 	# Same here, why not just use get_vars_from_expression() ?
 #	( my $rhs_args, my $rhs_vars ) =
 #	  @{ get_args_vars_from_expression($rhs_ast) };
@@ -4926,7 +5012,7 @@ sub _get_var_recs_from_parse_tree { (my $tpt, my $vspt)=@_;
 	## then
 
 	for my $vpt (@vpts) {
-		# it can be either a scalar, an array, or an expression with '*' and a scalar or array		
+		# it can be either a scalar, an array, or an expression with '*' and a scalar or array
 		my $tvpt=$vpt;
 
 		if ($vpt->[0] == 5) {
@@ -5153,74 +5239,9 @@ sub __move_var_from_UndeclaredOrigArgs_to_DeclaredOrigArgs { my ($Sf, $tvar, $de
 
 1;
 
-
-
 =pod
+TODO, one day:
 
-sub new_logic {
-
-
-# The problem with this logic is that we need to add some info to see which line should be kept.
-# The only way to do this is to annotate the type lines with info passed via the type record
-# So we add an entry "Stmts" which starts out as 0 and which we increment and store in $info (after splitting the lines!
-# Then the second pass keeps the line with Stmts==1 and marks the others for deletion
-# This is actually also the right thing to do for parameters I think.
-
-
-# DIMENSION (D)
-if (not in_nested_set( $Sf, 'Vars', $varname ) ) {
-    $Sf->{'DeclaredOrigLocalVars'}{'Set'}{$varname}=$decl;
-} elsif (in_nested_set( $Sf, 'Vars', $varname ) eq 'DeclaredCommonVars'
-        or in_nested_set( $Sf, 'Vars', $varname ) eq 'ExGlobArgs'
-        ) {
-# So it's a Declared Common (i.e. prev. was C, TC, CT
-# Get the dimension
-# Update Decl
-$Sf->{'DeclaredOrigLocalVars'}{'Set'}{$varname}=$decl;
-} elsif (in_nested_set( $Sf, 'Vars', $varname ) eq 'DeclaredOrigLocalVars') {
-# Means there was a T before
-# Update Decl
-
-} else {
-# Should be impossible
-}
-
-
-# COMMON (C)
-if (not in_nested_set( $Sf, 'Vars', $varname ) ) {
-    $Sf->{'DeclaredCommonVars'}{'Set'}{$varname}=$decl;
-} elsif (in_nested_set( $Sf, 'Vars', $varname ) eq 'DeclaredOrigLocalVars'
-        ) {
-# So it's a Declared Orig Local (i.e. prev. was D, T, DT or TD
-# Update Decl
-# Change from DeclaredOrigLocalVars to DeclaredCommonVars and copy to ExGlobArgs
-} else {
-# Should be impossible
-}
-
-# TYPE DECL (T), actually this is identical to D in terms of the logic
-if (not in_nested_set( $Sf, 'Vars', $varname ) ) {
-    $Sf->{'DeclaredOrigLocalVars'}{'Set'}{$varname}=$decl;
-} elsif (in_nested_set( $Sf, 'Vars', $varname ) eq 'DeclaredCommonVars'
-        or in_nested_set( $Sf, 'Vars', $varname ) eq 'ExGlobArgs'
-        ) {
-# So it's a Declared Common (i.e. prev. was C, DC, CD
-# Update Decl
-
-} elsif (in_nested_set( $Sf, 'Vars', $varname ) eq 'DeclaredOrigLocalVars') {
-# Update Decl
-
-} else {
-# Should be impossible
-}
-
-
-
-
-}
-
-=cut
-=pod
 STRUCTURE /PRODUCT/
 	INTEGER*4 ID
 	CHARACTER*16 NAME

@@ -12,7 +12,7 @@ my @supported_passes = ( "translate_to_Uxntal" );
 
 if ($opts{'h'}){
     die "
-    $0 -[hvioe] module/program source file
+    $0 -[hvioe] [module/program source file]
 
     -v : verbose
     -w : warnings
@@ -43,7 +43,7 @@ if ($opts{'e'}) {
     $ext = $opts{'e'};
 }
 our $DBG='';
-my $module_src = $ARGV[0];
+my $module_src = $ARGV[0] // '';
 if ($opts{'d'}) {
     $DBG = '-d';
 }
@@ -62,7 +62,7 @@ if (@kernel_srcs) {
         my ($kernel_sub_name, $kernel_module_name) = get_kernel_and_module_names($kernel_src);
         say "MODULE SRC: $kernel_src" if $V;
         # if ($kernel_sub_name and $kernel_sub_name ne '') {
-            my $rf4a_cfg = create_rf4a_cfg($kernel_src,$kernel_sub_name, $kernel_module_name);            
+            my $rf4a_cfg = create_rf4a_cfg($kernel_src,$kernel_sub_name, $kernel_module_name);
             system("refactorF4acc.pl $DBG $VV -P $uxn_target -c $rf4a_cfg $kernel_module_name");
         # }
     }

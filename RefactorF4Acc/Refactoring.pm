@@ -1,7 +1,7 @@
 package RefactorF4Acc::Refactoring;
-# 
+#
 #   (c) 2010-now Wim Vanderbauwhede <wim@dcs.gla.ac.uk>
-#   
+#
 
 use v5.10;
 use RefactorF4Acc::Config;
@@ -33,7 +33,7 @@ use Storable qw( dclone );
 
 use Carp;
 $Carp::Verbose = 1;
-use Data::Dumper; 
+use Data::Dumper;
 
 use Exporter;
 @RefactorF4Acc::Refactoring::ISA = qw(Exporter);
@@ -43,24 +43,24 @@ use Exporter;
 
 # -----------------------------------------------------------------------------
 
-sub refactor_all { 
+sub refactor_all {
 	( my $stref, my $code_unit_name, my $is_source_file_path) = @_;
 
 	my $sub_or_func_or_mod = sub_func_incl_mod( $code_unit_name, $stref );
     if ($sub_or_func_or_mod eq 'Modules' and $is_source_file_path) {
        $code_unit_name = get_module_name_from_source($stref,$code_unit_name);
     }
-   
+
     $stref = refactor_include_files($stref) unless $Config{'INLINE_INCLUDES'} == 1;
 
 # FIXME: this should be treated just like subs, but of course that requires full parsing of expressions that contain function calls
-    $stref = refactor_called_functions($stref); # Context-free only 
-          
- 	# say "BEFORE refactor_all_subroutines";    
+    $stref = refactor_called_functions($stref); # Context-free only
+
+ 	# say "BEFORE refactor_all_subroutines";
     # Refactor the source, but don't split long lines and keep annotations
-    $stref = refactor_all_subroutines($stref);    
+    $stref = refactor_all_subroutines($stref);
 #    say "AFTER refactor_all_subroutines";
-  
+
 #  croak Dumper pp_annlines($stref->{'Subroutines'}{'adam'}{'AnnLines'});
     # This can't go into refactor_all_subroutines() because it is recursive
     # Also, this is actually analysis
@@ -69,21 +69,21 @@ sub refactor_all {
 
 
     if ($sub_or_func_or_mod eq 'Subroutines') {
-    	$stref = determine_argument_io_direction_rec( $stref,$code_unit_name );    	
+    	$stref = determine_argument_io_direction_rec( $stref,$code_unit_name );
     	say "DONE determine_argument_io_direction_rec()" if $V;
     	$stref = update_argument_io_direction_all_subs( $stref );
     }
     # So at this point we know everything there is to know about the argument declarations, we can now update them
-    say "remove_vars_masking_functions" if $V;    
-    $stref = remove_vars_masking_functions($stref); 
+    say "remove_vars_masking_functions" if $V;
+    $stref = remove_vars_masking_functions($stref);
 	if ( $Config{'EVAL_PARAM_EXPRS'}) {
-    	say "eval_param_expressions_all" if $V;    
+    	say "eval_param_expressions_all" if $V;
 		$stref = eval_param_expressions_all($stref);
 	}
     if ($Config{'FOLD_CONSTANTS'}==1) {
         $stref = fold_constants_all($stref) ;
     }
-    # Inlining 
+    # Inlining
     $stref = inline_subroutines($stref) ;
 
 
@@ -98,9 +98,9 @@ sub refactor_all {
     # croak;
     say "add_module_decls" if $V;
     $stref=add_module_decls($stref);
-    
-    return $stref;	
-} # END of refactor_all()  
+
+    return $stref;
+} # END of refactor_all()
 
 
 

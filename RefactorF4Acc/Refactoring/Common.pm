@@ -1281,7 +1281,7 @@ sub __reshape_check { my ($stref, $f, $sub_name, $call_arg_decl,$sig_arg_decl) =
 		# say "ASSUMED? ". __is_assumed_array($dim2);
 		# Avoid overwriting the actual Dim field
 		my $dim2d = dclone($dim2);
-		if (__is_assumed_array($dim2)) {
+		if (__is_assumed_array($dim2)) { 
 			$dim2d = __take_upper_bound_from_call_arg($dim1,$dim2);
 		}
 		# carp "$f ".Dumper($dim1)."\n$sub_name".Dumper($dim2d);
@@ -1388,16 +1388,16 @@ sub __take_upper_bound_from_call_arg { my ($dim1,$dim2) = @_;
 		scalar @{$dim1} == scalar @{$dim2}
 	) {
 		for my $dim1_comp (@{$dim1}) {
-			my $dim2_comp= $dim2->[$idx];
-			my $upper_bound2=$dim2_comp->[1];
+			my $dim2_comp = $dim2->[$idx];
+			my $upper_bound2 = $dim2_comp->[1];
 			if ($upper_bound2 eq '*') {
-				my $lower_bound1=$dim1_comp->[0];
-				my $upper_bound1=$dim1_comp->[1];
+				my $lower_bound1 = $dim1_comp->[0];
+				my $upper_bound1 = $dim1_comp->[1];
 				# If we had [1,3] and [-1, *] => -1 -1 = -2; 3+ -2 = 1
 				# If we had [-1,3] and [1, *] => 1 - -1 = 2; 3+ 2 = 5
-				my $lower_bound2=$dim1_comp->[0];
+				my $lower_bound2 = $dim1_comp->[0];
 				my $offset = $lower_bound2 - $lower_bound1;
-				$upper_bound2=$dim1_comp->[1] + $offset;
+				$upper_bound2 = $upper_bound1 + $offset;
 				$dim2->[$idx][1]=$upper_bound2;
 			}
 			++$idx;

@@ -85,7 +85,7 @@ sub parse_expression { my ($exp, $info, $stref, $f)=@_;
 
 		(my $ast, my $rest, my $err, my $has_funcs)  = parse_expression_no_context($exp);
 		if($DBG and $err or $rest ne '') {
-            croak "PARSE ERROR in <$exp>, REST: $rest";
+            croak "PARSE ERROR $err in <$exp>, REST: $rest";
 		}
         (my $ast2, my $grouped_messages) = $has_funcs ? _replace_function_calls_in_ast($stref,$f,$info,$ast, $exp, {}) : ($ast,{});
 	    if ($W) {
@@ -858,7 +858,7 @@ So it looks like I need at least 6 bits, so we'll need <<8 and 0xFF
                 #$op=':';
                 $op=12;
             }
-            elsif ($str=~s/^\///) {
+            elsif ($str=~s/^\/(?!=)//) {
                 $lev=3;
                 #$op='/';
                 $op=6;
@@ -888,7 +888,7 @@ So it looks like I need at least 6 bits, so we'll need <<8 and 0xFF
                 #$op='==';
                 $op=15;
             }
-            elsif ($str=~s/^\!=// || $str=~s/^\.ne\.// || $str=~s/^\.\s*ne\s*\.//) {
+            elsif ($str=~s/^\/=// || $str=~s/^\.ne\.// || $str=~s/^\.\s*ne\s*\.//) {
                 $lev=7;
                 #$op='/=';
                 $op=16;
@@ -1453,6 +1453,7 @@ sub find_vars_in_ast { my ( $ast, $vars)=@_;
         }
     }
 # carp 'VARS:'. Dumper $vars;
+# croak Dumper($ast) if exists $vars->{'.true.'};
     return $vars;
 } # END of find_vars_in_ast
 
