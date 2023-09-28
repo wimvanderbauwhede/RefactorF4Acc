@@ -65,7 +65,7 @@ sub refactor_COMMON_blocks_and_CONTAINed_subs {  # 218 lines Was _refactor_globa
 	my $Sf = $stref->{'Subroutines'}{$f};
 
 	if ( $Sf->{'RefactorGlobals'} == 2 ) {
-		die "This should NEVER happen!";
+		croak "This should NEVER happen!";
 	}
 	if (not exists $Sf->{'HasCommons'} or not $Sf->{'HasCommons'} ) {
 		say "INFO: no COMMON blocks in $f" if $I;
@@ -1034,7 +1034,6 @@ cast and reshape (always new arg)
 
 sub _maybe_cast_call_args { # 200 lines
 	my ($stref, $f, $sub_name, $call_arg, $call_arg_decl, $sig_arg, $sig_arg_decl)=@_;
-
 	my $cast_reshape_result={
 		'CallArg' => $call_arg,
 		'PreAnnLine' => ['',{'Assignment'=>1}],
@@ -1045,9 +1044,20 @@ sub _maybe_cast_call_args { # 200 lines
 	if (_compare_decls($stref, $f, $call_arg_decl, $sig_arg_decl))	{
 		return $cast_reshape_result;
 	}
+	# if ($sig_arg eq 'charArray'){
+	# 	say 'CHECKa:'.Dumper( $sig_arg_decl);
+	# }
 
 	my ($needs_reshape, $use_arg_sz) = __reshape_check($stref, $f, $sub_name, $call_arg_decl,$sig_arg_decl);
+	# if ($sig_arg eq 'charArray'){
+	# 	say 'CHECKb:'.Dumper( $sig_arg_decl);
+	# }
 	my $needs_cast = __cast_check( $call_arg_decl,$sig_arg_decl);
+	# if ($sig_arg eq 'charArray'){
+	# 	say 'CHECKc:'.Dumper($sig_arg_decl,[
+	# 		$needs_reshape, $use_arg_sz, $needs_cast
+	# 	]);
+	# }
 	my $sig_kind=__get_kind_from_decl($sig_arg_decl);
 	my $call_kind=__get_kind_from_decl($call_arg_decl);
 		# carp "$sig_kind <> $call_kind";
@@ -1279,12 +1289,13 @@ sub __reshape_check { my ($stref, $f, $sub_name, $call_arg_decl,$sig_arg_decl) =
 		my $dim1  = $call_arg_decl->{'Dim'};
 		my $dim2  = $sig_arg_decl->{'Dim'};
 		# say "ASSUMED? ". __is_assumed_array($dim2);
-		# Avoid overwriting the actual Dim field
+		# Avoid overwriting the actual Dim field, as it is a reference
 		my $dim2d = dclone($dim2);
 		if (__is_assumed_array($dim2)) { 
-			$dim2d = __take_upper_bound_from_call_arg($dim1,$dim2);
+			$dim2d = __take_upper_bound_from_call_arg($dim1,$dim2d);
 		}
-		# carp "$f ".Dumper($dim1)."\n$sub_name".Dumper($dim2d);
+		# say 'AFTER __take_upper_bound_from_call_arg:'.Dumper($sig_arg_decl);
+		# say "$f ".Dumper($dim1)."\n$sub_name".Dumper($dim2d);
 		my ($size1, $not_const1) = calculate_array_size( $stref, $f, $dim1 );
 		my ($size2, $not_const2) = calculate_array_size( $stref, $sub_name, $dim2d );
 		croak 'FIXME!'.Dumper($call_arg_decl,$sig_arg_decl) if $DBG and not defined $size1 or not defined $size2;

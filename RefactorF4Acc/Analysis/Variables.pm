@@ -422,6 +422,7 @@ sub identify_vars_on_line {
                     @chunks = ( @chunks, @{ $info->{'ImpliedDoRangeVars'}{'List'} } );
                 }
 			} elsif ( exists $info->{'SubroutineCall'} ) {
+				# croak Dumper $info if $info->{'SubroutineCall'}{'Name'} eq 'tokeniseFunktal';
 				for my $var_expr ( @{ $info->{'SubroutineCall'}{'Args'}{'List'} } ) {
 					# carp Dumper( $info->{'SubroutineCall'}{'Args'}{'Set'});
 					if ( exists $info->{'SubroutineCall'}{'Args'}{'Set'}{$var_expr}{'Arg'} ) {
@@ -431,7 +432,7 @@ sub identify_vars_on_line {
 						exists $info->{'SubroutineCall'}{'Args'}{'Set'}{$var_expr}{'Vars'}
 					) {
 						@chunks = (@chunks, sort keys %{$info->{'SubroutineCall'}{'Args'}{'Set'}{$var_expr}{'Vars'}});
-					} else {
+					} elsif ($info->{'SubroutineCall'}{'Args'}{'Set'}{$var_expr}{'Type'} ne 'Const' ) {
 						push @chunks, $var_expr;
 					}
 				}
