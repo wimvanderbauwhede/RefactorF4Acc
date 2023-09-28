@@ -13,7 +13,10 @@
 # STRUCTURE/END STRUCTURE♦ (E)
 # UNION/END UNION♦ (E)
 # RECORD♦ (E)
-
+# TOPEN♦ (E)
+# TCLOSE♦ (E)
+# ENCODE♦ (E)
+# DECODE♦ (E)
 # OPTIONS♦ (E)
 # PRAGMA♦ => we support $RF4A, not $PRAGMA
 
@@ -1535,7 +1538,7 @@ or $line=~/^character\s*\(\s*len\s*=\s*[\w\*]+\s*\)/
 
 				$info->{'Cond'}{'AST'}= $ast;
 				my $vars_in_cond_expr =  get_vars_from_expression( $ast,{});
-				# croak Dumper $vars_in_cond_expr if exists $vars_in_cond_expr->{'mod'};
+				# croak $line.Dumper( $vars_in_cond_expr) if $line=~/iachar/;#exists $vars_in_cond_expr->{'iachar'};
 				my $vars_and_index_vars_in_cond_expr={};
 				for my $var (sort keys %{$vars_in_cond_expr}) {
 					if ($vars_in_cond_expr->{$var}{'Type'} eq 'Array'
@@ -1700,6 +1703,7 @@ END IF
                         }
 					}
 					@{ $info->{'Vars'}{'List'} } = keys %{ $info->{'Vars'}{'Set'} };
+					# croak Dumper $info;
 				}
 #REWIND u
 #REWIND ( [ UNIT=] u [, IOSTAT=ios ] [, ERR= s ])
@@ -4080,6 +4084,7 @@ sub _parse_read_write_print {
     }
     if (not (exists $info->{'PrintCall'} or exists $info->{'AcceptCall'}) ) {
     	# Normalise by removing UNIT, NML and FMT
+		# That leaves IOSTAT, REC and SIZE for READ
     	$tline=~s/(unit|nml|fmt)\s*=\s*//gi;
     }
 
@@ -4152,8 +4157,9 @@ sub _parse_read_write_print {
 
     $info->{'Vars'}{'Written'}={'List'=>[],'Set'=>{}};
     $info->{'Vars'}{'Read'}={'List'=>[],'Set'=>{}};
+
     if ( exists $info->{'AcceptCall'} ) {
-#    ACCEPT
+		# ACCEPT
 		#- case 3
 		#if grname add all vars to Written
 		if ( ($attrs_ast->[0] & 0xFF) ==2 and exists   $Sf->{'Namelist'}{ $attrs_ast->[1] } ) {
@@ -4176,7 +4182,7 @@ sub _parse_read_write_print {
 		}
 #else set all args in iolist to Read from and all vars to Written to
     } elsif ( exists $info->{'ReadCall'} ) {
-	#READ
+		# READ
 		#- all three cases
 
 		#If case 1 we need to check the grname (2nd arg) and  add all vars to Read from
@@ -4259,39 +4265,39 @@ sub _parse_read_write_print {
 
 	} elsif ( exists $info->{'WriteCall'} ) {
 
-	#WRITE
-	#case 1 and 2
-	if ($case==1) {
-		#case 1, grname, Read from
-		if ( ($attrs_ast->[0] & 0xFF) ==2 and exists   $Sf->{'Namelist'}{ $attrs_ast->[1] } ) {
-            $info->{'Vars'}{'Read'}{'List'} = $Sf->{'Namelist'}{$attrs_ast->[1]};
-            $info->{'Vars'}{'Read'}{'Set'} = { map {$_=>1} @{ $info->{'Vars'}{'Read'}{'List'} } };
-        }
+		#WRITE
+		#case 1 and 2
+		if ($case==1) {
+			#case 1, grname, Read from
+			if ( ($attrs_ast->[0] & 0xFF) ==2 and exists   $Sf->{'Namelist'}{ $attrs_ast->[1] } ) {
+				$info->{'Vars'}{'Read'}{'List'} = $Sf->{'Namelist'}{$attrs_ast->[1]};
+				$info->{'Vars'}{'Read'}{'Set'} = { map {$_=>1} @{ $info->{'Vars'}{'Read'}{'List'} } };
+			}
 
-	}
-	elsif ($case==2) {
-    #case 2, iolist, Read from
-    #If case 2, add REC vars to Read from
-        if (exists $attr_pairs->{'rec'}) {
-            my $rn = $attr_pairs->{'rec'}[1];
-            $info->{'Vars'}{'Read'}{'Set'}{$rn}=1;
-        }
+		}
+		elsif ($case==2) {
+		#case 2, iolist, Read from
+		#If case 2, add REC vars to Read from
+			if (exists $attr_pairs->{'rec'}) {
+				my $rn = $attr_pairs->{'rec'}[1];
+				$info->{'Vars'}{'Read'}{'Set'}{$rn}=1;
+			}
 
-            # This must be the iolist case. First check for implied do; then call args_vars. All args are Written, the rest is Read
-            my $vars = find_vars_in_ast($exprs_ast, {}  );
+				# This must be the iolist case. First check for implied do; then call args_vars. All args are Written, the rest is Read
+				my $vars = find_vars_in_ast($exprs_ast, {}  );
 
-            if (%{$impl_do_pairs}) {
-				for my $idv (sort keys %{$impl_do_pairs}) {
-					if (exists $vars->{$idv}) {
-						delete $vars->{$idv};
-						@{$vars->{'List'}} =  sort keys %{$vars};
+				if (%{$impl_do_pairs}) {
+					for my $idv (sort keys %{$impl_do_pairs}) {
+						if (exists $vars->{$idv}) {
+							delete $vars->{$idv};
+							@{$vars->{'List'}} =  sort keys %{$vars};
+						}
 					}
 				}
-            }
-            $info->{'Vars'}{'Read'}{'Set'}=$vars;
+				$info->{'Vars'}{'Read'}{'Set'}=$vars;
 
-	}
-	#If case 1 or 2, add IOSTAT var to Written to
+		}
+		#If case 1 or 2, add IOSTAT var to Written to
 	   if (exists $attr_pairs->{'iostat'}) {
                 my $ios = $attr_pairs->{'iostat'}[1];
                 $info->{'Vars'}{'Written'}{'Set'}{$ios}=1;
@@ -4356,7 +4362,7 @@ sub _parse_read_write_print {
             }
         }
 	} else {
-		# I dont do TOPEN/TCLOSE/ENCODE/DECODE/TYPE
+		# I don't do TOPEN/TCLOSE/ENCODE/DECODE/TYPE
 		die 'ERROR: Unsupported IO call, probably not part of the FORTRAN 77 standard: '.$tline."\n";
 	}
 
@@ -4374,6 +4380,11 @@ sub _parse_read_write_print {
     		}
     	} else {
     		%unit_vars = %{ find_vars_in_ast($attrs_ast,{}) };
+			for my $io_control_spec (qw( unit fmt nml rec iostat err end eor advance size) ) {
+				if (exists $unit_vars{$io_control_spec}) {
+					delete $unit_vars{$io_control_spec};
+				}
+			}
     	}
 
     	if ( %unit_vars ) {
@@ -4384,6 +4395,7 @@ sub _parse_read_write_print {
     $info->{'Vars'}{'Read'}{'List'}= [ sort keys %{ $info->{'Vars'}{'Read'}{'Set'} } ];
     $info->{'Vars'}{'Written'}{'List'}= [ sort keys %{ $info->{'Vars'}{'Written'}{'Set'} } ];
 #    carp Dumper($info->{'Vars'}) if $f eq 'ifdata' and $line=~/time/;
+# croak Dumper $info if $line=~/read/;
     return $info;
 
 }    # END of _parse_read_write_print()

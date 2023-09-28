@@ -413,7 +413,7 @@ sub identify_vars_on_line {
 				or exists $info->{'RewindCall'}
 				or exists $info->{'Return'}
 				) {
-					# croak Dumper $info if $line=~/write\(\d+\)/;
+					# croak Dumper $info if $line=~/read/;
 				@chunks = ( @chunks, @{ $info->{'Vars'}{'Written'}{'List'} }, @{ $info->{'Vars'}{'Read'}{'List'} } );
 				if (exists $info->{'ImpliedDoVars'}) {
 				    @chunks = ( @chunks, @{ $info->{'ImpliedDoVars'}{'List'} } );
@@ -443,6 +443,7 @@ sub identify_vars_on_line {
 			} elsif ( exists $info->{'OpenCall'} ) {
 				if ( exists $info->{'Vars'} ) {
 					@chunks = ( @chunks, @{ $info->{'Vars'}{'List'} } );
+					# croak Dumper @chunks;
 				}
 			} elsif ( exists $info->{'Do'} ) {
 				if ($DBG and not defined $info->{'Do'}{'Iterator'} or not defined $info->{'Do'}{'Range'} or not defined $info->{'Do'}{'Range'}{'Vars'} ) {
@@ -458,19 +459,20 @@ sub identify_vars_on_line {
 			or exists $info->{'Equivalence'} ) {
 				@chunks = ( @chunks, @{ $info->{'Vars'}{'List'} } );
 			} elsif ( not exists $info->{'IfThen'} ) {
-
-				# carp "HERE FOR IF ... GOTO $line" if $line=~/go\sto/;
+				# carp "HERE FOR IF ... GOTO $line" if $line=~/go\s*to/;
 				# $line=~s/go\s+to/goto/; # WV: HACK, should normalise this much earlier!
 				my @mchunks = split( /\W+/, $line );
 				for my $mvar (@mchunks) {
-					next
-					  if exists $F95_reserved_words{ $mvar };    # This should be, unless some idiot has assigned to a reserved word somewhere. We assume they only redefine intrinsic functions but who knows?
-					next if exists $F95_other_intrinsics{$mvar};
+					next if exists $F95_reserved_words{ $mvar };    # This should be, unless some idiot has assigned to a reserved word somewhere. We assume they only redefine intrinsic functions but who knows?
+					# next if exists $F95_other_intrinsics{$mvar};
+					next if exists $F95_intrinsics{$mvar};
 #					next if exists $stref->{'Subroutines'}{$f}{'CalledSubs'}{'Set'}{$mvar};    # Means it's a function
 					next if $mvar =~ /^__PH\d+__$/;
 					next if $mvar !~ /^[_a-z]\w*$/;
+					# say "VAR: <$mvar>";
 					push @chunks, $mvar;
 				}
+# croak $line if $line=~/iachar/;
 			}
             return [@chunks];
 		} else {

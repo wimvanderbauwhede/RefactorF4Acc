@@ -1,9 +1,9 @@
 package RefactorF4Acc::Utils;
 use v5.10;
 use RefactorF4Acc::Config;
-# 
+#
 #   (c) 2010-2017 Wim Vanderbauwhede <wim@dcs.gla.ac.uk>
-#   
+#
 
 use vars qw( $VERSION );
 $VERSION = "2.1.1";
@@ -20,7 +20,7 @@ use Exporter;
 @RefactorF4Acc::Utils::ISA = qw(Exporter);
 
 @RefactorF4Acc::Utils::EXPORT = qw(
-    %F95_reserved_words    
+    %F95_reserved_words
     %F95_function_like_reserved_words
     %F95_intrinsics
     %F95_intrinsic_functions
@@ -38,7 +38,7 @@ use Exporter;
     &module_has
     &module_has_only
     &module_has_also
-    &generate_docs    
+    &generate_docs
     &show_status
     &in_nested_set
     &get_vars_from_set
@@ -71,7 +71,7 @@ our $BLANK_LINE = ['',{'Blank'=>1,'Ref'=>1}];
 
 sub get_kernel_and_module_names {
     my ($kernel_src, $superkernel) = @_;
-    
+
     open my $SRC, '<', $kernel_src or die $!;
     my @src_lines = <$SRC>;
     close $SRC;
@@ -97,7 +97,7 @@ sub get_module_name_from_source { (my $stref,my $fp) = @_;
 		return $fp;
 	}
 }
-# This is a utility function to create references for one set to another. 
+# This is a utility function to create references for one set to another.
 # now we can say e.g.  alias_ordered_set($stref,$f, 'RefactoredArgs','DeclaredOrigArgs')
 sub alias_ordered_set { (my $stref,my $f,my $alias,my $orig) = @_;
 	$stref->{'Subroutines'}{$f}{$alias}{'Set'}=$stref->{'Subroutines'}{$f}{$orig}{'Set'};
@@ -117,18 +117,18 @@ sub remove_vars_from_ordered_set { (my $ordered_set, my $vars_to_remove)=@_;
 	return $ordered_set;
 } # END of remove_var_from_ordered_set
 
-sub annotate { (my $f, my $ann, my $nframes)=@_;	
+sub annotate { (my $f, my $ann, my $nframes)=@_;
     my $n = defined $nframes ? $nframes : 1;
     (my $package, my $filename, my $line, my $subroutine, my @rest) = caller($n);
     $subroutine=~s/RefactorF4Acc:://;
-    return $subroutine.'('.$f.') '.(defined $nframes? $line.' ' : '').$ann; 
+    return $subroutine.'('.$f.') '.(defined $nframes? $line.' ' : '').$ann;
 }
 
-sub add_ann_to_info { my ($info, $f, $ann, $nframes)=@_;	
+sub add_ann_to_info { my ($info, $f, $ann, $nframes)=@_;
     my $n = defined $nframes ? $nframes : 1;
     (my $package, my $filename, my $line, my $subroutine, my @rest) = caller($n);
     $subroutine=~s/RefactorF4Acc:://;
-    push @{$info->{'Ann'}}, $subroutine.'('.$f.') '.(defined $nframes? $line.' ' : '').$ann; 
+    push @{$info->{'Ann'}}, $subroutine.'('.$f.') '.(defined $nframes? $line.' ' : '').$ann;
     return $info;
 }
 
@@ -141,14 +141,14 @@ sub comment { (my $comment)=@_;
 	}
 }
 
-sub numeric  ($$) { $_[0] <=> $_[1]; } 
+sub numeric  ($$) { $_[0] <=> $_[1]; }
 
 sub sub_func_incl_mod {
     ( my $f, my $stref ) = @_;
     local $DBG=1;
     if (not defined $stref) {croak "arg not defined sub_func_incl_mod" }
     croak join(' ; ', caller )  if $DBG and $stref!~/0x/;
-    croak if $DBG and not defined $f;        
+    croak if $DBG and not defined $f;
     if ( exists $stref->{'Subroutines'}{$f} ) {
         if (not  exists $stref->{'Modules'}{$f} ) {
             return 'Subroutines';
@@ -162,18 +162,18 @@ sub sub_func_incl_mod {
     } elsif ( exists $stref->{'IncludeFiles'}{$f} ) {
         return 'IncludeFiles';
     } elsif ( exists $stref->{'Modules'}{$f} ) { # So we only say it's a module if it is nothing else.
-        return 'Modules';        
+        return 'Modules';
     } elsif ( exists $stref->{'SourceFiles'}{$f} ) { # So we only say it's a module if it is nothing else.
         if (exists $stref->{'SourceFiles'}{$f}{'SourceType'} and $stref->{'SourceFiles'}{$f}{'SourceType'} eq 'Modules') {
         	return 'Modules';
         } else {
             return 'SourceFiles';
-        }        
+        }
     } else {
 #        #print Dumper($stref);
 #        #croak "No entry for $f in the state\n";
         # Assuming it's a C function
-#WV23JUL        
+#WV23JUL
         return 'ExternalSubroutines';
     }
 }
@@ -192,7 +192,7 @@ sub write_out { my ($src_str, $out_path)=@_;
     } else {
         open my $OUT, '>', $out_path_ or die $!.': '.$out_path_;
         print $OUT $src_str;
-        close $OUT; 
+        close $OUT;
     }
 }
 # -----------------------------------------------------------------------------
@@ -215,7 +215,7 @@ sub show_annlines {
                 }
                 print ">\n";
             } else { print "\n";
-                
+
             }
         }
     }
@@ -240,8 +240,8 @@ sub pp_annlines {
                     }
                 }
                 $pp_annline.= ">";
-                
-            } 
+
+            }
             push @pp_annlines,$pp_annline;
         }
     }
@@ -291,21 +291,21 @@ sub get_maybe_args_globs {
 sub type_via_implicits { (my $stref, my $f, my $var)=@_;
 if ($DBG and not defined $var or $var eq '') {croak "VAR not defined!"}
     my $sub_func_incl = sub_func_incl_mod( $f, $stref );
-    my $type ='Unknown';      
+    my $type ='Unknown';
     my $array_or_scalar ='Unknown';
-    
+
 	my $attr='Unknown';
     if (exists $stref->{'Implicits'}{$f}{lc(substr($var,0,1))} ) {
-        print "INFO: VAR <", $var, "> typed via Implicits for $f\n" if $I;                            
+        print "INFO: VAR <", $var, "> typed via Implicits for $f\n" if $I;
         my $type_kind_attr = $stref->{'Implicits'}{$f}{lc(substr($var,0,1))};
         ($type, $array_or_scalar, $attr)=@{$type_kind_attr};
-    } 
+    }
     if ($type eq 'Unknown') {
         print "INFO: Common <", $var, "> has no rule in {'Implicits'}{$f}, typing via Fortran defaults\n" if $I;
         # In the absence of an implicit statement, a program unit is treated as if it had a host with the declaration
         #  implicit integer (i-n), real (a-h, o-z)
-        if ($var=~/^[i-nI-N]/) { # 
-            return ('integer', 'Scalar',  '');        
+        if ($var=~/^[i-nI-N]/) { #
+            return ('integer', 'Scalar',  '');
         } else {
             return ('real', 'Scalar',  '');
         }
@@ -330,10 +330,10 @@ sub module_has { (my $stref, my $mod_name, my $mod_has_lst) = @_;
 # Returns true if the module contains only items in the $mod_only list, at least one of them
 sub module_has_only { (my $stref, my $mod_name, my $mod_only) = @_;
 #print "\nMODULE $mod_name INLINEABLE?\n";
-    
+
 #    print 'MOD_KEYS:'."\n".Dumper(keys %{ $stref->{'Modules'}{$mod_name} });
 my %mod_has=();
-for my $k ( keys %{ $stref->{'Modules'}{$mod_name} } ) {    
+for my $k ( keys %{ $stref->{'Modules'}{$mod_name} } ) {
     $mod_has{$k}=$stref->{'Modules'}{$mod_name}{$k};
 }
 
@@ -345,12 +345,12 @@ for my $k ( keys %{ $stref->{'Modules'}{$mod_name} } ) {
         }
     }
 #    print Dumper($mod_has{ModType});
-#print 'INL MOD_HAS:'.Dumper(sort keys %mod_has)."\n";    
+#print 'INL MOD_HAS:'.Dumper(sort keys %mod_has)."\n";
 #    die $mod_name if $mod_name=~/common/;
-    if (scalar(keys( %mod_has )) > 0 ) { 
+    if (scalar(keys( %mod_has )) > 0 ) {
 #    	print 'NOT INLINEABLE MOD: '.$mod_name."\n";
-    	return 0; 
-    	
+    	return 0;
+
     } else {
 #        print 'MAYBE INLINEABLE MOD: '.$mod_name."\n";
         return 1; }
@@ -358,7 +358,7 @@ for my $k ( keys %{ $stref->{'Modules'}{$mod_name} } ) {
 
 sub module_has_also { (my $stref, my $mod_name, my $mod_only) = @_;
     my %mod_has=();
-    for my $k ( keys %{ $stref->{'Modules'}{$mod_name} } ) {    
+    for my $k ( keys %{ $stref->{'Modules'}{$mod_name} } ) {
         $mod_has{$k}=$stref->{'Modules'}{$mod_name}{$k};
     }
     for my $k (@{$mod_only},'Status','Source','FStyle','FreeForm','HasBlocks','Inlineable','InlineableSubs','TabFormat', 'ModType' ) {
@@ -366,7 +366,7 @@ sub module_has_also { (my $stref, my $mod_name, my $mod_only) = @_;
             delete $mod_has{$k};
         }
     }
-    return join(', ',sort keys( %mod_has )) 
+    return join(', ',sort keys( %mod_has ))
 } # END of module_has_also
 
 
@@ -469,7 +469,7 @@ sub show_status {
     my @status_str = ( 'UNREAD', 'INVENTORIED', 'READ', 'PARSED', 'FROM_BLOCK', 'C_SOURCE','FILE_NOT_FOUND' );
     return $status_str[$st];
 }
-# Test if a var is an element of a nested set. Returns the innermost set 
+# Test if a var is an element of a nested set. Returns the innermost set
 sub in_nested_set { (my $set, my $set_key, my $var)=@_;
 
 	croak 'Undefined var in call to in_nested_set()' if $DBG and not defined $var;
@@ -510,8 +510,8 @@ sub get_vars_from_set { (my $set)=@_;
         }
     } elsif (exists $set->{'Set'}) {
 #    	say 'SET!';
-        $vars = $set->{'Set'}  ;        
-    } 
+        $vars = $set->{'Set'}  ;
+    }
         return $vars;
 }
 # $stref->{'Modules'}{$mod}{'Parameters'}{'Subsets'}
@@ -540,7 +540,7 @@ sub remove_var_decl_from_set { (my $Sf, my $set, my $var)=@_;
 	if (exists 	$Sf->{$set}{'Set'}{$var}) {
 		delete $Sf->{$set}{'Set'}{$var};
 		@var_list = grep {$_ ne $var} @{$Sf->{$set}{'List'}};
-		$Sf->{$set}{'List'}=[@var_list];    	
+		$Sf->{$set}{'List'}=[@var_list];
 	}
 	return $Sf;
 } # END of add_var_decl_to_set
@@ -550,14 +550,14 @@ sub remove_var_decl_from_set { (my $Sf, my $set, my $var)=@_;
 sub get_var_record_from_set { (my $set, my $var)=@_;
     my %vars=();
      if (exists $set->{'Subsets'} ) {
-        for my $subset (keys %{  $set->{'Subsets'} } ) {            
+        for my $subset (keys %{  $set->{'Subsets'} } ) {
             my $vars_ref= get_vars_from_set($set->{'Subsets'}{$subset});
             %vars = ( %vars, %{$vars_ref} );
         }
     } elsif (exists $set->{'Set'}) {
-        
-        return $set->{'Set'}{$var} ;        
-    } 
+
+        return $set->{'Set'}{$var} ;
+    }
     return $vars{$var};
 }
 
@@ -576,12 +576,12 @@ sub get_kv_for_all_elts_in_set {
 	}
 	return $results;
 }
-# This expects a ref to { 'Set' => ...} for $set1 and either { 'Set' => ...} or { 'Subsets' => ...} for $set2 
+# This expects a ref to { 'Set' => ...} for $set1 and either { 'Set' => ...} or { 'Subsets' => ...} for $set2
 sub append_to_set { (my $set1, my $set2) = @_;
 	# Flatten the set
 	my $all_subsets_set2 = get_vars_from_set($set2);
 	$set1->{'Set'} = { %{$set1->{'Set'}}, %{$all_subsets_set2} };
-	$set1->{'List'} = [ sort keys %{ $set1->{'Set'} } ]; # WV: this destroys the order, but does it matter? 
+	$set1->{'List'} = [ sort keys %{ $set1->{'Set'} } ]; # WV: this destroys the order, but does it matter?
 	return $set1;
 }
 
@@ -824,7 +824,7 @@ zexp
 zlog
 zsin
 zsqrt
-); 
+);
 our %F95_intrinsic_functions = map { $_=>1 } @F95_intrinsic_functions_list;
 
 my @F95_assoc_intrinsic_functions_list = qw(
@@ -911,7 +911,7 @@ rewrite
 write
 );
 
-our @F95_reserved_words_list = qw( 
+our @F95_reserved_words_list = qw(
 assign
 backspace
 block
@@ -1031,12 +1031,12 @@ double
 precision
 doubleprecision
 logical
-character 
+character
 complex
 doublecomplex
 );
 our %F95_io_keywords = map { $_=>1 } @F95_io_keywords_list;
-our %F95_reserved_words = map { $_=>1 } @F95_reserved_words_list ; 
+our %F95_reserved_words = map { $_=>1 } @F95_reserved_words_list ;
 our %F95_function_like_reserved_words = map { $_=>1 } @F95_function_like_reserved_words_list;
 
 our %F95_types = map { $_=>1 } @F95_types_list;
@@ -1045,11 +1045,11 @@ our %F95_types = map { $_=>1 } @F95_types_list;
 our %F95_intrinsics = (%F95_intrinsic_functions,%F95_other_intrinsics);
 
 sub warning { my ($msg, $lev) = @_;
-    if (not defined $lev) {$lev=0};    
-    return if $WARNING_LEVEL==0; 
-    if (not exists $messages->{WARNING}{$msg}) {
-        $messages->{WARNING}{$msg}=1;
-        if ($lev<=3) {
+    if (not defined $lev) {$lev=0};
+    return if ($WARNING_LEVEL==0 or $WARNING_LEVEL<$lev);
+    if (not exists $messages->{'WARNING'}{$msg}) {
+        $messages->{'WARNING'}{$msg}=1;
+        if ($WARNING_LEVEL<=3) {
             say "WARNING: $msg"
         } else {
             carp "WARNING: $msg"
@@ -1082,7 +1082,7 @@ sub is_array_decl { (my $info)=@_;
 	&& exists $info->{'ParsedVarDecl'}{'Attributes'}
 	&& exists $info->{'ParsedVarDecl'}{'Attributes'}{'Dim'}
 	&& scalar @{$info->{'ParsedVarDecl'}{'Attributes'}{'Dim'}} >0)
-	# because parse_F95_var_decl() returns Scalars as Dim => [0] 
+	# because parse_F95_var_decl() returns Scalars as Dim => [0]
 	&& $info->{'ParsedVarDecl'}{'Attributes'}{'Dim'}[0].'' ne '0';
 }
 

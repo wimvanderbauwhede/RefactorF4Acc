@@ -1,8 +1,8 @@
 package RefactorF4Acc::Config;
 use v5.10;
-# 
+#
 #   (c) 2010-2019 Wim Vanderbauwhede <wim@dcs.gla.ac.uk>
-#   
+#
 
 use vars qw( $VERSION );
 $VERSION = "2.1.1";
@@ -25,7 +25,7 @@ $gen_sub
 $translate
 $targetdir
 %Config
-&read_rf4a_config    
+&read_rf4a_config
 &interactive_create_rf4a_cfg
 &read_config
 $messages
@@ -37,7 +37,7 @@ $messages
 # $SOURCEFILES
 # $RENAME_EXT
 # $EXT
-# 
+#
 # $LIBS $LIBPATHS $INCLPATHS
 our $NEW_PARSER = 1;
 
@@ -64,7 +64,7 @@ my $NO_ONLY = 0;
 my $RENAME_EXT = '_GLOB';
 my $EXT = '.f90'; # You can set this in rf4a.cfg, changed from .f95 default to .f90 default on suggestion of @rouson
 
-our $LIBS = []; 
+our $LIBS = [];
 our $LIBPATHS =  [];
 our $INCLPATHS = [];
 
@@ -95,7 +95,7 @@ our $targetdir = '../RefactoredSources';
 
 #PREFIX = .
 #SRCDIRS = .
-#EXTSRCDIRS = ../NetCDF 
+#EXTSRCDIRS = ../NetCDF
 
 # Config should support at least the following keys:
 
@@ -121,8 +121,8 @@ our %Config=(
 'EXT' => $EXT,
 'ALLOW_SPACES_IN_NUMBERS' => 0,
 'HAS_F77_SOURCES' => 0,
-'LIBS' => [], 
-'LIBPATHS' => [], 
+'LIBS' => [],
+'LIBPATHS' => [],
 'EXE' => '',
 
 'TOP' => '',
@@ -172,7 +172,7 @@ for my $maybe_lib_path ( @maybe_lib_paths ) {
 	if (-d $maybe_lib_path) {
 		push @{ $Config{'LIBPATHS'} }, $maybe_lib_path;
 	}
-} 
+}
 my @maybe_inc_paths = ('/opt/local/include','/usr/local/include');
 
 for my $maybe_inc_path ( @maybe_inc_paths ) {
@@ -181,7 +181,7 @@ for my $maybe_inc_path ( @maybe_inc_paths ) {
     }
 }
 
-sub read_rf4a_config { 
+sub read_rf4a_config {
 	(my $cfgrc)=@_;
 	open my $CFG, '<', $cfgrc or die $!,': ',$cfgrc;
 	say "INFO: CONFIG FILE $cfgrc:" if $I;
@@ -212,7 +212,7 @@ sub read_rf4a_config {
 close $CFG;
 }
 
-sub read_config { 
+sub read_config {
 	my ($cfgrc,$cfg_hash)=@_;
     if (not defined $cfg_hash) {
         $cfg_hash={};
@@ -242,7 +242,7 @@ sub read_config {
     }
 
     close $CFG;
-    
+
     } else {
         warn "Config file $cfgrc does not exists";
     }
@@ -250,7 +250,7 @@ sub read_config {
 }
 
 =pod
-TOP :: String: The name of the toplevel code unit for the analysis. Typically this is the main program name. 
+TOP :: String: The name of the toplevel code unit for the analysis. Typically this is the main program name.
 PREFIX :: String: The path to the directory  where the script will run. Typically this is '.'.
 
 SRCDIRS :: [String]: A comma-separated list of directories (relative to PREFIX) to be searched for source files.
@@ -297,7 +297,7 @@ EXCL_SRCS = main_screenshot.f, test.f, ^tmp.*
 EXCL_DIRS = GIS, data, RefactoredSources.*,  PostCPP,testDest.*
 NO_ONLY = 0
 SPLIT_LONG_LINES = 1
-RENAME_EXT =  
+RENAME_EXT =
 
 MODULE = module_adam_bondv1_feedbf_les_press_v_etc_superkernel
 MODULE_SRC = module_adam_bondv1_feedbf_les_press_v_etc_superkernel.f95
@@ -353,7 +353,7 @@ our $config_menu= {
         ['NO_MODULE','Comma-separated list of source files that should not be changed to modules','']
     ],
 
-    'SUPER_ADVANCED' => [        
+    'SUPER_ADVANCED' => [
         ['NO_ONLY','Generate USE without ONLY? 0/1','0'],
         ['RENAME_EXT', 'Suffix for renaming clashing variables ','_GLOB'],
         ['EVAL_PARAM_EXPRS','Evaluate RHS expression of parameter declarations? 0/1','0'],
@@ -383,8 +383,8 @@ sub write_config { (my $lines) = @_;
             $cfg = <STDIN>;
             chomp $cfg;
         }
-   } 
-    
+   }
+
    say "Writing configuration to $cfg";
    open my $CFG, '>', $cfg or die $!;
     for my $line (@{$lines}) {
@@ -399,13 +399,13 @@ sub process_config {
     for my $entry (@{$config->{$class}}) {
          (my $key, my $desc, my $default) = @{$entry};
          my $value = get_entry_value($desc, $default);
-        if ($key=~/CONFIG:(\w+)/) {  
+        if ($key=~/CONFIG:(\w+)/) {
             my $class=$1;
             if ( $value eq 'y') {
                 $lines = process_config($config, $class, $lines);
             }
         } else {
-            if ($class eq 'BASIC') {               
+            if ($class eq 'BASIC') {
                 $default = '#'; # so that basic defaults will be entered in the cfg file
             }
             push @{$lines}, write_key($key, $desc, $value, $default);
@@ -413,7 +413,7 @@ sub process_config {
     }
     return $lines;
 }
-    
+
 sub get_entry_value { (my $desc, my $default) = @_;
     print "$desc: [$default] ";
     my $value = <STDIN>;
