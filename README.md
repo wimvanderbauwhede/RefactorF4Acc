@@ -113,6 +113,7 @@ Full details of these four real-world examples can be found in
 <a name="limitations"></a>
 ## Limitations of RefactorF4Acc
 - This tool was developed for a specific purpose: refactoring FORTRAN77 code into Fortran 95 code _suitable for offloading to GPUs and FPGAs_. The refactorings it includes are there to support that goal. Therefore, many refactorings that you might do to improve code on CPU, e.g. to benefit from SIMD, are _not_ included, for example replacing loops by array operations.
+- I have gradually been adding support for more F77, F90 and F95 features, but there is still a lot that is not supported, see [`UNSUPPORTED-FEATURES.md`](https://github.com/wimvanderbauwhede/RefactorF4Acc/blob/devel/UNSUPPORTED-FEATURES.md)
 - To perform static code analysis, the compiler requires all array bounds to be constants at compile time. If your code contains array bounds defined using variables, in particular subroutine arguments, the analysis can't work.
 - The resulting code is also _not_ GPU-ready, it is still ordinary, single-threaded Fortran code. For the process to generate fully parallel OpenCL code for GPU, see <a href="#fulltoolchain">Example of full toolchain from FORTRAN77 to parallel OpenCL</a>. 
 - This is a research project and because of the limited time I can put into it, it is _definitely not complete or bug free_. Therefore, the chance that it might not work on your particular code is quite high.
@@ -171,50 +172,87 @@ To use RefactorF4Acc:
 The configuration file is a text file containing key-value pairs separated with an '='. Lines starting with '#' are comments.
 The following keys are defined:
 
+#### BASIC
+
 <dl>
-<dt>TOP:</dt><dd>The name of the toplevel code unit for the analysis. Typically this is the main program name.</dd>
-<dt>PREFIX:</dt><dd>The path to the directory  where the script will run. Typically this is '.'.</dd>
-
-<dt>SRCDIRS:</dt><dd>A comma-separated list of directories (relative to PREFIX) to be searched for source files.</dd>
-<dt>EXTSRCDIRS:</dt><dd>A comma-separated list of directories (relative to PREFIX) to be searched for source files.</dd>
-<dt>EXCL_SRCS:</dt><dd>A comma-separated list of regular expressions matching the source files to be excluded from the analysis. This is relative to `SRCDIRS` unless it starts with '^', so for example 
-      SRCDIRS: src
-      EXCL_SRCS: hello.f95
-will exclude `hello.f95` from sources in directory `src` and so will
-      SRCDIRS: src
-      EXCL_SRCS: ^src\/hello.f95
-</dd>
-<dt>EXCL_DIRS:</dt><dd>A comma-separated list of directories (relative to PREFIX) NOT to be searched for source files.</dd>
-<dt>MACRO_SRC:</dt><dd>If the sources use the C preprocessor, you can provide a file containing C preprocessor macro definitions</dd>
-<dt>NEWSRCPATH:</dt><dd>Path to the directory that will contain the refactored sources</dd>
-
-<dt>SOURCEFILES:</dt><dd>A comma-separated list of source files to be refactored. Same as specifying them with `-s` on command line</dd>
-
-<dt>KERNEL:</dt><dd>For OpenCL translatation, the name of the subroutine to become the OpenCL kernel (actually same as TOP).</dd>
-<dt>MODULE_SRC:</dt><dd>For OpenCL translatation, the name of the source file containing a module which contains the kernel subroutine.</dd>
-<dt>MODULE:</dt><dd>For OpenCL translatation, the name of the module which contains the kernel subroutine</dd>
-
-<dt>NO_MODULE:</dt><dd>List of source files that should not be changed to modules</dd>
-<dt>RENAME_EXT:</dt><dd>Extension for variables that need to be renamed because of conflicts (usually you don't need this; the default is _GLOB)</dd>
-<dt>INLINE_INCLUDES:</dt><dd>Inline all includes, in the same way the preprocessor would do. Use this if your code has include files that can't be turned into modules because they are not self-contained.</dd>
-<dt>NO_ONLY:</dt><dd>Do not use the ONLY qualifier on the USE declaration</dd>
-<dt>SPLIT_LONG_LINES:</dt><dd>Split long lines into chunks of no more than 80 characters</dd>
-<dt>MAX_LINE_LENGTH:</dt><dd>Maximum line length for fixed-format FORTRAN77 code. The default is 132 characters.</dd>
-<dt>ALLOW_SPACES_IN_NUMBERS:</dt><dd>Allow spaces in numeric constants for fixed-format FORTRAN77 code. Default 0.</dd>
-<dt>EVAL_PARAM_EXPRS:</dt><dd>Evaluate RHS expression of parameter declarations. Default is 0.</dd>
-<dt>EXT</dt><dd>Extension of generated source files. Default is `.f90`; must include the dot</dd>
-<dt>LIBS</dt><dd>SCons LIBS, comma-separated list</dd>
-<dt>LIBPATH</dt><dd>SCons LIBPATH, comma-separated list</dd>
-<dt>INCLPATH</dt><dd>SCons F90PATH or F95PATH (based on EXT), comma-separated list</dd>
+<dt>SRCDIRS:</dt><dd>Relative path to the original Fortran source code [src]</dd>
+<dt>NEWSRCPATH:</dt><dd>Relative path to the refactored Fortran source code [refactored-src]</dd>
+<dt>TOP:</dt><dd>Name of the subroutine to start from. If this is the main program, leave blank. []</dd>
+<dt>CONFIG:ADVANCED:</dt><dd>Advanced configuration? y/n [n]</dd>
 </dl>
+
+#### ADVANCED
+
+<dl>
+<dt>PREFIX:</dt><dd>Prefix for all relative paths [.]</dd>
+<dt>EXT:</dt><dd>Extension of refactored source files [.f90]</dd>
+<dt>EXCL_SRCS:</dt><dd>Source files to be excluded (comma-separated list) []</dd>
+<dt>EXCLUDE_ALL_SUBDIRS:</dt><dd>Exclude all subfolders in the source folder? 0/1 [0]</dd>
+<dt>EXCL_DIRS:</dt><dd>Source folders to be excluded (comma-separated list) []</dd>
+<dt>INLINE_INCLUDES:</dt><dd>Inline all include files? 0/1 [0]</dd>
+<dt>SPLIT_LONG_LINES:</dt><dd>Split long lines into chunks of no more than 80 characters? 0/1 [1]</dd>
+<dt>MAX_LINE_LENGTH:</dt><dd>Maximum line length for fixed-format F77 code [132]</dd>
+<dt>ALLOW_SPACES_IN_NUMBERS:</dt><dd>Allow spaces in numeric constants for fixed-format F77 code? 0/1 [0]</dd>
+<dt>PRESERVE_CASE:</dt><dd>Treat the source code as if it is case-sensitive? 0/1 [0]</dd>
+<dt>NO_SAVE:</dt><dd>Delete SAVE statements? 0/1 [1]</dd>
+<dt>STRICT_COMMONS_CHECKS:</dt><dd>Stop if COMMON blocks are not type-safe? 0/1 [0]</dd>
+<dt>CONFIG:SCONS:</dt><dd>SCons-specific configuration? y/n [n]</dd>
+<dt>CONFIG:OCL:</dt><dd>OpenCL-specific configuration? y/n [n]</dd>
+<dt>CONFIG:CUSTOM:</dt><dd>Custom pass-specific configuration? y/n [n]</dd>
+<dt>CONFIG:SUPER_ADVANCED:</dt><dd>Super-dvanced configuration? y/n [n]</dd>
+</dl>
+
+#### SCONS
+
+<dl>
+<dt>EXE:</dt><dd>Name of executable to be build (default is program name) []</dd>
+<dt>LIBS:</dt><dd>SCons LIBS, comma-separated list []</dd>
+<dt>LIBPATH:</dt><dd>SCons LIBPATH, comma-separated list []</dd>
+<dt>INCLPATH:</dt><dd>SCons F90PATH or F95PATH (based on EXT), comma-separated list []</dd>
+<dt>HAS_F77_SOURCES:</dt><dd>Tells SCons to add the F77 compiler as well as the F90 compiler? 0/1 [0]</dd>
+<dt>FFLAGS:</dt><dd>SCons FFLAGS, comma-separated list []</dd>
+<dt>F77FLAGS:</dt><dd>SCons F77FLAGS, comma-separated list []</dd>
+<dt>F90FLAGS:</dt><dd>SCons F77FLAGS, comma-separated list []</dd>
+</dl>
+
+#### OCL
+
+<dl>
+<dt>KERNEL:</dt><dd>For OpenCL translatation, the name of the subroutine to become the OpenCL kernel (actually same as TOP) []</dd>
+<dt>MODULE_SRC:</dt><dd>For OpenCL translatation, the name of the source file containing a module which contains the kernel subroutine []</dd>
+<dt>MODULE:</dt><dd>For OpenCL translatation, the name of the module which contains the kernel subroutine []</dd>
+<dt>NO_MODULE:</dt><dd>Comma-separated list of source files that should not be changed to modules []</dd>
+</dl>
+
+#### CUSTOM
+
+<dl>
+<dt>CUSTOM_PASS_OUTPUT_PATH:</dt><dd>Output path for custom pass []</dd>
+</dl>
+
+#### SUPER_ADVANCED
+
+<dl>
+<dt>NO_ONLY:</dt><dd>Generate USE without ONLY? 0/1 [0]</dd>
+<dt>RENAME_EXT:</dt><dd>Suffix for renaming clashing variables  [_GLOB]</dd>
+<dt>EVAL_PARAM_EXPRS:</dt><dd>Evaluate RHS expression of parameter declarations? 0/1 [0]</dd>
+<dt>RENAME_PARS_IN_INLINED_SUBS:</dt><dd>Rename parameters in inlined subroutines (to avoid name conflicts)? 0/1 [0]</dd>
+<dt>RENAME_VARS_IN_INLINED_SUBS:</dt><dd>Rename variables in inlined subroutines (to avoid name conflicts)? 0/1 [0]</dd>
+<dt>FOLD_CONSTANTS:</dt><dd>Fold constants (replace parameters by their values)? 0/1 [0]</dd>
+<dt>NO_MODULE:</dt><dd>Comma-separated list of source files that should not be changed to modules []</dd>
+<dt>MACRO_SRC:</dt><dd>Relative path to C-style header file with macro definitions [macros.h]</dd>
+<dt>ONE_SUB_PER_MODULE:</dt><dd>Create a module for each subroutine? 0/1 [1]</dd>
+<dt>PURPOSE_CFG:</dt><dd>Relative path to the Purpose configuration [purpose.cfg]</dd>
+</dl>
+
+
 
 <a name="commandline"></a>
 ### Command line flags
 
     -h: help
     -V: print the version number
-    -w: show warnings 
-    -W: show more warnings
+    -w <level>: show warnings, levels 0 (none) to 3 (most). default level = 1
     -v: verbose (implies -w)
     -i: show info messages
     -d: show debug messages
@@ -226,7 +264,7 @@ will exclude `hello.f95` from sources in directory `src` and so will
     -A: Annotate the refactored lines 
     -P: Name of pass to be performed
     -s: Provide a comma-separated list of source files to be refactored. Same as specifying SOURCEFILES in the config file
-
+    -o: Provide a custom output path
 
 <a name="examples"></a>
 ## Examples of RefactorF4Acc in action 

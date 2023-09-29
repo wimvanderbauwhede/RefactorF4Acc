@@ -17,7 +17,7 @@ use RefactorF4Acc::Utils qw( in_nested_set add_var_decl_to_set remove_var_decl_f
 
 use RefactorF4Acc::Parser::Expressions qw( parse_expression_no_context );
 use RefactorF4Acc::Analysis::Arguments qw( create_RefactoredArgs );
-use RefactorF4Acc::Analysis::Arrays qw(  
+use RefactorF4Acc::Analysis::Arrays qw(
 get_array_rank
 calculate_array_size
 calculate_multidim_indices_from_linear
@@ -43,7 +43,7 @@ our @EXPORT_OK = qw(
 
 sub analyse_common_blocks { (my $stref) =@_;
 	for my $f ( keys %{ $stref->{'Subroutines'} } ) {
-		next if $f eq '';			
+		next if $f eq '';
 		next  if $f eq 'UNKNOWN_SRC';
 		next unless exists $stref->{'Subroutines'}{$f}{'HasLocalCommons'};
 
@@ -51,30 +51,30 @@ sub analyse_common_blocks { (my $stref) =@_;
 #    say Dumper($stref->{'Subroutines'}{$f}{'CommonBlocks'});
 #	die if $f eq 'fm302';
 		next if  exists $stref->{'Subroutines'}{$f}{'Program'} and $stref->{'Subroutines'}{$f}{'Program'}==1;
-		
+
 #	 say "\nCOMMON BLOCK MISMATCHES in $f:\n";
 #    say Dumper($stref->{'Subroutines'}{$f}{'CommonBlocks'});
     $stref = _identify_common_var_mismatch($stref,$f);
 #    say Dumper($stref->{'Subroutines'}{$f}{'CommonVarMismatch'});
 	}
 
-	
+
 	for my $f ( keys %{ $stref->{'Subroutines'} } ) {
-		next if $f eq '';			
+		next if $f eq '';
 		next  if $f eq 'UNKNOWN_SRC';
 		next unless exists $stref->{'Subroutines'}{$f}{'HasLocalCommons'};
 		_create_common_var_size_tuples( $stref, $f );
 	}
 
-	for my $f ( keys %{ $stref->{'Subroutines'} } ) {		
-		next if $f eq '';			
+	for my $f ( keys %{ $stref->{'Subroutines'} } ) {
+		next if $f eq '';
 		next  if $f eq 'UNKNOWN_SRC';
 		next unless exists $stref->{'Subroutines'}{$f}{'HasLocalCommons'};
 		_match_up_common_vars( $stref, $f );
 		next unless exists $stref->{'Subroutines'}{$f}{'HasCommonVarMismatch'};
 		$stref = create_RefactoredArgs( $stref, $f );
 	}
-		
+
 	return $stref;
 	} # END of analyse_common_blocks
 
@@ -169,11 +169,11 @@ sub _compare_decls {
 	return 0 unless ( !$compare_names or $names_match );
 	my $types_match = $decl1->{'Type'} eq $decl2->{'Type'};
 	return 0 unless $types_match;
-	if ( $DBG and  
+	if ( $DBG and
 		 $decl1->{'Attr'} =~ /=/ and $decl2->{'Attr'} !~ /=/
 		or $decl1->{'Attr'} !~ /=/ and $decl2->{'Attr'} =~ /=/ )
 	{
-		carp "Attributes have different structure: $f1 " . $decl1->{'Attr'} . Dumper($decl1).'<>' . $f2.' '.$decl2->{'Attr'}.Dumper($decl2);		
+		carp "Attributes have different structure: $f1 " . $decl1->{'Attr'} . Dumper($decl1).'<>' . $f2.' '.$decl2->{'Attr'}.Dumper($decl2);
 	}
 	my $attrs_match = $decl1->{'Attr'} eq $decl2->{'Attr'};
 	return 0 unless $attrs_match;
@@ -222,11 +222,11 @@ sub _create_common_var_size_tuples {
 			# This means we will have to match them up, so create the tuples
 			my $called_sub_common_var = $_;
 			my $called_set            = in_nested_set( $Sf, 'CommonVars', $called_sub_common_var );
-			
+
 			my $called_sub_common_var_decl = $Sf->{$called_set}{'Set'}{$called_sub_common_var};
 			my $dimsz = 0;
 			my $dim   = [];
-			
+
 			if ( $called_sub_common_var_decl->{'ArrayOrScalar'} eq 'Array' ) {
 				$dim   = dclone( $called_sub_common_var_decl->{'Dim'} );
 				($dimsz, my $not_const) = calculate_array_size( $stref, $f, $dim ),;
@@ -275,7 +275,7 @@ sub _match_up_common_vars {
 			_match_up_common_var_sequences( $stref, $f, $caller, $block );
 		}
 	}
-	
+
 	return $stref;
 }    # END of _match_up_common_vars
 
@@ -289,7 +289,7 @@ sub _match_up_common_var_sequences {
 
 	# say "MATCHING UP BLOCK $block for $f and $caller";
 	# So the problem here is that in some evil code, the caller can have a type mismatch with the local
-	# We should use the local if possible I guess. 
+	# We should use the local if possible I guess.
 	my $Sf               = $stref->{'Subroutines'}{$f};
 	my @common_local_seq = @{ $Sf->{'CommonBlockSequences'}{$block} };
 	my @common_caller_seq =  @{ $stref->{'Subroutines'}{$caller}{'CommonBlockSequences'}{$block} };
@@ -300,13 +300,13 @@ sub _match_up_common_var_sequences {
 	# type Type = String -- integer | real | character | ...
 	# type ArrayOrScalar = Integer -- 1 for Array, 0 for Scalar
 	# type Dim is [[Integer]]
-	# type PrefixStr = [String]	
-	my @equivalence_pairs = ();	
+	# type PrefixStr = [String]
+	my @equivalence_pairs = ();
 	# croak 'LOCAL:'.Dumper( map {$_->[0].(@{$_->[3]}>0? '('.$_->[4].')':'' )} @common_local_seq).'CALLER:'.Dumper( map {$_->[0].(@{$_->[3]}>0? '('.$_->[4].')':'' )} @common_caller_seq);
 	my $well_aligned=1;
 	while ( scalar @common_local_seq > 0 ) {    # keep going until the local sequence is consumed
 		my $elt_local = shift @common_local_seq;
-		
+
 		my ( $name_local, $decl_local, $kind_local, $dim_local, $dimsz_local, $lin_idx_local, $used_local ) = @{$elt_local};
 		my $type_local = $decl_local->{'Type'};
 		# say Dumper($elt_local);
@@ -319,11 +319,11 @@ sub _match_up_common_var_sequences {
 			if ( $kind_local != $kind_caller ) {
 				say "TYPE ERROR: Can't match COMMON var sequences with different kinds in call to $f in $caller: $kind_local <> $kind_caller\n";
 				say '  SOURCE: '.$Sf->{'Source'},
-                    '  CODE UNIT: '.$f, '  VAR:'	
+                    '  CODE UNIT: '.$f, '  VAR:'
 					. "LOCAL: $name_local"
 					. "CALLER: $name_caller";
 				die "\n" if $Config{'STRICT_COMMONS_CHECKS'};
-			}			
+			}
 
 			my $type_caller = $decl_caller->{'Type'};
 			# carp 'dim_caller: '.Dumper($dim_caller);
@@ -339,11 +339,11 @@ sub _match_up_common_var_sequences {
 			if ( $htype_local ne $htype_caller ) {
 				say "TYPE ERROR: Can't match COMMON var sequences with different types in call to $f in $caller: $htype_local <> $htype_caller\n";
 				say '  SOURCE: '.$Sf->{'Source'},
-                    '  CODE UNIT: '.$f, '  VAR:'	
+                    '  CODE UNIT: '.$f, '  VAR:'
 					. "\n  LOCAL: $name_local"
 					. "\n  CALLER: $name_caller";
 				die "\n" if $Config{'STRICT_COMMONS_CHECKS'};
-			}				
+			}
 			if ($DBG ) {
 				if ( not( $htype_local eq $htype_caller and $kind_local eq $kind_caller ) ) {    # Type / Attr mismatch
 					if ( $decl_local->{'ArrayOrScalar'} eq 'Array' ) {
@@ -373,8 +373,8 @@ sub _match_up_common_var_sequences {
 
 			# If the attribute, i.e. the kind or length, is mismatched, we must take this into account
 			# The way to do this is by multiplying the length of each variable in the sequence with KIND or LEN
-			if ( $decl_local->{'ArrayOrScalar'} eq 'Scalar' and $decl_caller->{'ArrayOrScalar'} eq 'Scalar' ) {    # both Scalar so no mismatch or overlap			
-			$well_aligned=1;	
+			if ( $decl_local->{'ArrayOrScalar'} eq 'Scalar' and $decl_caller->{'ArrayOrScalar'} eq 'Scalar' ) {    # both Scalar so no mismatch or overlap
+			$well_aligned=1;
 				# if ( $kind_local == $kind_caller ) {                                                               # Same kind
 					# if ( $name_local ne $name_caller ) {                                                           # Different names
 					# 	# push @equivalence_pairs, [ [ $name_local, $type_local, 0, [], [] ], [ $name_caller, $type_caller, 0, [], [] ] ];
@@ -429,7 +429,7 @@ sub _match_up_common_var_sequences {
 						#						say "A A eq ".Dumper([[$name_local,1,$dim_local_copy,[]],[$name_caller,1,$dim_caller_copy,$prefix]]);
 						push @equivalence_pairs, [ [ $name_local, $type_local, 1, $dim_local_copy, [] ], [ $name_caller, $type_caller, 1, $dim_caller_copy, [] ] ];
 					}
-				} else {    # Arrays of different size		
+				} else {    # Arrays of different size
 					$well_aligned=0;
 					# if they have the same name I need to prefix the caller name
 					# WAS ( $kind_local * ( $dimsz_local - $lin_idx_local + 1 ) > $kind_caller * ( $dimsz_caller - $lin_idx_caller + 1 ) )
@@ -440,7 +440,7 @@ sub _match_up_common_var_sequences {
 							# then I need the points 3,4,5,6 to overlap with 1,2,3,4
 							# 3+4-1
 							# This is regardless of the kind differences
-						# my $lin_idx_local_end   = $lin_idx_local + $kind_caller * ( $dimsz_caller - $lin_idx_caller + 1 ) / $kind_local - 1;	
+						# my $lin_idx_local_end   = $lin_idx_local + $kind_caller * ( $dimsz_caller - $lin_idx_caller + 1 ) / $kind_local - 1;
 						my $lin_idx_local_end   = $lin_idx_local + $dimsz_caller - $lin_idx_caller;
 						my $lin_idx_local_start = $lin_idx_local;
 
@@ -470,14 +470,14 @@ sub _match_up_common_var_sequences {
 
 						#							say "A A ne ".Dumper( [[$name_local,1,$dim_local_copy,[]],[$name_caller,1,$dim_caller_copy,$prefix]]);
 						if ( $name_local eq $name_caller ) {
-							# In that case the SigArg should get the prefix as well							
+							# In that case the SigArg should get the prefix as well
 							# croak Dumper($decl_local , $decl_caller);
 							# WV2020-07-20 There is a problem here if the caller has a different size from the local
 							# So I think I need to use the local, not the caller
 							# $Sf = __add_prefixed_arg( $Sf, $name_local, $decl_local, $caller, $block );
 							$Sf = __add_prefixed_arg( $Sf, $name_caller, $decl_caller, $caller, $block );
 						} else {
-							$prefix = [];							
+							$prefix = [];
 							$Sf     = add_var_decl_to_set( $Sf, 'ExGlobArgs', $name_caller, $decl_caller );
 						}
 						push @equivalence_pairs, [ [ $name_local, $type_local, 1, $dim_local_copy, [] ], [ $name_caller, $type_caller, 1, $dim_caller_copy, $prefix ] ];
@@ -502,7 +502,7 @@ sub _match_up_common_var_sequences {
 						# .Dumper($dim_caller_copy)
 						# ."\n".Dumper($coords_caller_end)
 						# ."\n".Dumper($dim_local_copy);
-						
+
 						for my $idx ( 0 .. scalar @{$coords_caller_end} - 1 ) {
 							$dim_caller_copy->[$idx][1] =
 							  $coords_caller_end->[$idx];
@@ -551,7 +551,7 @@ sub _match_up_common_var_sequences {
 				and $decl_caller->{'ArrayOrScalar'} eq 'Array' )
 			{    # local is Scalar, caller is Array
 				$well_aligned=0;
-				# if ( $kind_local == $kind_caller ) { 
+				# if ( $kind_local == $kind_caller ) {
 
 					# increment dim
 					my $lin_idx_caller_start = $lin_idx_caller;
@@ -579,7 +579,7 @@ sub _match_up_common_var_sequences {
 					$lin_idx_caller++;
 					# say $kind_local / $kind_caller;
 					# $lin_idx_caller += $kind_local * ( $dimsz_local - $lin_idx_local + 1 ) / $kind_caller;
-					# croak "$name_caller $dimsz_caller - $lin_idx_caller ". @common_local_seq; 
+					# croak "$name_caller $dimsz_caller - $lin_idx_caller ". @common_local_seq;
 					if ( $dimsz_caller - $lin_idx_caller >= 0) {
 						$elt_caller = [ $name_caller, $decl_caller, $kind_caller, $dim_caller, $dimsz_caller, $lin_idx_caller, $used_caller ];
 						unshift @common_caller_seq, $elt_caller;
@@ -648,7 +648,7 @@ sub _match_up_common_var_sequences {
 					}
 					$Sf->{'ExMismatchedCommonArgs'}{'SigArgs'}{'Set'}{$name_caller} = $decl_caller;
 
-					$Sf->{'ExMismatchedCommonArgs'}{'CallArgs'}{$caller}{$name_caller} = [ [$name_caller], $caller, $name_caller, $block ]; 
+					$Sf->{'ExMismatchedCommonArgs'}{'CallArgs'}{$caller}{$name_caller} = [ [$name_caller], $caller, $name_caller, $block ];
 				}
 				# I think the above is wrong for the case when $name_local ne $name_caller
 				# }
@@ -668,7 +668,7 @@ sub _match_up_common_var_sequences {
 				}
 				$Sf->{'ExMismatchedCommonArgs'}{'SigArgs'}{'Set'}{$name_local} = $decl_local;
 				$Sf = add_var_decl_to_set( $Sf, 'ExGlobArgs', $name_local, $decl_local );
-				
+
 			}
 
 			# but in any case, the name must be added to the call args
@@ -685,8 +685,8 @@ sub _match_up_common_var_sequences {
 			my $pair = $_;
 			# carp 'ADD RESHAPE HERE: '.Dumper($pair);
 			# This goes wrong when both elts of the pair are Scalar but also when one is a scalar and the other an array of size 1
-			# In both cases there is no need for a reshape. 
-			@{__reshape_rhs_of_pair_if_required($pair, $stref, $f )}; 
+			# In both cases there is no need for a reshape.
+			@{__reshape_rhs_of_pair_if_required($pair, $stref, $f )};
 		} @equivalence_pairs;
 		if ( not exists $Sf->{'ExMismatchedCommonArgs'}{'ArgAssignmentLines'} ) {
 			$Sf->{'ExMismatchedCommonArgs'}{'ArgAssignmentLines'} = \@arg_assignment_lines;
@@ -694,7 +694,7 @@ sub _match_up_common_var_sequences {
 			$Sf->{'ExMismatchedCommonArgs'}{'ArgAssignmentLines'} =
 			  [ @{ $Sf->{'ExMismatchedCommonArgs'}{'ArgAssignmentLines'} }, @arg_assignment_lines ];
 		}
-		
+
 		my @arg_rev_assignment_lines = map {
 			my $pair = $_;
 			@{ _caller_to_rev_local_assignment_annlines($pair) };
@@ -705,8 +705,8 @@ sub _match_up_common_var_sequences {
 		} else {
 			$Sf->{'ExMismatchedCommonArgs'}{'ArgRevAssignmentLines'} =
 			  [ @{ $Sf->{'ExMismatchedCommonArgs'}{'ArgRevAssignmentLines'} }, @arg_rev_assignment_lines ];
-		}		
-		
+		}
+
 	}
 
 	return $stref;
@@ -723,11 +723,11 @@ sub __emit_equiv_var_str {
 	}
 } # END of __emit_equiv_var_str
 
-# Reshape works on an array or perhaps on a slice. 
+# Reshape works on an array or perhaps on a slice.
 # I am not sure how it works with casts
 # I will apply this to the finished strings of the assignment
-# 
-sub __reshape_rhs_of_pair_if_required { my ($pair, $stref, $f ) = @_; 
+#
+sub __reshape_rhs_of_pair_if_required { my ($pair, $stref, $f ) = @_;
 	 my $tup_lhs = $pair->[0];
 	( my $var1, my $type1, my $is_array1, my $m_dim1, my $m_prefix1 ) = @{$tup_lhs};
 	my $tup_rhs = $pair->[1];
@@ -737,7 +737,7 @@ sub __reshape_rhs_of_pair_if_required { my ($pair, $stref, $f ) = @_;
 	my $l_str    = __emit_equiv_var_str($l);
 	my $r        = $tup_rhs;
 	my $r_str    = __emit_equiv_var_str($r);
-	
+
 	my $annlines = [ map { [ '      '.$_->[0], $_->[1] ] } @{
 	_cast_annlines( $l->[1], $l_str, $r->[1], $r_str )
 	 } ];
@@ -758,9 +758,9 @@ sub __reshape_rhs_of_pair_if_required { my ($pair, $stref, $f ) = @_;
 		}
 		# if the same rank and different size
 		if ( $size1 == $size2 and $rank1 != $rank2 ) {
-			
+
 			# if different rank and same size
-			# reshape			
+			# reshape
 			if (scalar @{$annlines} == 1) {
 				my ($line,$info) = @{$annlines->[0]};
 				my $indent = ' ' x 6 ;
@@ -771,7 +771,7 @@ sub __reshape_rhs_of_pair_if_required { my ($pair, $stref, $f ) = @_;
 			} else {
 				carp 'MUST RESHAPE BUT CANNOT!' if $DBG;;
 			}
-		}	
+		}
 	}
 	# return [['',{}]];
 	return $annlines;
@@ -842,9 +842,9 @@ sub collect_common_vars_per_block {
 		}
 		my $common_vars_str = shift @common_chunks;
 		$common_vars_str =~ s/,\s*$//;
-		
+
 		my ($ast, $rest, $err, $has_funcs) = parse_expression_no_context($common_vars_str);
-		
+
 		my @common_vars=();
 		if ($ast->[0] == 27) {
 			for my $idx (1 .. scalar @{$ast}-1) {
@@ -853,9 +853,9 @@ sub collect_common_vars_per_block {
 				}
 			}
 		} elsif ($ast->[0] == 1 or $ast->[0] == 2 or $ast->[0] == 10) {
-				push @common_vars, $ast->[1];			
+				push @common_vars, $ast->[1];
 		}
-		 
+
 		$common_blocks{$common_block_name} =
 		  [ @{ $common_blocks{$common_block_name} }, @common_vars ];
 	}

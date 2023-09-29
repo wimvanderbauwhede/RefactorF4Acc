@@ -312,7 +312,7 @@ MACRO_SRC = macros.h
 RENAME_EXT = _G
 =cut
 
-# TODO: the defaults should be taken from %Config
+# TODO: the defaults should be taken from %Config (or the other way round)
 our $config_menu= {
     'BASIC' => [
         ['SRCDIRS','Relative path to the original Fortran source code','src'],
@@ -330,8 +330,12 @@ our $config_menu= {
         ['SPLIT_LONG_LINES', 'Split long lines into chunks of no more than 80 characters? 0/1','1'],
         ['MAX_LINE_LENGTH','Maximum line length for fixed-format F77 code', '132'],
         ['ALLOW_SPACES_IN_NUMBERS','Allow spaces in numeric constants for fixed-format F77 code? 0/1', '0'],
+        ['PRESERVE_CASE','Treat the source code as if it is case-sensitive? 0/1','0'],
+        ['NO_SAVE','Delete SAVE statements? 0/1','1'],
+        ['STRICT_COMMONS_CHECKS','Stop if COMMON blocks are not type-safe? 0/1', '0'],
         ['CONFIG:SCONS', 'SCons-specific configuration? y/n','n'],
         ['CONFIG:OCL', 'OpenCL-specific configuration? y/n','n'],
+        ['CONFIG:CUSTOM', 'Custom pass-specific configuration? y/n','n'],
         ['CONFIG:SUPER_ADVANCED', 'Super-dvanced configuration? y/n','n'],
     ],
 
@@ -353,6 +357,10 @@ our $config_menu= {
         ['NO_MODULE','Comma-separated list of source files that should not be changed to modules','']
     ],
 
+    'CUSTOM' => [
+        ['CUSTOM_PASS_OUTPUT_PATH','Output path for custom pass','']
+    ],
+
     'SUPER_ADVANCED' => [
         ['NO_ONLY','Generate USE without ONLY? 0/1','0'],
         ['RENAME_EXT', 'Suffix for renaming clashing variables ','_GLOB'],
@@ -366,6 +374,7 @@ our $config_menu= {
         ['PURPOSE_CFG','Relative path to the Purpose configuration','purpose.cfg']
     ]
 };
+
 
 sub interactive_create_rf4a_cfg { #(my $config) = @_;
     my $lines = process_config($config_menu,'BASIC',[]);
