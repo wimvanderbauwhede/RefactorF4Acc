@@ -147,6 +147,10 @@ sub main {
     # $stref_init is the initial state, usually carried over from a previous pass
     # $stref_merger is a subroutine reference containing the logic to merge $stref and $stref_init
 	(my $args, my $stref_init, my $stref_merger)=@_;
+    
+    # Populate %Config with defaults from $menu_config
+    init_config();
+        
     # $code_unit_name is either provided on command line or $Config{'TOP'} or, if it's a module, $Config{'MODULE'}
     # If $code_unit_name is blank then we the files in the $SOURCEFILES list are processed one by one
     # Otherwise a non-blank $SOURCEFILES list will be considered the list of the source files to be inventoried, so includes in them will also be added to the inventory.
@@ -357,13 +361,13 @@ sub parse_args { (my $args)=@_;
         }
     } else {
         if (!$opts{'s'}) {
-        if (not -e $cfgrc) {
-            say "There is not configuration file, let's create one.\n";
-            interactive_create_rf4a_cfg();
-        } else {
-            read_rf4a_config($cfgrc);
-        }
-        }
+            if (not -e $cfgrc) {
+                say "There is not configuration file, let's create one.\n";
+                interactive_create_rf4a_cfg();
+            } else {
+                read_rf4a_config($cfgrc);
+            }
+        } 
     }
 
 	my $has_code_unit_name=0;

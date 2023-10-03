@@ -11,6 +11,9 @@ use warnings;
 use strict;
 use Exporter;
 
+# use Carp;
+# use Data::Dumper;
+
 @RefactorF4Acc::Config::ISA = qw(Exporter);
 @RefactorF4Acc::Config::EXPORT = qw(
 $NEW_PARSER
@@ -28,7 +31,9 @@ $targetdir
 &read_rf4a_config
 &interactive_create_rf4a_cfg
 &read_config
+&init_config
 $messages
+$config_menu
 );
 # $SPLIT_LONG_LINES
 # $NO_ONLY
@@ -107,6 +112,7 @@ our $targetdir = '../RefactoredSources';
 
 #
 
+# WV2023-10-03 this is now populated from $config_menu using init_config() called in Main::main
 our %Config=(
 'INLINE_INCLUDES' => 0,
 'RENAME_PARS_IN_INLINED_SUBS' => 1,
@@ -186,30 +192,27 @@ sub read_rf4a_config {
 	open my $CFG, '<', $cfgrc or die $!,': ',$cfgrc;
 	say "INFO: CONFIG FILE $cfgrc:" if $I;
 	for my $line (<$CFG>) {
-#	say "LINE:".$line;
-	next if $line=~/^\s*#/;
-	next unless $line=~/=/;
-	print $line if $V;
-	chomp $line;
-	$line=~s/\s+$//;
-	(my $k, my $v) = split(/\s*\=\s*/,$line);
-    if (ref($Config{$k}) eq 'ARRAY') {
-		my @vs=split(/\s*,\s*/,$v);
-		$Config{$k}=[@vs];
-    } elsif (ref($Config{$k}) eq 'HASH') {
-		my @vs=split(/\s*,\s*/,$v);
-		$Config{$k}= { map {$_ => 1} @vs};
-	} elsif ($k eq 'TOP') {
-		$Config{$k}= $Config{'PRESERVE_CASE'} ? $v : lc($v);
-    } else {
-        $Config{$k}=$v;
+    #	say "LINE:".$line;
+        next if $line=~/^\s*#/;
+        next unless $line=~/=/;
+        print $line if $V;
+        chomp $line;
+        $line=~s/\s+$//;
+        (my $k, my $v) = split(/\s*\=\s*/,$line);
+        if (ref($Config{$k}) eq 'ARRAY') {
+            my @vs=split(/\s*,\s*/,$v);
+            $Config{$k}=[@vs];
+        } elsif (ref($Config{$k}) eq 'HASH') {
+            my @vs=split(/\s*,\s*/,$v);
+            $Config{$k}= { map {$_ => 1} @vs};
+        } elsif ($k eq 'TOP') {
+            $Config{$k}= $Config{'PRESERVE_CASE'} ? $v : lc($v);
+        } else {
+            $Config{$k}=$v;
+        }
+        say "INFO: $k => $v" if $I;
     }
-
-
-	say "INFO: $k => $v" if $I;
-
-}
-close $CFG;
+    close $CFG;
 }
 
 sub read_config {
@@ -313,14 +316,15 @@ RENAME_EXT = _G
 =cut
 
 # TODO: the defaults should be taken from %Config (or the other way round)
-our $config_menu= {
-    'BASIC' => [
-        ['SRCDIRS','Relative path to the original Fortran source code','src'],
+our $config_menu= [
+    ['BASIC' => [
+        ['SRCDIRS','Relative path to the original Fortran source code (comma-separated list)','src'],
+        ['EXTSRCDIRS','Comma-separated list of directories (relative to PREFIX) to be searched for source files',''],
         ['NEWSRCPATH','Relative path to the refactored Fortran source code','refactored-src'],
         ['TOP', 'Name of the subroutine to start from. If this is the main program, leave blank.',''],
         ['CONFIG:ADVANCED', 'Advanced configuration? y/n','n'],
-    ],
-    'ADVANCED' => [
+    ]],
+    ['ADVANCED' => [
         ['PREFIX','Prefix for all relative paths','.'],
         ['EXT','Extension of refactored source files','.f90'],
         ['EXCL_SRCS', 'Source files to be excluded (comma-separated list)',''],
@@ -337,31 +341,31 @@ our $config_menu= {
         ['CONFIG:OCL', 'OpenCL-specific configuration? y/n','n'],
         ['CONFIG:CUSTOM', 'Custom pass-specific configuration? y/n','n'],
         ['CONFIG:SUPER_ADVANCED', 'Super-dvanced configuration? y/n','n'],
-    ],
+    ]],
 
-    'SCONS' => [
+    ['SCONS' => [
         ['EXE','Name of executable to be build (default is program name)',''],
         ['LIBS','SCons LIBS, comma-separated list',''],
-        ['LIBPATH','SCons LIBPATH, comma-separated list',''],
+        ['LIBPATHS','SCons LIBPATH, comma-separated list',''],
         ['INCLPATH','SCons F90PATH or F95PATH (based on EXT), comma-separated list',''],
         ['HAS_F77_SOURCES','Tells SCons to add the F77 compiler as well as the F90 compiler? 0/1','0'],
-        ['FFLAGS','SCons FFLAGS, comma-separated list',''],
-        ['F77FLAGS','SCons F77FLAGS, comma-separated list',''],
+        ['FFLAGS','SCons FFLAGS, comma-separated list',"'-cpp','-O3', '-m64', '-ffree-form', '-ffree-line-length-0','-fconvert=little-endian', '-frecord-marker=4'"],
+        ['F77FLAGS','SCons F77FLAGS, comma-separated list',"'-cpp','-O3', '-m64', '-fconvert=little-endian', '-frecord-marker=4'"],
         ['F90FLAGS','SCons F77FLAGS, comma-separated list',''],
-    ],
+    ]],
 
-    'OCL' => [
+    ['OCL' => [
         ['KERNEL','For OpenCL translatation, the name of the subroutine to become the OpenCL kernel (actually same as TOP)',''],
         ['MODULE_SRC','For OpenCL translatation, the name of the source file containing a module which contains the kernel subroutine',''],
         ['MODULE','For OpenCL translatation, the name of the module which contains the kernel subroutine',''],
         ['NO_MODULE','Comma-separated list of source files that should not be changed to modules','']
-    ],
+    ]],
 
-    'CUSTOM' => [
+    ['CUSTOM' => [
         ['CUSTOM_PASS_OUTPUT_PATH','Output path for custom pass','']
-    ],
+    ]],
 
-    'SUPER_ADVANCED' => [
+    ['SUPER_ADVANCED' => [
         ['NO_ONLY','Generate USE without ONLY? 0/1','0'],
         ['RENAME_EXT', 'Suffix for renaming clashing variables ','_GLOB'],
         ['EVAL_PARAM_EXPRS','Evaluate RHS expression of parameter declarations? 0/1','0'],
@@ -371,10 +375,41 @@ our $config_menu= {
         ['NO_MODULE','Comma-separated list of source files that should not be changed to modules',''],
         ['MACRO_SRC','Relative path to C-style header file with macro definitions','macros.h'],
         ['ONE_SUB_PER_MODULE', 'Create a module for each subroutine? 0/1','1'],
-        ['PURPOSE_CFG','Relative path to the Purpose configuration','purpose.cfg']
-    ]
-};
+        ['PURPOSE_CFG','Relative path to the Purpose configuration','purpose.cfg'],
+        ['SOURCEFILES','Comma-separated list of source files to be refactored. Same as specifying -s on command line','']
+    ]]
+];
 
+# 'F90PATH'  => [],
+# 'F95PATH' => [],
+# 'F77PATH' => [],
+
+sub init_config {
+    for my $pair (@{$config_menu}) {
+        my $rubric = $pair->[0]; # unused
+        my $options = $pair->[1];
+        for my $option (@{$options}) {
+            my ($key, $desc, $default) = @{$option};
+            next if $key=~/:/;
+            if ($desc=~/list/) {
+                $default=~s/\'//g;
+                my $lst = [split(/\s*,\s*/,$default)];
+                $Config{$key} = $lst;
+            } else {
+                if ($default=~/^\d+$/) {
+                    $default*=1;
+                } 
+                elsif ($default eq 'n') {
+                    $default=0;
+                }
+                elsif ($default eq 'y') {
+                    $default=1;
+                }
+                $Config{$key} = $default;
+            }
+        }
+    }
+}
 
 sub interactive_create_rf4a_cfg { #(my $config) = @_;
     my $lines = process_config($config_menu,'BASIC',[]);
@@ -404,7 +439,10 @@ sub write_config { (my $lines) = @_;
 }
 
 sub process_config {
-    (my $config, my $class, my $lines) = @_;
+    (my $config_as_list, my $class, my $lines) = @_;
+
+    my $config = {map { $_->[0] => $_->[1] } @{$config_as_list}};
+    
     for my $entry (@{$config->{$class}}) {
          (my $key, my $desc, my $default) = @{$entry};
          my $value = get_entry_value($desc, $default);
