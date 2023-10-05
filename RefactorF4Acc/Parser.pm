@@ -288,7 +288,7 @@ sub analyse_lines {
 		for my $index ( 0 .. scalar( @{$srcref} ) - 1 ) {
 			my $attr = '';
 			( my $lline, my $info ) = @{ $srcref->[$index] };
-			# say "291 LINE: $lline";
+			say "291 LINE: $lline";
 			# Get indent
 			$lline =~ /^(\s+).*/ && do { $indent = $1; }; # This is not OK for lines with labels of course.
 			$info->{'Indent'}=$indent;
@@ -4508,21 +4508,24 @@ sub _parse_assignment {
 	} else {
 		
 		# I assume this is a variable declared via implicits
-if ($lhs_ast->[0]==1) {
-	$info->{'Lhs'} = {
-		'VarName' => $lhs_ast->[1],
-		'ArrayOrScalar' => 'Array',
-		'ExpressionAST' => $lhs_ast,
-		'IndexVars' =>{'List' =>[],'Set'=>{}}
-	}
-} else {
-
-		$info->{'Lhs'} = {
-			'ArrayOrScalar' => 'Other',
-			'ExpressionAST' => $lhs_ast
-		};
-}
-croak 'LHS CAN BE EITHER FUNCTION OR ARRAY: '.Dumper($info->{'Lhs'}) if $DBG;
+		if ($lhs_ast->[0]==1) {
+			my $nargs = scalar $stref->{Subroutines}{$lhs_ast->[1]}{AnnLines}[0][1]{'FunctionSig'}[2] ;
+			
+			if (scalar(@{$lhs_ast->[2]})-1==$nargs) { # If is the function
+					$info->{'Lhs'} = {
+					'ArrayOrScalar' => 'Other',
+					'ExpressionAST' => $lhs_ast
+				};
+			} else {
+			$info->{'Lhs'} = {
+				'VarName' => $lhs_ast->[1],
+				'ArrayOrScalar' => 'Array',
+				'ExpressionAST' => $lhs_ast,
+				'IndexVars' =>{'List' =>[],'Set'=>{}}
+			};
+			}
+		} 
+		croak 'LHS CAN BE EITHER FUNCTION OR ARRAY: '.Dumper($info->{'Lhs'}) if $DBG;
 	}
 # Here also, check if any of these vars has been declared as array
 	$info->{'Rhs'} = {

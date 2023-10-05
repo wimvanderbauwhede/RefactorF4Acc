@@ -58,7 +58,6 @@ sub read_fortran_src {
         return $stref;
     }
     elsif ( exists $Sf->{'AnnLines'} ) {
-
         # It is not clear how this could ever work without this
         return $stref;
     }
@@ -1132,7 +1131,9 @@ Suppose we don't:
         else {
             print "NO NEED TO READ $code_unit_name\n" if $I;
         }    # if $need_to_read
+        croak $stref->{'Subroutines'}{$code_unit_name}{'Status'} if $code_unit_name =~/nm_opt/i or $fpath=~/nm_opt/i or $f=~/nm_opt/i;
     }    # if $f is defined
+    
     return $stref;
 }    # END of read_fortran_src()
 
@@ -1530,7 +1531,8 @@ sub _procLine {
             die "_procLine(): No $keyword name " if $name eq '';
             my $spaces = ' ' x 6;
             if ( $keyword =~ /function/ ) {
-                $info->{'FunctionSig'} = [ $spaces, $name, [] ];
+              $line=~/\((.+?)\)/; my $rest = $1;
+                $info->{'FunctionSig'} = [ $spaces, $name, [split(/\s*,\s*/,$rest)] ];
             }
             elsif ( $keyword eq 'module' ) {
                 $info->{'Module'} = $name;
