@@ -446,12 +446,12 @@ sub identify_vars_on_line {
 					# croak Dumper @chunks;
 				}
 			} elsif ( exists $info->{'Do'} ) {
-				if ($DBG and not defined $info->{'Do'}{'Iterator'} or not defined $info->{'Do'}{'Range'} or not defined $info->{'Do'}{'Range'}{'Vars'} ) {
-					say $line;
-					carp Dumper($info);
-				}
-				@chunks = ( @chunks, $info->{'Do'}{'Iterator'}, @{ $info->{'Do'}{'Range'}{'Vars'} } );
-			} elsif ( (exists $info->{'Assignment'} and not exists $info->{'Data'}) or  exists $info->{'StatementFunction'}) {
+				# if ($DBG==1 and not defined $info->{'Do'}{'Iterator'} or not defined $info->{'Do'}{'Range'} or not defined $info->{'Do'}{'Range'}{'Vars'} ) {
+				# 	say $line;
+				# 	carp Dumper($info);
+				# }
+				@chunks = exists $info->{'Do'}{'Iterator'} ? ( @chunks, $info->{'Do'}{'Iterator'}, @{ $info->{'Do'}{'Range'}{'Vars'} } ) : ();
+			} elsif ( (exists $info->{'Assignment'} and not exists $info->{'Data'}) or  exists $info->{'StatementFunction'}) {				
 				@chunks = ( @chunks, $info->{'Lhs'}{'VarName'}, @{ $info->{'Lhs'}{'IndexVars'}{'List'} }, @{ $info->{'Rhs'}{'Vars'}{'List'} } );
 			} elsif ( exists $info->{'ParamDecl'} ) {
 				@chunks = ( @chunks, keys %{ $info->{'UsedParameters'} } );

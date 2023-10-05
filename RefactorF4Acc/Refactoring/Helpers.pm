@@ -321,6 +321,9 @@ sub get_annotated_sourcelines {
         }
     } else {
         warning(  "$sub_or_func_or_inc $f has no Status");
+        if (exists $Sf->{'RefactoredCode'}) {
+            $annlines = $Sf->{'RefactoredCode'};
+        }
     }
     return $annlines;
 }    # END of get_annotated_sourcelines()
@@ -373,8 +376,8 @@ sub get_f95_var_decl {
             # $array_or_scalar = $decl->{'ArrayOrScalar'};
 
     } elsif ( defined $f and defined $stref and defined $var ) {
-        # croak "WARNING: VAR $var declared via IMPLICITS in get_f95_var_decl()!" if $var eq '.true.' ;#$DBG;
-        warning("VAR $var declared via IMPLICITS in get_f95_var_decl()",$WW);
+        carp "WARNING: VAR $var declared via IMPLICITS in get_f95_var_decl()!" if $DBG;
+        warning("VAR $var declared via IMPLICITS",$WW);
         ( $type, my $kind, $attr ) = type_via_implicits( $stref, $f, $var );
         return {
             'Indent' => $spaces,

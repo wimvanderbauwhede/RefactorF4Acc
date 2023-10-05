@@ -288,7 +288,7 @@ sub analyse_lines {
 		for my $index ( 0 .. scalar( @{$srcref} ) - 1 ) {
 			my $attr = '';
 			( my $lline, my $info ) = @{ $srcref->[$index] };
-			# say "LINE: $lline";
+			# say "291 LINE: $lline";
 			# Get indent
 			$lline =~ /^(\s+).*/ && do { $indent = $1; }; # This is not OK for lines with labels of course.
 			$info->{'Indent'}=$indent;
@@ -818,6 +818,7 @@ MODULE
 				$varlst = $line;
 				$varlst =~s/^(?:dimension|virtual)\s+//;
 				my @vars_with_dim = _parse_comma_sep_expr_list($varlst);
+				
 # If @vars_with_dim > 1 then we should split this line.
 # We currently do $srcref->[$index], with $index = 0 .. scalar( @{$srcref} ) - 1 )
 # So in order to splice in lines, what I guess I should do is create these new lines and store them at some index, then
@@ -871,6 +872,7 @@ MODULE
 									'Implicit' => 0
 								};
 								$Sf->{'UndeclaredOrigArgs'}{'Set'}{$varname}=$decl;
+								# croak Dumper $Sf->{'UndeclaredOrigArgs'}{'List'};
 							}
 							elsif ($subset eq 'UndeclaredOrigLocalVars') {
 							# Change to DeclaredOrigLocalVars
@@ -1350,14 +1352,13 @@ or $line=~/^character\s*\(\s*len\s*=\s*[\w\*]+\s*\)/
 			elsif (  # incorrect end of block, handle it anyway via the info from the start of the block
 				$line =~ /^end/
 				) {
-				# my $kw   = $1;
-
-				my $kw = $info->{'Block'}{'Type'};
+				# my $kw   = $1;				
+				my $kw = defined($info->{'Block'}) ?  $info->{'Block'}{'Type'} : '';
 				if ($kw eq 'block data') {
 					$kw='subroutine';
 				}
 
-				my $name = $info->{'Block'}{'Name'} // '! MISSING NAME';
+				my $name = defined($info->{'Block'}) ? ($info->{'Block'}{'Name'} // '! MISSING NAME') : '';
 				# croak "$f $line ".Dumper($info) unless defined $name;
 				$line = "end $kw $name";
 				$info->{ 'End'} = $kw;
@@ -1372,7 +1373,8 @@ or $line=~/^character\s*\(\s*len\s*=\s*[\w\*]+\s*\)/
 #@    Range =>
 #@        Vars => [ ... ]
 #@        Expressions' => [ ... ]
-			elsif ( $line =~ /^do\b/) {
+			elsif ( $line =~ /^do\b/) { 
+
 #WV20150304: We parse the do and store the iterator and the range { 'Iterator' => $i,'Range' =>[$start,$stop]}
 				my $do_stmt = $line;
 				my $label   = $info->{'Label'} // 'LABEL_NOT_DEFINED';
@@ -1399,6 +1401,13 @@ or $line=~/^character\s*\(\s*len\s*=\s*[\w\*]+\s*\)/
 						'Range'    => {
 							'Vars'        => $vars,
 							},
+						'LineID' => $info->{'LineID'}
+					};
+				} elsif ($do_stmt=~/do\s*$/) {
+					# DO without loop control. Is not part of the spec, but supported by compilers
+					$info->{'Do'} = {
+						'Bare' => 1,
+						'Label'    => $label,
 						'LineID' => $info->{'LineID'}
 					};
 				} else {
@@ -3403,11 +3412,13 @@ sub _parse_f77_par_decl {
 	my $type   = 'Unknown';
 	my $typed=0;
 	my $attr = '';
-	if (defined $pt and exists $pt->{'TypeTup'}) {
+	if (defined( $pt)) {
+		if( exists( $pt->{'TypeTup'})) {
 		$type = $pt->{'TypeTup'}{'Type'};
 		$attr = exists $pt->{'TypeTup'}{'Kind'} ? '(kind='.$pt->{'TypeTup'}{'Kind'}.')' : '(kind=4)';
 	} else {
-		die "Error in parameter declaration: $line\n";
+		die "Error in parameter declaration: $line \n" .Dumper($pt);
+	}
 	}
 	$indent =~ s/\S.*$//;
 
@@ -4415,7 +4426,7 @@ sub _parse_assignment {
 	if (@rest) {
 		$rhs = join('=',($rhs,@rest));
 	}
-# die "<$line>".Dumper($lhs,$rhs,@rest) if $line=~/iachar.+kind/;
+# die "<$line>".Dumper($lhs,$rhs,@rest) if $line=~/f\(7\)\s*=/;
 	#     say "LHS: $lhs, RHS: $rhs";
 	my $lhs_ast = parse_expression( $lhs, $info, $stref, $f );
 
@@ -4442,7 +4453,6 @@ sub _parse_assignment {
 	# WV 2019-04-24 seems to me I could use get_vars_from_expression() as the LHS is either a scalar or an array access
 	# That returns a href and we can just turn that into a list as usual
     # WV 2021-04-18 LHS can also an array without index
-
     my $lhs_vars_set = get_vars_from_expression($lhs_ast);
     (my $lhs_varname, my $lhs_var_attrs)  =  each %{ $lhs_vars_set } ;
 	my $lhs_index_vars={'List'=>[],'Set'=>{}};
@@ -4454,6 +4464,7 @@ sub _parse_assignment {
 			}
 		}
 	}
+	
 	# carp Dumper($lhs_vars);
 	my $array_constant=0;
 	if ($rhs=~/\(\/.+\/\)/) {
@@ -4495,11 +4506,23 @@ sub _parse_assignment {
 			}
 		};
 	} else {
-		croak 'SHOULD NOT HAPPEN: '.Dumper($lhs_ast) if $DBG;
+		
+		# I assume this is a variable declared via implicits
+if ($lhs_ast->[0]==1) {
+	$info->{'Lhs'} = {
+		'VarName' => $lhs_ast->[1],
+		'ArrayOrScalar' => 'Array',
+		'ExpressionAST' => $lhs_ast,
+		'IndexVars' =>{'List' =>[],'Set'=>{}}
+	}
+} else {
+
 		$info->{'Lhs'} = {
 			'ArrayOrScalar' => 'Other',
 			'ExpressionAST' => $lhs_ast
 		};
+}
+croak 'LHS CAN BE EITHER FUNCTION OR ARRAY: '.Dumper($info->{'Lhs'}) if $DBG;
 	}
 # Here also, check if any of these vars has been declared as array
 	$info->{'Rhs'} = {

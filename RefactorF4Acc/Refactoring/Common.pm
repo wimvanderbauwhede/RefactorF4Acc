@@ -440,11 +440,18 @@ sub _create_extra_arg_and_var_decls { #272 lines
 
 	my %unique_ex_impl = ();
 	if (scalar keys %{ $Sf->{'UndeclaredOrigArgs'}{'Set'} } > 0) {
-	for my $var ( @{ $Sf->{'UndeclaredOrigArgs'}{'List'} } ) {
 		my $_arg_idx=0;
+	for my $var ( @{ $Sf->{'UndeclaredOrigArgs'}{'List'} } ) {
+		
 		if (not defined $var) {
-			carp "Undefined arg in position $_arg_idx in DeclaredOrigArgs for $f";
-			carp Dumper $Sf->{'UndeclaredOrigArgs'};
+			# carp "Undefined arg in position $_arg_idx in UndeclaredOrigArgs for $f";
+			# croak Dumper $Sf->{'UndeclaredOrigArgs'}{'List'}, $Sf->{'DeclaredOrigArgs'}{'List'} ;
+			my $mvar =  $Sf->{'DeclaredOrigArgs'}{'List'}[$_arg_idx];
+			if (exists $Sf->{'DeclaredOrigArgs'}{'Set'}{$mvar} ) {
+				$var = $mvar;
+			} else {
+				$var = '';
+			}
 		}
 		if (    not exists $Sf->{'UsedGlobalVars'}{'Set'}{$var}
 			and not exists $Sf->{'CalledSubs'}{'Set'}{$var} )
@@ -464,22 +471,24 @@ sub _create_extra_arg_and_var_decls { #272 lines
 			}
 			if ( not exists $unique_ex_impl{$var} ) {
 				$unique_ex_impl{$var} = $var;
-				my $rdecl = $Sf->{'UndeclaredOrigArgs'}{'Set'}{$var};
+				if (exists $Sf->{'UndeclaredOrigArgs'}{'Set'}{$var}) {
+					my $rdecl = $Sf->{'UndeclaredOrigArgs'}{'Set'}{$var};
 
-				my $external   = exists $rdecl->{'External'};
-				my $undeclared = exists $Sf->{'UndeclaredOrigArgs'}{'Set'}{$var};
-				if ( not $external
-					or ( $external and $undeclared ) )
-				{
-					my $rline = emit_f95_var_decl($rdecl);
-					my $info  = {};
-					$info->{'Ann'} = [ annotate( $f, __LINE__ . ' : EX-IMPLICIT'  ) ];
-					$info->{'LineID'}  = $nextLineID++;
-					$info->{'Ref'}     = 1;
-					$info->{'VarDecl'} = { 'Name' => $var };
-					$info->{'ArgDecl'} = 1;
-					$info->{'SpecificationStatement'} = 1;
-					push @{$rlines}, [ $rline, $info ];
+					my $external   = exists $rdecl->{'External'};
+					my $undeclared = exists $Sf->{'UndeclaredOrigArgs'}{'Set'}{$var};
+					if ( not $external
+						or ( $external and $undeclared ) )
+					{
+						my $rline = emit_f95_var_decl($rdecl);
+						my $info  = {};
+						$info->{'Ann'} = [ annotate( $f, __LINE__ . ' : EX-IMPLICIT'  ) ];
+						$info->{'LineID'}  = $nextLineID++;
+						$info->{'Ref'}     = 1;
+						$info->{'VarDecl'} = { 'Name' => $var };
+						$info->{'ArgDecl'} = 1;
+						$info->{'SpecificationStatement'} = 1;
+						push @{$rlines}, [ $rline, $info ];
+					}
 				}
 			}
 		}

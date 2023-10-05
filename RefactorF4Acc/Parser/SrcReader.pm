@@ -274,24 +274,25 @@ Suppose we don't:
                           if $WW;
                     }
                     my $ncols = $Config{'MAX_LINE_LENGTH'};   #$max_line_length > 72 ? 132 : 72;
-
+                    
                     for my $line (@lines) {
-                        $line = substr( $line, 0, $ncols );
-
+                        $line = substr( $line, 0, $ncols );                         
 # Here a minor hack: if there is a label in the 6th col and a non-blank in the 7th, I insert a blank
-                        if ( length($line) > 6 ) {
+                        if ( length($line) > 6 and $line=~/^\s*\d+/) { # something like 300v=5
+                         
                             my $c6 = substr( $line, 5, 1 );
                             my $c7 = substr( $line, 6, 1 );
-                            if ( $c6 eq '0' ) {
+                            if ( $c6 =~/^\d$/ and $c7!~/^[\d\s]/) { # FIXME, was $c6 eq '0' but I guess this could be any number?
                                 $line = substr( $line, 0, 5 ) . ' '
                                   . substr( $line, 6 );
                             }
-
+ 
 #                    	elsif ($c6 ne ' ' and $c6 ne "\t" and $c7 ne ' ' and $c7 ne "\t") {
 #                    		$line = substr($line,0,6).' '.substr($line,6);
 #                    	}
                         }
-                        $line =~ s/\x{d}//;
+                        $line =~ s/\x{d}//;  # removes a CR
+                        # say $line; die if $line=~/do\ while\ \(sumz\.gt\.0\.99\.and\.k\.lt\.10\)/;
                     }
 
                     while (@lines) {
@@ -1124,7 +1125,7 @@ Suppose we don't:
 
                 # Split lines with multiple common block declarations
                 # TODO this should no longer be necessary with a better parser!
-                $stref = split_multiblock_common_lines( $stref, $fpath );
+                $stref = split_multiblock_common_lines( $stref, $code_unit_name,$fpath );
 
             }    #ok
         }

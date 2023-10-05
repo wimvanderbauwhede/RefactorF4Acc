@@ -401,6 +401,7 @@ sub _process_src {
             # Find subroutine/function/program signatures
 
            (
+            $line !~ /^(?:[Cc\*]|\s*\!)/ &&
            $line =~ /^\s*((?:\w+(?:\((?:\w+=)?[\*\d]+\))?\s+)+(?:function|subroutine|entry)|\w+\s+(?:subroutine|entry)|[\*\(\)\w]+\s+function|function|subroutine|entry|program|block)\s+(\w+)/i
            || $line =~ /^\s*(block)(data)/i
            ) && $line!~/\Wend\s+/i && $line!~/^end\s+/i && do {

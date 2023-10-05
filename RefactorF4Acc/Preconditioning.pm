@@ -887,13 +887,13 @@ sub _split_multipar_decls_and_set_type {
 }    # END of _split_multipar_decls_and_set_type
 
 sub split_multiblock_common_lines {
-    my ($stref, $f) = @_;
+    my ($stref, $f, $fpath) = @_;
 
     # Split lines with multiple common block declarations
-    for my $sub_or_func (@{$stref->{'SourceContains'}{$f}{'List'}}) {
-        my $sub_func_type = $stref->{'SourceContains'}{$f}{'Set'}{$sub_or_func};
+    for my $sub_or_func (@{$stref->{'SourceContains'}{$fpath}{'List'}}) {
+        my $sub_func_type = $stref->{'SourceContains'}{$fpath}{'Set'}{$sub_or_func};
 
-        my $Sf = $stref->{$sub_func_type}{$sub_or_func};
+        my $Sf = $stref->{$sub_func_type}{$sub_or_func};        
         next if (exists $Sf->{'Entry'} and $Sf->{'Entry'} == 1);
 
         my @annlines     = @{$Sf->{'AnnLines'}};
