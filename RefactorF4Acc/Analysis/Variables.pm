@@ -98,7 +98,7 @@ sub analyse_variables {
 				# But should this not have happened already? No, because UndeclaredOrigArgs could be declared via Includes,
 				# and that is checked here.
 				# So I think we exclude the DeclaredOrigArgs only
-				# The same is true I thin for UndeclaredOrigLocalVars: we must type them via implicits
+				# The same is true I think for UndeclaredOrigLocalVars: we must type them via implicits
 
 				# So is it actually not simply a case of saying,
 				# if it's in not Vars OR
@@ -278,7 +278,7 @@ sub analyse_variables {
 							if ( not $undecl_orig_arg ) {
 								# carp "$f: $line => $mvar ".Dumper($decl) if $mvar eq 'len' and $f eq 'getreafile';
 								push @{ $stref->{'Subroutines'}{$f}{'UndeclaredOrigLocalVars'}{'List'} }, $mvar;
-								$stref->{'Subroutines'}{$f}{'UndeclaredOrigLocalVars'}{'Set'}{$mvar} = $decl;
+								$stref->{'Subroutines'}{$f}{'UndeclaredOrigLocalVars'}{'Set'}{$mvar} = $decl;								
 							} else {
 								push @{ $stref->{'Subroutines'}{$f}{'UndeclaredOrigArgs'}{'List'} }, $mvar;
 								$stref->{'Subroutines'}{$f}{'UndeclaredOrigArgs'}{'Set'}{$mvar} = $decl;
