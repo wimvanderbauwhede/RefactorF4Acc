@@ -51,7 +51,7 @@ Subroutines
 
 sub refactor_all_subroutines {
 	( my $stref ) = @_;
-
+croak Dumper( sort keys %{ $stref->{'Subroutines'} } );
 	for my $f ( sort keys %{ $stref->{'Subroutines'} } ) {
 
 		next if ( $f eq '' or $f eq 'UNKNOWN_SRC' or not defined $f );
@@ -61,6 +61,7 @@ sub refactor_all_subroutines {
 
 		next if ( exists $Sf->{'Entry'} && $Sf->{'Entry'} == 1 );
 		if ( not defined $Sf->{'Status'} ) {
+			
 			$Sf->{'Status'} = $UNREAD;
 			say "INFO: no Status for $f" if $I;
 		}
