@@ -812,7 +812,7 @@ Level
     Character
 5        left         //
          left         :   NOTE I put this here, main purpose is array dims but it also works for substring ranges
-         left         =   NOTE I put this here, main purpose is implicit do. Actually this should be a separate level between Relational and Logical
+         left         =   NOTE I put this here, main purpose is implicit do. Actually this should be a separate level between Relational and Logical, TODO!
     Relational
 6        nonassoc    < > <= >= .lt. .gt. .le. .ge.
 7        nonassoc    == != .eq. .ne.

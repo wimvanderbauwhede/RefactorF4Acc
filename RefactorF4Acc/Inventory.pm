@@ -128,9 +128,9 @@ sub find_subroutines_functions_and_includes {
             ) {
 
                 $src_files{$File::Find::name} = (exists $ext_src_dirs{$srcdir}) ? { 'Ext' => $filepath }  : {'Local' => $filepath };
-                # say "FOUND $srcname ".$File::Find::name;
+                say "FOUND $srcname ".$File::Find::name if $V;
             } else {
-                print "EXCLUDED SOURCE: $srcname\n" if $V;
+                say "EXCLUDED SOURCE: $srcname" if $V;
             }
         };
 
@@ -153,7 +153,7 @@ sub find_subroutines_functions_and_includes {
             }
         }
         next if $exclude;
-        say "SRC: $src" if $V;
+        
     	if  ($src=~/\.c$/) {
     		warning("IGNORING C SOURCE: $src" );
     		# FIXME: ugly ad-hoc hack!
@@ -173,10 +173,11 @@ sub find_subroutines_functions_and_includes {
     		'List'=>[]
     	};
 
-        $stref=_process_src($src,$stref) ;#if not $incl ;
+        $stref=_process_src($src,$stref);
         say "Done _process_src($src)" if $V;
         # $stref=_generalise_free_form($src,$stref);
     }
+    if (!$incl) {
     my $top = $Config{'TOP'};
     my $TOP_not_found = 1;
     if (exists $stref->{'Modules'}) {
@@ -200,7 +201,7 @@ sub find_subroutines_functions_and_includes {
     if ($TOP_not_found) {
         die "Could not find the TOP code unit '$top', maybe a typo?\n";
     }
-
+    }
     # die;
     if (!$incl) {
         _find_external_modules($stref);
@@ -549,8 +550,7 @@ sub _process_src {
                         $translate_to = '';
                     }
 
-                } elsif ($in_interface_block) {
-                    croak 'INTERFACE' if $DBG;
+                } elsif ($in_interface_block) {            
                 	$stref->{$srctype}{$mod_name}{'Interface'}{$sub}=1; #WV: TODO: add functionality here
                 } else {
                 	croak 'TROUBLE!' if $DBG;

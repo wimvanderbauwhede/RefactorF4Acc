@@ -3419,13 +3419,22 @@ sub _parse_f77_par_decl {
 		$type = $pt->{'TypeTup'}{'Type'};
 		$attr = exists $pt->{'TypeTup'}{'Kind'} ? '(kind='.$pt->{'TypeTup'}{'Kind'}.')' : '(kind=4)';
 	} else {
-		die "Error in parameter declaration: $line \n" .Dumper($pt);
+		error( "Error in parameter declaration: $line");# .Dumper($pt);
 	}
 	}
 	$indent =~ s/\S.*$//;
-
-	my $ast =  parse_expression($parliststr, $info, $stref, $f);
-
+	my @parliststr_chunks = split(/\s*,\s*/,$parliststr);
+	my @ast_chunks=();
+	for my $parliststr_chunk (@parliststr_chunks) {
+my ($lhs_str,$rhs_str) = split(/\s*=\s*/,$parliststr_chunk);
+my $lhs_ast =  parse_expression($lhs_str, $info, $stref, $f);
+my $rhs_ast =  parse_expression($rhs_str, $info, $stref, $f);
+	my $chunk_ast = [9,$lhs_ast,$rhs_ast]; # FIXME this is because of a bug in the precedence of '=' in the expression parser
+	push @ast_chunks, $chunk_ast;
+	}
+	my $ast = scalar(@ast_chunks) == 1 ? $ast_chunks[0] : [27,@ast_chunks];
+	# my $ast= parse_expression($parliststr, $info, $stref, $f);
+# croak Dumper $ast if $line=~/lelt/;
 	if ($ast->[0] == 9
 	and $ast->[2][0] == 0
 	and scalar @{$ast->[2][1]} == 3
@@ -3508,7 +3517,7 @@ sub _parse_f77_par_decl {
 					# say "FOUND PARAM IN: $params_set in $f";
 				}
 				if (not defined $mpar_rec) {
-					die "Parameter $mpar is not declared in $f\n";
+					error( "Parameter $mpar is not declared in $f");croak;
 				}
 				my $mtype=$mpar_rec->{'Type'};
 				my $mattr=$mpar_rec->{'Attr'};
@@ -3580,6 +3589,7 @@ sub _parse_f77_par_decl {
 			'Status'    => 0,
 			'Implicit' => 0
 		};
+		
 
 		$Sf->{'LocalParameters'}{'Set'}{$var}=$param_decl;
 		if (exists $info->{'ParsedParDecl'}) {

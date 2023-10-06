@@ -864,10 +864,10 @@ sub splice_additional_lines_cond_inplace {
                     push @{$merged_annlines}, $annline;
                 } else {
             	   # Skip; but I comment out instead if $DBG is on
-            	   if ($DBG) {
-            	   	 $info->{'Comments'}=1;
-            		 push @{$merged_annlines}, ['! SKIP ! '.$line, $info];
-            	   }
+            	#    if ($DBG) {
+            	#    	 $info->{'Comments'}=1;
+            	# 	 push @{$merged_annlines}, ['! SKIP ! '.$line, $info];
+            	#    }
                 }
             }
             for my $extra_annline ( @{$new_annlines} ) {
@@ -882,10 +882,10 @@ sub splice_additional_lines_cond_inplace {
                     push @{$merged_annlines}, $annline;
                 } else {
                    # Skip; but I comment out instead if $DBG is on
-                   if ($DBG) {
-                     $info->{'Comments'}=1;
-                     push @{$merged_annlines}, ['! '.$line, $info];
-                   }
+                #    if ($DBG) {
+                #      $info->{'Comments'}=1;
+                #      push @{$merged_annlines}, ['! '.$line, $info];
+                #    }
                 }
             }
         } else {

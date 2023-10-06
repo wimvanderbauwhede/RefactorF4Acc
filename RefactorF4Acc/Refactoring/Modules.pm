@@ -33,6 +33,7 @@ This subroutine creates the module declarations around the original F77 files
 # -----------------------------------------------------------------------------
 sub add_module_decls { 
 	( my $stref ) = @_;
+	
 		# local $I=1;
 		# local $V=1;
 		# local $DBG=1;
@@ -272,9 +273,9 @@ sub _create_module_src { (my $stref, my $src, my $subname, my $no_modules ) = @_
 	# However, if this is a Program that contains subroutines, we need to do this differently
 	# And in principle a source file can contain a combination.
 	# Step 1
-	if ($no_module) {
+	if ($no_module) { 
 		if ($is_program) {
-
+			# carp 'is_program';
 			# This means that $src is a source file with a Program
 			# What is the Program?
 			my $prog_name = 'PROGRAM_NAME_UNKNOWN';
@@ -303,13 +304,14 @@ sub _create_module_src { (my $stref, my $src, my $subname, my $no_modules ) = @_
 					$before = 0;
 				}
 			}
+			
 			for my $sub ( @{ $stref->{'Subroutines'}{$prog_name}{'Contains'} } ) {
 				my $annlines = get_annotated_sourcelines( $stref, $sub );
 				@contained_subs = ( @contained_subs, $BLANK_LINE, comment("CONTAINED SUB $sub"), $BLANK_LINE, @{$annlines}, $BLANK_LINE );
 			}
-			# @refactored_source_lines = ( @prog_p1, @contained_subs, @prog_p2 );			
-			@refactored_source_lines = @{ create_refactored_source([@prog_p1, @contained_subs, @prog_p2]) };
-
+			# carp Dumper ( @prog_p1);
+			@refactored_source_lines = @{ create_refactored_source($stref, $prog_name,[@prog_p1, @contained_subs, @prog_p2]) };
+# carp 'HERE:',Dumper @refactored_source_lines;
 			# If there are subs or functions that are not contained in the program, tag them on after the program
 			for my $sub ( @{ $stref->{'SourceContains'}{$src}{'List'} } ) {
 
@@ -339,7 +341,7 @@ sub _create_module_src { (my $stref, my $src, my $subname, my $no_modules ) = @_
 			}
 
 		}
-	} else {
+	} else {		
 		# It's a module. We just get the refactored sources here, do the rest in the next step
 		if (!@{ $stref->{'SourceContains'}{$src}{'List'} }) {
 			$skip_because_empty = 1; 
@@ -349,8 +351,7 @@ sub _create_module_src { (my $stref, my $src, my $subname, my $no_modules ) = @_
 				if ($subname ne '') {
 					next unless $f eq $subname;
 				}
-				my $annlines = get_annotated_sourcelines( $stref, $f );
-			# say "$f:".Dumper($stref->) if $src=~/navier/;
+				my $annlines = get_annotated_sourcelines( $stref, $f );			
 				if ( not exists $refactored_sources->{$f} ) {    # FIXME: This is a HACK because we need to make sure this is caught higher up
 					$annlines = create_refactored_source( $stref, $f, $annlines );
 					$refactored_sources->{$f} = 1;
@@ -360,7 +361,9 @@ sub _create_module_src { (my $stref, my $src, my $subname, my $no_modules ) = @_
 			# croak Dumper(@refactored_source_lines) if $src=~/navier/;
 		}
 	}
+# carp $skip_because_empty;
     if (!$skip_because_empty) {
+		
 	# Step 2
 #	say "SRC $src";
 	my $EXT = $Config{EXT};
@@ -370,7 +373,7 @@ sub _create_module_src { (my $stref, my $src, my $subname, my $no_modules ) = @_
 	} else {
 		
 		if ($is_program) {
-			
+			# carp 'step 2: is_program', Dumper @refactored_source_lines;
 			# In case it is a program
 			# We add the 'use' declarations after the program signature
 			my $before  = 1;
@@ -396,6 +399,7 @@ sub _create_module_src { (my $stref, my $src, my $subname, my $no_modules ) = @_
 				}
 			}
 			$stref->{'RefactoredCode'}{$src} = [ @prog_p1, @mod_uses, @prog_p2 ];
+			
 		} else {
 			$stref->{'RefactoredCode'}{$src} = [@refactored_source_lines];
 		}
@@ -406,8 +410,11 @@ sub _create_module_src { (my $stref, my $src, my $subname, my $no_modules ) = @_
 		 $stref->{'SourceContains'}{$nsrc} = {'List' =>[$subname]   };
 		$stref->{'BuildSources'}{'F'}{$nsrc}=1;
 	}
-    }
-    
+    } 
+	# else {
+	# 	carp 'EMPTY?!';
+	# }
+    # carp Dumper $stref->{'RefactoredCode'}{"./src2/main.f"};
 	return $stref;
 }    # END of _create_module_src
 
