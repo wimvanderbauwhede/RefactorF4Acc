@@ -3398,6 +3398,7 @@ sub __parse_f95_decl {
 			}
 		}
 	}
+	croak Dumper $Sf if (not exists $Sf->{'Source'} or not defined $Sf->{'Source'});
 	push @{ $info->{'Ann'} }, annotate( $Sf->{'Source'}, __LINE__ );
 	return ( $Sf, $info );
 

@@ -281,7 +281,7 @@ Suppose we don't:
                          
                             my $c6 = substr( $line, 5, 1 );
                             my $c7 = substr( $line, 6, 1 );
-                            if ( $c6 =~/^\d$/ and $c7!~/^[\d\s]/) { # FIXME, was $c6 eq '0' but I guess this could be any number?
+                            if ( $c6 eq '0' and $c7!~/^[\d\s]/) { # '0' because non-zero character is a continuation line
                                 $line = substr( $line, 0, 5 ) . ' '
                                   . substr( $line, 6 );
                             }

@@ -118,6 +118,7 @@ sub remove_vars_from_ordered_set { (my $ordered_set, my $vars_to_remove)=@_;
 } # END of remove_var_from_ordered_set
 
 sub annotate { (my $f, my $ann, my $nframes)=@_;
+croak "Code unit is not defined in annotate()" if not defined $f;
     my $n = defined $nframes ? $nframes : 1;
     (my $package, my $filename, my $line, my $subroutine, my @rest) = caller($n);
     $subroutine=~s/RefactorF4Acc:://;

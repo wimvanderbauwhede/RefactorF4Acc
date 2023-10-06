@@ -23,7 +23,7 @@ use Exporter;
 use File::Find;
 use Cwd qw( cwd );
 use RefactorF4Acc::Config;
-use RefactorF4Acc::Utils qw(module_has_only module_has_also toLower);
+use RefactorF4Acc::Utils qw(module_has_only module_has_also toLower warning);
 
 # Find all source files in the current directory
 # The files are parsed to determine the following information:
@@ -155,7 +155,7 @@ sub find_subroutines_functions_and_includes {
         next if $exclude;
         say "SRC: $src" if $V;
     	if  ($src=~/\.c$/) {
-    		say "WARNING: IGNORING C SOURCE: $src\n" if $W;
+    		warning("IGNORING C SOURCE: $src" );
     		# FIXME: ugly ad-hoc hack!
     		# WRF uses cpp to make subroutine names match with Fortran
     		# So we need to call cpp first, but with all the correct macros ...
@@ -175,6 +175,7 @@ sub find_subroutines_functions_and_includes {
 
         $stref=_process_src($src,$stref) ;#if not $incl ;
         say "Done _process_src($src)" if $V;
+        # $stref=_generalise_free_form($src,$stref);
     }
     my $top = $Config{'TOP'};
     my $TOP_not_found = 1;
@@ -256,7 +257,7 @@ sub _process_src {
 		$line=~s/\s+\!.+$//;
 		# Skip blanks
         $line =~ /^\s*$/ && next;
-#		 print "$src LINE: $line";
+		#  print "$src LINE: $line";
         # Detect blocks. FIXME: we need to distinguish between the Subroutine and KernelWrapper pragmas!
             if ( $has_blocks == 0 ) {
                 if ( $line =~ /^(?:[Cc\*]|\s*\!)\s+BEGIN\sSUBROUTINE\s(\w+)/
@@ -289,13 +290,48 @@ sub _process_src {
         if ($free_form==0) {
         	# Get 6 cols
         	my $cols1to6 = substr($line,0,6);
-        	# FIXME: HACK: change TAB to 4 spaces
-        	if ($cols1to6 =~/^\s*\d*\t/) {
-        		my $tline = $line;
-        		chomp $tline;
-        		$tline=~s/\t/    /g;
-        		$cols1to6 = substr($tline,0,6);
-        	}
+
+# Tab-Format
+
+# The tab-format source lines are defined as follows: 
+
+#     A tab in any of columns 1 through 6, or an ampersand in column 1, establishes the line as a tab-format source line.
+
+#     If the tab is the first nonblank character, the text following the tab is scanned as if it started in column 7.
+            my $tline = $line;
+            if ($cols1to6 =~/^\t\D/) {
+            #   =>replace tab by 6 spaces
+        		$cols1to6 = ' ' x 6;
+                $tline=~s/^\t//; $tline = $cols1to6 . $tline;
+            }
+#  A comment indicator or a statement number can precede the tab.
+            elsif ($cols1to6 =~/^[cC\*]\t/) {
+                # => change to C followed by 5 spaces
+                $cols1to6 = 'C'.(' ' x 5);
+                $tline=~s/^[cC\*]\t//; $tline = $cols1to6 . $tline; 
+            }
+            elsif ($cols1to6 =~ /^(\s*\d+)\t/) { # The space is not following the spec
+                #   => change to $1 followed by 6 - len($1) spaces
+                my $label =$1;
+                $cols1to6 = $label . (' ' x (6 - length($label)));
+                $tline=~s/^\s*\d+\t//; $tline = $cols1to6 . $tline;
+            }
+#     Continuation lines are identified by an ampersand (&) in column 1, or a nonzero digit after the first tab.
+            elsif ($cols1to6 =~ /^(?:\&|\t[1-9])/ ) {
+                # => change to & in column 6
+                $cols1to6 = (' ' x 5) . '&';
+                $tline=~s/^(?:\&|\t[1-9])//; $tline = $cols1to6 . $tline;
+            }
+            
+            $line = $tline;
+        	# # FIXME: HACK: change TAB to 4 spaces
+        	# if ($cols1to6 =~/^\s*\d*\t/) {
+        	# 	my $tline = $line;
+        	# 	chomp $tline;
+        	# 	$tline=~s/\t/    /g;
+        	# 	$cols1to6 = substr($tline,0,6);
+        	# }
+
 			my @cols1to6_chars = split('',$cols1to6);
 			my $nchars= scalar @cols1to6_chars ;
 
@@ -316,34 +352,34 @@ sub _process_src {
 #• The first five columns must be blank or contain a numeric label.
         	# And the whitespace at the start of the line does not contain tabs
             if ( $line!~/^\s*$/ and $line !~ /^[\s\d]{5}.+/ and $line !~ /^\t[\t\s]*\w/ and $line !~/^\s+\t/ and $line!~/^\s*\#/) {
-                $free_form = 1;
-#                croak "<$line>" if $src=~/dyn_shapiro_vernieuw_device_code.f95/;
+                $free_form = 1;               
             }
 
-            # TAB format
-#A tab in any of columns 1 through 6, or an ampersand in column 1,
-#establishes the line as a tab-format source line.
-				my $col_ctr=0;
-            for my $cols1to6_char (@cols1to6_chars) {
-
-            	if ($cols1to6_char eq "\t") {
-            		 $free_form = 0;
-            		 $tab_format=1;
-            		 say  'WARNING: TAB FORMAT IS NOT WELL SUPPORTED!' if $W;
-#• Continuation lines are identified by  a nonzero digit after the first tab.
-            		 if ($cols1to6_chars[$col_ctr+1] =~/1-9/) {
-            		 	$is_cont=1;
-            		 }
-            		 last;
-            	}
-            	$col_ctr++;
-            }
-#• Continuation lines are identified by an ampersand (&) in column 1.
-            if ($cols1to6_chars[0] eq '&' ) {
-            		$tab_format=1;
-                    $free_form = 0;
-                    $is_cont=1;
-            }
+#             # TAB format
+# #A tab in any of columns 1 through 6, or an ampersand in column 1,
+# #establishes the line as a tab-format source line.
+#             my $col_ctr=0;            
+#             for my $cols1to6_char (@cols1to6_chars) {
+#                 print "<$cols1to6_char> (".ord($cols1to6_char).')';
+#             	if ($cols1to6_char eq "\t") {
+#             		 $free_form = 0;
+#             		 $tab_format=1;
+#             		 warning('TAB FORMAT IS NOT WELL SUPPORTED!' );
+# #• Continuation lines are identified by a nonzero digit after the first tab.
+#             		 if ($cols1to6_chars[$col_ctr+1] =~/1-9/) {
+#             		 	$is_cont=1;
+#             		 }
+#             		 last;
+#             	}
+#             	$col_ctr++;
+#             }
+            
+# #• Continuation lines are identified by an ampersand (&) in column 1.
+#             if ($cols1to6_chars[0] eq '&' ) {
+#             		$tab_format=1;
+#                     $free_form = 0;
+#                     $is_cont=1;
+#             }
 
 #• If the tab is the first nonblank character, the text following the tab is scanned
 #as if it started in column 7.
@@ -435,7 +471,7 @@ sub _process_src {
                     	my $topsub = $Config{'TOP'};
                     	# If this TOP subroutine is also a program, then there are at least two programs with different names, or TOP is wrong
                     	 if (exists $stref->{'Subroutines'}{$topsub} and exists $stref->{'Subroutines'}{$topsub}{'Program'} and $stref->{'Subroutines'}{$topsub}{'Program'}==1) {
-                    	 	say "WARNING: TOP routine $topsub is a program but $sub is also a program at " . __PACKAGE__ . ' ' . __LINE__ if $W;
+                    	 	warning("TOP routine $topsub is a program but $sub is also a program at " . __PACKAGE__ . ' ' . __LINE__ );
                     	 }
                     }
                     $container=$sub;
@@ -474,7 +510,7 @@ sub _process_src {
 	                		$Ssub->{'BlockData'} = 1;
 	                		$stref->{'BlockData'}{$sub}=1;
 	                }
-                    $Ssub->{'Source'}  = $src;
+                    $Ssub->{'Source'}  = $src; 
                     $Ssub->{'Status'}  = $UNREAD;
 
                     $Ssub->{'Program'} = $is_prog;
@@ -512,11 +548,13 @@ sub _process_src {
                     }
 
                 } elsif ($in_interface_block) {
+                    croak 'INTERFACE' if $DBG;
                 	$stref->{$srctype}{$mod_name}{'Interface'}{$sub}=1; #WV: TODO: add functionality here
                 } else {
                 	croak 'TROUBLE!' if $DBG;
                 }
                 $stref->{'Subroutines'}{$sub}{'FStyle'}=$fstyle;
+                say "Subroutine $sub is ".($free_form? 'free form' : 'fixed form') if $V;
             	$stref->{'Subroutines'}{$sub}{'FreeForm'}=$free_form;
             	$stref->{'Subroutines'}{$sub}{'TabFormat'}=$tab_format;
 		        $stref->{'Subroutines'}{$sub}{'HasBlocks'}=$has_blocks;
@@ -738,5 +776,21 @@ sub _find_external_modules { (my $stref) =@_;
 
 	return $stref;
 }
-
+sub _generalise_free_form{ my ($src,$stref) = @_;
+    my $src_has_free_form=0;
+    for my $code_unit (@{$stref->{'SourceContains'}{$src}{'List'}} ){
+        my $code_unit_type = $stref->{'SourceContains'}{$src}{'Set'}{$code_unit};
+        if ($stref->{$code_unit_type}{$code_unit}{'FreeForm'}==1) {
+            $src_has_free_form=1;
+            last;
+        }
+    }
+    if ($src_has_free_form) {
+        for my $code_unit (@{$stref->{'SourceContains'}{$src}{'List'}} ){
+            my $code_unit_type = $stref->{'SourceContains'}{$src}{'Set'}{$code_unit};
+            $stref->{$code_unit_type}{$code_unit}{'FreeForm'}=1;
+        }
+    }
+    return $stref;
+}
 1;
