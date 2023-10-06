@@ -23,7 +23,7 @@ use Exporter;
 use File::Find;
 use Cwd qw( cwd );
 use RefactorF4Acc::Config;
-use RefactorF4Acc::Utils qw(module_has_only module_has_also toLower warning);
+use RefactorF4Acc::Utils qw(module_has_only module_has_also toLower tabToFixed warning error);
 
 # Find all source files in the current directory
 # The files are parsed to determine the following information:
@@ -289,41 +289,43 @@ sub _process_src {
         # Tests for free or fixed form
         if ($free_form==0) {
         	# Get 6 cols
-        	my $cols1to6 = substr($line,0,6);
+            my ($line, $cols1to6) = tabToFixed($line);
 
-# Tab-Format
+#         	my $cols1to6 = substr($line,0,6);
 
-# The tab-format source lines are defined as follows: 
+# # Tab-Format
 
-#     A tab in any of columns 1 through 6, or an ampersand in column 1, establishes the line as a tab-format source line.
+# # The tab-format source lines are defined as follows: 
 
-#     If the tab is the first nonblank character, the text following the tab is scanned as if it started in column 7.
-            my $tline = $line;
-            if ($cols1to6 =~/^\t\D/) {
-            #   =>replace tab by 6 spaces
-        		$cols1to6 = ' ' x 6;
-                $tline=~s/^\t//; $tline = $cols1to6 . $tline;
-            }
-#  A comment indicator or a statement number can precede the tab.
-            elsif ($cols1to6 =~/^[cC\*]\t/) {
-                # => change to C followed by 5 spaces
-                $cols1to6 = 'C'.(' ' x 5);
-                $tline=~s/^[cC\*]\t//; $tline = $cols1to6 . $tline; 
-            }
-            elsif ($cols1to6 =~ /^(\s*\d+)\t/) { # The space is not following the spec
-                #   => change to $1 followed by 6 - len($1) spaces
-                my $label =$1;
-                $cols1to6 = $label . (' ' x (6 - length($label)));
-                $tline=~s/^\s*\d+\t//; $tline = $cols1to6 . $tline;
-            }
-#     Continuation lines are identified by an ampersand (&) in column 1, or a nonzero digit after the first tab.
-            elsif ($cols1to6 =~ /^(?:\&|\t[1-9])/ ) {
-                # => change to & in column 6
-                $cols1to6 = (' ' x 5) . '&';
-                $tline=~s/^(?:\&|\t[1-9])//; $tline = $cols1to6 . $tline;
-            }
+# #     A tab in any of columns 1 through 6, or an ampersand in column 1, establishes the line as a tab-format source line.
+#         # This should really be done in the SrcReader!
+# #     If the tab is the first nonblank character, the text following the tab is scanned as if it started in column 7.
+#             my $tline = $line;
+#             if ($cols1to6 =~/^\t\D/) {
+#             #   =>replace tab by 6 spaces
+#         		$cols1to6 = ' ' x 6;
+#                 $tline=~s/^\t//; $tline = $cols1to6 . $tline;
+#             }
+# #  A comment indicator or a statement number can precede the tab.
+#             elsif ($cols1to6 =~/^[cC\*]\t/) {
+#                 # => change to C followed by 5 spaces
+#                 $cols1to6 = 'C'.(' ' x 5);
+#                 $tline=~s/^[cC\*]\t//; $tline = $cols1to6 . $tline; 
+#             }
+#             elsif ($cols1to6 =~ /^(\s*\d+)\t/) { # The space is not following the spec
+#                 #   => change to $1 followed by 6 - len($1) spaces
+#                 my $label =$1;
+#                 $cols1to6 = $label . (' ' x (6 - length($label)));
+#                 $tline=~s/^\s*\d+\t//; $tline = $cols1to6 . $tline;
+#             }
+# #     Continuation lines are identified by an ampersand (&) in column 1, or a nonzero digit after the first tab.
+#             elsif ($cols1to6 =~ /^(?:\&|\t[1-9])/ ) {
+#                 # => change to & in column 6
+#                 $cols1to6 = (' ' x 5) . '&';
+#                 $tline=~s/^(?:\&|\t[1-9])//; $tline = $cols1to6 . $tline;
+#             }
             
-            $line = $tline;
+#             $line = $tline;
         	# # FIXME: HACK: change TAB to 4 spaces
         	# if ($cols1to6 =~/^\s*\d*\t/) {
         	# 	my $tline = $line;
@@ -341,8 +343,8 @@ sub _process_src {
 #• Continuation lines are identified by a nonblank, nonzero in column 6.
 			if (
 				defined $cols1to6_chars[5]
-			and $cols1to6_chars[5] ne " "
-			and $cols1to6_chars[5] ne "0") {
+			and $cols1to6_chars[5] ne ' '
+			and $cols1to6_chars[5] ne '0') {
 				$is_cont=1;
 			}
 

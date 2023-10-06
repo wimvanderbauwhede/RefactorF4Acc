@@ -12,7 +12,7 @@ use v5.10;
 
 use RefactorF4Acc::Config;
 use RefactorF4Acc::ExpressionAST::Evaluate qw( eval_expression_with_parameters );
-use RefactorF4Acc::Utils qw( in_nested_set add_var_decl_to_set remove_var_decl_from_set pp_annlines );
+use RefactorF4Acc::Utils qw( in_nested_set add_var_decl_to_set remove_var_decl_from_set pp_annlines error );
 
 use RefactorF4Acc::Parser::Expressions qw( parse_expression_no_context );
 use RefactorF4Acc::Analysis::Arguments qw( create_RefactoredArgs );
@@ -52,7 +52,10 @@ sub calculate_array_size {
 	# If there are unresolved vars, we return 0
 	# if ($tot_sz_str!~/[a-z]/){
 		$size = eval_expression_with_parameters( $tot_sz_str, {}, $stref, $f );
-		# warn $size;
+		if (not defined $size) {
+			error("Could not evaluate array size expression, parameters not resolved");
+			$size=0;
+		}
 	# } else {
 	# 	# the size string is not constant, can't evaluate
 	# 	$not_const=$tot_sz_str;

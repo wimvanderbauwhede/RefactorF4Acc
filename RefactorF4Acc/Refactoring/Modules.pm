@@ -224,7 +224,7 @@ sub _split_module_per_subroutine {
 # This routine creates the new module source.
 # The extra argument $subname is used to split out modules per subroutine
 sub _create_module_src { (my $stref, my $src, my $subname, my $no_modules ) = @_;
-	local $I=1;
+	# local $I=1;
 	# This is either a subroutine or the main program
     # So I wonder why I have this code when it's a program?
 	my $is_program = ( exists $stref->{'Program'} and $stref->{'Program'} eq $src ) ? 1 : 0;
@@ -307,15 +307,15 @@ sub _create_module_src { (my $stref, my $src, my $subname, my $no_modules ) = @_
 				my $annlines = get_annotated_sourcelines( $stref, $sub );
 				@contained_subs = ( @contained_subs, $BLANK_LINE, comment("CONTAINED SUB $sub"), $BLANK_LINE, @{$annlines}, $BLANK_LINE );
 			}
-			@refactored_source_lines = ( @prog_p1, @contained_subs, @prog_p2 );
+			# @refactored_source_lines = ( @prog_p1, @contained_subs, @prog_p2 );			
+			@refactored_source_lines = @{ create_refactored_source([@prog_p1, @contained_subs, @prog_p2]) };
 
 			# If there are subs or functions that are not contained in the program, tag them on after the program
 			for my $sub ( @{ $stref->{'SourceContains'}{$src}{'List'} } ) {
 
 				if ( not exists $stref->{'Subroutines'}{$sub}{'Program'}
 					or $stref->{'Subroutines'}{$sub}{'Program'} == 0 )
-				{
-					#						say "PROC $sub";
+				{					
 					my $annlines = get_annotated_sourcelines( $stref, $sub );
 					if ( not exists $refactored_sources->{$sub} ) {
 						$annlines = create_refactored_source( $stref, $sub, $annlines );

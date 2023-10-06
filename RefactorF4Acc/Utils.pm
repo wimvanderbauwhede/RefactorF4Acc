@@ -61,8 +61,10 @@ use Exporter;
     &get_block_id
     &is_array_decl
     &warning
+    &error
     &coderef_to_subname
     &toLower
+    &tabToFixed
 );
 
 
@@ -268,6 +270,46 @@ sub pp_info { my ($info, $full) = @_;
 }
 sub toLower { (my $str) = @_;
     if ($Config{'PRESERVE_CASE'}) { return $str } else { return lc($str) }
+}
+
+# -----------------------------------------------------------------------------
+sub tabToFixed{ (my $line) = @_;
+
+# Tab-Format
+
+# The tab-format source lines are defined as follows: 
+
+#     A tab in any of columns 1 through 6, or an ampersand in column 1, establishes the line as a tab-format source line.
+        # This should really be done in the SrcReader!
+#     If the tab is the first nonblank character, the text following the tab is scanned as if it started in column 7.
+    my $cols1to6 = substr($line,0,6);
+    my $tline = $line;
+    if ($cols1to6 =~/^\t\D/) {
+    #   =>replace tab by 6 spaces
+        $cols1to6 = ' ' x 6;
+        $tline=~s/^\t//; $tline = $cols1to6 . $tline;
+    }
+#  A comment indicator or a statement number can precede the tab.
+    elsif ($cols1to6 =~/^[cC\*]\t/) {
+        # => change to C followed by 5 spaces
+        $cols1to6 = 'C'.(' ' x 5);
+        $tline=~s/^[cC\*]\t//; $tline = $cols1to6 . $tline; 
+    }
+    elsif ($cols1to6 =~ /^(\s*\d+)\t/) { # The space is not following the spec
+        #   => change to $1 followed by 6 - len($1) spaces
+        my $label =$1;
+        $cols1to6 = $label . (' ' x (6 - length($label)));
+        $tline=~s/^\s*\d+\t//; $tline = $cols1to6 . $tline;
+    }
+#     Continuation lines are identified by an ampersand (&) in column 1, or a nonzero digit after the first tab.
+    elsif ($cols1to6 =~ /^(?:\&|\t[1-9])/ ) {
+        # => change to & in column 6
+        $cols1to6 = (' ' x 5) . '&';
+        $tline=~s/^(?:\&|\t[1-9])//; $tline = $cols1to6 . $tline;
+    }
+    
+    # $line = $tline;
+    return ($tline, $cols1to6);
 }
 # -----------------------------------------------------------------------------
 sub get_maybe_args_globs {
@@ -1059,10 +1101,14 @@ sub warning { my ($msg, $lev) = @_;
 }
 
 sub error { (my $str, my $dbg)=@_;
-    if (defined $dbg and $dbg>0) {
-        croak($str);
+    if (not exists $Config{'IGNORE_ERRORS'} or $Config{'IGNORE_ERRORS'}==0) {
+        if (defined $dbg and $dbg>0) {
+            croak("ERROR: $str");
+        } else {
+            die "ERROR: $str\n";
+        }
     } else {
-        die $str;
+        warning("IGNORED ERROR: $str");
     }
 }
 

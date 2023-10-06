@@ -296,13 +296,13 @@ sub main {
     # 4. Refactoring: Refactor the source
     # - if a pass is given using -P on command line, it is performed instead of the default refactoring
     # - multiple passes can be comma-separated
-   if ($code_unit_name eq '' and scalar @{ $Config{'SOURCEFILES'} }>0) {
-        # $code_unit_name is empty, i.e. no TOP routine. So we go through all sources one by one by file name
-        for my $fp ( @{ $Config{'SOURCEFILES'} } ) {
-        	$stref = refactor_all($stref,$fp,1);
-        }
+    if ($code_unit_name eq '' and scalar @{ $Config{'SOURCEFILES'} }>0) {
+            # $code_unit_name is empty, i.e. no TOP routine. So we go through all sources one by one by file name
+            for my $fp ( @{ $Config{'SOURCEFILES'} } ) {
+                $stref = refactor_all($stref,$fp,1);
+            }
         } else {
-	       $stref = refactor_all($stref,$code_unit_name);
+            $stref = refactor_all($stref,$code_unit_name);
         }
     }
 	# 5. Emitter: Emit the refactored source

@@ -46,6 +46,7 @@ sub emit_all {
         print "ENTERING EMIT_ALL\n";
         print "=" x 80, "\n";
     }
+    
     my $EXT = $Config{EXT};
 
     # I build a fresh list here. I should just delete 'F' at the end
@@ -78,13 +79,9 @@ sub emit_all {
 
         if ($I) {
             if ( @{ $stref->{'SourceContains'}{$src}{'List'} } ) {
-                print "INFO:\tSRC: $src\n";
+                say "INFO:\tSRC: $src";
                 print "INFO:\tCONTAINS: ";
-                print
-                  join( ', ', @{ $stref->{'SourceContains'}{$src}{'List'} } ),
-                  "\n";
-
-                # say "";
+                say join( ', ', @{ $stref->{'SourceContains'}{$src}{'List'} } );
             }
         }
 
@@ -190,7 +187,7 @@ sub emit_all {
         say '! DUMMY GENERATION DONE';
         say '! ' . '=' x 80;
     }
-
+# croak show_annlines($stref->{'Subroutines'}{'optimcmrkp'}{'RefactoredCode'});
     # NOOP source
     # Note that we always use the C source
     if ( $noop and not $DUMMY ) {
@@ -303,6 +300,7 @@ sub _emit_refactored_include {
             open my $SRC, '>', "$dir/$nsrc" or die "$!: $dir/$nsrc";
 
             my $prevline = 'C ';
+            
             $srcref = create_refactored_source( $stref, $f, $srcref );
             for my $annline ( @{$srcref} ) {
                 my $line = $annline->[0];
@@ -379,7 +377,8 @@ sub __get_src_subdirs {
 }    # END of __get_src_subdirs
 
 # This is a proper emitter using the AST (if it is present)
-sub emit_AnnLines {
+# It's not used for the main refactoring, for that we still use the old emitter.
+sub emit_AnnLines { 
     my ( $stref, $f, $annlines ) = @_;
     # carp "HERE: emit_AnnLines($f)\n";
     my $code_unit = sub_func_incl_mod( $f, $stref );

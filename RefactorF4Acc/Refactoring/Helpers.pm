@@ -90,48 +90,48 @@ sub create_refactored_source {
 
 					my $line_without_comment = $line;
 					if ($DBG) {
-					my $replace_PHs = 1;
-					if ($replace_PHs and exists $info->{'PlaceHolders'} ) {
-					 	my $ph_line=$line;
-					 	my $phs={};
-					 	for my $ph (keys %{$info->{'PlaceHolders'}} ) {
-                            my $ph_str = $info->{'PlaceHolders'}{$ph};
-                            $phs->{$ph_str}=$ph;
-					 	}
-                            while ( $ph_line =~ /(\'.*?\')/ ) {
-                                my $strconst = $1;
-                                my $ph       = $phs->{$strconst};
-                                $ph_line =~ s/\'.*?\'/$ph/;
+                        my $replace_PHs = 1;
+                        if ($replace_PHs and exists $info->{'PlaceHolders'} ) {
+                            my $ph_line=$line;
+                            my $phs={};
+                            for my $ph (keys %{$info->{'PlaceHolders'}} ) {
+                                my $ph_str = $info->{'PlaceHolders'}{$ph};
+                                $phs->{$ph_str}=$ph;
                             }
-                            while ( $ph_line =~ /(\".*?\")/ ) {
-                                my $strconst = $1;
-                                my $ph       = $phs->{$strconst};
-                                $ph_line =~ s/\".*?\"/$ph/;
-                            }
-					 	$line_without_comment = $ph_line;
-					}
+                                while ( $ph_line =~ /(\'.*?\')/ ) {
+                                    my $strconst = $1;
+                                    my $ph       = $phs->{$strconst};
+                                    $ph_line =~ s/\'.*?\'/$ph/;
+                                }
+                                while ( $ph_line =~ /(\".*?\")/ ) {
+                                    my $strconst = $1;
+                                    my $ph       = $phs->{$strconst};
+                                    $ph_line =~ s/\".*?\"/$ph/;
+                                }
+                            $line_without_comment = $ph_line;
+                        }
 					}
 				    my $comment = '';
 				    if ($DBG) {
-					# So after putting the strings back we check for a !
-					if ($line_without_comment =~/\!(.+)$/) { say "<$line>\n<$line_without_comment>";# if $line_without_comment=~/__PH\d+_/ ;
-#					say $info->{'TrailingComment'};
-						 	# found a comment, remove it from the line with placeholders (?!)
-						 	$comment=$1;
-						 	$line_without_comment = $line; # This is the line with placeholders
-						 	$line_without_comment =~s/\!$comment//; # So this should only work if there were no matched quotes in the comment!
-					} else {
-						 	$line_without_comment = $line;
-					}
+                        # So after putting the strings back we check for a !
+                        if ($line_without_comment =~/\!(.+)$/) { say "<$line>\n<$line_without_comment>";# if $line_without_comment=~/__PH\d+_/ ;
+    #					say $info->{'TrailingComment'};
+                                # found a comment, remove it from the line with placeholders (?!)
+                                $comment=$1;
+                                $line_without_comment = $line; # This is the line with placeholders
+                                $line_without_comment =~s/\!$comment//; # So this should only work if there were no matched quotes in the comment!
+                        } else {
+                                $line_without_comment = $line;
+                        }
 				    }
  	           	    my @split_lines = $Config{'SPLIT_LONG_LINES'} ? split_long_line($line_without_comment) : ( $line_without_comment );
     	         	for my $sline (@split_lines) {
         	            	push @{$refactored_lines}, [ $sline, $info ];
             	    }
             	    if ($DBG) {
-            	    if ($comment ne '') {
-            	    		$refactored_lines->[-1][0].=' !'.$comment;
-            	    }
+                        if ($comment ne '') {
+                                $refactored_lines->[-1][0].=' !'.$comment;
+                        }
             	    }
 				} else {
 					push @{$refactored_lines}, [ $line, $info ];

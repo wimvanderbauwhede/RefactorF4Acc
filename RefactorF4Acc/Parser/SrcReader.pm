@@ -2,7 +2,7 @@ package RefactorF4Acc::Parser::SrcReader;
 use v5.10;
 use RefactorF4Acc::Config;
 use RefactorF4Acc::Utils
-  qw( sub_func_incl_mod show_status show_annlines %F95_reserved_words %F95_types pp_annlines toLower);
+  qw( sub_func_incl_mod show_status show_annlines %F95_reserved_words %F95_types pp_annlines toLower tabToFixed warning error);
 use RefactorF4Acc::Preconditioning qw( split_multiblock_common_lines );
 use RefactorF4Acc::Refactoring::Helpers;
 use Fortran::F95Normaliser qw( normalise_F95_src );
@@ -268,20 +268,18 @@ Suppose we don't:
                     if ( $max_line_length > 72 && $max_line_length < 102 ) {
 
 #                    	die "WARNING: The file $f is a fixed-form F77 source file but the max line length is $max_line_length characters, using $MAX_LINE_LENGTH-character lines. To use a different max line length, set MAX_LINE_LENGTH in the config file.";
-                        say
-"WARNING: The file $f is a fixed-form F77 source file so the default line length is 72 characters.\n\tThe max line length in $f is $max_line_length characters, using $Config{'MAX_LINE_LENGTH'}-character lines.\n\tTo use a different max line length, set MAX_LINE_LENGTH in the config file."
-                          if $WW;
+                        warning("The file $f is a fixed-form F77 source file so the default line length is 72 characters.\n\tThe max line length in $f is $max_line_length characters, using $Config{'MAX_LINE_LENGTH'}-character lines.\n\tTo use a different max line length, set MAX_LINE_LENGTH in the config file.");
                     }
                     my $ncols = $Config{'MAX_LINE_LENGTH'};   #$max_line_length > 72 ? 132 : 72;
                     
                     for my $line (@lines) {
+                        ($line, my $cols1to6) = tabToFixed($line);
                         $line = substr( $line, 0, $ncols );                         
-# Here a minor hack: if there is a label in the 6th col and a non-blank in the 7th, I insert a blank
-                        if ( length($line) > 6 and $line=~/^\s*\d+/) { # something like 300v=5
-                         
+                        # A minor HACK: if there is a label in the 6th col and a non-blank in the 7th, I insert a blank
+                        if ( length($line) > 6 and $line=~/^\s*\d+/) { # something like 300v=5                         
                             my $c6 = substr( $line, 5, 1 );
                             my $c7 = substr( $line, 6, 1 );
-                            if ( $c6 eq '0' and $c7!~/^[\d\s]/) { # '0' because non-zero character is a continuation line
+                            if ( $c6 eq '0' and $c7!~/\S/) { # '0' because non-zero character is a continuation line
                                 $line = substr( $line, 0, 5 ) . ' '
                                   . substr( $line, 6 );
                             }

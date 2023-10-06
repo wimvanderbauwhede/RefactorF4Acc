@@ -282,6 +282,7 @@ sub refactor_COMMON_blocks_and_CONTAINed_subs {  # 218 lines Was _refactor_globa
 #- splice the new lines before/after the hook depending on $insert_before
 #- if $once is 0, do this whenever the condition is met. Otherwise do it once
 # croak Dumper $Sf->{'Parameters'} if $f eq 'dyn';
+
 	return ($stref,$rlines);
 }    # END of refactor_COMMON_blocks_and_CONTAINed_subs()
 
@@ -923,8 +924,7 @@ sub _create_refactored_subroutine_call { # 321 lines
 				push @{$rlines}, [ $line, $info ];
 			}
 		}
-	}
-		# croak Dumper( $annline) if $name eq 'sub0' and $f=~/loop/;
+	}		
 	return ($rlines, $stref);
 }    # END of _create_refactored_subroutine_call()
 
@@ -1207,7 +1207,7 @@ sub  __update_cast_reshape_result {
 
 	my ($cast_reshape_pre_line,$cast_reshape_pre_info) = @{$cast_reshape_pre_annline};
 	my ($cast_reshape_post_line,$cast_reshape_post_info) = @{$cast_reshape_post_annline};
-carp Dumper $cast_reshape_result->{'PreAnnLine'}[1];
+# carp Dumper $cast_reshape_result->{'PreAnnLine'}[1];
 	$cast_reshape_result->{'PreAnnLine'}[0]=$cast_reshape_pre_line;
 	$cast_reshape_result->{'PreAnnLine'}[1]=$cast_reshape_pre_info;
 	$cast_reshape_result->{'PreAnnLine'}[1]{'Lhs'}{'VarName'}=$new_call_arg;
@@ -1296,7 +1296,7 @@ sub __reshape_check { my ($stref, $f, $sub_name, $call_arg_decl,$sig_arg_decl) =
 				$use_arg_sz=1;
 			}
 			$needs_reshape=1;
-			croak '# if the same rank and different size: '.$call_arg . ':'. $size1 .'!='. $sig_arg.':'.$size2;
+			# croak '# if the same rank and different size: '.$call_arg . ':'. $size1 .'!='. $sig_arg.':'.$size2;
 		} elsif ( $size1 != $size2 and $rank1 != $rank2 ) {
 			# We take the largest of the two. This can of course lead to run-time errors.
 			if ($size1>$size2) {
@@ -1612,9 +1612,11 @@ sub __update_function_calls_in_AST {
 				for my $sig_arg ( @{ $stref->{'Subroutines'}{$name}{'ExMismatchedCommonArgs'}{'SigArgs'}{'List'} } ) {
 					my $call_arg =
 						$stref->{'Subroutines'}{$name}{'ExMismatchedCommonArgs'}{'CallArgs'}{$f}{$sig_arg}[0][0];
+						if (not defined $call_arg) {
+							error("$name called in $f: binder $sig_arg has undefined call argument, rf4a failed to refactor COMMON vars\n") ;
+							$call_arg='ERROR_UNDEFINED_'.$sig_arg;
+						}
 					push @maybe_renamed_exglobs, $call_arg;
-					die "ERROR: $name called in $f: binder $sig_arg has undefined call argument, rf4a failed to refactor COMMON vars\n" if not defined $call_arg;
-					croak "$name called in $f: binder $sig_arg has undefined call argument" if $DBG and not defined $call_arg;
 				}
 				if (@maybe_renamed_exglobs) {
 					if ( not @{ $ast->[2] } ) {    # empty list. create [',' ]

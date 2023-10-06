@@ -188,9 +188,9 @@ sub _refactor_subroutine_main {
 
 	$annlines = _emit_refactored_signatures( $stref, $f, $annlines );
 	$Sf->{'RefactoredCode'} = $annlines;
-
-	#say Dumper(pp_annlines($annlines));
+	
 	$Sf->{'AnnLines'} = $annlines;
+
 	return $stref;
 }    # END of _refactor_subroutine_main()
 

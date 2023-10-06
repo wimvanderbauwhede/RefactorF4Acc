@@ -339,18 +339,20 @@ sub _analyse_src_for_iodirs {
 
                     # -----------------------------------------------------------------------------
                     if (exists $info->{'Do'}) {
-                        my $mvar = $info->{'Do'}{'Iterator'};
-                        if (exists $args->{$mvar}
-                            and ref($args->{$mvar}) eq 'HASH')
-                        {
-                            if (exists $args->{$mvar}{'IODir'}) {
-                                $args = _set_iodir_write($mvar, $args);
-                            }
-                        }
-                        for my $mvar (@{$info->{'Do'}{'Range'}{'Vars'}}) {
-                            if (exists $args->{$mvar} and ref($args->{$mvar}) eq 'HASH') {
+                        if (exists $info->{'Do'}{'Iterator'}) {
+                            my $mvar = $info->{'Do'}{'Iterator'};
+                            if (exists $args->{$mvar}
+                                and ref($args->{$mvar}) eq 'HASH')
+                            {
                                 if (exists $args->{$mvar}{'IODir'}) {
-                                    $args = _set_iodir_read($mvar, $args);
+                                    $args = _set_iodir_write($mvar, $args);
+                                }
+                            }
+                            for my $mvar (@{$info->{'Do'}{'Range'}{'Vars'}}) {
+                                if (exists $args->{$mvar} and ref($args->{$mvar}) eq 'HASH') {
+                                    if (exists $args->{$mvar}{'IODir'}) {
+                                        $args = _set_iodir_read($mvar, $args);
+                                    }
                                 }
                             }
                         }
