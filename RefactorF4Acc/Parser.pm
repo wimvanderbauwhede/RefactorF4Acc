@@ -288,7 +288,7 @@ sub analyse_lines {
 		for my $index ( 0 .. scalar( @{$srcref} ) - 1 ) {
 			my $attr = '';
 			( my $lline, my $info ) = @{ $srcref->[$index] };
-			say "291 LINE: $lline";
+			# say "291 LINE: $lline";
 			# Get indent
 			$lline =~ /^(\s+).*/ && do { $indent = $1; }; # This is not OK for lines with labels of course.
 			$info->{'Indent'}=$indent;
@@ -2344,6 +2344,7 @@ sub _parse_subroutine_and_function_calls {
 
 					# An external sub
 					$info->{'SubroutineCall'}{'IsExternal'} = 1;
+					warning("Subroutine $name called in $f is EXTERNAL",3);
 					# I should add these to CalledSubs I think
 					if ( $sub_or_func_or_mod eq 'Subroutines' ) { # The current code unit is a subroutine
 						$Sf->{'CalledSubs'}{'Set'}{$name} = [1,1]; # mark $name a called sub in $f
@@ -4506,26 +4507,27 @@ sub _parse_assignment {
 			}
 		};
 	} else {
-		
+
 		# I assume this is a variable declared via implicits
 		if ($lhs_ast->[0]==1) {
 			my $nargs = scalar $stref->{Subroutines}{$lhs_ast->[1]}{AnnLines}[0][1]{'FunctionSig'}[2] ;
-			
+
 			if (scalar(@{$lhs_ast->[2]})-1==$nargs) { # If is the function
 					$info->{'Lhs'} = {
 					'ArrayOrScalar' => 'Other',
 					'ExpressionAST' => $lhs_ast
 				};
 			} else {
-			$info->{'Lhs'} = {
-				'VarName' => $lhs_ast->[1],
-				'ArrayOrScalar' => 'Array',
-				'ExpressionAST' => $lhs_ast,
-				'IndexVars' =>{'List' =>[],'Set'=>{}}
-			};
+				$info->{'Lhs'} = {
+					'VarName' => $lhs_ast->[1],
+					'ArrayOrScalar' => 'Array',
+					'ExpressionAST' => $lhs_ast,
+					'IndexVars' =>{'List' =>[],'Set'=>{}}
+				};
 			}
-		} 
-		croak 'LHS CAN BE EITHER FUNCTION OR ARRAY: '.Dumper($info->{'Lhs'}) if $DBG;
+		}
+		warning("$line in $f: ".$lhs_ast->[1].' can be array or function, probably name conflict');
+		# croak 'LHS CAN BE EITHER FUNCTION OR ARRAY: '.Dumper($info->{'Lhs'}) if $DBG;
 	}
 # Here also, check if any of these vars has been declared as array
 	$info->{'Rhs'} = {

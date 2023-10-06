@@ -51,7 +51,11 @@ Subroutines
 
 sub refactor_all_subroutines {
 	( my $stref ) = @_;
-croak Dumper( sort keys %{ $stref->{'Subroutines'} } );
+# croak Dumper(  $stref->{'Subroutines'}{'termo'}{'Status'} );
+# for my $f ( sort keys %{ $stref->{'Subroutines'} } ) {
+	
+# }
+
 	for my $f ( sort keys %{ $stref->{'Subroutines'} } ) {
 
 		next if ( $f eq '' or $f eq 'UNKNOWN_SRC' or not defined $f );
@@ -61,7 +65,6 @@ croak Dumper( sort keys %{ $stref->{'Subroutines'} } );
 
 		next if ( exists $Sf->{'Entry'} && $Sf->{'Entry'} == 1 );
 		if ( not defined $Sf->{'Status'} ) {
-			
 			$Sf->{'Status'} = $UNREAD;
 			say "INFO: no Status for $f" if $I;
 		}
@@ -238,7 +241,7 @@ sub _fix_end_lines {
 				if ( exists $Sf->{'ReferencedLabels'}{$label} ) {
 
 					$end_sub_line = $indent.$label.' end '.$sub_or_prog.' '.$f;
-					croak $end_sub_line.Dumper($info);
+					# croak $end_sub_line.Dumper($info);
 				}
 		 	}
 			$info->{'End'.ucfirst($sub_or_prog)} = $f;

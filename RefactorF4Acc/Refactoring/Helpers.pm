@@ -376,8 +376,8 @@ sub get_f95_var_decl {
             # $array_or_scalar = $decl->{'ArrayOrScalar'};
 
     } elsif ( defined $f and defined $stref and defined $var ) {
-        carp "WARNING: VAR $var declared via IMPLICITS in get_f95_var_decl()!" if $DBG;
-        warning("VAR $var declared via IMPLICITS",$WW);
+        carp "WARNING: VAR '$var' in $f declared via IMPLICITS in get_f95_var_decl()!" if $DBG;
+        warning("VAR '$var' in $f declared via IMPLICITS",2);
         ( $type, my $kind, $attr ) = type_via_implicits( $stref, $f, $var );
         return {
             'Indent' => $spaces,

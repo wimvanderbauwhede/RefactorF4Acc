@@ -239,9 +239,9 @@ sub refactor_COMMON_blocks_and_CONTAINed_subs {  # 218 lines Was _refactor_globa
 		my $nextLineID = scalar @{$rlines} + 1;
 		my $cast_reshape_vardecl_annlines = [];
 		for my $cast_reshape_vardecl (@{$Sf->{'CastReshapeVarDecls'}{'List'}}) {
-		 if ($cast_reshape_vardecl eq 'v_s1b'){ # which means inlining was done already!
-		 carp Dumper pp_annlines($Sf->{'RefactoredCode'});
-		 }
+		#  if ($cast_reshape_vardecl eq 'v_s1b'){ # which means inlining was done already!
+		#  carp Dumper pp_annlines($Sf->{'RefactoredCode'});
+		#  }
 		# croak in_nested_set( $Sf, 'Vars', $cast_reshape_vardecl );
 			# if (  in_nested_set( $Sf, 'Vars', $cast_reshape_vardecl ) ) {
 			# 	croak;
@@ -587,7 +587,6 @@ sub _create_extra_arg_and_var_decls { #272 lines
 # That should be an issue in the subroutine refactoring code
 sub _create_refactored_subroutine_call { # 321 lines
 	( my $stref, my $f, my $annline, my $rlines ) = @_;
-
 	( my $line, my $info ) = @{$annline};
 	my $name = $info->{'SubroutineCall'}{'Name'};
 
@@ -595,8 +594,9 @@ sub _create_refactored_subroutine_call { # 321 lines
 
 	if ( exists $stref->{'ExternalSubroutines'}{$name} ) {
 		push @{$rlines}, [ $line, $info ];
-		return $rlines;
+		return ($rlines,$stref);
 	}
+# return ($rlines,$stref);
 	# This is in case we need intermediate variables for casting and reshaping of arguments to subroutine calls
 	if (not exists $Sf->{'CastReshapeVarDecls'}) {
 		$Sf->{'CastReshapeVarDecls'}={'List'=>[], 'Set'=>{}};
@@ -612,6 +612,7 @@ sub _create_refactored_subroutine_call { # 321 lines
 		shift @{$expr_ast};
 	}
 	my @cast_reshape_results=();
+
 	for my $call_arg_expr ( @{$expr_ast} ) {
 		# The main purpose is to handle variable names
 		# So this is rather weak because e.g. v(i) will not be in Vars.
@@ -1463,7 +1464,7 @@ sub _create_refactored_function_calls {
 
 	( my $line, my $info ) = @{$annline};
 
-	#    say "$f LINE: $line".Dumper($info) ;
+	#    say "_create_refactored_function_calls 1467 $f LINE: $line".Dumper($info) ;
 	# Get the AST
 	my $ast           = [];
 	my $do_not_update = 0;
@@ -1602,13 +1603,18 @@ sub __update_function_calls_in_AST {
 					}
 				}
 			} else {
+				# carp "HERE2" if $f eq 'nm_f';
 				# For mismatched COMMON blocks we need to append the call args with 'CallArgs'
 				my @maybe_renamed_exglobs = ();
+				# if (grep {(not defined $_)} @{ $stref->{'Subroutines'}{$name}{'ExMismatchedCommonArgs'}{'SigArgs'}{'List'} } ) {
+				# 	croak "UNDEF";
+				# }
 				for my $sig_arg ( @{ $stref->{'Subroutines'}{$name}{'ExMismatchedCommonArgs'}{'SigArgs'}{'List'} } ) {
 					my $call_arg =
 						$stref->{'Subroutines'}{$name}{'ExMismatchedCommonArgs'}{'CallArgs'}{$f}{$sig_arg}[0][0];
 					push @maybe_renamed_exglobs, $call_arg;
-					croak "$name called in $f => $sig_arg " if $DBG and not defined $call_arg;
+					die "ERROR: $name called in $f: binder $sig_arg has undefined call argument, rf4a failed to refactor COMMON vars\n" if not defined $call_arg;
+					croak "$name called in $f: binder $sig_arg has undefined call argument" if $DBG and not defined $call_arg;
 				}
 				if (@maybe_renamed_exglobs) {
 					if ( not @{ $ast->[2] } ) {    # empty list. create [',' ]
@@ -1630,7 +1636,7 @@ sub __update_function_calls_in_AST {
 		my $entry = __update_function_calls_in_AST( $stref, $Sf, $f, $ast->[2] );
 		$ast->[2] = $entry;
 	} elsif ( ( $ast->[0] & 0xFF ) < 29 and ( $ast->[0] & 0xFF ) != 2 ) {    # other operators
-
+# carp 'HERE3' if $f eq 'nm_f';
 		for my $idx ( 1 .. scalar @{$ast} - 1 ) {
 			my $entry = __update_function_calls_in_AST( $stref, $Sf, $f, $ast->[$idx] );
 			$ast->[$idx] = $entry;

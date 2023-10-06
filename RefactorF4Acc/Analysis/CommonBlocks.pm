@@ -655,7 +655,7 @@ sub _match_up_common_var_sequences {
 			# say "2. $f $caller: LOCAL: $name_local CALLER: $name_caller " if $f eq 'ff304' and $name_local ne $name_caller;
 			}
 		} else {    # The local seq is longer than the caller seq
-			say "TYPE ERROR: Local COMMON sequence can't be longer than caller sequence for strict type safety." ;
+			say "TYPE ERROR: Local COMMON sequence can't be longer than caller sequence for strict type safety" ;
 			die "\n" if $Config{'STRICT_COMMONS_CHECKS'};
 			# It can be that the local seq contains an elt that was already partially matched to the last caller elt.
 			# this means that $name_local is already matched;  but we still need to add it to call args

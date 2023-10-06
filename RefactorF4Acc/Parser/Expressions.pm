@@ -1096,6 +1096,7 @@ sub emit_expr_from_ast { (my $ast)=@_;
 						if($args->[0] == 27) { # ','
 							for my $idx (1 .. scalar @{$args}-1) {
 								my $arg = $args->[$idx];
+                                # say "ARG$idx:".Dumper($arg);
 								push @args_lst, emit_expr_from_ast($arg);
 							}
 
@@ -1103,7 +1104,7 @@ sub emit_expr_from_ast { (my $ast)=@_;
 							#       push @args_lst, emit_expr_from_ast($arg);
 							#    }
                             # if (grep {(not defined $_)} @args_lst){
-							#     carp Dumper($ast,@args_lst);
+							#     croak Dumper($ast,@args_lst);
                             # }
 							return "$name(".join(',',@args_lst).')';
 						} else {
@@ -1236,8 +1237,8 @@ sub _replace_function_calls_in_ast {
     				say "\tFound array $mvar" if $DBG;
 				} elsif (   	exists $F95_intrinsics{$mvar} ) {
 					say "parse_expression('$exp') " . __LINE__ if $DBG;
-                    say "WARNING: treating $mvar in $f as an intrinsic! " if $DBG;
-					$grouped_messages->{'W'}{'VAR_AS_INTRINSIC'}{$mvar} =   "WARNING: treating $mvar in $f as an intrinsic! " if $WW;
+                    say "WARNING: treating '$mvar' in $f as an intrinsic " if $DBG;
+					$grouped_messages->{'W'}{'VAR_AS_INTRINSIC'}{$mvar} =   "WARNING: treating '$mvar' in $f as an intrinsic " if $WW;
 				} elsif (   	exists $F95_function_like_reserved_words{$mvar} ) {
 					say "parse_expression('$exp') " . __LINE__ if $DBG;
                     say "Treating $mvar in $f as a function-like reserved word " if $DBG;
