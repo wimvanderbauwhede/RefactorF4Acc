@@ -143,6 +143,7 @@ sub emit_all {
 
             for my $mod_line ( @{$mod_lines} ) {
                 my $info = $mod_line->[1];
+                # say "$targetdir/$nsrc".' LINE '.$mod_line->[0];
                 if (
                        exists $info->{'Blank'}
                     or exists $info->{'Deleted'}
@@ -150,20 +151,25 @@ sub emit_all {
         # or (exists $info->{'Comments'} and not exists $info->{'OrigComments'})
                   )
                 {
+                    # say "$targetdir/$nsrc".' LINE '.$mod_line->[0].' DELETED';
                     next;
                 }
 
-                if (not exists $info->{'Use'} or not exists $used_modules{$info->{'Use'}{'Name'}} ) {
-                    if ( exists $info->{'Use'}) {
-                        $used_modules{$info->{'Use'}{'Name'}}=1;
-                    }
-                #				say $mod_line->[0];
+                # If the line is not a USE statement
+                # or it is but the module is not in the list of used modules                
+                # if (not exists $info->{'Use'} or not exists $used_modules{$info->{'Use'}{'Name'}} ) {                    
+                #     if ( exists $info->{'Use'}) {
+                #         $used_modules{$info->{'Use'}{'Name'}}=1;
+                #     }                				
                     print $TGT $mod_line->[0];
-                }
+                # } else { # So this means that the line is a USE statement
+                #     say "SKIPPED: ".$mod_line->[0];
+                #     croak Dumper  %used_modules,$info->{'Use'}{'Name'};
+                # }
                 if ( $ANN and exists $mod_line->[1]->{'Ann'} ) {
                     say $TGT ' ! ' . join( '; ', @{ $mod_line->[1]{'Ann'} } );
                 }
-                else {
+                else {                
                     print $TGT "\n";
                 }
             }

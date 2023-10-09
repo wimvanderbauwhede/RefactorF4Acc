@@ -93,7 +93,8 @@ sub refactor_all {
 
 	# $stref = fold_constants_all($stref) ;
 	# $stref = refactor_dsm_all($stref) ;
-    # croak Dumper pp_annlines($stref->{'RefactoredCode'}{'./sr2/main.f'});
+    
+    
     # Custom refactoring, must be done before creating final modules
     # croak;
     say "add_module_decls" if $V;
@@ -101,6 +102,8 @@ sub refactor_all {
     # croak Dumper pp_annlines($stref->{'RefactoredCode'}{'./sr2/main.f'});
     # carp Dumper $stref->{'RefactoredCode'}{"./src2/main.f"};
 # croak Dumper pp_annlines($stref->{Subroutines}{main}{AnnLines});
+    # carp Dumper  pp_annlines($stref->{'RefactoredCode'}{'./boundp.f'});
+# croak Dumper pp_annlines($stref->{'Subroutines'}{'boundp2'}{'RefactoredCode'});
     return $stref;
 } # END of refactor_all()
 

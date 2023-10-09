@@ -190,7 +190,6 @@ sub _refactor_subroutine_main {
 	$Sf->{'RefactoredCode'} = $annlines;
 	
 	$Sf->{'AnnLines'} = $annlines;
-
 	return $stref;
 }    # END of _refactor_subroutine_main()
 

@@ -161,7 +161,7 @@ sub refactor_COMMON_blocks_and_CONTAINed_subs {  # 218 lines Was _refactor_globa
 			# TODO: test if this is obsolete
 			--$inc_counter;
 			$skip = skip_common_include_statement( $stref, $f, $annline );
-
+			
 			# Now, if this was a Common include to be skipped but it contains a Parameter include, I will simply replace the line:
 			# TODO: factor out!
 			my $inc = $info->{'Include'}{'Name'};
@@ -177,6 +177,7 @@ sub refactor_COMMON_blocks_and_CONTAINed_subs {  # 218 lines Was _refactor_globa
 				push @{$rlines}, $annline;
 				$skip = 1;
 			}
+			
 		}
 
 		# We should either inline everything from the module or rewrite the module. I go for the former
@@ -282,7 +283,6 @@ sub refactor_COMMON_blocks_and_CONTAINed_subs {  # 218 lines Was _refactor_globa
 #- splice the new lines before/after the hook depending on $insert_before
 #- if $once is 0, do this whenever the condition is met. Otherwise do it once
 # croak Dumper $Sf->{'Parameters'} if $f eq 'dyn';
-
 	return ($stref,$rlines);
 }    # END of refactor_COMMON_blocks_and_CONTAINed_subs()
 

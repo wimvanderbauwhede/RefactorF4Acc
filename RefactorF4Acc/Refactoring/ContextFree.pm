@@ -374,6 +374,7 @@ sub context_free_refactorings {
         elsif ( exists $info->{'SubroutineCall'} ) {
             $info->{'Ref'}++;
         } elsif ( exists $info->{'Include'} ) { 
+            
         	# I don't think we can have statement labels in front of includes
             my $inc  = $info->{'Include'}{'Name'};
             my $tinc = $inc;
@@ -387,8 +388,8 @@ sub context_free_refactorings {
                   	push @{ $info->{'Ann'} }, annotate($f, __LINE__. ' Include' );
                   	
             	} elsif (exists $stref->{'IncludeFiles'}{$inc}{'ParamInclude'}) {
-            		
             		my $param_include=$stref->{'IncludeFiles'}{$inc}{'ParamInclude'};
+            		
                     push @{$stref->{'IncludeFiles'}{$param_include}{'UsedBy'}}, $f; 
             		my $tinc = $param_include;
             		$tinc =~ s/\./_/g;            		
@@ -397,6 +398,7 @@ sub context_free_refactorings {
                 		$line = "      use $tinc". ($Config{'NO_ONLY'} ?  '!' : '') .", only : ".join(', ', @used_params);
                         $info->{'Use'} = {'Name' => $tinc, 'Only' => [@used_params]};
                   		push @{ $info->{'Ann'} }, annotate($f, __LINE__. ' Include' );
+                        # carp "$f: $param_include";
 					} else {
                 		$line = "!!      use $tinc ! ONLY LIST EMPTY";
                   		push @{ $info->{'Ann'} }, annotate($f, __LINE__ . ' no pars used'); #croak 'SKIP USE PARAM';            		            		  		
