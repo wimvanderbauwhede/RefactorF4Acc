@@ -142,7 +142,7 @@ sub _separate_blocks {
     $stref = __construct_new_subroutine_signatures( $stref, $blocksref, $occsref, $itersref, $paramsref, $varsref, $f );
 
     $stref = __reparse_extracted_subroutines( $stref, $blocksref );
-
+    $stref = __add_module_declaration( $stref, $f, $blocksref );
     $blocksref = __find_called_subs_in_OUTER($blocksref);
 
     $stref = __update_caller_datastructures( $stref, $f, $blocksref );
@@ -217,6 +217,7 @@ sub __separate_into_blocks {
            # to be replaced by function signature
            $block_rec->{'AnnLines'}=[];
            $block_rec->{'Name'}=$block;
+           
            # WV 2021-06-08 Somehow the info gets wiped later on!
            push @{ $block_rec->{'AnnLines'} },
               [
@@ -241,10 +242,25 @@ sub __separate_into_blocks {
             next;
         }
         
+        
         if ($in_block==1) {
             # Push the line onto the list of lines for the block
             push @{ $block_rec->{'AnnLines'} }, [ $line, dclone($info) ];
             $info->{'InBlock'}{'Name'} = $block;
+            my $module = 'module_'.$block;
+            $stref->{'Subroutines'}{$block}{'InModule'}=$module;
+            if (exists $info->{'SubroutineCall'}) {
+                my $subname = $info->{'SubroutineCall'}{'Name'};
+                my $container = $stref->{'Subroutines'}{$subname}{'Container'};
+                $stref->{'Subroutines'}{$block}{'Containers'}{$container}=$subname;
+                if (exists $stref->{'Subroutines'}{$subname}{'InModule'}) {
+                    my $mod =  $stref->{'Subroutines'}{$subname}{'InModule'};
+                    $stref->{'Subroutines'}{$block}{'InModules'}{$mod}=$subname;
+                }
+            }            
+            # Now we must make sure this new module inherits the USE statements from the modules of any called subs
+            # But it is simpler to create a list of those modules, analogous to the Container/Containers approach
+            
         } else {
             # Other lines go onto 'OUTER'
             push @{ $block_rec->{'AnnLines'} }, [ $line, $info ];           
@@ -291,11 +307,16 @@ sub __create_new_subroutine_entries {
         }
         
         my $src = "$srcdir/$block".$Config{EXT};
-        push @{ $stref->{'SourceContains'}{$src}{'List'} }, $block;      
-        $stref->{'SourceContains'}{$src}{'Set'}{$block}='Subroutines';
+        push @{ $stref->{'SourceContains'}{$src}{'List'} }, $block;
+        push @{ $stref->{'SourceContains'}{$src}{'List'} }, 'module_'.$block;# WV2023-10-09 added
+
+        $stref->{'SourceContains'}{$src}{'Set'}{$block}='Subroutines'; 
+        $stref->{'SourceContains'}{$src}{'Set'}{'module_'.$block}='Modules'; # WV2023-10-09 added
         $stref->{'SourceContains'}{$src}{'Path'}{'Local'}=$src;
-        $stref->{'SourceFiles'}{$src}{'SourceType'}='Subroutines';
-         $stref->{'BuildSources'}{'F'}{$src}=1;
+        $stref->{'SourceFiles'}{$src}{'SourceType'}='Modules';# WV2023-10-09 was 'Subroutines'
+        $stref->{'Modules'}{ 'module_'.$block }{'Contains'} = [$block];# WV2023-10-09 added
+        $stref->{'Modules'}{ 'module_'.$block }{'Status'} = $FROM_BLOCK;
+        $stref->{'BuildSources'}{'F'}{$src}=1;
         $Sblock->{'RefactorGlobals'} = 1;
         $stref->{'Subroutines'}{$block} = $Sblock;
         if ( $Sf->{'RefactorGlobals'} == 0 ) {
@@ -406,6 +427,21 @@ sub __update_caller_datastructures {
     $stref->{'CallTree'}{$f}=[@{$stref->{'Subroutines'}{$f}{'CalledSubs'}{'List'}}];
     return $stref;
 }    # END of __update_caller_datastructures()
+# -----------------------------------------------------------------------------
+sub __add_module_declaration { my ( $stref, $f, $blocksref ) = @_;
+
+for my $block_rec ( @{$blocksref} ) {
+		my $block = $block_rec->{'Name'};
+        next if $block eq 'OUTER';
+        $stref->{'Modules'}{ 'module_'.$block }{'AnnLines'} = [
+            ["module module_$block",{'Module' => 'module_'.$block}],
+            ["contains",{'Contains' => 1}],
+            @{ $stref->{'Subroutines'}{$block}{'AnnLines'}},
+            ["end module module_$block",{'EndModule' => 'module_'.$block}],
+        ];
+}
+return $stref;
+}
 
 # -----------------------------------------------------------------------------
 #

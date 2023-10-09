@@ -58,11 +58,13 @@ sub add_module_decls {
 			say "SKIPPING $src";
 		} else {
 
+			say "SRC $src SRCTYPE: ",$stref->{'SourceFiles'}{$src}{'SourceType'};
 			# Get the unit name from the list
 			for my $sub_or_func_or_mod ( @{ $stref->{'SourceContains'}{$src}{'List'} } ) {
-
+				say "SRC $src SourceContains List: $sub_or_func_or_mod";
 				# Get its type
 				my $sub_func_type = $stref->{'SourceContains'}{$src}{'Set'}{$sub_or_func_or_mod};
+				say "SRC $src SourceContains Set: $sub_or_func_or_mod => $sub_func_type";
 				if ( $sub_func_type eq 'Modules' ) {
 					$is_existing_module{$src}   = 1;
 					$existing_module_name{$src} = $sub_or_func_or_mod;

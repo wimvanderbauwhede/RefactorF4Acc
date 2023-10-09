@@ -2080,28 +2080,24 @@ sub _parse_use {
 
 # UsedLocalVars is a misnomer, because these variables could be globals
 sub __module_has_globals { (my $stref, my $f, my $mod_name, my $called_sub_name)=@_;
-#	say "TEST: $called_sub_name";
-#	say exists $stref->{'Subroutines'}{$called_sub_name}{'Uses'}{$mod} ? 1 :0;
-#	say exists $stref->{'Subroutines'}{$called_sub_name}{'InModule'} ? 1:0;
-#	say exists $stref->{'Modules'}{  $stref->{'Subroutines'}{$called_sub_name}{'InModule'} }{'Uses'}{$mod} ? 1:0;
-		# This depends: for any called function, we should test if it uses the same module or resides in a module that uses the same module
-		my $Sf = $stref->{'Subroutines'}{$f};
-		if (exists $stref->{'Subroutines'}{$called_sub_name}{'Uses'}{$mod_name} or (
-			exists $stref->{'Subroutines'}{$called_sub_name}{'InModule'} and
-		 	exists $stref->{'Modules'}{  $stref->{'Subroutines'}{$called_sub_name}{'InModule'} }{'Uses'}{$mod_name} )
-		) {
-			say "INFO: MODULE $mod_name USED in $f is GLOBAL because of $called_sub_name" if $I;
-			$stref->{'Modules'}{$mod_name}{'IsGlobal'}=1;
+	# This depends: for any called function, we should test if it uses the same module or resides in a module that uses the same module
+	my $Sf = $stref->{'Subroutines'}{$f};
+	if (exists $stref->{'Subroutines'}{$called_sub_name}{'Uses'}{$mod_name} or (
+		exists $stref->{'Subroutines'}{$called_sub_name}{'InModule'} and
+		exists $stref->{'Modules'}{  $stref->{'Subroutines'}{$called_sub_name}{'InModule'} }{'Uses'}{$mod_name} )
+	) {
+		say "INFO: MODULE $mod_name USED in $f is GLOBAL because of $called_sub_name" if $I;
+		$stref->{'Modules'}{$mod_name}{'IsGlobal'}=1;
 
-			$Sf->{'UsedGlobalVars'} = append_to_set( $Sf->{'UsedGlobalVars'}, $stref->{'Modules'}{$mod_name}{'LocalVars'} );
+		$Sf->{'UsedGlobalVars'} = append_to_set( $Sf->{'UsedGlobalVars'}, $stref->{'Modules'}{$mod_name}{'LocalVars'} );
 
-			for my $var (keys %{ get_vars_from_set($stref->{'Modules'}{$mod_name}{'LocalVars'} ) } ) {
+		for my $var (keys %{ get_vars_from_set($stref->{'Modules'}{$mod_name}{'LocalVars'} ) } ) {
 #				say "VAR $var";
-				$Sf->{'Commons'}{$var}=1;
-				$stref->{'Subroutines'}{$called_sub_name}{'Commons'}{$var}=1;
-			}
+			$Sf->{'Commons'}{$var}=1;
+			$stref->{'Subroutines'}{$called_sub_name}{'Commons'}{$var}=1;
 		}
-		return $stref;
+	}
+	return $stref;
 }
 
 sub _check_used_modules_for_globals { (my $stref, my $f,  my $called_sub_name)=@_;

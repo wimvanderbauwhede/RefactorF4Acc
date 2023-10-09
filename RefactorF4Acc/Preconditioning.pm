@@ -820,58 +820,7 @@ sub _split_multipar_decls_and_set_type {
                         # my $rline = $param_decl->{'Indent'}."parameter($var=$val)"; # F77 syntax, this should not be used anyway
                         my $rline = emit_f95_var_decl($param_decl); 
                         push @{$new_annlines}, [$rline, \%rinfo];
-                    }
-                            
-            # if (0) {
-            #             my @nvars_nvals = @{$info->{'ParamDecl'}{'Names'}};
-            #             for my $var_val (@{$info->{'ParamDecl'}{'Names'}}) {
-
-            #                 my $var = $var_val->[0];
-            #                 my $val = $var_val->[1];
-
-            #                 my %rinfo = %{$info};
-            #                 $rinfo{'LineID'}    = $nextLineID++;
-            #                 $rinfo{'ParamDecl'} = {};
-
-            #                 my $param_decl = {
-            #                     'Indent'          => $info->{'Indent'},
-            #                     'Type'            => $Sf->{'LocalParameters'}{'Set'}{$var}{'Type'},
-            #                     'Attr'            => $Sf->{'LocalParameters'}{'Set'}{$var}{'Attr'},
-            #                     'Dim'             => [],
-            #                     'Parameter'       => 'parameter',
-            #                     'Name'            => [$var, $val],
-            #                     'Val'             => $val, # backwards comp
-            #                     'Var'             => $var, # backwards comp
-            #                     'Status'          => 1,
-            #                     'InheritedParams' => $Sf->{'LocalParameters'}{'Set'}{$var}{'InheritedParams'},
-            #                 };
-
-            #                 $Sf->{'LocalParameters'}{'Set'}{$var} = $param_decl;
-            #                 $rinfo{'ParamDecl'} = {'Name' => [$var, $val]};
-            #                 $rinfo{'VarDecl'} = {'Name' => $var};
-
-            #                 my $rline = $line;
-            #                 if (scalar @{$info->{'ParamDecl'}{'Names'}} > 1) {
-
-            #                     # This is a line with multiple param decls, split it.
-            #                     for my $nvar_vals (@nvars_nvals) {
-            #                         my $nvar = $nvar_vals->[0];
-            #                         if ($nvar ne $var) {
-            #                             my $nval = $Sf->{'LocalParameters'}{'Set'}{$nvar}{'Val'};
-            #                             # TODO: WEAK we only support scalars parnam=parval
-            #                             # FIXME: This should use \b not \W !!!
-            #                             if ($rline =~ /\s*,\s*$nvar\s*=\s*$nval\W?/) {
-            #                                 $rline =~ s/\s*,\s*$nvar\s*=\s*$nval(\W?)/$1/;
-            #                             }
-            #                             elsif ($rline =~ /(\W)$nvar\s*=\s*$nval\s*,\s*/) {
-            #                                 $rline =~ s/(\W)$nvar\s*=\s*$nval\s*,\s*/$1/;
-            #                             }
-            #                         }
-            #                     }
-            #                 }
-            #                 push @{$new_annlines}, [$rline, \%rinfo];
-            #             } #for
-            #         } # if 0
+                    }                            
                 }
                 else { # problem: No 'Names'
                     croak "NO Names for parameter in $f: $line";

@@ -42,6 +42,9 @@ TO RELEASE
   $ git push origin v2.1.0
   
   
+STATUS 2023-10-09
+* FIXME: bug in the subroutine extraction ('Blocks'): the new module for the extracted subroutine is not USEd in the code unit (PROGRAM) where the new subroutine is called.
+
 STATUS 2021-06-16
 * FIXME: there is a bug in the expression parser:  k>km-1 .or. k<1 becomes  km-1 .or. k<1. So in the case of A .and. B .and. C where A is a comparison with an expression: k>km .or. k<1 is OK; putting parens around it also works. => If fixed this but not in a generic way, TODO!
 

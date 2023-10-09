@@ -1068,17 +1068,31 @@ sub _remove_duplicate_declarations { my ($stref,$f) = @_;
         }
         elsif (exists $info->{'ParamDecl'}) {
             # say "ParamDecl LINE: $line " .Dumper( $info->{'ParamDecl'});
-            my $par_name = ref($info->{'ParamDecl'}{'Name'}) eq 'ARRAY'
-            ? $info->{'ParamDecl'}{'Name'}[0]
-            : $info->{'ParamDecl'}{'Name'};
-            if (exists $state->{'DeclaredVars'}{$par_name}) {
-                # say 'EXISTS:' .Dumper $state->{'DeclaredVars'}{$par_name};
-                say "_remove_duplicate_declarations $f: Delete $par_name decl: ".$line;
-                $info ={'Deleted'=>1};
-                $line = '! '.$line;
-            } else {
-                # say 'SETTING DeclaredVars: '.$par_name;
-                    $state->{'DeclaredVars'}{$par_name}=111;
+            my $par_name = '';
+
+            if (exists $info->{'ParamDecl'}{'Name'} ) {                
+                $par_name = ref($info->{'ParamDecl'}{'Name'}) eq 'ARRAY'
+                    ? $info->{'ParamDecl'}{'Name'}[0]
+                    : $info->{'ParamDecl'}{'Name'};
+            }
+            if (exists $info->{'ParamDecl'}{'Names'} ) {
+                $par_name = ref($info->{'ParamDecl'}{'Names'}) eq 'ARRAY'
+                    ? $info->{'ParamDecl'}{'Names'}[0][0]
+                    : $info->{'ParamDecl'}{'Names'};
+            }
+            elsif ( exists $info->{'ParamDecl'}{'Var'} ) {
+                $par_name = $info->{'ParamDecl'}{'Var'};
+            }
+            if ($par_name ne '') {
+                if (exists $state->{'DeclaredVars'}{$par_name}) {
+                    # say 'EXISTS:' .Dumper $state->{'DeclaredVars'}{$par_name};
+                    say "_remove_duplicate_declarations $f: Delete $par_name decl: ".$line;
+                    $info ={'Deleted'=>1};
+                    $line = '! '.$line;
+                } else {
+                    # say 'SETTING DeclaredVars: '.$par_name;
+                        $state->{'DeclaredVars'}{$par_name}=111;
+                }
             }
         }
 

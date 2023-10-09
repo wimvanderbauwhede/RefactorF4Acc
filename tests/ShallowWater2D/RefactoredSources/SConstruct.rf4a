@@ -1,5 +1,5 @@
 # Generated build script for refactored source code
-# Thu Oct 14 13:04:53 2021
+# Mon Oct  9 16:53:47 2023
 import os
 
 FC=os.environ.get('FC')
@@ -10,7 +10,7 @@ fsources = ['./dyn.f95','./dyn_shapiro.f95','./init.f95','./main.f95','./param.f
 
 FFLAGS = ['-cpp','-O3','-m64','-ffree-form','-ffree-line-length-0','-fconvert=little-endian','-frecord-marker=4']
 
-#envF=Environment(F95='/usr/local/bin/gfortran -L/usr/lib ',LINK='/usr/local/bin/gfortran -L/usr/lib ',F95FLAGS=FFLAGS,F95PATH=['.' ,'/usr/local/include'])
-envF=Environment(F95=FC,LINK=FC,F95FLAGS=FFLAGS,F95PATH=['.' ,'/usr/local/include'])
+#envF=Environment(F95='/usr/local/bin/gfortran -L/usr/lib ',LINK='/usr/local/bin/gfortran -L/usr/lib ',F95FLAGS=FFLAGS,F95PATH=['.' ])
+envF=Environment(F95=FC,LINK=FC,F95FLAGS=FFLAGS,F95PATH=['.' ])
 
-envF.Program('wave2d',fsources,LIBS=[ 'm'],LIBPATH=['.' ,'/usr/lib','/usr/local/lib'])
+envF.Program('wave2d',fsources,LIBS=[ 'm'],LIBPATH=['.' ])

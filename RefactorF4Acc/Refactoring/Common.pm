@@ -74,8 +74,13 @@ sub refactor_COMMON_blocks_and_CONTAINed_subs {  # 218 lines Was _refactor_globa
 
 	# For the case of Contained subroutines, create parameter decl lines
 	my @par_decl_lines_from_container = ();
+	my @containers=();
 	if ( exists $Sf->{'Container'} ) {
-		my $container = $Sf->{'Container'};
+		@containers = ($Sf->{'Container'});
+	} elsif (exists $Sf->{'Containers'} ) { # This is for subroutines extracted from ACC marked regions of code
+		@containers = sort keys %{$Sf->{'Containers'}};
+	}
+	for my $container (@containers) {		
 		if ( exists $stref->{'Subroutines'}{$container}{'Parameters'} ) {
 			my ($set,$list) = merge_subsets($stref->{'Modules'}{$container}{'Parameters'}{'Subsets'});    # Note this is a nested set
 			$Sf->{'ParametersFromContainer'}{'Set'}=$set;
@@ -95,13 +100,20 @@ sub refactor_COMMON_blocks_and_CONTAINed_subs {  # 218 lines Was _refactor_globa
 			}
 		}
 	}
+	
 
 	# For the case of subroutines in modules that either have params or USE params via modules, create parameter decl lines
 	my @par_decl_lines_from_module = ();
-	if ( exists $Sf->{'InModule'} ) {
+	my @mods = ();
+	if ( exists $Sf->{'InModules'} ) {
+		@mods = sort keys %{$Sf->{'InModules'}};
+	}
+	elsif ( exists $Sf->{'InModule'} ) {
 		my $mod = $Sf->{'InModule'};
-		if ( exists $stref->{'Modules'}{$mod}{'Parameters'} ) {
-			# croak Dumper $stref->{'Modules'}{$mod}{'Parameters'}  if $f eq 'dyn';
+		@mods = ($mod);
+	}
+	for my $mod (@mods) {		
+		if ( exists $stref->{'Modules'}{$mod}{'Parameters'} ) {			
 			my ($set,$list) = merge_subsets($stref->{'Modules'}{$mod}{'Parameters'}{'Subsets'});    # Note this is a nested set
 			$Sf->{'ParametersFromContainer'}{'Set'}=$set;
 			$Sf->{'ParametersFromContainer'}{'List'}=$list;
@@ -293,7 +305,7 @@ sub refactor_COMMON_blocks_and_CONTAINed_subs {  # 218 lines Was _refactor_globa
 sub _create_extra_arg_and_var_decls { #272 lines
 
 	( my $stref, my $f, my $annline, my $rlines ) = @_; 
-
+	
 	my $Sf         = $stref->{'Subroutines'}{$f};
 	my $nextLineID = scalar @{$rlines} + 1;
 	push @{$rlines}, ['! BEGIN new declarations',{'Comments'=>1}];
@@ -934,34 +946,34 @@ sub __generate_inherited_param_decls { my ($rdecl, $var, $stref, $f, $inherited_
 	if (exists $rdecl->{'InheritedParams'}) {
 		for my $inh_par (sort keys %{ $rdecl->{'InheritedParams'}{'Set'} }) {
 			# say $inh_par;
-				my $subset = in_nested_set( $Sf, 'Parameters', $inh_par );
-				my $in_mod=0;
-					if ( exists $Sf->{'InModule'} ) {
-						my $mod = $Sf->{'InModule'};
-						if ( exists $stref->{'Modules'}{$mod}{'Parameters'} ) {
-							$in_mod=1;
-						}
-					}
-
-				if (not $in_mod and not $subset and not exists $Sf->{'InheritedParameters'}{'Set'}{$inh_par}) {
-                    #carp "PAR $inh_par, INHERITED by $var, NOT in any subset in $f ";
-                    #carp Dumper( $rdecl->{'InheritedParams'});
-                    #croak Dumper(pp_annlines($Sf->{'AnnLines'}));
-                    #croak Dumper($Sf);
-					my $par_decl = $rdecl->{'InheritedParams'}{'Set'}{$inh_par};
-					my $par_decl_line = [ '      ' . emit_f95_var_decl($par_decl), { 'ParamDecl' => $par_decl, 'Ref' => 1,
-					'Ann' => [annotate($f, __LINE__ . " : __generate_inherited_param_decls")]
-					} ];
-					push @{$inherited_param_decls}, $par_decl_line;
-
-					$Sf->{'LocalParameters'}{'Set'}{$inh_par}=$par_decl;
-					if (exists $par_decl->{'InheritedParams'} and scalar keys %{$par_decl->{'InheritedParams'}{'Set'}}> 0) {
-						($inherited_param_decls, $Sf) =__generate_inherited_param_decls($par_decl, $inh_par, $stref, $f, $inherited_param_decls);
-					}
+			my $subset = in_nested_set( $Sf, 'Parameters', $inh_par );
+			my $in_mod=0;
+			if ( exists $Sf->{'InModule'} ) {
+				my $mod = $Sf->{'InModule'};
+				if ( exists $stref->{'Modules'}{$mod}{'Parameters'} ) {
+					$in_mod=1;
 				}
-				#  else {
-				# 	say "PAR $inh_par in subset $subset in $f";
-				# }
+			}
+
+			if (not $in_mod and not $subset and not exists $Sf->{'InheritedParameters'}{'Set'}{$inh_par}) {
+				#carp "PAR $inh_par, INHERITED by $var, NOT in any subset in $f ";
+				#carp Dumper( $rdecl->{'InheritedParams'});
+				#croak Dumper(pp_annlines($Sf->{'AnnLines'}));
+				#croak Dumper($Sf);
+				my $par_decl = $rdecl->{'InheritedParams'}{'Set'}{$inh_par};
+				my $par_decl_line = [ '      ' . emit_f95_var_decl($par_decl), { 'ParamDecl' => $par_decl, 'Ref' => 1,
+				'Ann' => [annotate($f, __LINE__ . " : __generate_inherited_param_decls")]
+				} ];
+				push @{$inherited_param_decls}, $par_decl_line;
+
+				$Sf->{'LocalParameters'}{'Set'}{$inh_par}=$par_decl;
+				if (exists $par_decl->{'InheritedParams'} and scalar keys %{$par_decl->{'InheritedParams'}{'Set'}}> 0) {
+					($inherited_param_decls, $Sf) =__generate_inherited_param_decls($par_decl, $inh_par, $stref, $f, $inherited_param_decls);
+				}
+			}
+			#  else {
+			# 	say "PAR $inh_par in subset $subset in $f";
+			# }
 		}
 	}
 	return ($inherited_param_decls, $Sf);
@@ -1035,7 +1047,7 @@ sub _maybe_cast_call_args { # 200 lines
 
 	if ($needs_reshape or ($needs_cast and $is_out)) {
 		# carp "$f, $sub_name, $call_arg,$sig_arg, needs_reshape" if $needs_reshape;
-		$new_call_arg = $call_arg.'_'.$sub_name.'_cr';
+		$new_call_arg = $call_arg.'_'.$sub_name.'_cr'; # cr for CastReshape
 		my $Sf = $stref->{'Subroutines'}{$f};
 		my $subset = in_nested_set( $Sf, 'Vars', $call_arg );
 		my $call_arg_decl = get_var_record_from_set($Sf->{$subset},$call_arg);
