@@ -46,7 +46,7 @@ sub emit_all {
         print "ENTERING EMIT_ALL\n";
         print "=" x 80, "\n";
     }
-    
+
     my $EXT = $Config{EXT};
 
     # I build a fresh list here. I should just delete 'F' at the end
@@ -156,11 +156,11 @@ sub emit_all {
                 }
 
                 # If the line is not a USE statement
-                # or it is but the module is not in the list of used modules                
-                # if (not exists $info->{'Use'} or not exists $used_modules{$info->{'Use'}{'Name'}} ) {                    
+                # or it is but the module is not in the list of used modules
+                # if (not exists $info->{'Use'} or not exists $used_modules{$info->{'Use'}{'Name'}} ) {
                 #     if ( exists $info->{'Use'}) {
                 #         $used_modules{$info->{'Use'}{'Name'}}=1;
-                #     }                				
+                #     }
                     print $TGT $mod_line->[0];
                 # } else { # So this means that the line is a USE statement
                 #     say "SKIPPED: ".$mod_line->[0];
@@ -169,7 +169,7 @@ sub emit_all {
                 if ( $ANN and exists $mod_line->[1]->{'Ann'} ) {
                     say $TGT ' ! ' . join( '; ', @{ $mod_line->[1]{'Ann'} } );
                 }
-                else {                
+                else {
                     print $TGT "\n";
                 }
             }
@@ -306,7 +306,7 @@ sub _emit_refactored_include {
             open my $SRC, '>', "$dir/$nsrc" or die "$!: $dir/$nsrc";
 
             my $prevline = 'C ';
-            
+
             $srcref = create_refactored_source( $stref, $f, $srcref );
             for my $annline ( @{$srcref} ) {
                 my $line = $annline->[0];
@@ -384,7 +384,7 @@ sub __get_src_subdirs {
 
 # This is a proper emitter using the AST (if it is present)
 # It's not used for the main refactoring, for that we still use the old emitter.
-sub emit_AnnLines { 
+sub emit_AnnLines {
     my ( $stref, $f, $annlines ) = @_;
     # carp "HERE: emit_AnnLines($f)\n";
     my $code_unit = sub_func_incl_mod( $f, $stref );
@@ -439,7 +439,7 @@ sub emit_AnnLines {
             my $module_name = $info->{'Module'};
             $rline = "module $module_name";
         }
-        elsif ( exists $info->{'End'} ) { 
+        elsif ( exists $info->{'End'} ) {
             my $kw = $info->{'End'};
             my $name = ref($info->{'End'.ucfirst($kw)}) eq 'HASH' ? exists $info->{'End'.ucfirst($kw)}{'Name'} ? $info->{'End'.ucfirst($kw)}{'Name'} : '' : '';
             $rline = $indent."end $kw $name"
@@ -615,10 +615,10 @@ sub emit_AnnLines {
 
         }
 #== SELECT/CASE
-        elsif ( exists $info->{'CaseVar'} ) { 
+        elsif ( exists $info->{'CaseVar'} ) {
             $rline = $indent . 'select case ( ' . $info->{'CaseVar'} . ' )';
         }
-        elsif ( exists $info->{'CaseVals'} ) { 
+        elsif ( exists $info->{'CaseVals'} ) {
             my $case_vals = $info->{'CaseVals'};
             $rline = $indent . 'case ( ' . join( ', ', map {
                 ref($_) eq 'ARRAY' ? join(':',@{$_}) : $_

@@ -61,7 +61,8 @@ sub refactor_all {
     $stref = refactor_all_subroutines($stref);
 #    say "AFTER refactor_all_subroutines";
 
-#  croak Dumper pp_annlines($stref->{'Subroutines'}{'adam'}{'AnnLines'});
+#  croak Dumper pp_annlines($stref->{'Subroutines'}{'dyn_shapiro'}{'RefactoredCode'});
+ 
     # This can't go into refactor_all_subroutines() because it is recursive
     # Also, this is actually analysis
     # And this is only for Subroutines of course, not for Modules
@@ -80,12 +81,12 @@ sub refactor_all {
     	say "eval_param_expressions_all" if $V;
 		$stref = eval_param_expressions_all($stref);
 	}
+
     if ($Config{'FOLD_CONSTANTS'}==1) {
         $stref = fold_constants_all($stref) ;
     }
     # Inlining
     $stref = inline_subroutines($stref) ;
-
 
 	# Test array access and constant folding here
 
@@ -93,13 +94,15 @@ sub refactor_all {
 
 	# $stref = fold_constants_all($stref) ;
 	# $stref = refactor_dsm_all($stref) ;
-    
-    
+    # croak Dumper pp_annlines($stref->{'RefactoredCode'}{'./dyn_shapiro.f95'});
+
     # Custom refactoring, must be done before creating final modules
     # croak;
     say "add_module_decls" if $V;
     $stref=add_module_decls($stref);
-    # croak Dumper pp_annlines($stref->{'RefactoredCode'}{'./sr2/main.f'});
+
+    # croak Dumper pp_annlines($stref->{'Modules'}{'module_dyn_shapiro'}{'AnnLines'});
+    # croak Dumper pp_annlines($stref->{'RefactoredCode'}{'./dyn_shapiro.f95'});
     # carp Dumper $stref->{'RefactoredCode'}{"./src2/main.f"};
 # croak Dumper pp_annlines($stref->{Subroutines}{main}{AnnLines});
     # carp Dumper  pp_annlines($stref->{'RefactoredCode'}{'./boundp.f'});

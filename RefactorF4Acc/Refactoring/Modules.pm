@@ -31,9 +31,9 @@ This subroutine creates the module declarations around the original F77 files
 =cut
 
 # -----------------------------------------------------------------------------
-sub add_module_decls { 
+sub add_module_decls {
 	( my $stref ) = @_;
-	
+
 		# local $I=1;
 		# local $V=1;
 		# local $DBG=1;
@@ -50,21 +50,21 @@ sub add_module_decls {
 	#			set $is_existing_module and $existing_module_name
 	#   3. For all code units, get a list of CalledSubs (so in practice this is only for Subroutines)
 	#		- get the sources for these subs, to include in the current module.
-	for my $src ( keys %{ $stref->{'SourceContains'} } ) {		
+	for my $src ( keys %{ $stref->{'SourceContains'} } ) {
 		if (    exists $stref->{'SourceContains'}{$src}{'Path'}
 			and exists $stref->{'SourceContains'}{$src}{'Path'}{'Ext'} )
 		{
 			# External, SKIP!
-			say "SKIPPING $src";
+			say "SKIPPING $src" if $V;
 		} else {
 
-			say "SRC $src SRCTYPE: ",$stref->{'SourceFiles'}{$src}{'SourceType'};
+			say "SRC $src SRCTYPE: ",$stref->{'SourceFiles'}{$src}{'SourceType'} if $V;
 			# Get the unit name from the list
 			for my $sub_or_func_or_mod ( @{ $stref->{'SourceContains'}{$src}{'List'} } ) {
-				say "SRC $src SourceContains List: $sub_or_func_or_mod";
+				say "SRC $src SourceContains List: $sub_or_func_or_mod" if $V;
 				# Get its type
 				my $sub_func_type = $stref->{'SourceContains'}{$src}{'Set'}{$sub_or_func_or_mod};
-				say "SRC $src SourceContains Set: $sub_or_func_or_mod => $sub_func_type";
+				say "SRC $src SourceContains Set: $sub_or_func_or_mod => $sub_func_type" if $V;
 				if ( $sub_func_type eq 'Modules' ) {
 					$is_existing_module{$src}   = 1;
 					$existing_module_name{$src} = $sub_or_func_or_mod;
@@ -84,9 +84,13 @@ sub add_module_decls {
 					} else {
 						croak "PROBLEM: NO $called_sub in $src" . Dumper( keys %{ $stref->{'Subroutines'} } ) . $stref->{'Subroutines'}{$called_sub}{'Source'} if $DBG;
 					}
-					
-					next if defined $cs_src and $cs_src eq $src;                                                # FIXME: ad-hoc!
-					next if defined $cs_src and $stref->{'SourceFiles'}{$cs_src}{'SourceType'} eq 'Modules';    # Because in that case there should already be a USE
+					# If the called sub code is in the current source file
+					next if defined $cs_src and $cs_src eq $src;                                                # If the called sub code is in a module, as in that case there should already be a USE
+					next if 
+						defined $cs_src and 
+						$stref->{'SourceFiles'}{$cs_src}{'SourceType'} eq 'Modules'
+						and not exists $stref->{'Subroutines'}{$called_sub}{'InModules'}
+						;
 
 					$stref->{'UsedModules'}{$src}{$cs_src} = $sub_or_func_or_mod if defined $cs_src;
 				}
@@ -122,26 +126,53 @@ sub add_module_decls {
 				$split_out_modules_per_subroutine==1 and $stref->{'Modules'}{  $existing_module_name{$src} }{'Inlineable'}==0) {
 				$stref = _split_module_per_subroutine( $stref,  \%existing_module_name, $src, \%no_modules );
 			} else {
-			
+
 				my $new_annlines = [];
-				
+
 				for my $sub ( @{ $stref->{'Modules'}{ $existing_module_name{$src} }{'Contains'} } ) {
 					say '=' x 80 if $V;
 					say 'SUB: ' . $sub if $V;
-					
+
 					$stref = _create_module_src(  $stref, $src, $sub, \%no_modules ) unless $only_one_sub_in_module;
-					
+
 					$new_annlines = [ @{$new_annlines}, ['',{}],@{ $stref->{'Subroutines'}{$sub}{'RefactoredCode'} } ];
-					
+
 					say '=' x 80 if $V;
 				}
-	
 				my $old_annlines                          = $stref->{'Modules'}{ $existing_module_name{$src} }{'AnnLines'};
+				if (exists $stref->{'Modules'}{$existing_module_name{$src}}{'ExtractedSubroutine'}) {
+					my $module = $existing_module_name{$src};
+					my $sub = $stref->{'Modules'}{$existing_module_name{$src}}{'ExtractedSubroutine'};
+					my %used_modules = ();
+					for my $csub ( @{$stref->{'Subroutines'}{$sub}{'CalledSubs'}{'List'}}) {
+						if (exists $stref->{'Subroutines'}{$csub}{'InModule'}) {
+							push @{$used_modules{$stref->{'Subroutines'}{$csub}{'InModule'}}},$csub;
+						}
+					};
+					my @use_annlines=();
+					for my $used_module (sort keys %used_modules) {
+						push @use_annlines,[
+							"use $used_module, only: ". join(', ',@{$used_modules{$used_module}}),
+							{
+								'Name' => $used_module,
+								'Only' => $used_modules{$used_module}
+							}
+						];
+					}
+					# croak Dumper %used_modules;
+					$old_annlines = [
+						["module $module",{'Module' => $module}],
+						@use_annlines,
+						["implicit none",{'ImplicitNone' => 1}],
+						["contains",{'Contains' => 1}],
+						["end module $module",{'EndModule' => $module}],
+					];
+				}
 				my $old_annlines_with_refactored_vardecls = [
 					map {
 						my $annline = $_;
 						( my $line, my $info ) = @{$annline};
-						
+
 						if ( exists $info->{'VarDecl'} ) {
 							my $ref_vardecl_line = emit_f95_var_decl( get_var_record_from_set( $stref->{'Modules'}{ $existing_module_name{$src} }{'Vars'}, $info->{'VarDecl'}{'Name'} ) );
 							[ $ref_vardecl_line, $info ];
@@ -153,22 +184,23 @@ sub add_module_decls {
 					} @{$old_annlines}
 				];
 				$old_annlines = $old_annlines_with_refactored_vardecls;
-	
-				if ( scalar @{$new_annlines} > 0 ) {					
-					my $merged_annlines = splice_additional_lines_cond_inplace( $stref, $existing_module_name{$src}, 
-					sub { ( my $annline ) = @_; 
-					( my $line, my $info ) = @{$annline}; 
+
+				if ( scalar @{$new_annlines} > 0 ) {
+					my $merged_annlines = splice_additional_lines_cond_inplace( $stref, $existing_module_name{$src},
+					sub { ( my $annline ) = @_;
+					( my $line, my $info ) = @{$annline};
 					return exists $info->{'Contains'};
 					}, $old_annlines, $new_annlines, 0, 0, 1 );
 					$stref->{'RefactoredCode'}{$src} = $merged_annlines;
-					
+					# croak Dumper pp_annlines($merged_annlines) if $existing_module_name{$src} eq 'module_dyn_shapiro';
 				} else {
 					$stref->{'RefactoredCode'}{$src} = $old_annlines;
 				}
+
 			}
 			# say '#' x 80 ;
 			# 	say "NEW ANNLINES for $src, MODULE ".$existing_module_name{$src};
-			# 		show_annlines($stref->{'RefactoredCode'}{$src});					
+			# 		show_annlines($stref->{'RefactoredCode'}{$src});
 			# 		say '#' x 80 ;
 
 		} else {
@@ -176,9 +208,9 @@ sub add_module_decls {
 			# This is either a subroutine or the main program
 			# So I wonder why I have this code when it's a program?
 			$stref = _create_module_src(  $stref, $src, '', \%no_modules );
-	
+
 		}
-	
+
 	}    # loop over all source files
 
 	return $stref;
@@ -186,7 +218,7 @@ sub add_module_decls {
 
 sub _split_module_per_subroutine {
 	( my $stref, my $existing_module_name, my $src, my $no_modules ) = @_;
-	my $module_to_split = $existing_module_name->{$src}; 
+	my $module_to_split = $existing_module_name->{$src};
 
 	# Plan:
 	# 1/ create a module per subroutine
@@ -195,7 +227,7 @@ sub _split_module_per_subroutine {
 	# 1/ create a module per subroutine
 	my @subs=@{ $stref->{'Modules'}{ $module_to_split }{'Contains'} };
 	# As this already is a module, we should not do this if there is only a single subroutine
-	
+
 		for my $sub ( @subs ) {
 			$stref = _create_module_src(  $stref, $src, $sub, $no_modules );
 			# push @subs, $sub;
@@ -204,9 +236,9 @@ sub _split_module_per_subroutine {
 		# my %module_sub_names	= map { 'module_'.$_ => $_  } @subs;
 		# my $module_to_split_name = $module_to_split;
 		# if (exists $module_sub_names{$module_to_split}) {
-		# 	$module_to_split_name = 
+		# 	$module_to_split_name =
 		# }
-		
+
 		# Now we have to create the wrapper module source which replaces the original module source
 		my @wrapper_module_annlines=( ["module $module_to_split",{'Module' => $module_to_split }]);
 		for my $sub (@subs) {
@@ -215,12 +247,12 @@ sub _split_module_per_subroutine {
 		for my $sub (@subs) {
 			push @wrapper_module_annlines,["     interface $sub",{'Interface'=> $sub }];
 			push @wrapper_module_annlines,["       module procedure $sub",{ 'ModuleProcDecl' => $sub }];
-			push @wrapper_module_annlines,["     end interface $sub",{ 'EndInterface'=> $sub}]; 
+			push @wrapper_module_annlines,["     end interface $sub",{ 'EndInterface'=> $sub}];
 		}
 		push @wrapper_module_annlines,["end module $module_to_split",{ 'EndModule' => $module_to_split }];
-		
+
 		$stref->{'RefactoredCode'}{$src}=\@wrapper_module_annlines;
-	
+
 	return $stref;
 }    # END of _split_module_per_subroutine
 
@@ -275,7 +307,7 @@ sub _create_module_src { (my $stref, my $src, my $subname, my $no_modules ) = @_
 	# However, if this is a Program that contains subroutines, we need to do this differently
 	# And in principle a source file can contain a combination.
 	# Step 1
-	if ($no_module) { 
+	if ($no_module) {
 		if ($is_program) {
 			# carp 'is_program';
 			# This means that $src is a source file with a Program
@@ -290,12 +322,12 @@ sub _create_module_src { (my $stref, my $src, my $subname, my $no_modules ) = @_
 				}
 			}
 			my $annlines       = get_annotated_sourcelines( $stref, $prog_name );
-			
+
 			my $before         = 1;
 			my @prog_p1        = ();
 			my @prog_p2        = ();
 			my @contained_subs = ();
-			for my $annline ( @{$annlines} ) {	
+			for my $annline ( @{$annlines} ) {
 				my $info = $annline->[1];
 				if ($before) {
 					push @prog_p1, $annline;
@@ -306,7 +338,7 @@ sub _create_module_src { (my $stref, my $src, my $subname, my $no_modules ) = @_
 					$before = 0;
 				}
 			}
-			
+
 			for my $sub ( @{ $stref->{'Subroutines'}{$prog_name}{'Contains'} } ) {
 				my $annlines = get_annotated_sourcelines( $stref, $sub );
 				@contained_subs = ( @contained_subs, $BLANK_LINE, comment("CONTAINED SUB $sub"), $BLANK_LINE, @{$annlines}, $BLANK_LINE );
@@ -319,7 +351,7 @@ sub _create_module_src { (my $stref, my $src, my $subname, my $no_modules ) = @_
 
 				if ( not exists $stref->{'Subroutines'}{$sub}{'Program'}
 					or $stref->{'Subroutines'}{$sub}{'Program'} == 0 )
-				{					
+				{
 					my $annlines = get_annotated_sourcelines( $stref, $sub );
 					if ( not exists $refactored_sources->{$sub} ) {
 						$annlines = create_refactored_source( $stref, $sub, $annlines );
@@ -333,7 +365,7 @@ sub _create_module_src { (my $stref, my $src, my $subname, my $no_modules ) = @_
 			#  source listed in NO_MODULE in rf4a.cfg,  do not  turn into a module for compatibily with F77
 			for my $f ( @{ $stref->{'SourceContains'}{$src}{'List'} } ) {
 				my $annlines = get_annotated_sourcelines( $stref, $f );
-				
+
 				if ( not exists $refactored_sources->{$f} ) {    # This is a HACK because we need to make sure this is caught higher up
 					$annlines = create_refactored_source( $stref, $f, $annlines );
 
@@ -343,17 +375,17 @@ sub _create_module_src { (my $stref, my $src, my $subname, my $no_modules ) = @_
 			}
 
 		}
-	} else {		
+	} else {
 		# It's a module. We just get the refactored sources here, do the rest in the next step
 		if (!@{ $stref->{'SourceContains'}{$src}{'List'} }) {
-			$skip_because_empty = 1; 
+			$skip_because_empty = 1;
 			$stref->{'BuildSources'}{'F'}{$src} = 0;
 		} else {
 			for my $f ( @{ $stref->{'SourceContains'}{$src}{'List'} } ) {
 				if ($subname ne '') {
 					next unless $f eq $subname;
 				}
-				my $annlines = get_annotated_sourcelines( $stref, $f );			
+				my $annlines = get_annotated_sourcelines( $stref, $f );
 				if ( not exists $refactored_sources->{$f} ) {    # FIXME: This is a HACK because we need to make sure this is caught higher up
 					$annlines = create_refactored_source( $stref, $f, $annlines );
 					$refactored_sources->{$f} = 1;
@@ -365,7 +397,7 @@ sub _create_module_src { (my $stref, my $src, my $subname, my $no_modules ) = @_
 	}
 # carp $skip_because_empty;
     if (!$skip_because_empty) {
-		
+
 	# Step 2
 #	say "SRC $src";
 	my $EXT = $Config{EXT};
@@ -373,7 +405,7 @@ sub _create_module_src { (my $stref, my $src, my $subname, my $no_modules ) = @_
 	if ( !$no_module ) {
 		$stref->{'RefactoredCode'}{$nsrc} = [ $mod_header, @mod_uses, $mod_contains, @refactored_source_lines, $mod_footer ];
 	} else {
-		
+
 		if ($is_program) {
 			# carp 'step 2: is_program', Dumper @refactored_source_lines;
 			# In case it is a program
@@ -401,7 +433,7 @@ sub _create_module_src { (my $stref, my $src, my $subname, my $no_modules ) = @_
 				}
 			}
 			$stref->{'RefactoredCode'}{$src} = [ @prog_p1, @mod_uses, @prog_p2 ];
-			
+
 		} else {
 			$stref->{'RefactoredCode'}{$src} = [@refactored_source_lines];
 		}
@@ -412,7 +444,7 @@ sub _create_module_src { (my $stref, my $src, my $subname, my $no_modules ) = @_
 		 $stref->{'SourceContains'}{$nsrc} = {'List' =>[$subname]   };
 		$stref->{'BuildSources'}{'F'}{$nsrc}=1;
 	}
-    } 
+    }
 	# else {
 	# 	carp 'EMPTY?!';
 	# }

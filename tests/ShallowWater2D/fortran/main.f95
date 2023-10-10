@@ -96,7 +96,7 @@ DO n = 1,ntot
 time = REAL(n)*dt
 
 !$ACC Subroutine dyn_shapiro
-!$ACC Begin Inline 
+!ACC Begin Inline 
 ! call predictor
 CALL dyn
 
@@ -104,7 +104,7 @@ CALL dyn
 
 CALL shapiro
 
-!$ACC End Inline
+!ACC End Inline
 !$ACC End Subroutine dyn_shapiro
 
 DO j = 0,ny+1
