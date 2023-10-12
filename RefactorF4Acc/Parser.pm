@@ -408,7 +408,7 @@ sub analyse_lines {
 
 			($line =~ /^
 				(
-  					  (?:\w+(?:\((?:\w+=)?[\*\d]+\))?\s+)*function
+  					  (?:\w+(?:\*?(?:\((?:\w+=)?[\*\d]+\)|\d+))?\s+)*function
 					| (?:(?:pure|elemental|recursive)\s+)*subroutine
 					| program
 					| module
@@ -447,12 +447,7 @@ sub analyse_lines {
 						last;
 					}
 				}
-				# my $proc_type = $full_proc_type=~/program/ ? 'program' :
-				# 	$full_proc_type=~/subroutine/ ? 'subroutine' :
-				# 	($full_proc_type eq 'block' and $proc_name eq 'data'
-				# 	or $full_proc_type eq 'blockdata'
-				# 	) ? 'block data' :
-				# 	'function';
+
 				if ($proc_type eq 'block data') {
 					$full_proc_type = 'block data';
 					$proc_name = 'block_data';
@@ -477,26 +472,6 @@ sub analyse_lines {
 					push @{ $Sf->{'DeclaredOrigLocalVars'}{'List'} },$result_var;
 				}
 
-				# if ($proc_type eq 'function') {
-				# 	$full_proc_type=~s/\s+$//;
-				# 	if ($full_proc_type ne 'function') {
-				# 		$full_proc_type=~s/\s+function//;
-				# 		$full_proc_type=~s/\s*(?:pure|recursive|elemental)\s*//;
-				# 		if ($full_proc_type ne '' and $full_proc_type ne 'block data') {
-				# 			$Sf->{'DeclaredOrigLocalVars'}{'Set'}{$proc_name}={
-				# 				'Indent'=> $indent,
-				# 				'Type'          => $full_proc_type ,
-				# 				'ArrayOrScalar' => 'Scalar',
-				# 				'Dim'           => [],
-				# 				'Attr' => '',
-				# 				'IODir' => 'Out',
-				# 				'Name'=>$proc_name,
-				# 				'Implicit' => 0
-				# 			};
-				# 			push @{ $Sf->{'DeclaredOrigLocalVars'}{'List'} },$proc_name;
-				# 		}
-				# 	}
-				# }
 				++$block_nest_counter;
 				++$block_counter;
 
@@ -512,12 +487,6 @@ sub analyse_lines {
 				my $block = pop @blocks_stack;
 				say $lline. "\t\tPOP $block_nest_counter ".uc($block->{'Type'})  if $in_excluded_block and $DBG;
 				$info->{'Block'}= $block;
-				# if ($info->{'Block'}{'Nest'} == 1 or
-				# 	$info->{'Block'}{'Nest'} == $info->{'Block'}{'InBlock'}{'Nest'}) {
-				# 		$info->{'Block'}{'InBlock'}=$info->{'Block'}{'InBlock'}{'InBlock'};
-				# 		$block = $info->{'Block'};
-				# }
-				# croak 'Block: '. Dumper $info->{'Block'} if $f eq 'sub2' and $info->{'LineID'} == 18 ;
 				$current_block=$block->{'InBlock'};
 				--$block_nest_counter;
 				if (defined $block and exists $block->{'Nest'} and $block->{'Nest'} == $excluded_block and $in_excluded_block==1) {
@@ -2864,7 +2833,8 @@ sub __parse_sub_func_prog_decls {
 	if (   $line =~ /^\s*subroutine\s+(\w+)\s*\((.*)\)/
 		or $line =~ /^\s*(?:(?:pure|elemental|recursive)\s+)+subroutine\s+(\w+)\s*\((.*)\)/
 		or $line =~ /^\s*function\s+(\w+)\s*\((.*)\)/
-		or $line =~ /^\s*(?:\w+(?:\((?:\w+=)?[\*\d]+\))?\s+)+function\s+(\w+)\s*\((.*)\)/
+		#
+		or $line =~ /^\s*(?:\w+(?:\*?(?:\((?:\w+=)?[\*\d]+\)|\d+))?\s+)+function\s+(\w+)\s*\((.*)\)/
 		 )
 	{
 		 $name   = $1;
@@ -2983,7 +2953,7 @@ sub __parse_sub_func_prog_decls {
 			};
 
 	} else {
-		die 'ERROR: Unrecognised subroutine declaration: '.$line."\n";
+		error( 'Unrecognised subroutine declaration in '.$Sf->{'Source'}.': '.$line);
 	}
 #	croak Dumper $info if $name eq 'gzwrit';
     $Sf->{'Signature'}=$info->{'Signature'};
@@ -3412,25 +3382,36 @@ sub _parse_f77_par_decl {
 	my $attr = '';
 	if (defined( $pt)) {
 		if( exists( $pt->{'TypeTup'})) {
-		$type = $pt->{'TypeTup'}{'Type'};
-		$attr = exists $pt->{'TypeTup'}{'Kind'} ? '(kind='.$pt->{'TypeTup'}{'Kind'}.')' : '(kind=4)';
-	} else {
-		error( "Error in parameter declaration: $line");# .Dumper($pt);
-	}
+			$type = $pt->{'TypeTup'}{'Type'};
+			$attr = exists $pt->{'TypeTup'}{'Kind'} ? '(kind='.$pt->{'TypeTup'}{'Kind'}.')' : '(kind=4)';
+		} else {
+			error( "Error in parameter declaration: $line");# .Dumper($pt);
+		}
 	}
 	$indent =~ s/\S.*$//;
-	my @parliststr_chunks = split(/\s*,\s*/,$parliststr);
+	# This implicitly assumes we have (lhs1=rhs1, lhs2=rhs2, ...)
+	# But we can also have (lhs1=(rhs1a, rhs2b), lhs2=(rhs1a, rhs2b)...)
+	# So if we split on commas, we must verify that the chunk has an '=', else we need to glue it back
+	my @parliststr_chunks_to_eager = split(/\s*,\s*/,$parliststr);
+	my @parliststr_chunks=();
+	my $i=0;
+	for my $parliststr_chunk ( @parliststr_chunks_to_eager ) {
+		if ($parliststr_chunk=~/=/) {
+			push @parliststr_chunks, $parliststr_chunk;
+		} else {
+			$parliststr_chunks[-1].=','.$parliststr_chunk;
+		}
+	}
+
 	my @ast_chunks=();
 	for my $parliststr_chunk (@parliststr_chunks) {
-my ($lhs_str,$rhs_str) = split(/\s*=\s*/,$parliststr_chunk);
-my $lhs_ast =  parse_expression($lhs_str, $info, $stref, $f);
-my $rhs_ast =  parse_expression($rhs_str, $info, $stref, $f);
-	my $chunk_ast = [9,$lhs_ast,$rhs_ast]; # FIXME this is because of a bug in the precedence of '=' in the expression parser
-	push @ast_chunks, $chunk_ast;
+		my ($lhs_str,$rhs_str) = split(/\s*=\s*/,$parliststr_chunk);
+		my $lhs_ast =  parse_expression($lhs_str, $info, $stref, $f);
+		my $rhs_ast =  parse_expression($rhs_str, $info, $stref, $f);
+		my $chunk_ast = [9,$lhs_ast,$rhs_ast]; # FIXME this is because of a bug in the precedence of '=' in the expression parser
+		push @ast_chunks, $chunk_ast;
 	}
 	my $ast = scalar(@ast_chunks) == 1 ? $ast_chunks[0] : [27,@ast_chunks];
-	# my $ast= parse_expression($parliststr, $info, $stref, $f);
-# croak Dumper $ast if $line=~/lelt/;
 	if ($ast->[0] == 9
 	and $ast->[2][0] == 0
 	and scalar @{$ast->[2][1]} == 3

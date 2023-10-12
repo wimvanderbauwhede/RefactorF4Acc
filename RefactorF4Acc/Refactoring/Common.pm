@@ -1319,7 +1319,6 @@ sub __reshape_check { my ($stref, $f, $sub_name, $call_arg_decl,$sig_arg_decl) =
 			( $not_const2 ? "$sig_arg($not_const2)" : $sig_arg) . "\n\t" .
 			'Using the largest dimension for the reshaped array.',2) if not $not_const2 ;
 			$needs_reshape=1;
-			croak '# if different rank and different size'
 		}
 	}
 	return ($needs_reshape, $use_arg_sz) ;

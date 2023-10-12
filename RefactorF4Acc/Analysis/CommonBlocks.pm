@@ -335,6 +335,9 @@ sub _match_up_common_var_sequences {
 
 			my $htype_local  = $decl_local->{'Type'};
 			my $htype_caller = $decl_caller->{'Type'};
+			# for 'double precision'
+			$htype_local=~s/\s+//;
+			$htype_caller=~s/\s+//;
 			# If they are not the same it's a type error, TODO: relax this for the special cases as discussed in the paper
 			if ( $htype_local ne $htype_caller ) {
 				say "TYPE ERROR: Can't match COMMON var sequences with different types in call to $f in $caller: $htype_local <> $htype_caller\n";
