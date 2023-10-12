@@ -271,19 +271,19 @@ Suppose we don't:
                         warning("The file $f is a fixed-form F77 source file so the default line length is 72 characters.\n\tThe max line length in $f is $max_line_length characters, using $Config{'MAX_LINE_LENGTH'}-character lines.\n\tTo use a different max line length, set MAX_LINE_LENGTH in the config file.");
                     }
                     my $ncols = $Config{'MAX_LINE_LENGTH'};   #$max_line_length > 72 ? 132 : 72;
-                    
+
                     for my $line (@lines) {
                         ($line, my $cols1to6) = tabToFixed($line);
-                        $line = substr( $line, 0, $ncols );                         
-                        # A minor HACK: if there is a label in the 6th col and a non-blank in the 7th, I insert a blank
-                        if ( length($line) > 6 and $line=~/^\s*\d+/) { # something like 300v=5                         
+                        $line = substr( $line, 0, $ncols );
+                        # A minor HACK: if there is a '0' label in the 6th col and a non-blank in the 7th, I remove the '0' and insert a blank
+                        if ( length($line) > 6 and $line=~/^\s*\d+/) { # something like 300v=5
                             my $c6 = substr( $line, 5, 1 );
                             my $c7 = substr( $line, 6, 1 );
-                            if ( $c6 eq '0' and $c7!~/\S/) { # '0' because non-zero character is a continuation line
-                                $line = substr( $line, 0, 5 ) . ' '
+                            if ( $c6 eq '0' ) { # '0' because non-zero character is a continuation line
+                                $line = substr( $line, 0, 5 ) . ($c7=~/\S/ ? ' '  : '')
                                   . substr( $line, 6 );
                             }
- 
+
 #                    	elsif ($c6 ne ' ' and $c6 ne "\t" and $c7 ne ' ' and $c7 ne "\t") {
 #                    		$line = substr($line,0,6).' '.substr($line,6);
 #                    	}
@@ -1131,7 +1131,7 @@ Suppose we don't:
         }    # if $need_to_read
         croak $stref->{'Subroutines'}{$code_unit_name}{'Status'} if $code_unit_name =~/nm_opt/i or $fpath=~/nm_opt/i or $f=~/nm_opt/i;
     }    # if $f is defined
-    
+
     return $stref;
 }    # END of read_fortran_src()
 

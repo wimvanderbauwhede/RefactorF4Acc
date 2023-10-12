@@ -108,7 +108,7 @@ sub cast_call_argument {
 		}
 	} elsif ( $call_type eq 'real' ) {
 		if ( $sig_type eq 'logical' ) {
-			croak if $DBG and $call_arg eq '.true.';
+			croak if  (($call_arg eq '.true.') or ($call_arg eq '.false.'));
 			return "$call_arg /= 0.0";
 		} elsif ( $sig_type eq 'integer' ) {
 			return "int($call_arg, $sig_kind)"

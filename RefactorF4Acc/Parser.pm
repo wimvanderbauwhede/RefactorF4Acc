@@ -2,6 +2,7 @@
 #
 
 # Statements that are currently not supported
+#
 # A `♦` suffix means not part of the F77 specification
 # A `(E)` suffix means using this statement results in a parse error
 # A `(I)` suffix means using this statement is ignored in the analysis
@@ -261,6 +262,7 @@ sub analyse_lines {
 		my %vars = ();
 
 		my $prev_stmt_was_spec=1;
+		my $prev_stmt_was_data=0;
 		my $in_excluded_block	   = 0; # for printing a given block for debug
 		my $excluded_block   = -1;
 		my $first          = 1;
@@ -440,7 +442,9 @@ sub analyse_lines {
 				}
 				my @valid_qualifiers = qw(pure recursive elemental);
 				my %procs_qualifiers = map {$_=>1} (@valid_qualifiers,@valid_procs);
-				my $proc_return_type = '';
+				my ( $proc_return_type,$a_or_s,$attr) = type_via_implicits($stref,$f,$proc_name);
+				# my $proc_return_type = '';
+				# croak Dumper $proc_return_type if $proc_name eq 'ff083';
 				for my $maybe_type (@proc_type_chunks ) {
 					if (not exists $procs_qualifiers{$maybe_type}) {
 						$proc_return_type = $maybe_type;
@@ -779,7 +783,7 @@ MODULE
 				$prev_stmt_was_spec=0;
 			}
 #== DIMENSION (VIRTUAL)
-		 elsif ( $line =~ /^(?:dimension|virtual)/ ) {
+		elsif ( $line =~ /^(?:dimension|virtual)/ ) {
 # Although a Dimension line is not a declaration, I will use it as such, so the var must be in DeclaredLocalVars/DeclaredCommonVars
 				$info->{'Dimension'}=1;
 				$info->{'SpecificationStatement'} = 1;
@@ -787,7 +791,7 @@ MODULE
 				$varlst = $line;
 				$varlst =~s/^(?:dimension|virtual)\s+//;
 				my @vars_with_dim = _parse_comma_sep_expr_list($varlst);
-				
+
 # If @vars_with_dim > 1 then we should split this line.
 # We currently do $srcref->[$index], with $index = 0 .. scalar( @{$srcref} ) - 1 )
 # So in order to splice in lines, what I guess I should do is create these new lines and store them at some index, then
@@ -1022,21 +1026,21 @@ MODULE
 				};
 				$Sf->{'HasLocalCommons'}=1 unless $is_incl;
 				$stref = collect_common_vars_per_block($stref, $f, $line) unless $is_incl;
-			}
+		}
 #== NAMELIST
 #@ Namelist =>
 #@    namelist_group_name => @namelist_vars
 		elsif (	$line =~ /^namelist\s*\/\s*([\w\d]+)\s*\/\s*(.+)$/
 		 ) {
-				my $namelist_group_name = $1;
-				my $namelist_varlst         = $2;
-				$namelist_varlst=~s/\/\//,/g;
-				$namelist_varlst=~s/^,//;
-				$info->{'SpecificationStatement'} = 1;
-                $info->{'HasVars'} = 1;
-                my @namelist_vars = split(/\s*,\s*/,$namelist_varlst);
-				$info->{'Namelist'}={$namelist_group_name => \@namelist_vars};
-				$Sf->{'Namelist'}{$namelist_group_name} = \@namelist_vars;
+			my $namelist_group_name = $1;
+			my $namelist_varlst         = $2;
+			$namelist_varlst=~s/\/\//,/g;
+			$namelist_varlst=~s/^,//;
+			$info->{'SpecificationStatement'} = 1;
+			$info->{'HasVars'} = 1;
+			my @namelist_vars = split(/\s*,\s*/,$namelist_varlst);
+			$info->{'Namelist'}={$namelist_group_name => \@namelist_vars};
+			$Sf->{'Namelist'}{$namelist_group_name} = \@namelist_vars;
 
 		 }
 #== FORMAT
@@ -1074,45 +1078,50 @@ MODULE
 		 	# DATA
 		 	$info->{'Data'} = 1;
 			$info->{'NonSpecificationStatement'} = 1;
+			$prev_stmt_was_data=1;
+			# WV2023-10-12 According to the F95 spec it is a Specification Statement
+			# According to F77, A DATA statement is a nonexecutable statement, and must appear after all
+			# specification statements, but it can be interspersed with statement functions
+			# and executable statements.
 		 	# $info->{'SpecificationStatement'} = 1;
-                $info->{'HasVars'} = 1;
-		 		$line.=' ! Parser line '.__LINE__.' : removed spaces from data' if $DBG;
-			 	my @chunks = split(/\//,$line);
-			 	$chunks[1]=~s/\s+//g;
-			 	$line=join('/',@chunks);
-				say "DATA declaration $line" if $V;
-				$info = _parse_data_declaration($line,$info, $stref, $f);
+			$info->{'HasVars'} = 1;
+			$line.=' ! Parser line '.__LINE__.' : removed spaces from data' if $DBG;
+			my @chunks = split(/\//,$line);
+			$chunks[1]=~s/\s+//g;
+			$line=join('/',@chunks);
+			say "DATA declaration $line" if $V;
+			$info = _parse_data_declaration($line,$info, $stref, $f);
 		}
 		elsif  ($line=~/^data\b/ and $line=~/=/ and $line=~/\/\s*$/ ) {
-		    	# This is either a DATA declaration with an implicit DO, or else an assignment to the variable data
-		    	# which can be an array with an arbitrary expression ...
-		    	# A really ugly, ad-hoc way is like this:
-		    	# if the last character is a '/'
-		    	# and there is a match on ')/'
-		    	# we can split between the ')' and '/'
-		    	# However, how about we do just nothing?
-				$info->{'NonSpecificationStatement'} = 1;
-		    	# $info->{'SpecificationStatement'} = 1;
-				$info->{'Data'} = 1;
-                $info->{'HasVars'} = 1;
-		    	say "DATA declaration with IMPLIED DO at $line" if $V;
+			# This is either a DATA declaration with an implicit DO, or else an assignment to the variable data
+			# which can be an array with an arbitrary expression ...
+			# A really ugly, ad-hoc way is like this:
+			# if the last character is a '/'
+			# and there is a match on ')/'
+			# we can split between the ')' and '/'
+			# However, how about we do just nothing?
+			$info->{'NonSpecificationStatement'} = 1;
+			# $info->{'SpecificationStatement'} = 1;
+			$info->{'Data'} = 1;
+			$info->{'HasVars'} = 1;
+			say "DATA declaration with IMPLIED DO at $line" if $V;
 		}
 #== INTRINSIC, EXTERNAL
-		 	elsif ($line=~/^(intrinsic|external)\s+([\w,\s]+)/) {
-		 		my $qualifier = $1;
-		 		my $external_procs_str = $2;
-		 		$external_procs_str=~s/\s//g;
-		 		my @external_procs = split(/\s*,\s*/,$external_procs_str);
+		elsif ($line=~/^(intrinsic|external)\s+([\w,\s]+)/) {
+			my $qualifier = $1;
+			my $external_procs_str = $2;
+			$external_procs_str=~s/\s//g;
+			my @external_procs = split(/\s*,\s*/,$external_procs_str);
 
-		 		$info->{ucfirst($qualifier)} = { map {$_=>1} @external_procs};
-		 		$info->{'SpecificationStatement'} = 1;
-		 		$Sf->{ucfirst($qualifier)}={ map {$_=>1} @external_procs };
+			$info->{ucfirst($qualifier)} = { map {$_=>1} @external_procs};
+			$info->{'SpecificationStatement'} = 1;
+			$Sf->{ucfirst($qualifier)}={ map {$_=>1} @external_procs };
 #		 		say Dumper($Sf->{ucfirst($qualifier)});
-		 			say "INFO: ".uc($qualifier)." is ignored" if $qualifier ne 'external' and $DBG;
-                if ($qualifier ne 'intrinsic' and $qualifier ne 'external') {
-                $info->{'HasVars'} = 1;
-                }
-		 	}
+				say "INFO: ".uc($qualifier)." is ignored" if $qualifier ne 'external' and $DBG;
+			if ($qualifier ne 'intrinsic' and $qualifier ne 'external') {
+			$info->{'HasVars'} = 1;
+			}
+		}
 
 #• specification statements
 # +ALLOCATABLE
@@ -1265,7 +1274,7 @@ or $line=~/^character\s*\(\s*len\s*=\s*[\w\*]+\s*\)/
 # Otherwise it is impossible to distinguish from an array assignment
 # An alternative way would be to check if this statement comes immediately after another SpecificationStatement
 			elsif (
-				$prev_stmt_was_spec and
+				($prev_stmt_was_spec or $prev_stmt_was_data) and
 			 $line =~ /([a-z]\w*)\s*\(\s*([a-z]\w*)[,\w]*\)\s*=\s*.*\2\W/
 			) {
 				my $maybe_function = $1;
@@ -1342,7 +1351,7 @@ or $line=~/^character\s*\(\s*len\s*=\s*[\w\*]+\s*\)/
 #@    Range =>
 #@        Vars => [ ... ]
 #@        Expressions' => [ ... ]
-			elsif ( $line =~ /^do\b/) { 
+			elsif ( $line =~ /^do\b/) {
 
 #WV20150304: We parse the do and store the iterator and the range { 'Iterator' => $i,'Range' =>[$start,$stop]}
 				my $do_stmt = $line;
@@ -1829,26 +1838,19 @@ END IF
 			}
 
 			$srcref->[$index] = [ $lline, $info ];
-} else {
-	# Comment out the code shielded with if (0) then ... endif
-	$srcref->[$index] = [ '!0 '.$lline, {'Blank'=>1}];
-	if ($in_excluded_block==2) {
-		$in_excluded_block=0;
-	}
-} # in excluded block
-			if ($in_excluded_block==1 and not exists $info->{'Block'}) {
-
-				say $lline if $DBG;
+		} else {
+			# Comment out the code shielded with if (0) then ... endif
+			$srcref->[$index] = [ '!0 '.$lline, {'Blank'=>1}];
+			if ($in_excluded_block==2) {
+				$in_excluded_block=0;
 			}
-			# say $line if (not exists $info->{'HasVars'}
-			# and not exists $info->{'Control'}
-			# and not exists $info->{'SpecificationStatement'}
-			# and not exists $info->{'Comments'}
-			# and not exists $info->{'Blank'}
-			# and not exists $info->{'EndDo'}
-			# and not exists $info->{'EndSubroutine'}
-			# and not exists $info->{'EndProgram'}
-			# );
+		} # in excluded block
+
+		if ($in_excluded_block==1 and not exists $info->{'Block'}) {
+			say $lline if $DBG;
+		}
+			# warn Dumper $info if $line=~/DATA\ RVON04/i;
+			# croak Dumper $prev_stmt_was_spec,$info if $line=~/RFOS01\(RDON01\)\ =\ RDON01/i;
 			if (
 				(not exists $info->{'SpecificationStatement'} and
 				exists $info->{'HasVars'})
@@ -1856,6 +1858,9 @@ END IF
 			or exists $info->{'EndControl'}
 			) {
 				$prev_stmt_was_spec=0;
+			}
+			if (not exists $info->{'Data'}) {
+				$prev_stmt_was_data=0;
 			}
 		}    # Loop over lines
 		# We sort the indices from high to low so that the insertions are at the correct index
@@ -3566,7 +3571,7 @@ sub _parse_f77_par_decl {
 			'Status'    => 0,
 			'Implicit' => 0
 		};
-		
+
 
 		$Sf->{'LocalParameters'}{'Set'}{$var}=$param_decl;
 		if (exists $info->{'ParsedParDecl'}) {
@@ -4453,7 +4458,7 @@ sub _parse_assignment {
 			}
 		}
 	}
-	
+
 	# carp Dumper($lhs_vars);
 	my $array_constant=0;
 	if ($rhs=~/\(\/.+\/\)/) {
