@@ -4,19 +4,19 @@ use strict;
 use warnings;
 
 =pod
-406 
+406
 one failed test, fails in gfortran as well: -0 instead of +0 in formatted write
 
 923
 two failed tests, both fail in gfortran as well
-! T023* TEST 22 - CARD 25 QUOTES, BLANKS, COMMAS AND SLASHES ! ***** EMBEDDED IN CHARACTER STRINGS 
-! T024* TEST 23 - CARD 26 CHARACTER STRINGS THAT ARE READ IN ! ***** VARIABLES OF DIFFERENT LENGTHS 
+! T023* TEST 22 - CARD 25 QUOTES, BLANKS, COMMAS AND SLASHES ! ***** EMBEDDED IN CHARACTER STRINGS
+! T024* TEST 23 - CARD 26 CHARACTER STRINGS THAT ARE READ IN ! ***** VARIABLES OF DIFFERENT LENGTHS
 
 ----
 
 I skipped following files:
 FM010.f => replaced by FM090
-FM011.f => replaced by FM091    
+FM011.f => replaced by FM091
 
 FM045.f => OK now. So I removed FM046.f which was my patch
 FM200.f => replaced by FM210
@@ -28,8 +28,8 @@ FM509.f
 
 
 my @skipped_tests=qw(
-FM010.f 
-FM011.f    
+FM010.f
+FM011.f
 FM200.f
 FM500.f
 FM509.f
@@ -241,8 +241,8 @@ if (@ARGV) {
     if (@ARGV == 1 and $ARGV[0] eq '-h' or $ARGV[0] eq '--help' ) {
     die "
     * If you want to generate, compile and run the tests, please run `generate_and_run.sh`
-    
-    * To run a single test, 
+
+    * To run a single test,
 
         $0 [name of test to run] [flags for refactorF4acc.pl]
     e.g.
@@ -259,7 +259,7 @@ if (@ARGV) {
         $src.='.f';
     }
     @sources=( $src );
-    $flags = join(' ',@ARGV);    
+    $flags = join(' ',@ARGV);
     $batch=0;
 }
 my $skipped=0;
@@ -291,8 +291,8 @@ ENDCFG
 
     close $CFG;
     system("cp ../$src .");
-    say "refactorF4acc.pl -c rf4a_$prog.cfg $flags -g $prog";
-    system("refactorF4acc.pl -c rf4a_$prog.cfg $flags -g $prog");
+    say "refactorF4acc.pl -w 0 -c rf4a_$prog.cfg $flags -g $prog";
+    system("refactorF4acc.pl -w 0 -c rf4a_$prog.cfg $flags -g $prog");
     if ($batch==1) {
     system("rm -f $src");
     system("rm -f rf4a_$prog.cfg");
@@ -302,7 +302,7 @@ ENDCFG
         say "Generation failed for ${src}95";
     }
     }
-    
+
 }
 
 

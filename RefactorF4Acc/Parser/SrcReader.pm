@@ -1529,7 +1529,7 @@ sub _procLine {
             die "_procLine(): No $keyword name " if $name eq '';
             my $spaces = ' ' x 6;
             if ( $keyword =~ /function/ ) {
-              $line=~/\((.+?)\)/; my $rest = $1;
+              $line=~/\((.+?)\)/; my $rest = $1 // '';
                 $info->{'FunctionSig'} = [ $spaces, $name, [split(/\s*,\s*/,$rest)] ];
             }
             elsif ( $keyword eq 'module' ) {

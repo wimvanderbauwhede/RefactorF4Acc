@@ -5,7 +5,7 @@ We use the [NIST FORTRAN78 test suite](ftp://ftp.fortran-2000.com/fcvs21_f95.tar
       - The file `FM046.f` contains a change to TEST 759: the original test (`FM045.f`) has 57 nested parentheses, this was changed to 5 nested parentheses because the current expression parser takes too long to parse this.
       - The file `FM090.f` is a modified version of `FM010.f` without spaces in types, variable names, values and labels.
       - The file `FM091.f` is a modified version of `FM011.f` without spaces in types, variable names, values and labels.
-      - The files `FM500.f` and `FM509.f` contain tests for corner cases of common blocks and block data (37+16 tests) which we don't support.
+      - The files `FM500.f` and `FM509.f` contain tests for corner cases of COMMON blocks and BLOCK DATA (37+16 tests) which we don't support.
 
 In the folder `fcvs21_f95`, there are two subfolders `Test_rf4a` and  `RefactoredSources`. To verify the original test suite you can use the script `driver_parse`; to run it you can use the script `driver_run`; you may have to change the name of the Fortran compiler in `FC` at the start of these scripts.
 
@@ -53,7 +53,7 @@ The final output should look like:
         PASSED: 2719
         FAILED: 4
         REQUIRE INSPECTION: 161
-        TOTAL: 2884 
+        TOTAL: 2884
 
 With the current version (1.1.0), the failing tests are FM406 test 3 and FM923 tests 22 and 23, these tests also fail in the original code with gfortran.
 The other failing test is FM308 test 57, this is because the current version does not refactor common blocks in functions, only in subroutines.

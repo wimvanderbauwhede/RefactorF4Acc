@@ -62,7 +62,7 @@ sub refactor_all {
 #    say "AFTER refactor_all_subroutines";
 
 #  croak Dumper pp_annlines($stref->{'Subroutines'}{'dyn_shapiro'}{'RefactoredCode'});
- 
+
     # This can't go into refactor_all_subroutines() because it is recursive
     # Also, this is actually analysis
     # And this is only for Subroutines of course, not for Modules

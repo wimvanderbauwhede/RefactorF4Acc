@@ -48,7 +48,7 @@ our @EXPORT_OK = qw(
 # -----------------------------------------------------------------------------
 
 # WV 2021-06-08 This is a misnomer because it also inlines parameter decls from modules in which subs are contained
-# WV 2023-10-05 Worse, it creates the declarations for ex-implicits. 
+# WV 2023-10-05 Worse, it creates the declarations for ex-implicits as well.
 
 # The problem with this routine is as follows: the refactoring of the signature happens when it is encountered.
 # But any subsequent call to a subroutine can result in new arguments being added to ExGlobArgDecls
@@ -59,7 +59,7 @@ our @EXPORT_OK = qw(
 #- creates ex-glob arg declarations, basically we have to look at ExInclArgs, UndeclaredOrigArgs and ExGlobArgs.
 #- creates ex-implicit var declarations
 #- create_refactored_subroutine_call, I hope we can keep this
-sub refactor_COMMON_blocks_and_CONTAINed_subs {  # 218 lines Was _refactor_globals_new 
+sub refactor_COMMON_blocks_and_CONTAINed_subs {  # 218 lines Was _refactor_globals_new
 	( my $stref, my $f, my $annlines ) = @_;
 
 	my $Sf = $stref->{'Subroutines'}{$f};
@@ -67,8 +67,8 @@ sub refactor_COMMON_blocks_and_CONTAINed_subs {  # 218 lines Was _refactor_globa
 	if ( $Sf->{'RefactorGlobals'} == 2 ) {
 		croak "This should NEVER happen!";
 	}
-	if (not exists $Sf->{'HasCommons'} or not $Sf->{'HasCommons'} ) { 
-		say "INFO: no COMMON blocks in $f" if $I; 
+	if (not exists $Sf->{'HasCommons'} or not $Sf->{'HasCommons'} ) {
+		say "INFO: no COMMON blocks in $f" if $I;
 		# return ($stref,$annlines); # This is wrong because this routine does more
 	}
 
@@ -80,7 +80,7 @@ sub refactor_COMMON_blocks_and_CONTAINed_subs {  # 218 lines Was _refactor_globa
 	} elsif (exists $Sf->{'Containers'} ) { # This is for subroutines extracted from ACC marked regions of code
 		@containers = sort keys %{$Sf->{'Containers'}};
 	}
-	for my $container (@containers) {		
+	for my $container (@containers) {
 		if ( exists $stref->{'Subroutines'}{$container}{'Parameters'} ) {
 			my ($set,$list) = merge_subsets($stref->{'Modules'}{$container}{'Parameters'}{'Subsets'});    # Note this is a nested set
 			$Sf->{'ParametersFromContainer'}{'Set'}=$set;
@@ -100,7 +100,7 @@ sub refactor_COMMON_blocks_and_CONTAINed_subs {  # 218 lines Was _refactor_globa
 			}
 		}
 	}
-	
+
 
 	# For the case of subroutines in modules that either have params or USE params via modules, create parameter decl lines
 	my @par_decl_lines_from_module = ();
@@ -112,8 +112,8 @@ sub refactor_COMMON_blocks_and_CONTAINed_subs {  # 218 lines Was _refactor_globa
 		my $mod = $Sf->{'InModule'};
 		@mods = ($mod);
 	}
-	for my $mod (@mods) {		
-		if ( exists $stref->{'Modules'}{$mod}{'Parameters'} ) {			
+	for my $mod (@mods) {
+		if ( exists $stref->{'Modules'}{$mod}{'Parameters'} ) {
 			my ($set,$list) = merge_subsets($stref->{'Modules'}{$mod}{'Parameters'}{'Subsets'});    # Note this is a nested set
 			$Sf->{'ParametersFromContainer'}{'Set'}=$set;
 			$Sf->{'ParametersFromContainer'}{'List'}=$list;
@@ -165,15 +165,15 @@ sub refactor_COMMON_blocks_and_CONTAINed_subs {  # 218 lines Was _refactor_globa
 			$rlines = create_refactored_subroutine_signature( $stref, $f, $annline, $rlines );
 			$rlines = [ @{$rlines}, @par_decl_lines_from_container, @par_decl_lines_from_module ];
 			$skip   = 1;
-		} 
+		}
 		# There should be no need to do this: all /common/ blocks should have been removed anyway!
-		# This adds $info->{'Include'}{'Name'} = $param_inc; 
+		# This adds $info->{'Include'}{'Name'} = $param_inc;
 		elsif ( exists $info->{'Include'} ) {
 
 			# TODO: test if this is obsolete
 			--$inc_counter;
 			$skip = skip_common_include_statement( $stref, $f, $annline );
-			
+
 			# Now, if this was a Common include to be skipped but it contains a Parameter include, I will simply replace the line:
 			# TODO: factor out!
 			my $inc = $info->{'Include'}{'Name'};
@@ -189,11 +189,11 @@ sub refactor_COMMON_blocks_and_CONTAINed_subs {  # 218 lines Was _refactor_globa
 				push @{$rlines}, $annline;
 				$skip = 1;
 			}
-			
+
 		}
 
 		# We should either inline everything from the module or rewrite the module. I go for the former
-		# In principle that is only possible if it's Inlineable		
+		# In principle that is only possible if it's Inlineable
 		elsif ( exists $info->{'Use'} ) {
 			if ( exists $info->{'Use'}{'Inlineable'}
 				and $info->{'Use'}{'Inlineable'} == 1 )
@@ -222,7 +222,6 @@ sub refactor_COMMON_blocks_and_CONTAINed_subs {  # 218 lines Was _refactor_globa
 
 		if ( exists $info->{'SubroutineCall'}
 		) {
-
 			# simply tag the common vars onto the arguments
 			($rlines, $stref) = _create_refactored_subroutine_call( $stref, $f, $annline, $rlines );
 			$skip   = 1;
@@ -304,8 +303,8 @@ sub refactor_COMMON_blocks_and_CONTAINed_subs {  # 218 lines Was _refactor_globa
 # I must make sure that these do not already exists!
 sub _create_extra_arg_and_var_decls { #272 lines
 
-	( my $stref, my $f, my $annline, my $rlines ) = @_; 
-	
+	( my $stref, my $f, my $annline, my $rlines ) = @_;
+
 	my $Sf         = $stref->{'Subroutines'}{$f};
 	my $nextLineID = scalar @{$rlines} + 1;
 	push @{$rlines}, ['! BEGIN new declarations',{'Comments'=>1}];
@@ -413,7 +412,7 @@ sub _create_extra_arg_and_var_decls { #272 lines
 	if (scalar keys %{ $Sf->{'UndeclaredOrigArgs'}{'Set'} } > 0) {
 		my $_arg_idx=0;
 	for my $var ( @{ $Sf->{'UndeclaredOrigArgs'}{'List'} } ) {
-		
+
 		if (not defined $var) {
 			# carp "Undefined arg in position $_arg_idx in UndeclaredOrigArgs for $f";
 			# croak Dumper $Sf->{'UndeclaredOrigArgs'}{'List'}, $Sf->{'DeclaredOrigArgs'}{'List'} ;
@@ -609,14 +608,14 @@ sub _create_refactored_subroutine_call { # 321 lines
 		push @{$rlines}, [ $line, $info ];
 		return ($rlines,$stref);
 	}
-# return ($rlines,$stref);
+
 	# This is in case we need intermediate variables for casting and reshaping of arguments to subroutine calls
 	if (not exists $Sf->{'CastReshapeVarDecls'}) {
 		$Sf->{'CastReshapeVarDecls'}={'List'=>[], 'Set'=>{}};
 	}
+
 	# Collect original args
 	my @orig_args = ();
-
 	# a shallow copy
 	my $expr_ast = [ @{ $info->{'SubroutineCall'}{'ExpressionAST'} } ];
 	if ( @{$expr_ast} and ( $expr_ast->[0] & 0xFF ) != 27 ) {
@@ -644,7 +643,6 @@ sub _create_refactored_subroutine_call { # 321 lines
 
 			if ($subset) { # otherwise it means this is an expression, including array accesses, or a constant.
 				my $call_arg_decl = $stref->{'Subroutines'}{$f}{$subset}{'Set'}{$call_arg};
-# croak $subset, Dumper($call_arg_expr, $call_arg_decl) if $call_arg eq 'fs335';
 				# Just set $sig_arg to $call_arg as a start
 				my $sig_arg = $call_arg;
 				# Now see if there is an actual $sig_arg for which the entry in ArgMap
@@ -936,7 +934,7 @@ sub _create_refactored_subroutine_call { # 321 lines
 				push @{$rlines}, [ $line, $info ];
 			}
 		}
-	}		
+	}
 	return ($rlines, $stref);
 }    # END of _create_refactored_subroutine_call()
 
@@ -1271,7 +1269,7 @@ sub __reshape_check { my ($stref, $f, $sub_name, $call_arg_decl,$sig_arg_decl) =
 		# say "ASSUMED? ". __is_assumed_array($dim2);
 		# Avoid overwriting the actual Dim field, as it is a reference
 		my $dim2d = dclone($dim2);
-		if (__is_assumed_array($dim2)) { 
+		if (__is_assumed_array($dim2)) {
 			$dim2d = __take_upper_bound_from_call_arg($dim1,$dim2d);
 		}
 		# say 'AFTER __take_upper_bound_from_call_arg:'.Dumper($sig_arg_decl);
@@ -1290,7 +1288,7 @@ sub __reshape_check { my ($stref, $f, $sub_name, $call_arg_decl,$sig_arg_decl) =
 		my $rank1 = get_array_rank($dim1);
 		my $rank2 = get_array_rank($dim2);
 
-		# if the same size and different rank 
+		# if the same size and different rank
 		if ( $size1 == $size2 and $rank1 != $rank2 ) {
 			$needs_reshape=1;
 			croak '# if the same size and different rank';

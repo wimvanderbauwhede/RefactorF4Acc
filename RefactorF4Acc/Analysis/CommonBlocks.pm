@@ -54,7 +54,7 @@ sub analyse_common_blocks { (my $stref) =@_;
 
 #	 say "\nCOMMON BLOCK MISMATCHES in $f:\n";
 #    say Dumper($stref->{'Subroutines'}{$f}{'CommonBlocks'});
-    $stref = _identify_common_var_mismatch($stref,$f);
+    	$stref = _identify_common_var_mismatch($stref,$f);
 #    say Dumper($stref->{'Subroutines'}{$f}{'CommonVarMismatch'});
 	}
 
@@ -70,13 +70,13 @@ sub analyse_common_blocks { (my $stref) =@_;
 		next if $f eq '';
 		next  if $f eq 'UNKNOWN_SRC';
 		next unless exists $stref->{'Subroutines'}{$f}{'HasLocalCommons'};
-		_match_up_common_vars( $stref, $f );
+		$stref = _match_up_common_vars( $stref, $f );
 		next unless exists $stref->{'Subroutines'}{$f}{'HasCommonVarMismatch'};
 		$stref = create_RefactoredArgs( $stref, $f );
 	}
 
 	return $stref;
-	} # END of analyse_common_blocks
+} # END of analyse_common_blocks
 
 
 

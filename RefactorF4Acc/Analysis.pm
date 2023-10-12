@@ -135,10 +135,10 @@ sub analyse_all {
 
 	# The next three routines work on ExGlobArgs and RenamedInheritedExGLobs
 	if ($sub_or_func_or_mod eq 'Subroutines') {
-	$stref = identify_inherited_exglobs_to_rename( $stref, $code_unit_name );
-	# Although this seems duplication, it is actually required!
-	$stref = lift_globals( $stref, $code_unit_name );
-	$stref = rename_inherited_exglobs( $stref, $code_unit_name );
+		$stref = identify_inherited_exglobs_to_rename( $stref, $code_unit_name );
+		# Although this seems duplication, it is actually required!
+		$stref = lift_globals( $stref, $code_unit_name );
+		$stref = rename_inherited_exglobs( $stref, $code_unit_name );
 	}
 	return $stref if $stage == 5;
 

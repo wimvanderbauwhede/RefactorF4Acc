@@ -4,9 +4,9 @@ use RefactorF4Acc::Config;
 use RefactorF4Acc::Utils;
 use RefactorF4Acc::Utils::Functional qw( ordered_union );
 
-# 
+#
 #   (c) 2010-2017 Wim Vanderbauwhede <wim@dcs.gla.ac.uk>
-#   
+#
 
 use vars qw( $VERSION );
 $VERSION = "1.1.0";
@@ -26,7 +26,7 @@ use Exporter;
 
 @RefactorF4Acc::Refactoring::Subroutines::Signatures::EXPORT_OK = qw(
     &create_refactored_subroutine_signature
-    &refactor_subroutine_signature    
+    &refactor_subroutine_signature
 );
 
 =pod
@@ -35,72 +35,71 @@ Subroutines
 =cut
 
 # --------------------------------------------------------------------------------
-# This routine creates the actual refactored source text of the sig. 
+# This routine creates the actual refactored source text of the sig.
 # This uses the arguments from $Sf->{'RefactoredArgs'}
 # TODO: call this emit_... and put it in Emitters
 sub create_refactored_subroutine_signature {
     ( my $stref, my $f, my $annline, my $rlines ) = @_;
     my $Sf        = $stref->{'Subroutines'}{$f};
-    
-    my $info = $annline->[1];    
+
+    my $info = $annline->[1];
     my $args_ref = [];
     if (not exists $info->{'EntrySig'} ) {
-    	$args_ref = $Sf->{'RefactoredArgs'}{'List'};        	
+    	$args_ref = $Sf->{'RefactoredArgs'}{'List'};
     } else {
     	# ENTRY!
     	my $name = $info->{'Signature'}{'Name'};
     	my $Sname = $Sf->{'Entries'}{'Set'}{$name};
-    	$args_ref = $Sname->{'RefactoredArgs'}{'List'};    	
+    	$args_ref = $Sname->{'RefactoredArgs'}{'List'};
     }
     my $args_str = join( ',', @{$args_ref} );
-    
+
     my $what_is_block_data = 'subroutine'; #'block data'
     my $block_data_has_args = 1;
     print "NEW ARGS: $args_str\n" if $DBG;
-    
     my $rline = '';
     if ( $Sf->{'Program'} ) {
         $rline = '      program ' . $f;
-    } elsif ( $Sf->{'Recursive'} ) { 
+    } elsif ( $Sf->{'Recursive'} ) {
     	$rline = $annline->[0];
-    	$rline =~s/subroutine.*$//;	
+    	$rline =~s/subroutine.*$//;
         $rline .= 'subroutine ' . $f . '(' . $args_str . ')';
     } elsif ( $Sf->{'Function'} ) {
     	$rline = $annline->[0];
     	$rline =~s/function.*$//;
         $rline .= 'function ' . $f . '(' . $args_str . ')';
-    } elsif ( $Sf->{'BlockData'} ) { 
+    } elsif ( $Sf->{'BlockData'} ) {
 		$rline = $annline->[0];
-    	$rline =~s/block\s+data.*$//;	
+    	$rline =~s/block\s+data.*$//;
         $rline .= $what_is_block_data. ' ' . $f . ($block_data_has_args ? '(' . $args_str . ')' : '');
     } elsif ( exists $info->{'EntrySig'} ) {
     	my $name = $info->{'Signature'}{'Name'};
     	$rline = $annline->[0];
-    	$rline =~s/entry.*$//;	
-        $rline .= 'entry ' . $name . '(' . $args_str . ')';    	                	        
-    } else {            
+    	$rline =~s/entry.*$//;
+        $rline .= 'entry ' . $name . '(' . $args_str . ')';
+    } else {
     	$rline = $annline->[0];
-    	$rline =~s/subroutine.*$//;	
+    	$rline =~s/subroutine.*$//;
         $rline .= 'subroutine ' . $f . '(' . $args_str . ')';
     }
     $info->{'Refactored'} = 1;
     $info->{'Ref'} = 1;
-    
-    
+
+
     if (not exists $info->{'EntrySig'} ) {
 	    $info->{'Signature'}{'Args'}=$Sf->{'RefactoredArgs'};
 	    $info->{'Signature'}{'RefactoredArgs'}=$Sf->{'RefactoredArgs'}; # not sure if this is needed
-	    $Sf->{'HasRefactoredArgs'} = 1;        	
+	    $Sf->{'HasRefactoredArgs'} = 1;
     } else {
     	# ENTRY!
     	my $name = $info->{'Signature'}{'Name'};
     	my $Sname = $Sf->{'Entries'}{'Set'}{$name};
 	    $info->{'Signature'}{'Args'}=$Sname->{'RefactoredArgs'};
 	    $info->{'Signature'}{'RefactoredArgs'}=$Sname->{'RefactoredArgs'}; # not sure if this is needed
-	    $Sname->{'HasRefactoredArgs'} = 1;    	    	
-    }    
-    
-    push @{$rlines}, [ $rline, $info ];    
+	    $Sname->{'HasRefactoredArgs'} = 1;
+    }
+
+    push @{$rlines}, [ $rline, $info ];
 
     return $rlines;
 }    # END of create_refactored_subroutine_signature()
@@ -108,7 +107,7 @@ sub create_refactored_subroutine_signature {
 
 # -----------------------------------------------------------------------------
 # This subroutine populates $Sf->{'RefactoredArgs'} based on Globals
-# 'Globals' means COMMON declarations in Include files 
+# 'Globals' means COMMON declarations in Include files
 sub refactor_subroutine_signature {
     ( my $stref, my $f ) = @_;
     my $Sf = $stref->{'Subroutines'}{$f};
@@ -123,7 +122,7 @@ sub refactor_subroutine_signature {
 
     # Loop over all globals and create the list @exglobs by concatenation
     # Also add all vars to $Sf->{'Vars'} unless they were already there
-    my @exglobs = ();        
+    my @exglobs = ();
     for my $inc ( keys %{ $Sf->{'Globals'} } ) {
         print "INFO: INC $inc in $f\n" if $V;
         if ( not exists $stref->{'IncludeFiles'}{$inc}{'Root'} ) {
@@ -146,17 +145,17 @@ sub refactor_subroutine_signature {
             @exglobs = ( @exglobs, @{ $Sf->{'Globals'}{$inc}{'List'} } );
         }
     }
-    
+
     print "INFO: UsedGlobalVars in $f\n" if $I;
-    
+
     for my $var ( @{ $Sf->{'UsedGlobalVars'}{'List'} } ) {
     	# Check if this var is used in the subroutine
     	if (exists $Sf->{'UndeclaredOrigLocalVars'}{'Set'}{$var}) {
     		say "INFO VAR: $var" if $I;
 			push @exglobs, $var;
-    	}             
+    	}
     } # for
-    
+
     # Loop over @exglobs, rename vars that conflict with parameters
     my @nexglobs = ();
     for my $var (@exglobs) {
@@ -169,12 +168,12 @@ sub refactor_subroutine_signature {
         }
     }
 #    croak Dumper(@nexglobs);
-    # Now combine the original subroutine arguments with the ex-globals and store in $Sf->{'RefactoredArgs'}{'List'}     
+    # Now combine the original subroutine arguments with the ex-globals and store in $Sf->{'RefactoredArgs'}{'List'}
     my $args_ref = (exists $Sf->{'OrigArgs'}) ? ordered_union( $Sf->{'OrigArgs'}{'List'}, \@nexglobs ) : \@nexglobs;
     $Sf->{'RefactoredArgs'}{'List'} = $args_ref;
     %{ $Sf->{'RefactoredArgs'}{'Set'}} = map {$_ => {'IODir' => 'Unknown'} } @{ $args_ref };
     $Sf->{'HasRefactoredArgs'} = 1;
-    
+
     return $stref;
 }    # END of refactor_subroutine_signature()
 
