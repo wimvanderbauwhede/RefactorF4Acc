@@ -1100,15 +1100,22 @@ sub warning { my ($msg, $lev) = @_;
     }
 }
 
-sub error { (my $str, my $dbg)=@_;
-    if (not exists $Config{'IGNORE_ERRORS'} or $Config{'IGNORE_ERRORS'}==0) {
+sub error { (my $str, my $dbg, my $extra_info)=@_;
+    $extra_info//='NONE';
+    my %type_errors = (
+        'EQUVALENCE' => $Config{'STRICT_EQUIVALENCE_CHECKS'},
+        'COMMON' => $Config{'STRICT_COMMONS_CHECKS'},
+        'NONE' => 1
+    );
+    my $error_type = exists $type_errors{$extra_info} ? 'TYPE ERROR' : 'ERROR';
+    if ((not exists $Config{'IGNORE_ERRORS'} or $Config{'IGNORE_ERRORS'}==0) and $type_errors{$extra_info}) {        
         if (defined $dbg and $dbg>0) {
-            croak("ERROR: $str");
+            croak("$error_type: $str");
         } else {
-            die "ERROR: $str\n";
+            die "$error_type: $str\n";
         }
     } else {
-        warning("IGNORED ERROR: $str");
+        warning("IGNORED $error_type: $str");
     }
 }
 

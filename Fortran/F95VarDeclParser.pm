@@ -71,7 +71,9 @@ sub parse_F95_var_decl {
 				if ($dim_expr=~/^\d+$/) {
 					push @{$evaled_dim_exprs},$dim_expr;
 				} elsif ($dim_expr=~/^(\d+):(\d+)$/) {
-					push @{$evaled_dim_exprs},$2-$1+1;
+					# This is wrong as we lose the start index
+					# push @{$evaled_dim_exprs},$2-$1+1;
+					push @{$evaled_dim_exprs},$1.':'.$2;
 				} elsif ($dim_expr=~/^\d[\d\+\-\*\/\%]+\d$/) {
 					push @{$evaled_dim_exprs},eval($dim_expr);
 				} else {

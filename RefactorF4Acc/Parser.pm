@@ -792,12 +792,11 @@ MODULE
 				$varlst = $line;
 				$varlst =~s/^(?:dimension|virtual)\s+//;
 				my @vars_with_dim = _parse_comma_sep_expr_list($varlst);
-
+				# croak "$line => ".Dumper(@vars_with_dim)  if $line=~/i2n008/;
 # If @vars_with_dim > 1 then we should split this line.
 # We currently do $srcref->[$index], with $index = 0 .. scalar( @{$srcref} ) - 1 )
 # So in order to splice in lines, what I guess I should do is create these new lines and store them at some index, then
 # use that index to break up $annlines and splice them in: [@{$annlines}[0..$index], $extra_lines,@{$annlines}[$index.. $end_index] ]
-
 				$extra_lines{$index}=[];
 				for my $var_dim (@vars_with_dim ) {
 
@@ -865,30 +864,30 @@ MODULE
 									@{ $Sf->{'UndeclaredCommonVars'}{'List'} } =  grep { $_ ne $varname } @{ $Sf->{'UndeclaredCommonVars'}{'List'} };
 									$Sf->{'DeclaredCommonVars'}{'List'} = ordered_union( $Sf->{'DeclaredCommonVars'}{'List'}, [$varname] );
 								}
-						}
-						# carp $subset,';',$var_dim,';',Dumper($decl) if $line=~/catn13/;
-						$type = $decl->{'Type'};
-						if (exists $decl->{'Attr'} and $decl->{'Attr'} ne '') {
-							my $attr = $decl->{'Attr'};
-							# play it safe
-							$attr=~s/^\(//;
-							$attr=~s/\)$//;
-							$type.="($attr)";
-						}
-					} # not a macro
-					 my $vline = "$type, $var_dim  :: $varname";
-					#  croak $vline if $line=~/catn13/;
-                     ( $Sf,  $info ) = __parse_f95_decl( $stref, $f, $Sf, $indent, $vline, {
-						 'Dimension' => 1,
-						 'SpecificationStatement' =>1
-						 });
+							}
+							# carp $subset,';',$var_dim,';',Dumper($decl) if $line=~/catn13/;
+							$type = $decl->{'Type'};
+							if (exists $decl->{'Attr'} and $decl->{'Attr'} ne '') {
+								my $attr = $decl->{'Attr'};
+								# play it safe
+								$attr=~s/^\(//;
+								$attr=~s/\)$//;
+								$type.="($attr)";
+							}
+						} # not a declared Var
+						my $vline = "$type, $var_dim  :: $varname";
+						#  croak "$line => $vline" if  $varname eq 'i2n008';
+						( $Sf,  $info ) = __parse_f95_decl( $stref, $f, $Sf, $indent, $vline, {
+							'Dimension' => 1,
+							'SpecificationStatement' =>1
+							});
+						
+						$Sf->{'DeclCount'}{$varname}{'Dimension'}=1;
 
-					 $Sf->{'DeclCount'}{$varname}{'Dimension'}=1;
-
-                     $info->{'StmtCount'}{$varname} = scalar keys %{$Sf->{'DeclCount'}{$varname}};
-					push @{ $extra_lines{$index} }, [$indent."dimension $dline",$info];
-				} # if it's not a macro
-		 }
+						$info->{'StmtCount'}{$varname} = scalar keys %{$Sf->{'DeclCount'}{$varname}};
+						push @{ $extra_lines{$index} }, [$indent."dimension $dline",$info];
+					} # if it's not a macro
+				}
 				next;
 		}
 
@@ -3141,7 +3140,7 @@ sub __parse_f95_decl {
     my $is_module = (exists $stref->{'Modules'}{$f}) ? 1 : 0;
 
 	my $pt = parse_F95_var_decl($line);
-
+# carp $line,Dumper $pt if $line=~/i2n008/;
 	# But this could be a parameter declaration, with an assignment ...
 	if ( $line =~ /,\s*parameter\s*.*?::\s*(\w+\s*=\s*.+?)\s*$/ ) {
 		# F95-style parameters

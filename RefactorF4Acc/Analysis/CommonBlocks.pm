@@ -13,7 +13,7 @@ use v5.10;
 
 use RefactorF4Acc::Config;
 # use RefactorF4Acc::ExpressionAST::Evaluate qw( eval_expression_with_parameters );
-use RefactorF4Acc::Utils qw( in_nested_set add_var_decl_to_set remove_var_decl_from_set pp_annlines annotate );
+use RefactorF4Acc::Utils qw( in_nested_set add_var_decl_to_set remove_var_decl_from_set pp_annlines annotate error );
 
 use RefactorF4Acc::Parser::Expressions qw( parse_expression_no_context );
 use RefactorF4Acc::Analysis::Arguments qw( create_RefactoredArgs );
@@ -317,12 +317,12 @@ sub _match_up_common_var_sequences {
 			my ( $name_caller, $decl_caller, $kind_caller, $dim_caller, $dimsz_caller, $lin_idx_caller, $used_caller ) = @{$elt_caller};
 			# Type check: kinds must be identical
 			if ( $kind_local != $kind_caller ) {
-				say "TYPE ERROR: Can't match COMMON var sequences with different kinds in call to $f in $caller: $kind_local <> $kind_caller\n";
-				say '  SOURCE: '.$Sf->{'Source'},
+				error( "Can't match COMMON var sequences with different kinds in call to $f in $caller: $kind_local <> $kind_caller\n" .
+					'  SOURCE: '.$Sf->{'Source'} ."\n".
                     '  CODE UNIT: '.$f, '  VAR:'
 					. "LOCAL: $name_local"
-					. "CALLER: $name_caller";
-				die "\n" if $Config{'STRICT_COMMONS_CHECKS'};
+					. "CALLER: $name_caller", 'COMMON');
+				# die "\n" if $Config{'STRICT_COMMONS_CHECKS'};
 			}
 
 			my $type_caller = $decl_caller->{'Type'};
@@ -340,12 +340,12 @@ sub _match_up_common_var_sequences {
 			$htype_caller=~s/\s+//;
 			# If they are not the same it's a type error, TODO: relax this for the special cases as discussed in the paper
 			if ( $htype_local ne $htype_caller ) {
-				say "TYPE ERROR: Can't match COMMON var sequences with different types in call to $f in $caller: $htype_local <> $htype_caller\n";
-				say '  SOURCE: '.$Sf->{'Source'},
+				error( "Can't match COMMON var sequences with different types in call to $f in $caller: $htype_local <> $htype_caller\n" .
+				 '  SOURCE: '.$Sf->{'Source'} . "\n" .
                     '  CODE UNIT: '.$f, '  VAR:'
 					. "\n  LOCAL: $name_local"
-					. "\n  CALLER: $name_caller";
-				die "\n" if $Config{'STRICT_COMMONS_CHECKS'};
+					. "\n  CALLER: $name_caller", 'COMMON');
+				# die "\n" if $Config{'STRICT_COMMONS_CHECKS'};
 			}
 			if ($DBG ) {
 				if ( not( $htype_local eq $htype_caller and $kind_local eq $kind_caller ) ) {    # Type / Attr mismatch
@@ -658,8 +658,8 @@ sub _match_up_common_var_sequences {
 			# say "2. $f $caller: LOCAL: $name_local CALLER: $name_caller " if $f eq 'ff304' and $name_local ne $name_caller;
 			}
 		} else {    # The local seq is longer than the caller seq
-			say "TYPE ERROR: Local COMMON sequence can't be longer than caller sequence for strict type safety" ;
-			die "\n" if $Config{'STRICT_COMMONS_CHECKS'};
+			error( "Local COMMON sequence can't be longer than caller sequence for strict type safety" , 'COMMON');
+			# die "\n" if $Config{'STRICT_COMMONS_CHECKS'};
 			# It can be that the local seq contains an elt that was already partially matched to the last caller elt.
 			# this means that $name_local is already matched;  but we still need to add it to call args
 			if ( $used_local == 0 ) {

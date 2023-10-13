@@ -55,6 +55,11 @@ v_glob = v_loc
 v_loc = f(v_glob::(InOut|Out)) -- so we modify v_glob, then we modify v_loc
 v_glob = v_loc
 
+WV2023-10-13
+4. v_loc is updated using a DATA statement
+DATA v_loc / ... /
+v_glob = v_loc
+
 The opposite case (swap v_loc and v_glob) is the same. 
 =cut
 
@@ -62,6 +67,7 @@ sub __insert_assignment_for_ex_EQUIVALENCE_vars {
 	my ( $stref, $f, $annline, $rlines, $equiv_pairs ) = @_;
 	( my $line, my $info ) = @{$annline};
 	my $skip = 0;
+	
 	if ( exists $info->{'Assignment'} and not exists $info->{'ExCommonOrEquivalence'}) {
 		my $lhs_var = $info->{'Lhs'}{'VarName'};
 
@@ -117,7 +123,8 @@ sub __insert_assignment_for_ex_EQUIVALENCE_vars {
 			}
 		# carp 'TODO: process Function calls on RHS! '. Dumper($info->{'FunctionCalls'}) ;
 		}
-	} elsif ( exists $info->{'Data'} and not exists $info->{'ExCommonOrEquivalence'}) {		
+	} elsif ( exists $info->{'Data'} and not exists $info->{'ExCommonOrEquivalence'}) {
+		
 		for my $lhs_v_str ( @{ $info->{'Vars'}{'List'} }) {
 			if ( exists $equiv_pairs->{$lhs_v_str} ) {
 				# insert the extra line
@@ -196,6 +203,7 @@ sub change_EQUIVALENCE_to_assignment_lines {
 			and not exists $info->{'Comments'}
 			and not exists $info->{'Blank'}
 			and not exists $info->{'Deleted'}
+			and not exists $info->{'Data'} # WV 2023-10-13
 			and $first_occ == 1 )
 		{
 			$first_occ = 0;
@@ -413,8 +421,9 @@ sub __refactor_EQUIVALENCE_line {
 		or ($v1_type eq 'complex' and $v2_type eq 'real')
 		)
 		) {
-			say "TYPE ERROR: '$v1_type' and '$v2_type' are incompatible"."\n$line\n";
-			die "\n" if $Config{'STRICT_EQUIVALENCE_CHECKS'};
+			error("'$v1_type' and '$v2_type' are incompatible\n$line",'EQUIVALENCE');
+			# say "TYPE ERROR: '$v1_type' and '$v2_type' are incompatible"."\n$line\n";
+			# die "\n" if $Config{'STRICT_EQUIVALENCE_CHECKS'};
 		}
 
 		my $v1          = $v1_is_array ? emit_expr_from_ast($ast1) : $var1;

@@ -155,7 +155,9 @@ our %Config=(
 'REFACTOR_TOPLEVEL_GLOBALS' => 1,
 'EVAL_PARAM_EXPRS'  => 0,
 
-'STRICT_COMMONS_CHECKS' => 0,
+'STRICT_COMMONS_CHECKS' => 1,
+'STRICT_EQUIVALENCE_CHECKS' => 1,
+'IGNORE_ERRORS' => 0,
 
 'TEST'   => 0,
 'CUSTOM_PASS_OUTPUT_PATH' => '',
@@ -336,7 +338,8 @@ our $config_menu= [
         ['ALLOW_SPACES_IN_NUMBERS','Allow spaces in numeric constants for fixed-format F77 code? 0/1', '0'],
         ['PRESERVE_CASE','Treat the source code as if it is case-sensitive? 0/1','0'],
         ['NO_SAVE','Delete SAVE statements? 0/1','1'],
-        ['STRICT_COMMONS_CHECKS','Stop if COMMON blocks are not type-safe? 0/1', '0'],
+        ['STRICT_COMMONS_CHECKS','Return ERROR if COMMON blocks are not type-safe? 0/1', '1'],
+        ['STRICT_EQUIVALENCE_CHECKS','Return ERROR if EQUIVALENCE statements are not type-safe? 0/1', '1'],
         ['CONFIG:SCONS', 'SCons-specific configuration? y/n','n'],
         ['CONFIG:OCL', 'OpenCL-specific configuration? y/n','n'],
         ['CONFIG:CUSTOM', 'Custom pass-specific configuration? y/n','n'],
