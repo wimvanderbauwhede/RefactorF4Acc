@@ -175,6 +175,9 @@ TEST CASE 82: FM301.f
 refactorF4acc.pl -w 0 -c rf4a_fm301.cfg  -g fm301
 TEST CASE 83: FM302.f
 refactorF4acc.pl -w 0 -c rf4a_fm302.cfg  -g fm302
+TYPE ERROR: Local COMMON sequence can't be longer than caller sequence for strict type safety
+TYPE ERROR: Local COMMON sequence can't be longer than caller sequence for strict type safety
+TYPE ERROR: Local COMMON sequence can't be longer than caller sequence for strict type safety
 TYPE ERROR: Can't match COMMON var sequences with different types in call to ff305 in ff304: integer <> logical
 
   SOURCE: ./FM302.f  CODE UNIT: ff305  VAR:
@@ -185,9 +188,6 @@ TYPE ERROR: Can't match COMMON var sequences with different types in call to ff3
   SOURCE: ./FM302.f  CODE UNIT: ff305  VAR:
   LOCAL: iacn11
   CALLER: rvcn01
-TYPE ERROR: Local COMMON sequence can't be longer than caller sequence for strict type safety
-TYPE ERROR: Local COMMON sequence can't be longer than caller sequence for strict type safety
-TYPE ERROR: Local COMMON sequence can't be longer than caller sequence for strict type safety
 TEST CASE 84: FM306.f
 refactorF4acc.pl -w 0 -c rf4a_fm306.cfg  -g fm306
 TEST CASE 85: FM307.f

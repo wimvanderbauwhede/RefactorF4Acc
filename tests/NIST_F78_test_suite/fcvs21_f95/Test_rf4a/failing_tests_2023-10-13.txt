@@ -1,0 +1,37 @@
+With the current version (1.1.0), the failing tests are 
+FM406 test 3
+FM923 tests 22 and 23, these tests also fail in the original code with gfortran.
+The other failing test is 
+FM308 test 57, this is because the current version does not refactor common blocks in functions, only in subroutines.
+
+New failures:
+FM300.res:                        1 TESTS FAILED
+I think this is because if we have 
+EQUIVALENCE(IVOE19,IVOE20)
+DATA IVOE19 / 19 /
+
+then we should have
+
+IVOE20 = IVOE19 
+
+inserted after that, because that is like an assignment
+
+
+FM302.res:                        3 TESTS FAILED
+
+The original version, compiled with gfortran 9, has 2 failed tests, 4 and 14; the refactored version also fails test 13
+
+!      ****  FCVS PROGRAM 302  -  TEST 013  ****                         
+!                                                                        
+!           TEST 013 IS DESIGNED TO TEST THE EXTENSION OF NAMED COMMON   
+!      BLOCK STORAGE BY EQUIVALENCE ASSOCIATION OF A VARIABLE AND AN     
+!      ARRAY.  
+
+
+
+FM701.res:                          1 TESTS FAILED
+
+FM406.res:                          1 TESTS FAILED
+FM923.res:                          2 TESTS FAILED
+
+Now passes: FM308 

@@ -263,6 +263,7 @@ sub analyse_lines {
 
 		my $prev_stmt_was_spec=1;
 		my $prev_stmt_was_data=0;
+		my $prev_stmt_was_stmt_function=0;
 		my $in_excluded_block	   = 0; # for printing a given block for debug
 		my $excluded_block   = -1;
 		my $first          = 1;
@@ -1274,16 +1275,19 @@ or $line=~/^character\s*\(\s*len\s*=\s*[\w\*]+\s*\)/
 # Otherwise it is impossible to distinguish from an array assignment
 # An alternative way would be to check if this statement comes immediately after another SpecificationStatement
 			elsif (
-				($prev_stmt_was_spec or $prev_stmt_was_data) and
+				($prev_stmt_was_spec 
+				or $prev_stmt_was_data
+				or $prev_stmt_was_stmt_function) and
 			 $line =~ /([a-z]\w*)\s*\(\s*([a-z]\w*)[,\w]*\)\s*=\s*.*\2\W/
 			) {
 				my $maybe_function = $1;
 				say  "INFO: I'm pretty sure $maybe_function is a StatementFunction in $f" if $I;
-				# croak "INFO: I'm pretty sure $maybe_function is a StatementFunction in $f : <$line>";
+				# carp "INFO: I'm pretty sure $maybe_function is a StatementFunction in $f : <$line>";
 
 				$info->{'StatementFunction'} = $maybe_function;
 				$info->{'HasVars'} = 1;
 				$info->{'SpecificationStatement'} = 1;
+				$prev_stmt_was_stmt_function=1;
 				$info = _parse_assignment( $line, $info, $stref, $f );
 			}
 #== MODULE is done in SrcReader
@@ -1862,6 +1866,9 @@ END IF
 			if (not exists $info->{'Data'}) {
 				$prev_stmt_was_data=0;
 			}
+			if (not exists $info->{'StatementFunction'}) {
+				$prev_stmt_was_stmt_function=0;
+			}			
 		}    # Loop over lines
 		# We sort the indices from high to low so that the insertions are at the correct index
 		for my $idx (sort {$b <=> $a} keys %extra_lines) {

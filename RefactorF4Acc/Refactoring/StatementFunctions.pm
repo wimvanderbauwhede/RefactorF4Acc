@@ -33,7 +33,8 @@ our @EXPORT_OK = qw(
   move_StatementFunctions_after_SpecificationStatements
 );
 
-
+# According to the spec, statement functions can be interspersed with DATA statements
+# But they must come after the final specification statement
 sub move_StatementFunctions_after_SpecificationStatements { my ( $stref, $f, $annlines ) = @_;
 	my $Sf = $stref->{'Subroutines'}{$f};
 	$Sf->{'RefactoredCode'}=$annlines;
