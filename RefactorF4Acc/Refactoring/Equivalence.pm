@@ -87,7 +87,7 @@ sub __insert_assignment_for_ex_EQUIVALENCE_vars {
 			$rlines = [ @{$rlines}, @{ $equiv_pairs->{$lhs_v_str} } ];
 			$skip   = 1;
 		}
-		if (exists  $info->{'FunctionCalls'}) {
+		if (exists  $info->{'FunctionCalls'}) { 
 			# This is a line with a number of function calls
 			# Go through every call
 			for my $fcall ( @{ $info->{'FunctionCalls'} } ) {
@@ -114,9 +114,10 @@ sub __insert_assignment_for_ex_EQUIVALENCE_vars {
 						
 						my $arg=emit_expr_from_ast($arg_ast);
 						
-						if ( exists $equiv_pairs->{$arg} ) {
-							# say Dumper($equiv_pairs->{$arg});
+						
+						if ( exists $equiv_pairs->{$arg} ) {							
 							$rlines = [ @{$rlines}, @{ $equiv_pairs->{$arg} } ];
+							$rlines = __embrace_extend_extinguish($stref, $f, $annline,$rlines, $equiv_pairs,$arg,$arg_asts,$fname);
 						}
 					}
 				} 	
@@ -667,4 +668,77 @@ sub __equate_overlapping_ranges {
 	return [ $array1, $array2 ];
 }    # END of __equate_overlapping_ranges
 
+# This is a kludge to extend the equivalence if it was between a scalar and an array.
+# What this does is create an equivalence between the subsequent array elements and the next args
+# This is an ugly hack because it assumes that those extra args are ex-globals.
+sub __embrace_extend_extinguish { my ($stref, $f, $annline,$rlines,$equiv_pairs,$arg,$arg_asts,$fname) = @_;
+	my $Sf = $stref->{'Subroutines'}{$f};
+	my ($line, $info) = @{$annline};
+	my $take_next_args=0;
+	my $arg_decl = get_var_record_from_set( $Sf->{'Vars'}, $arg );
+			# carp 'ARG: ', Dumper $arg_decl;
+	# carp Dumper($equiv_pairs->{$arg}) if $line=~/ff304/;
+	my $extended_equiv_pairs=[];
+	for my $equiv_pair (@{$equiv_pairs->{$arg}}) {
+		# croak  Dumper $equiv_pair;
+		my $lhs_var_expr = $equiv_pair->[1]{'Lhs'}{'VarName'};
+		if ( $lhs_var_expr =~/(\w+)\((\d+)\)/ ) {
+			my $lhs_var = $1; 
+			my $index = $2;
+			my $lhs_var_decl = get_var_record_from_set( $Sf->{'Vars'}, $lhs_var );
+			# carp 'LHS VAR: ', Dumper $lhs_var_decl;
+			if (exists $arg_decl->{'CommonBlockName'}) {
+				if ($arg_decl->{'ArrayOrScalar'} eq 'Scalar' 
+				and $lhs_var_decl->{'ArrayOrScalar'} eq 'Array') {
+					# carp 'LHS VAR: ', Dumper $lhs_var_decl->{'Dim'};
+					my ($array_sz, $not_const) = calculate_array_size($stref, $f, $lhs_var_decl->{'Dim'});
+					 if ($array_sz>1) {
+							warning("Extension of named COMMON block storage by EQUIVALENCE association of a variable and an array. Please don't do this!"
+								. "\nArray $lhs_var extends beyond argument $arg of $fname in call in $f"
+ 							);
+							for my $arg_ast (@{$arg_asts}) {
+								my $targ=emit_expr_from_ast($arg_ast);
+								if ($targ eq $arg) {
+									$take_next_args=1;
+								}
+								elsif ($take_next_args ) {
+									++$index;
+									# say "$lhs_var($index) = $targ";
+									push @{$extended_equiv_pairs} , [
+									$equiv_pair->[1]{'Indent'}."$lhs_var($index) = $targ",
+									{
+										'ExCommonOrEquivalence' => 1,
+										'Rhs' => {
+										'Vars' => {
+											'List' => [
+											$targ
+											],
+											'Set' => {}
+										}
+										},
+										'Ann' => [
+										'Refactoring::Equivalence::__refactor_EQUIVALENCE_line(fm302) 448'
+										],
+										'HasVars' => 1,
+										'Indent' => '      ',
+										'Assignment' => 1,
+										'Lhs' => {
+										'VarName' => "$lhs_var($index)",
+										'IndexVars' => {
+											'List' => []
+										}
+										}
+									}
+									];
+
+								}
+							}
+					 }
+				}
+			}
+		}
+	}
+	$rlines = [ @{$rlines}, @{ $extended_equiv_pairs } ];
+	return $rlines;
+}
 1;
