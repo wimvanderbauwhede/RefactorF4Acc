@@ -320,14 +320,17 @@ RENAME_EXT = _G
 # TODO: the defaults should be taken from %Config (or the other way round)
 our $config_menu= [
     ['BASIC' => [
-        ['SRCDIRS','Relative path to the original Fortran source code (comma-separated list)','src'],
-        ['EXTSRCDIRS','Comma-separated list of directories (relative to PREFIX) to be searched for source files',''],
-        ['NEWSRCPATH','Relative path to the refactored Fortran source code','refactored-src'],
         ['TOP', 'Name of the subroutine to start from. If this is the main program, leave blank.',''],
+        ['SRCDIRS','Relative path to the original Fortran source code (comma-separated list)','src'],
+        ['NEWSRCPATH','Relative path to the refactored Fortran source code','refactored-src'],
+        ['STRICT_COMMONS_CHECKS','Return ERROR if COMMON blocks are not type-safe? 0/1', '1'],
+        ['STRICT_EQUIVALENCE_CHECKS','Return ERROR if EQUIVALENCE statements are not type-safe? 0/1', '1'],
+        ['IGNORE_ERRORS','Ignore errors and continue code generation? 0/1','0'],
         ['CONFIG:ADVANCED', 'Advanced configuration? y/n','n'],
     ]],
     ['ADVANCED' => [
         ['PREFIX','Prefix for all relative paths','.'],
+        ['EXTSRCDIRS','Comma-separated list of directories (relative to PREFIX) to be searched for source files (these will not be refactored)',''],
         ['EXT','Extension of refactored source files','.f90'],
         ['EXCL_SRCS', 'Source files to be excluded (comma-separated list)',''],
         ['EXCLUDE_ALL_SUBDIRS','Exclude all subfolders in the source folder? 0/1','0'],
@@ -338,8 +341,6 @@ our $config_menu= [
         ['ALLOW_SPACES_IN_NUMBERS','Allow spaces in numeric constants for fixed-format F77 code? 0/1', '0'],
         ['PRESERVE_CASE','Treat the source code as if it is case-sensitive? 0/1','0'],
         ['NO_SAVE','Delete SAVE statements? 0/1','1'],
-        ['STRICT_COMMONS_CHECKS','Return ERROR if COMMON blocks are not type-safe? 0/1', '1'],
-        ['STRICT_EQUIVALENCE_CHECKS','Return ERROR if EQUIVALENCE statements are not type-safe? 0/1', '1'],
         ['CONFIG:SCONS', 'SCons-specific configuration? y/n','n'],
         ['CONFIG:OCL', 'OpenCL-specific configuration? y/n','n'],
         ['CONFIG:CUSTOM', 'Custom pass-specific configuration? y/n','n'],
@@ -376,10 +377,10 @@ our $config_menu= [
         ['RENAME_VARS_IN_INLINED_SUBS','Rename variables in inlined subroutines (to avoid name conflicts)? 0/1','0'],
         ['FOLD_CONSTANTS','Fold constants (replace parameters by their values)? 0/1','0'],
         ['NO_MODULE','Comma-separated list of source files that should not be changed to modules',''],
-        ['MACRO_SRC','Relative path to C-style header file with macro definitions','macros.h'],
         ['ONE_SUB_PER_MODULE', 'Create a module for each subroutine? 0/1','1'],
-        ['PURPOSE_CFG','Relative path to the Purpose configuration','purpose.cfg'],
-        ['SOURCEFILES','Comma-separated list of source files to be refactored. Same as specifying -s on command line','']
+        ['SOURCEFILES','Comma-separated list of source files to be refactored. Same as specifying -s on command line',''],
+        ['MACRO_SRC','Relative path to C-style header file with macro definitions','macros.h'],
+        ['PURPOSE_CFG','Relative path to the Purpose configuration','purpose.cfg']
     ]]
 ];
 
