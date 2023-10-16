@@ -301,6 +301,7 @@ sub refactor_COMMON_blocks_and_CONTAINed_subs {  # 218 lines Was _refactor_globa
 # ExInclArgs, UndeclaredOrigArgs and ExGlobArgs
 # ExInclLocalVars and UndeclaredOrigLocalVars.
 # I must make sure that these do not already exists!
+# WV2023-10-16 parameter declarations for arrays defined in COMMON blocks in subroutines are missing.
 sub _create_extra_arg_and_var_decls { #272 lines
 
 	( my $stref, my $f, my $annline, my $rlines ) = @_;
@@ -373,9 +374,9 @@ sub _create_extra_arg_and_var_decls { #272 lines
 			say "INFO VAR in $f: IODir for $var: " . $Sf->{'ExGlobArgs'}{'Set'}{$var}{'IODir'}
 			  if $I and not $Sf->{'Program'};
 			my $rdecl = $Sf->{'ExGlobArgs'}{'Set'}{$var};
-			# croak Dumper($rdecl) if $var eq 'nx' and $f eq 'dyn';
+			# croak Dumper($rdecl) if $var eq 'bx4d' and $f eq 'fm500';
 			(my $inherited_param_decls, $Sf) = __generate_inherited_param_decls($rdecl, $var, $stref, $f,[]);
-            #carp "VAR $var in $f";
+            # carp "VAR $var in $f";
 			#  map { say 'INHERITED DECL:'. $_->[0] } @{$inherited_param_decls};
 			my $rline = emit_f95_var_decl($rdecl);
 			# carp $rline if $var eq 'w4' and $f eq 'mult_chk';
@@ -527,8 +528,11 @@ sub _create_extra_arg_and_var_decls { #272 lines
 			{
 				$var_is_sub = 1;
 			}
-			if ( exists $stref->{'Subroutines'}{$var}
-				and not exists $stref->{'Subroutines'}{$var}{'Function'} )
+			if ( exists $Sf->{'External'}{$var} or exists $Sf->{'Intrinsic'}{$var}) {
+				$var_is_sub = 1;
+			}
+			if ( exists $Sf->{$var}
+				and not exists $Sf->{$var}{'Function'} )
 			{
 				$var_is_sub = 1;
 			}
@@ -549,11 +553,10 @@ sub _create_extra_arg_and_var_decls { #272 lines
 				)
 			  )
 			{
-			if ( my $subset = in_nested_set( $Sf, 'DeclaredOrigLocalVars', $var ) ) {
-				croak $subset;
-			}
+				if ( (my $subset = in_nested_set( $Sf, 'DeclaredOrigLocalVars', $var )) and $DBG ) {
+					croak $subset;
+				}
 
-				   			# carp Dumper($Sf->{'UndeclaredOrigLocalVars'}{'Set'}{$var}) ;
 				my $rdecl = $Sf->{'UndeclaredOrigLocalVars'}{'Set'}{$var};
 				$rdecl->{'Ann'} = "in $f (implicit declaration)";
 				# carp Dumper($stref->{'Subroutines'}{  $var});

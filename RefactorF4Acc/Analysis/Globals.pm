@@ -237,7 +237,7 @@ sub lift_globals {
 	                # FIXME: the InheritedParams are for ANY new arg, not just ex-glob args!
 
 	                for my $var (@{ $Scsub->{'ExGlobArgs'}{'List'} } ) {
-						# carp "$f $var ".Dumper($Scsub->{'ExGlobArgs'}{'Set'}{$var}) if $var eq 'ev';
+						# carp "$f $var ".Dumper($Scsub->{'ExGlobArgs'}{'Set'}{$var}) if $var eq 'bx4d';
 	                	if (exists $Scsub->{'ExGlobArgs'}{'Set'}{$var}{'InheritedParams'}) {
 
 	                		my $all_inherited_parameters = _get_all_inherited_parameters(

@@ -455,7 +455,7 @@ sub identify_vars_on_line {
 				@chunks = ( @chunks, $info->{'Lhs'}{'VarName'}, @{ $info->{'Lhs'}{'IndexVars'}{'List'} }, @{ $info->{'Rhs'}{'Vars'}{'List'} } );
 			} elsif ( exists $info->{'ParamDecl'} ) {
 				@chunks = ( @chunks, keys %{ $info->{'UsedParameters'} } );
-			}	 elsif ( exists $info->{'Data'}
+			} elsif ( exists $info->{'Data'}
 			or exists $info->{'Equivalence'} ) {
 				@chunks = ( @chunks, @{ $info->{'Vars'}{'List'} } );
 			} elsif ( not exists $info->{'IfThen'} ) {

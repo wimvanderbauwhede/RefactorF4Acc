@@ -24,7 +24,7 @@ Please be aware of RefactorF4Acc's <a href="#limitations">limitations</a> and th
 * <a href="#installing">Installing RefactorF4Acc</a>
 * <a href="#gettingstarted">Getting started</a>
 * <a href="#using">Using RefactorF4Acc</a>
-    - <a href="#config">Format of the Configuration file</a>
+    - <a href="#config">Configuration</a>
     - <a href="#commandline">Command line flags</a>
 * <a href="#examples">Examples of RefactorF4Acc in action </a>
     - <a href="#refactor">Refactoring code</a>
@@ -167,85 +167,13 @@ To use RefactorF4Acc:
 ## Using RefactorF4Acc
 
 <a name="config"></a>
-### Format of the Configuration file 
+### Configuration
 
+If you run `rf4a` without any flags, it will look in the current directory for a configuration file `rf4a.cfg`.
+If that file does not exist, it will present you with a text-based wizard to create the configuration.
 The configuration file is a text file containing key-value pairs separated with an '='. Lines starting with '#' are comments.
-The following keys are defined:
 
-#### BASIC
-
-<dl>
-<dt>SRCDIRS:</dt><dd>Relative path to the original Fortran source code [src]</dd>
-<dt>NEWSRCPATH:</dt><dd>Relative path to the refactored Fortran source code [refactored-src]</dd>
-<dt>TOP:</dt><dd>Name of the subroutine to start from. If this is the main program, leave blank. []</dd>
-<dt>CONFIG:ADVANCED:</dt><dd>Advanced configuration? y/n [n]</dd>
-</dl>
-
-#### ADVANCED
-
-<dl>
-<dt>PREFIX:</dt><dd>Prefix for all relative paths [.]</dd>
-<dt>EXT:</dt><dd>Extension of refactored source files [.f90]</dd>
-<dt>EXCL_SRCS:</dt><dd>Source files to be excluded (comma-separated list) []</dd>
-<dt>EXCLUDE_ALL_SUBDIRS:</dt><dd>Exclude all subfolders in the source folder? 0/1 [0]</dd>
-<dt>EXCL_DIRS:</dt><dd>Source folders to be excluded (comma-separated list) []</dd>
-<dt>INLINE_INCLUDES:</dt><dd>Inline all include files? 0/1 [0]</dd>
-<dt>SPLIT_LONG_LINES:</dt><dd>Split long lines into chunks of no more than 80 characters? 0/1 [1]</dd>
-<dt>MAX_LINE_LENGTH:</dt><dd>Maximum line length for fixed-format F77 code [132]</dd>
-<dt>ALLOW_SPACES_IN_NUMBERS:</dt><dd>Allow spaces in numeric constants for fixed-format F77 code? 0/1 [0]</dd>
-<dt>PRESERVE_CASE:</dt><dd>Treat the source code as if it is case-sensitive? 0/1 [0]</dd>
-<dt>NO_SAVE:</dt><dd>Delete SAVE statements? 0/1 [1]</dd>
-<dt>STRICT_COMMONS_CHECKS:</dt><dd>Stop if COMMON blocks are not type-safe? 0/1 [0]</dd>
-<dt>CONFIG:SCONS:</dt><dd>SCons-specific configuration? y/n [n]</dd>
-<dt>CONFIG:OCL:</dt><dd>OpenCL-specific configuration? y/n [n]</dd>
-<dt>CONFIG:CUSTOM:</dt><dd>Custom pass-specific configuration? y/n [n]</dd>
-<dt>CONFIG:SUPER_ADVANCED:</dt><dd>Super-dvanced configuration? y/n [n]</dd>
-</dl>
-
-#### SCONS
-
-<dl>
-<dt>EXE:</dt><dd>Name of executable to be build (default is program name) []</dd>
-<dt>LIBS:</dt><dd>SCons LIBS, comma-separated list []</dd>
-<dt>LIBPATH:</dt><dd>SCons LIBPATH, comma-separated list []</dd>
-<dt>INCLPATH:</dt><dd>SCons F90PATH or F95PATH (based on EXT), comma-separated list []</dd>
-<dt>HAS_F77_SOURCES:</dt><dd>Tells SCons to add the F77 compiler as well as the F90 compiler? 0/1 [0]</dd>
-<dt>FFLAGS:</dt><dd>SCons FFLAGS, comma-separated list []</dd>
-<dt>F77FLAGS:</dt><dd>SCons F77FLAGS, comma-separated list []</dd>
-<dt>F90FLAGS:</dt><dd>SCons F77FLAGS, comma-separated list []</dd>
-</dl>
-
-#### OCL
-
-<dl>
-<dt>KERNEL:</dt><dd>For OpenCL translatation, the name of the subroutine to become the OpenCL kernel (actually same as TOP) []</dd>
-<dt>MODULE_SRC:</dt><dd>For OpenCL translatation, the name of the source file containing a module which contains the kernel subroutine []</dd>
-<dt>MODULE:</dt><dd>For OpenCL translatation, the name of the module which contains the kernel subroutine []</dd>
-<dt>NO_MODULE:</dt><dd>Comma-separated list of source files that should not be changed to modules []</dd>
-</dl>
-
-#### CUSTOM
-
-<dl>
-<dt>CUSTOM_PASS_OUTPUT_PATH:</dt><dd>Output path for custom pass []</dd>
-</dl>
-
-#### SUPER_ADVANCED
-
-<dl>
-<dt>NO_ONLY:</dt><dd>Generate USE without ONLY? 0/1 [0]</dd>
-<dt>RENAME_EXT:</dt><dd>Suffix for renaming clashing variables  [_GLOB]</dd>
-<dt>EVAL_PARAM_EXPRS:</dt><dd>Evaluate RHS expression of parameter declarations? 0/1 [0]</dd>
-<dt>RENAME_PARS_IN_INLINED_SUBS:</dt><dd>Rename parameters in inlined subroutines (to avoid name conflicts)? 0/1 [0]</dd>
-<dt>RENAME_VARS_IN_INLINED_SUBS:</dt><dd>Rename variables in inlined subroutines (to avoid name conflicts)? 0/1 [0]</dd>
-<dt>FOLD_CONSTANTS:</dt><dd>Fold constants (replace parameters by their values)? 0/1 [0]</dd>
-<dt>NO_MODULE:</dt><dd>Comma-separated list of source files that should not be changed to modules []</dd>
-<dt>MACRO_SRC:</dt><dd>Relative path to C-style header file with macro definitions [macros.h]</dd>
-<dt>ONE_SUB_PER_MODULE:</dt><dd>Create a module for each subroutine? 0/1 [1]</dd>
-<dt>PURPOSE_CFG:</dt><dd>Relative path to the Purpose configuration [purpose.cfg]</dd>
-</dl>
-
-
+For a list of the defined option and thier defaults, see [CONFIGURATION.md].
 
 <a name="commandline"></a>
 ### Command line flags
@@ -388,7 +316,7 @@ The original FORTRAN 77 test suite source files are in `fcvs21_f95/`.
 - The file `FM090.f` is a modified version of `FM010.f` without spaces in types, variable names, values and labels.
 - The file `FM091.f` is a modified version of `FM011.f` without spaces in types, variable names, values and labels.
 - The file `FM210.f` is a modified version of `FM200.f` without spaces in variable names and values.
-- The files `FM500.f` and `FM509.f` contain tests for corner cases of common blocks and block data (37+16 tests) which we don't support.
+- The file `FM500.f` and `FM509.f` contain tests for corner cases of common blocks and block data (37+16 tests) which we don't support.
 
 Please ensure that the environment varianble `$FC` is set to the Fortran compiler you want to use. I have tested the code only with `gfortran 4.9` to `gfortran 10.0`. 
 To generate the refactored Fortran-95 code for the test suite, build it and run it, do:

@@ -416,6 +416,7 @@ sub _add_implicit_none {
 	my ( $stref, $f, $annlines ) = @_;
 	my $Sf            = $stref->{'Subroutines'}{$f};
 	my $first_vardecl = 1;
+	my $first_spec_stmt = 1;
 	my $rlines        = [];
 	my $prev_line_id=0;
 	for my $annline ( @{$annlines} ) {
@@ -425,15 +426,12 @@ sub _add_implicit_none {
 		} else {
 			warn "LINE '$line' has no LineID in $f" if $DBG;
 		}
-		if ( ( exists $info->{'VarDecl'} or exists $info->{'ParamDecl'} or exists $info->{'Equivalence'} )
-			and $first_vardecl )
-		{
-			$first_vardecl = 0;
-
+		if (exists $info->{'SpecificationStatement'} and $first_spec_stmt) {
+			$first_spec_stmt = 0;
 			# Here I think I can insert 'implicit none'
 			if ( not exists $Sf->{'ImplicitNone'} ) {
-				say "Adding 'implicit none' at " . __PACKAGE__ . ' ' . __LINE__
-				  if $V;
+				say "Adding 'implicit none' at " . __PACKAGE__ . ' ' . __LINE__ if $V;
+				$Sf->{'ImplicitNone'} = 1;
 				my $r_info = {};
 				my $indent = ' ' x 6;
 				$r_info->{'LineID'}       = $prev_line_id - 1; # ad hoc!
@@ -443,6 +441,24 @@ sub _add_implicit_none {
 				push @{$rlines}, [ $indent . 'implicit none', $r_info ];
 			}
 		}
+		# if ( ( exists $info->{'VarDecl'} or exists $info->{'ParamDecl'} or exists $info->{'Equivalence'} )
+		# 	and $first_vardecl )
+		# {
+		# 	$first_vardecl = 0;
+
+		# 	# Here I think I can insert 'implicit none'
+		# 	if ( not exists $Sf->{'ImplicitNone'} ) {
+		# 		say "Adding 'implicit none' at " . __PACKAGE__ . ' ' . __LINE__
+		# 		  if $V;
+		# 		my $r_info = {};
+		# 		my $indent = ' ' x 6;
+		# 		$r_info->{'LineID'}       = $prev_line_id - 1; # ad hoc!
+		# 		$r_info->{'Indent'}       = $indent;
+		# 		$r_info->{'ImplicitNone'} = 1;
+		# 		$r_info->{'Ann'}          = [ annotate( $f, __LINE__ ) ];
+		# 		push @{$rlines}, [ $indent . 'implicit none', $r_info ];
+		# 	}
+		# }
 		push @{$rlines}, $annline;
 	}
 	return $rlines;

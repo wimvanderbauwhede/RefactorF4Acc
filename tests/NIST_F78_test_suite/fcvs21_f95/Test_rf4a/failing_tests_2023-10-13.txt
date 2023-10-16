@@ -16,3 +16,27 @@ The original version, compiled with gfortran 9.4 and also gfortran 13.1, has 2 f
 
 
 
+The missing bit is that, if we currently something like 
+
+(a2) = ...
+v1 = a1(1)
+
+res = f(v1,vc1)
+
+where vc1 is an ex-glob that comes right after v1
+
+then it should be
+
+(a2) = ...
+vc1 = a1(2)
+
+res = f(v1,vc1)
+
+instead
+
+So what we should do is 
+detect that 
+(1) there is an equivalence between an array and a scalar
+(2) the scalar is in a common block
+(3) that common block is extended in a function or subroutine that is called in the code unit where it is defined
+

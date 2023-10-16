@@ -876,7 +876,7 @@ MODULE
 							}
 						} # not a declared Var
 						my $vline = "$type, $var_dim  :: $varname";
-						#  croak "$line => $vline" if  $varname eq 'i2n008';
+						#  croak "$line => $vline" if  $varname eq 'bx4d';
 						( $Sf,  $info ) = __parse_f95_decl( $stref, $f, $Sf, $indent, $vline, {
 							'Dimension' => 1,
 							'SpecificationStatement' =>1
@@ -1090,6 +1090,7 @@ MODULE
 			$chunks[1]=~s/\s+//g;
 			$line=join('/',@chunks);
 			say "DATA declaration $line" if $V;
+			
 			$info = _parse_data_declaration($line,$info, $stref, $f);
 		}
 		elsif  ($line=~/^data\b/ and $line=~/=/ and $line=~/\/\s*$/ ) {
@@ -1103,8 +1104,10 @@ MODULE
 			$info->{'NonSpecificationStatement'} = 1;
 			# $info->{'SpecificationStatement'} = 1;
 			$info->{'Data'} = 1;
-			$info->{'HasVars'} = 1;
+			$info->{'HasVars'} = 1;			
 			say "DATA declaration with IMPLIED DO at $line" if $V;
+			$info = _parse_data_declaration($line,$info, $stref, $f);
+			# croak Dumper $info if $line=~/IXVI/i;
 		}
 #== INTRINSIC, EXTERNAL
 		elsif ($line=~/^(intrinsic|external)\s+([\w,\s]+)/) {
@@ -3132,7 +3135,7 @@ sub __handle_trailing_pragmas { my (
 
 
 # -----------------------------------------------------------------------------
-	# F95 VarDecl
+	# F95 VarDecl and ParsedParDecl
 	# F95 declaration, no need for refactoring
 sub __parse_f95_decl {
 	(my $stref, my $f,  my $Sf, my $indent, my $line, my $info) = @_;
@@ -3140,7 +3143,7 @@ sub __parse_f95_decl {
     my $is_module = (exists $stref->{'Modules'}{$f}) ? 1 : 0;
 
 	my $pt = parse_F95_var_decl($line);
-# carp $line,Dumper $pt if $line=~/i2n008/;
+# carp $line,Dumper $pt if $line=~/bx4d/;
 	# But this could be a parameter declaration, with an assignment ...
 	if ( $line =~ /,\s*parameter\s*.*?::\s*(\w+\s*=\s*.+?)\s*$/ ) {
 		# F95-style parameters
@@ -3207,7 +3210,6 @@ sub __parse_f95_decl {
 			};
 			my $idx=0;
 			for my $tvar ( @{ $pt->{'Vars'} } ) { # corresponds to @{$pvars_lst} in F77
-
 				my $decl = {};
 				$decl->{'Indent'}        = $indent;
 				$decl->{'Type'}          = $pt->{'TypeTup'}{'Type'};
@@ -3248,6 +3250,9 @@ sub __parse_f95_decl {
 						}
 					}
 				}
+				if ($decl->{'Dim'}) {
+					$decl=__get_params_from_dim($decl,$Sf);
+				}
                 # We ignore the halo attribute unless it's an array
                 # We should also check if the dims match!
                 if ($decl->{'ArrayOrScalar'} eq 'Array' ) {
@@ -3274,8 +3279,7 @@ sub __parse_f95_decl {
 					} else {
 						warning("No length given for character string $tvar:\n\t$line",2 );
 						$decl->{'Attr'} = 'len=*';
-					}
-
+					}					
 				} elsif ( exists $pt->{'TypeTup'}{'Kind'} ) {
 					$decl->{'Attr'} = '(kind=' . $pt->{'TypeTup'}{'Kind'} . ')';
 #					croak $decl->{'Attr'};
@@ -3457,6 +3461,7 @@ sub _parse_f77_par_decl {
 
 			# if the val_ast contains pars
 			# get vars from the AST
+			# carp Dumper $val_ast;
 			my $pars_in_val_for_var=find_vars_in_ast($val_ast,{});
 			my $inherited_params={};
 			for my $mpar ( keys %{$pars_in_val_for_var} ) {
@@ -3722,6 +3727,8 @@ sub _parse_f77_var_decl {
 			'Implicit' => 0,
 			'MemSpace' => $pragmas->{'MemSpace'}
 		};
+		
+		$decl = __get_params_from_len($decl,$Sf);
 		if ($decl->{'ArrayOrScalar'} eq 'Array' ) {
 			if (exists $pragmas->{'Halos'}) {
 	#                	say "SUB $f VAR $tvar HALOS: ".Dumper($halos);
@@ -5228,6 +5235,21 @@ sub _get_var_val_pairs { my ($ast) = @_;
 	return $var_val_pairs;
 }
 
+sub __get_params_from_len { my ($decl, $Sf)=@_;
+	my $len=$decl->{'Attr'};
+	$len=~s/len\s*=\s*//;	
+	my @mpars = split(/\W+/, $len);
+	for my $mpar (@mpars) {
+		if (defined $mpar and in_nested_set($Sf,'Parameters',$mpar) ) {
+			my $subset = in_nested_set($Sf,'Parameters',$mpar);
+			my $pdecl = get_var_record_from_set($Sf->{$subset},$mpar);
+			$decl->{'InheritedParams'}{'Set'}{$mpar}=$pdecl;
+			croak  if $DBG and ref($pdecl) ne 'HASH';
+		}
+	}
+
+	return $decl;
+} # END of __get_params_from_len
 
 sub __get_params_from_dim { my ($decl, $Sf)=@_;
 	my $dim=$decl->{'Dim'};
