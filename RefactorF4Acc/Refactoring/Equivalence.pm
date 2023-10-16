@@ -405,6 +405,7 @@ sub __refactor_EQUIVALENCE_line {
 		
 		my $var1_decl = get_var_record_from_set( $Sf->{'Vars'}, $var1 );
 		my $var2_decl = get_var_record_from_set( $Sf->{'Vars'}, $var2 );
+		
 		my $v1_is_array = ( exists $var1_decl->{'ArrayOrScalar'} and ( $var1_decl->{'ArrayOrScalar'} eq 'Array' ) ) ? 1 : 0;
 		my $v2_is_array = ( exists $var2_decl->{'ArrayOrScalar'} and ( $var2_decl->{'ArrayOrScalar'} eq 'Array' ) ) ? 1 : 0;
 		my $v1_type = $var1_decl->{'Type'};

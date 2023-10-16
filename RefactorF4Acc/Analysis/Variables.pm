@@ -49,7 +49,7 @@ sub analyse_variables {
 	my $__analyse_vars_on_line = sub {
 		( my $annline, my $state ) = @_;
 		( my $line,    my $info )  = @{$annline};
-
+# TODO: use the grouped labels Control, IO etc
 		if (   exists $info->{'Assignment'}
 			or exists $info->{'StatementFunction'}
 			or exists $info->{'SubroutineCall'}

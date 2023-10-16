@@ -250,176 +250,178 @@ refactorF4acc.pl -w 0 -c rf4a_fm411.cfg  -g fm411
 TEST CASE 123: FM413.f
 refactorF4acc.pl -w 0 -c rf4a_fm413.cfg  -g fm413
 SKIPPING FM500.f
-TEST CASE 124: FM503.f
+TEST CASE 124: FM501.f
+refactorF4acc.pl -w 0 -c rf4a_fm501.cfg  -g fm501
+TEST CASE 125: FM503.f
 refactorF4acc.pl -w 0 -c rf4a_fm503.cfg  -g fm503
-TEST CASE 125: FM506.f
+TEST CASE 126: FM506.f
 refactorF4acc.pl -w 0 -c rf4a_fm506.cfg  -g fm506
 SKIPPING FM509.f
-TEST CASE 126: FM514.f
+TEST CASE 127: FM514.f
 refactorF4acc.pl -w 0 -c rf4a_fm514.cfg  -g fm514
-TEST CASE 127: FM517.f
+TEST CASE 128: FM517.f
 refactorF4acc.pl -w 0 -c rf4a_fm517.cfg  -g fm517
-TEST CASE 128: FM520.f
+TEST CASE 129: FM520.f
 refactorF4acc.pl -w 0 -c rf4a_fm520.cfg  -g fm520
-TEST CASE 129: FM700.f
+TEST CASE 130: FM700.f
 refactorF4acc.pl -w 0 -c rf4a_fm700.cfg  -g fm700
-TEST CASE 130: FM701.f
+TEST CASE 131: FM701.f
 refactorF4acc.pl -w 0 -c rf4a_fm701.cfg  -g fm701
-TEST CASE 131: FM710.f
+TEST CASE 132: FM710.f
 refactorF4acc.pl -w 0 -c rf4a_fm710.cfg  -g fm710
-TEST CASE 132: FM711.f
+TEST CASE 133: FM711.f
 refactorF4acc.pl -w 0 -c rf4a_fm711.cfg  -g fm711
-TEST CASE 133: FM715.f
+TEST CASE 134: FM715.f
 refactorF4acc.pl -w 0 -c rf4a_fm715.cfg  -g fm715
-TEST CASE 134: FM718.f
+TEST CASE 135: FM718.f
 refactorF4acc.pl -w 0 -c rf4a_fm718.cfg  -g fm718
-TEST CASE 135: FM719.f
+TEST CASE 136: FM719.f
 refactorF4acc.pl -w 0 -c rf4a_fm719.cfg  -g fm719
-TEST CASE 136: FM722.f
+TEST CASE 137: FM722.f
 refactorF4acc.pl -w 0 -c rf4a_fm722.cfg  -g fm722
-TEST CASE 137: FM800.f
+TEST CASE 138: FM800.f
 refactorF4acc.pl -w 0 -c rf4a_fm800.cfg  -g fm800
-TEST CASE 138: FM801.f
+TEST CASE 139: FM801.f
 refactorF4acc.pl -w 0 -c rf4a_fm801.cfg  -g fm801
-TEST CASE 139: FM802.f
+TEST CASE 140: FM802.f
 refactorF4acc.pl -w 0 -c rf4a_fm802.cfg  -g fm802
-TEST CASE 140: FM803.f
+TEST CASE 141: FM803.f
 refactorF4acc.pl -w 0 -c rf4a_fm803.cfg  -g fm803
-TEST CASE 141: FM804.f
+TEST CASE 142: FM804.f
 refactorF4acc.pl -w 0 -c rf4a_fm804.cfg  -g fm804
-TEST CASE 142: FM805.f
+TEST CASE 143: FM805.f
 refactorF4acc.pl -w 0 -c rf4a_fm805.cfg  -g fm805
-TEST CASE 143: FM806.f
+TEST CASE 144: FM806.f
 refactorF4acc.pl -w 0 -c rf4a_fm806.cfg  -g fm806
-TEST CASE 144: FM807.f
+TEST CASE 145: FM807.f
 refactorF4acc.pl -w 0 -c rf4a_fm807.cfg  -g fm807
-TEST CASE 145: FM808.f
+TEST CASE 146: FM808.f
 refactorF4acc.pl -w 0 -c rf4a_fm808.cfg  -g fm808
-TEST CASE 146: FM809.f
+TEST CASE 147: FM809.f
 refactorF4acc.pl -w 0 -c rf4a_fm809.cfg  -g fm809
-TEST CASE 147: FM810.f
+TEST CASE 148: FM810.f
 refactorF4acc.pl -w 0 -c rf4a_fm810.cfg  -g fm810
-TEST CASE 148: FM811.f
+TEST CASE 149: FM811.f
 refactorF4acc.pl -w 0 -c rf4a_fm811.cfg  -g fm811
-TEST CASE 149: FM812.f
+TEST CASE 150: FM812.f
 refactorF4acc.pl -w 0 -c rf4a_fm812.cfg  -g fm812
-TEST CASE 150: FM813.f
+TEST CASE 151: FM813.f
 refactorF4acc.pl -w 0 -c rf4a_fm813.cfg  -g fm813
-TEST CASE 151: FM814.f
+TEST CASE 152: FM814.f
 refactorF4acc.pl -w 0 -c rf4a_fm814.cfg  -g fm814
-TEST CASE 152: FM815.f
+TEST CASE 153: FM815.f
 refactorF4acc.pl -w 0 -c rf4a_fm815.cfg  -g fm815
-TEST CASE 153: FM816.f
+TEST CASE 154: FM816.f
 refactorF4acc.pl -w 0 -c rf4a_fm816.cfg  -g fm816
-TEST CASE 154: FM817.f
+TEST CASE 155: FM817.f
 refactorF4acc.pl -w 0 -c rf4a_fm817.cfg  -g fm817
-TEST CASE 155: FM818.f
+TEST CASE 156: FM818.f
 refactorF4acc.pl -w 0 -c rf4a_fm818.cfg  -g fm818
-TEST CASE 156: FM819.f
+TEST CASE 157: FM819.f
 refactorF4acc.pl -w 0 -c rf4a_fm819.cfg  -g fm819
-TEST CASE 157: FM820.f
+TEST CASE 158: FM820.f
 refactorF4acc.pl -w 0 -c rf4a_fm820.cfg  -g fm820
-TEST CASE 158: FM821.f
+TEST CASE 159: FM821.f
 refactorF4acc.pl -w 0 -c rf4a_fm821.cfg  -g fm821
-TEST CASE 159: FM822.f
+TEST CASE 160: FM822.f
 refactorF4acc.pl -w 0 -c rf4a_fm822.cfg  -g fm822
-TEST CASE 160: FM823.f
+TEST CASE 161: FM823.f
 refactorF4acc.pl -w 0 -c rf4a_fm823.cfg  -g fm823
-TEST CASE 161: FM824.f
+TEST CASE 162: FM824.f
 refactorF4acc.pl -w 0 -c rf4a_fm824.cfg  -g fm824
-TEST CASE 162: FM825.f
+TEST CASE 163: FM825.f
 refactorF4acc.pl -w 0 -c rf4a_fm825.cfg  -g fm825
-TEST CASE 163: FM826.f
+TEST CASE 164: FM826.f
 refactorF4acc.pl -w 0 -c rf4a_fm826.cfg  -g fm826
-TEST CASE 164: FM827.f
+TEST CASE 165: FM827.f
 refactorF4acc.pl -w 0 -c rf4a_fm827.cfg  -g fm827
-TEST CASE 165: FM828.f
+TEST CASE 166: FM828.f
 refactorF4acc.pl -w 0 -c rf4a_fm828.cfg  -g fm828
-TEST CASE 166: FM829.f
+TEST CASE 167: FM829.f
 refactorF4acc.pl -w 0 -c rf4a_fm829.cfg  -g fm829
-TEST CASE 167: FM830.f
+TEST CASE 168: FM830.f
 refactorF4acc.pl -w 0 -c rf4a_fm830.cfg  -g fm830
-TEST CASE 168: FM831.f
+TEST CASE 169: FM831.f
 refactorF4acc.pl -w 0 -c rf4a_fm831.cfg  -g fm831
-TEST CASE 169: FM832.f
+TEST CASE 170: FM832.f
 refactorF4acc.pl -w 0 -c rf4a_fm832.cfg  -g fm832
-TEST CASE 170: FM833.f
+TEST CASE 171: FM833.f
 refactorF4acc.pl -w 0 -c rf4a_fm833.cfg  -g fm833
-TEST CASE 171: FM834.f
+TEST CASE 172: FM834.f
 refactorF4acc.pl -w 0 -c rf4a_fm834.cfg  -g fm834
-TEST CASE 172: FM900.f
+TEST CASE 173: FM900.f
 refactorF4acc.pl -w 0 -c rf4a_fm900.cfg  -g fm900
-TEST CASE 173: FM901.f
+TEST CASE 174: FM901.f
 refactorF4acc.pl -w 0 -c rf4a_fm901.cfg  -g fm901
-TEST CASE 174: FM903.f
+TEST CASE 175: FM903.f
 refactorF4acc.pl -w 0 -c rf4a_fm903.cfg  -g fm903
-TEST CASE 175: FM905.f
+TEST CASE 176: FM905.f
 refactorF4acc.pl -w 0 -c rf4a_fm905.cfg  -g fm905
-TEST CASE 176: FM906.f
+TEST CASE 177: FM906.f
 refactorF4acc.pl -w 0 -c rf4a_fm906.cfg  -g fm906
-TEST CASE 177: FM907.f
+TEST CASE 178: FM907.f
 refactorF4acc.pl -w 0 -c rf4a_fm907.cfg  -g fm907
-TEST CASE 178: FM908.f
+TEST CASE 179: FM908.f
 refactorF4acc.pl -w 0 -c rf4a_fm908.cfg  -g fm908
-TEST CASE 179: FM909.f
+TEST CASE 180: FM909.f
 refactorF4acc.pl -w 0 -c rf4a_fm909.cfg  -g fm909
-TEST CASE 180: FM910.f
+TEST CASE 181: FM910.f
 refactorF4acc.pl -w 0 -c rf4a_fm910.cfg  -g fm910
-TEST CASE 181: FM912.f
+TEST CASE 182: FM912.f
 refactorF4acc.pl -w 0 -c rf4a_fm912.cfg  -g fm912
-TEST CASE 182: FM914.f
+TEST CASE 183: FM914.f
 refactorF4acc.pl -w 0 -c rf4a_fm914.cfg  -g fm914
-TEST CASE 183: FM915.f
+TEST CASE 184: FM915.f
 refactorF4acc.pl -w 0 -c rf4a_fm915.cfg  -g fm915
-TEST CASE 184: FM916.f
+TEST CASE 185: FM916.f
 refactorF4acc.pl -w 0 -c rf4a_fm916.cfg  -g fm916
-TEST CASE 185: FM917.f
+TEST CASE 186: FM917.f
 refactorF4acc.pl -w 0 -c rf4a_fm917.cfg  -g fm917
-TEST CASE 186: FM919.f
+TEST CASE 187: FM919.f
 refactorF4acc.pl -w 0 -c rf4a_fm919.cfg  -g fm919
-TEST CASE 187: FM920.f
+TEST CASE 188: FM920.f
 refactorF4acc.pl -w 0 -c rf4a_fm920.cfg  -g fm920
-TEST CASE 188: FM921.f
+TEST CASE 189: FM921.f
 refactorF4acc.pl -w 0 -c rf4a_fm921.cfg  -g fm921
-TEST CASE 189: FM922.f
+TEST CASE 190: FM922.f
 refactorF4acc.pl -w 0 -c rf4a_fm922.cfg  -g fm922
-TEST CASE 190: FM923.f
+TEST CASE 191: FM923.f
 refactorF4acc.pl -w 0 -c rf4a_fm923.cfg  -g fm923
-TOTAL TESTS: 196
-TESTS RUN: 191
+TOTAL TESTS: 197
+TESTS RUN: 192
 SKIPPED: 5
 
-real	1m1.733s
-user	0m52.830s
-sys	0m7.598s
+real	0m57.257s
+user	0m48.938s
+sys	0m7.190s
 
 # Generation of the refactored test suite code:
-TOTAL TESTS: 196
-TESTS RUN: 191
+TOTAL TESTS: 197
+TESTS RUN: 192
 SKIPPED: 5
 Generation Failed:
 0
 Generation Succeeded:
-191
+192
 
-real	0m8.489s
-user	0m4.626s
-sys	0m2.583s
+real	0m7.834s
+user	0m4.635s
+sys	0m2.484s
 
 
 # Compilation of the refactored test suite:
 
-Total  : 191
+Total  : 192
 Passed : 183
-Failed : 0
+Failed : 1
 Skipped: 8
 
-real	1m3.382s
-user	0m22.800s
-sys	0m10.138s
+real	0m59.114s
+user	0m22.450s
+sys	0m9.039s
 
 # Running the refactored test suite:
-PASSED: 2745
-FAILED: 6
-REQUIRE INSPECTION: 161
-TOTAL: 2912
+PASSED: 2737
+FAILED: 10
+REQUIRE INSPECTION: 170
+TOTAL: 2917

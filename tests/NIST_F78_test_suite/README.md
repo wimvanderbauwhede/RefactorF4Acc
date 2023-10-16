@@ -5,7 +5,8 @@ We use the [NIST FORTRAN78 test suite](ftp://ftp.fortran-2000.com/fcvs21_f95.tar
       - The file `FM046.f` contains a change to TEST 759: the original test (`FM045.f`) has 57 nested parentheses, this was changed to 5 nested parentheses because the current expression parser takes too long to parse this.
       - The file `FM090.f` is a modified version of `FM010.f` without spaces in types, variable names, values and labels.
       - The file `FM091.f` is a modified version of `FM011.f` without spaces in types, variable names, values and labels.
-      - The file `FM500.f` contains tests for corner cases of COMMON blocks and BLOCK DATA (37+16 tests) which we don't support.
+      - The file `FM501.f` is a tiny change to `FM500.f`: in TEST 13, on line 341, the integer NYVI is multiplied by 1.0 to appease the format:
+                 WRITE (NWVI,80028) NYVI*1.0
       - The file `FM509.f` is skipped as it no longer compiles.
 
 In the folder `fcvs21_f95`, there are two subfolders `Test_rf4a` and  `RefactoredSources`. To verify the original test suite you can use the script `driver_parse`; to run it you can use the script `driver_run`; you may have to change the name of the Fortran compiler in `FC` at the start of these scripts.

@@ -23,7 +23,8 @@ FM200.f => replaced by FM210
 
 FM500.f
 FM509.f
-- The files `FM500.f` and `FM509.f` contain tests for corner cases of COMMON blocks and BLOCK DATA (37+16 tests) which we don't support.
+- The file `FM509.f` does not compile anymore
+- FM501.f is a tiny change to FM500.f in TEST 13, the integer is multiplied by 1.0 to appease the format.
 =cut
 
 
@@ -167,6 +168,7 @@ FM407.f
 FM411.f
 FM413.f
 FM500.f
+FM501.f
 FM503.f
 FM506.f
 FM509.f

@@ -922,7 +922,7 @@ MODULE
                 $info->{'HasVars'} = 1;
 
 				( my $parsedvars, my $parsedvars_lst ) = __parse_F77_var_decl_fsm( $commonlst, 0 );
-				# say "LINE $line <".Dumper($parsedvars, $parsedvars_lst).'>' if $f eq 'spec_bis_conn';
+				# carp "LINE $line <".Dumper($parsedvars, $parsedvars_lst).'>' if $line=~/bz1b/;
 
 #				croak $line.':'.Dumper($parsedvars) if $line=~/iacn11/ and $f eq 'ff305';
 				for my $var ( @{$parsedvars_lst} ) {
@@ -967,6 +967,7 @@ MODULE
 								 $parsedvars->{$var}{'ArrayOrScalar'} eq 'Array'
 							) {
 								$decl->{'Dim'} =  [ @{ $parsedvars->{$var}{'Dim'} } ];
+								$decl->{'ArrayOrScalar'} = 'Array';
 							} elsif (
 							exists $decl->{'ArrayOrScalar'} and
 								$decl->{'ArrayOrScalar'} eq 'Array' and
@@ -1000,6 +1001,7 @@ MODULE
 								die "ERROR: dimension of $var speficied both in declaration and COMMON\n";
 							}
 							$decl=__get_params_from_dim($decl,$Sf);
+							
 							$Sf->{'DeclaredCommonVars'}{'Set'}{$var} = exists $Sf->{'Program'} ? $decl : dclone($decl);
 							$Sf->{'DeclaredCommonVars'}{'Set'}{$var}{'CommonBlockName'} = $common_block_name;
 							if (not exists $Sf->{'Program'} ) {
