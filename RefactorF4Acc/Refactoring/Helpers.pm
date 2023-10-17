@@ -353,14 +353,14 @@ sub get_f95_var_decl {
 				croak Dumper($decl) if $DBG;
         	}
             if (not exists $decl->{'Names'} and not exists $decl->{'Name'}) {
-        croak "WARNING: VAR $var has no Name or Names field in get_f95_var_decl()! ".Dumper($decl) if $DBG;
-        warning("VAR $var has no Names field in get_f95_var_decl()!" ,$WW);
+                croak "WARNING: VAR $var has no Name or Names field in get_f95_var_decl()! ".Dumper($decl) if $DBG;
+                warning("VAR $var has no Names field in get_f95_var_decl()!" ,$WW);
                 $decl->{'Names'}=[$nvar];
             }
         # 'Names' => [$nvar],
             if (not exists $decl->{'Name'}) {
-        croak "WARNING: VAR $var has no Name field in get_f95_var_decl()!" if $DBG;
-        warning("VAR $var has no Name field in get_f95_var_decl()!",$WW);
+                croak "WARNING: VAR $var has no Name field in get_f95_var_decl()!" if $DBG;
+                warning("VAR $var has no Name field in get_f95_var_decl()!",$WW);
                 $decl->{'Name'}=$nvar;
             }
         # 'Name' => $nvar,

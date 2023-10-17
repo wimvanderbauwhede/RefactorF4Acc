@@ -291,7 +291,7 @@ sub analyse_lines {
 		for my $index ( 0 .. scalar( @{$srcref} ) - 1 ) {
 			my $attr = '';
 			( my $lline, my $info ) = @{ $srcref->[$index] };
-			# say "291 LINE: $lline";
+			# say "294 LINE: $lline";
 			# Get indent
 			$lline =~ /^(\s+).*/ && do { $indent = $1; }; # This is not OK for lines with labels of course.
 			$info->{'Indent'}=$indent;
@@ -1112,19 +1112,41 @@ MODULE
 			# croak Dumper $info if $line=~/IXVI/i;
 		}
 #== INTRINSIC, EXTERNAL
-		elsif ($line=~/^(intrinsic|external)\s+([\w,\s]+)/) {
+		elsif ($line=~/^(intrinsic|external)(?:\s*\:\:|\s)?\s*([\w,\s]+)/) {
 			my $qualifier = $1;
 			my $external_procs_str = $2;
+			
 			$external_procs_str=~s/\s//g;
 			my @external_procs = split(/\s*,\s*/,$external_procs_str);
 
 			$info->{ucfirst($qualifier)} = { map {$_=>1} @external_procs};
 			$info->{'SpecificationStatement'} = 1;
 			$Sf->{ucfirst($qualifier)}={ map {$_=>1} @external_procs };
-#		 		say Dumper($Sf->{ucfirst($qualifier)});
-				say "INFO: ".uc($qualifier)." is ignored" if $qualifier ne 'external' and $DBG;
-			if ($qualifier ne 'intrinsic' and $qualifier ne 'external') {
-			$info->{'HasVars'} = 1;
+			say "INFO: ".uc($qualifier)." is ignored" if $qualifier ne 'external' and $DBG;
+			# if ($qualifier ne 'intrinsic' and $qualifier ne 'external') {
+			# 	$info->{'HasVars'} = 1; 
+			# }
+			
+			if ($qualifier eq 'external') {
+				for my $external_proc (@external_procs) {
+
+					if (exists $stref->{'Subroutines'}{$external_proc} and exists $stref->{'Subroutines'}{$external_proc}{'Function'}) {
+						
+						$Sf->{'ExternalFunctions'}{$external_proc}=1;
+						$info->{'HasVars'} = 1; 
+						if (not exists $Sf->{'DeclaredOrigLocalVars'}{'Set'}{$external_proc}) {
+							$Sf->{'DeclaredOrigLocalVars'}{'Set'}{$external_proc} = {
+								'ArrayOrScalar' => 'Scalar',
+								'Type' => 'Unknown',
+								'Name' => $external_proc,
+								'External' =>1,
+								'Indent' => $indent
+							}
+						} else {
+							$Sf->{'DeclaredOrigLocalVars'}{'Set'}{$external_proc}{'External'}=1;
+						}
+					}
+				}
 			}
 		}
 
@@ -3648,18 +3670,17 @@ sub _parse_f77_var_decl {
 		my $dim = $pvars->{$tvar}{'Dim'};
 		# In all the cases below, we get the dimension from the record
 		# Because I think it only happens for DIMENSION and COMMON lines.
+		# EXTERNAL should also be Declared I guess
 		if (exists $Sf->{'DeclaredOrigLocalVars'}{'Set'}{$tvar} ) {
 			my $tdim = exists $Sf->{'DeclaredOrigLocalVars'}{'Set'}{$tvar}{'Dim'} ? dclone($Sf->{'DeclaredOrigLocalVars'}{'Set'}{$tvar}{'Dim'}) : [];
 			if (scalar @{$tdim}>0) {
 				$dim=$tdim;
 			}
-
 		} elsif (exists $Sf->{'DeclaredOrigLocalArgs'}{'Set'}{$tvar} ) {
 			my $tdim =exists $Sf->{'DeclaredOrigLocalArgs'}{'Set'}{$tvar}{'Dim'} ? dclone($Sf->{'DeclaredOrigLocalArgs'}{'Set'}{$tvar}{'Dim'}) : [];
 			if (scalar @{$tdim}>0) {
 				$dim=$tdim;
 			}
-
 		} elsif (exists $Sf->{'DeclaredCommonVars'}{'Set'}{$tvar} ) {
 			my $tdim =exists $Sf->{'DeclaredCommonVars'}{'Set'}{$tvar}{'Dim'} ? dclone($Sf->{'DeclaredCommonVars'}{'Set'}{$tvar}{'Dim'}) : [];
 			if (scalar @{$tdim}>0) {
