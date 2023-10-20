@@ -26,7 +26,7 @@ use RefactorF4Acc::Analysis::ArrayAccessPatterns qw( pass_identify_stencils );
 use RefactorF4Acc::CustomPasses::IfdefIO qw( ifdef_io_all );
 
 use vars qw( $VERSION );
-$VERSION = "2.1.1";
+$VERSION = "6.1.0";
 
 #use warnings::unused;
 use warnings;

@@ -55,7 +55,7 @@ package RefactorF4Acc::Parser;
 #
 
 use vars qw( $VERSION );
-$VERSION = "2.1.1";
+$VERSION = "6.1.0";
 
 #use warnings::unused;
 use warnings;
