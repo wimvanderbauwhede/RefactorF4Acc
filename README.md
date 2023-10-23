@@ -9,7 +9,8 @@ An Automated Fortran Code Refactoring Tool to Make Numerical Simulation Code Acc
 School of Computing Science, University of Glasgow, UK
 
 ## Note
-Please be aware of RefactorF4Acc's <a href="#limitations">limitations</a> and the <a href="#issues">known issues of the current version</a>. 
+
+Please be aware of RefactorF4Acc's [limitations and known issues](LIMITATIONS.md)</a>. 
 
 ## Table of Contents
 * <a href="#howhelp">How can RefactorF4Acc help you?</a>
@@ -19,7 +20,6 @@ Please be aware of RefactorF4Acc's <a href="#limitations">limitations</a> and th
     - <a href="#nist">US National Institute of Standards and Technology (NIST) test suite</a>
     - <a href="#physics">Test on four real-word physics simulation models</a>
 * <a href="#limitations">Limitations of RefactorF4Acc</a>
-* <a href="#issues">Known issues in the current version</a>
 * <a href="#underthehood">What RefactorF4Acc does under the hood</a>
 * <a href="#installing">Installing RefactorF4Acc</a>
 * <a href="#gettingstarted">Getting started</a>
@@ -68,7 +68,7 @@ Our compiler automates this process as much as possible.
   * Preserves comments
 
 * OpenCL/C translation
-  * Once refactored, modules can be translated to C or OpenCL kernel code in a separate pass (see [Automatic parallelisation using OpenCL](https://github.com/wimvanderbauwhede/RefactorF4Acc/blob/master/README.md#automatic-parallelisation-using-opencl))
+  * Once refactored, modules can be translated to C or OpenCL kernel code in a separate pass (see [Automatic parallelisation using OpenCL](https://github.com/wimvanderbauwhede/RefactorF4Acc/blob/main/README.md#automatic-parallelisation-using-opencl))
 
 * Subroutine extraction
     * add an annotation
@@ -120,24 +120,17 @@ Full details of these four real-world examples can be found in
 
 <a name="limitations"></a>
 ## Limitations of RefactorF4Acc
+
+Limitations and known issues are discussed in detail in [`LIMITATIONS.md`]. In short:
+
 - This tool was developed for a specific purpose: refactoring FORTRAN77 code into Fortran 95 code _suitable for offloading to GPUs and FPGAs_. The refactorings it includes are there to support that goal. Therefore, many refactorings that you might do to improve code on CPU, e.g. to benefit from SIMD, are _not_ included, for example replacing loops by array operations.
-- I have gradually been adding support for more F77, F90 and F95 features, but there is still a lot that is not supported, see [`UNSUPPORTED-FEATURES.md`](https://github.com/wimvanderbauwhede/RefactorF4Acc/blob/devel/UNSUPPORTED-FEATURES.md)
+- I have gradually been adding support for more F77, F90 and F95 features, but there is still a lot that is not supported, see [`LIMITATIONS.md`].
+- This is a full-source compiler, so it assumes full visibility of the entire source code. That means that external subroutines for which there is no source code will lead to incorrect refactoring, because the compiler needs either know or be able to infer the subroutine signature. You can work around this by adding a stub subroutine.
 - To perform static code analysis, the compiler requires all array bounds to be constants at compile time. If your code contains array bounds defined using variables, in particular subroutine arguments, the analysis can't work.
 - The resulting code is also _not_ GPU-ready, it is still ordinary, single-threaded Fortran code. For the process to generate fully parallel OpenCL code for GPU, see <a href="#fulltoolchain">Example of full toolchain from FORTRAN77 to parallel OpenCL</a>. 
 - This is a research project and because of the limited time I can put into it, it is _definitely not complete or bug free_. Therefore, the chance that it might not work on your particular code is quite high.
 - I would like you to get in touch but I can't guarantee a speedy resolution of your issues.
 
-<a name="issues"></a>
-## Known issues in the current version
-
-- The compiler completely ignores C preprocessor macros, so it your code uses these, it is best to run `cpp` in advance.
-- The compiler supports mainly FORTRAN77. If your code is a mixture of FORTRAN77 and Fortran-90 or later, it may or may not work.
-- Some FORTRAN77 features are ignored (i.e. kept as-is), notably `ASSIGN`, `DECODE` and `ENCODE`.
-- `SAVE` statements are deleted everywhere unless the configuration `NO_SAVE = 0` is set. 
-- "The extension of named `COMMON` block storage by `EQUIVALENCE` association of a variable and an array" as tested by `NIST FM302 TEST 013` is not handled correctly. 
-- `EQUIVALENCE` handling for arrays is incorrect for non-constant indices.
-
-  
 <a name="underthehood"></a>
 ## What RefactorF4Acc does under the hood
 
@@ -309,8 +302,8 @@ You can now build the refactored code for GPU as follows:
 
 Running the accelerated code on this GPU results in 14x speedup compared to the original code running on the host (Intel Core i7 CPU @ 3.50GHz).
 
-[INSTALL.md]: https://github.com/wimvanderbauwhede/RefactorF4Acc/blob/master/INSTALL.md
-[GETTING_STARTED.md]: https://github.com/wimvanderbauwhede/RefactorF4Acc/blob/master/GETTING_STARTED.md
+[INSTALL.md]: https://github.com/wimvanderbauwhede/RefactorF4Acc/blob/main/INSTALL.md
+[GETTING_STARTED.md]: https://github.com/wimvanderbauwhede/RefactorF4Acc/blob/main/GETTING_STARTED.md
 
 <a name="appnist"></a>
 ## Appendix: Validation of RefactorF4Acc using the NIST test

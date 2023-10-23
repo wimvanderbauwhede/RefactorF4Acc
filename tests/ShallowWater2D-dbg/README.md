@@ -53,6 +53,6 @@ For parallelisation and OpenCL code generation please see [Auto-acceleration-REA
 # Documentation
 Visit the [wiki] for links to HTML documentation generated automatically by [FORD] for the beginning and refactored versions of the test code.
 
-[Auto-acceleration-README.md]: https://github.com/wimvanderbauwhede/RefactorF4Acc/blob/master/tests/ShallowWater2D/Auto-acceleration-README.md
+[Auto-acceleration-README.md]: https://github.com/wimvanderbauwhede/RefactorF4Acc/blob/main/tests/ShallowWater2D/Auto-acceleration-README.md
 [FORD]: https://github.com/cmacmackin/ford
 [wiki]: https://github.com/wimvanderbauwhede/RefactorF4Acc/wiki
