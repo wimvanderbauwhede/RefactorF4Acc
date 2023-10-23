@@ -71,12 +71,11 @@ sub context_free_refactorings {
         ( my $line, my $info ) = @{$annline};
 
         if ( exists $info->{'Comments'}  ) { # I should distinguish between original comments and new comments.
-        # Also, maybe a -C flag to suppress comments might be good.
-        if ( exists $info->{'OrigComments'}  ) { # I should distinguish between original comments and new comments.
-        # Also, maybe a -C flag to suppress comments might be good.
-            push @{ $Sf->{'RefactoredCode'} }, [ $line, $info ];   
-        }        
-
+            # Also, maybe a -C flag to suppress comments might be good.
+            if ( exists $info->{'OrigComments'}  ) { # I should distinguish between original comments and new comments.
+            # Also, maybe a -C flag to suppress comments might be good.
+                push @{ $Sf->{'RefactoredCode'} }, [ $line, $info ];   
+            }        
             next;
         }
         if ( not exists $info->{'Inlined'} ) {
@@ -88,10 +87,9 @@ sub context_free_refactorings {
         	if ( $Config{'NO_SAVE'} == 1 or
                 exists  $Sf->{'Program'} and $Sf->{'Program'} == 1             
              ) { 
-        	$line = '! '.$line;
-        	$info->{'Deleted'}=1;
-        	$info->{'Ann'}=[ annotate($f, __LINE__ .' SAVE statement in Program' ) ];
-        		
+                $line = '! '.$line;
+                $info->{'Deleted'}=1;
+                $info->{'Ann'}=[ annotate($f, __LINE__ .' SAVE statement in Program' ) ];
         	}
         }	
         elsif ( exists $info->{'Implicit'} ) { 
@@ -111,25 +109,26 @@ sub context_free_refactorings {
         }	
         
         elsif ( exists $info->{'External'} ) {
-        	# # if (scalar keys %{ $info->{'External'}} >1) {
-        	# # 	say 'WARNING: Cannot handle EXTERNAL with multiple names, IGNORING!' if $W;
-            # #     croak $line;
-        	# # } else {
-            #     for my $maybe_ext (keys %{ $info->{'External'} } ) {
-            #         if (exists $stref->{'Subroutines'}{$maybe_ext}
-            #         and exists $stref->{'Subroutines'}{$maybe_ext}{'Source'}
-            #         and $stref->{'Subroutines'}{$maybe_ext}{'Source'} eq $Sf->{'Source'}) {
-            #             # $line = '! '.$line." ! $maybe_ext is defined in this file";
-            #             # $info->{'Deleted'}=1;        			
-            #         } else {
-            #             # Now it is possible that we have identified a source for this func
-            #             if (exists $stref->{'Subroutines'}{$maybe_ext}) {
-            #                 # $line = '! '.$line." ! $maybe_ext is accessed via 'use'";
-            #                 # $info->{'Deleted'}=1;
-            #             }
-            #         }
-            #     }  
-        	# # }
+            # Add the type if it is still Unknown
+            # if ( exists $Sf->{'ExternalFunctions'} ) {
+                # carp "HERE External $f $line", Dumper $info  if $line=~/ff318/;
+                for my $ext_f (sort keys %{ $info->{'External'} } ) {
+                    if (exists $Sf->{'DeclaredOrigLocalVars'}{'Set'}{$ext_f} ) {
+                        my $rdecl = $Sf->{'DeclaredOrigLocalVars'}{'Set'}{$ext_f};
+                        if ($rdecl->{'Type'} eq 'Unknown') {
+                            my ($type, $array_or_scalar, $attr) = type_via_implicits($stref,$f,$ext_f);
+                            $rdecl->{'Type'}  = $type;
+                            $line = emit_f95_var_decl($rdecl);
+                        } else {
+                            $line = $info->{'Indent'}.'external :: '. $ext_f;
+                        }
+                        #  $Sf->{'DeclaredOrigLocalVars'}{'Set'}{$ext_f}{'TRACK'}=1;
+                        #  my $test_decl = get_var_record_from_set( $Sf->{'Vars'},$ext_f);
+                        #  $test_decl->{'TRACK'}=1;
+                        
+                    }
+                }
+            # }
         	$info->{'Ann'}=[ annotate($f, __LINE__ .' External statement' ) ];
         }	                
 		elsif ( exists $info->{'Data'} ) {
@@ -260,6 +259,8 @@ sub context_free_refactorings {
                 my $pvd = $info->{'ParsedVarDecl'}; 
                 if (scalar @{ $info->{'ParsedVarDecl'}{'Vars'} } == 1) {
                     my $var_decl = get_var_record_from_set( $Sf->{'Vars'},$var);
+                    # carp "HERE ParsedVarDecl $f $line", Dumper $var_decl if $line=~/ff318/;
+
                     $line = emit_f95_var_decl($var_decl);
                     if (exists $info->{'Dimension'}) {
                     	push @{$info->{'Ann'}}, annotate($f, __LINE__ .': Dimension, '.($stmt_count == 1 ? '' : 'SKIP'));

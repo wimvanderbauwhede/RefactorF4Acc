@@ -301,7 +301,6 @@ sub refactor_COMMON_blocks_and_CONTAINed_subs {  # 218 lines Was _refactor_globa
 # ExInclArgs, UndeclaredOrigArgs and ExGlobArgs
 # ExInclLocalVars and UndeclaredOrigLocalVars.
 # I must make sure that these do not already exists!
-# WV2023-10-16 declarations for external functions are missing. These have nothing to do with COMMON, but it is the right place
 sub _create_extra_arg_and_var_decls { #272 lines
 
 	( my $stref, my $f, my $annline, my $rlines ) = @_;
@@ -310,27 +309,6 @@ sub _create_extra_arg_and_var_decls { #272 lines
 	my $nextLineID = scalar @{$rlines} + 1;
 	push @{$rlines}, ['! BEGIN new declarations',{'Comments'=>1}];
 
-	if ( exists $Sf->{'ExternalFunctions'} ) {
-		for my $ext_f (sort keys %{ $Sf->{'ExternalFunctions'}} ) {
-			if (exists $Sf->{'DeclaredOrigLocalVars'}{'Set'}{$ext_f} ) {
-				my $rdecl = $Sf->{'DeclaredOrigLocalVars'}{'Set'}{$ext_f};
-				if ($rdecl->{'Type'} eq 'Unknown') {
-					
-					my ($type, $array_or_scalar, $attr) = type_via_implicits($stref,$f,$ext_f);
-					$rdecl->{'Type'}  = $type;
-					delete $rdecl->{'External'};
-					my $rline = emit_f95_var_decl($rdecl);
-					my $info  = {};
-					$info->{'Ann'}       = [ annotate( $f, __LINE__ . ' : VAR DECL FOR EXTERNAL FUNCTION ' . $annline->[1]{'ExGlobVarDeclHook'} ) ];
-					$info->{'LineID'}    = $nextLineID++;
-					$info->{'Ref'}       = 1;
-					$info->{'VarDecl'} = { 'Name' => $ext_f };
-					$info->{'SpecificationStatement'} = 1;
-					push @{$rlines}, [ $rline, $info ];
-				}
-			}
-		}
-	}
 	if ( exists $Sf->{'InheritedParameters'}{'List'}
 		and scalar @{ $Sf->{'InheritedParameters'}{'List'} } > 0 )
 	{

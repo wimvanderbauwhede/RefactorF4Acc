@@ -311,12 +311,7 @@ We use the [NIST FORTRAN78 test suite](ftp://ftp.fortran-2000.com/fcvs21_f95.tar
 
       $ cd tests/NIST_F78_test_suite
 
-The original FORTRAN 77 test suite source files are in `fcvs21_f95/`.
-
-- The file `FM090.f` is a modified version of `FM010.f` without spaces in types, variable names, values and labels.
-- The file `FM091.f` is a modified version of `FM011.f` without spaces in types, variable names, values and labels.
-- The file `FM210.f` is a modified version of `FM200.f` without spaces in variable names and values.
-- The file `FM500.f` and `FM509.f` contain tests for corner cases of common blocks and block data (37+16 tests) which we don't support.
+The original FORTRAN 77 test suite source files are in `fcvs21_f95/`. See [tests/NIST_F78_test_suite/README.md] for details on the test suite, modifications and failed tests.
 
 Please ensure that the environment varianble `$FC` is set to the Fortran compiler you want to use. I have tested the code only with `gfortran 4.9` to `gfortran 10.0`. 
 To generate the refactored Fortran-95 code for the test suite, build it and run it, do:
@@ -327,39 +322,40 @@ Generating, compiling and running the test suites takes a few minutes. The refac
 
 The final output should look like:
 
-            real	0m54.082s
-            user	0m45.875s
-            sys	0m6.143s
+        real	0m59.622s
+        user	0m50.761s
+        sys	0m7.799s
 
-            # Generation of the refactored test suite code:
-            TOTAL TESTS: 196
-            TESTS RUN: 191
-            SKIPPED: 5
-            Generation Failed:
-            0
-            Generation Succeeded:
-            191
+        # Generation of the refactored test suite code:
+        TOTAL TESTS: 197
+        TESTS RUN: 192
+        SKIPPED: 5
+        Generation Failed:
+        0
+        Generation Succeeded:
+        192
 
-            real	0m9.426s
-            user	0m4.918s
-            sys	0m2.653s
+        real	0m7.762s
+        user	0m4.590s
+        sys	0m2.470s
 
-            # Compilation of the refactored test suite:
 
-            Total  : 191
-            Passed : 183
-            Failed : 0
-            Skipped: 8
+        # Compilation of the refactored test suite:
 
-            real	0m34.278s
-            user	0m20.498s
-            sys	0m8.786s
+        Total  : 192
+        Passed : 184
+        Failed : 0
+        Skipped: 8
 
-            # Running the refactored test suite:
-            PASSED: 2745
-            FAILED: 6
-            REQUIRE INSPECTION: 161
-            TOTAL: 2912
+        real	0m59.369s
+        user	0m22.236s
+        sys	0m9.107s
+
+        # Running the refactored test suite:
+        PASSED: 2769
+        FAILED: 10
+        REQUIRE INSPECTION: 170
+        TOTAL: 2949
 
 To verify the original FORTRAN 77 test suite you can use the original scripts `driver_parse` and `driver_run`. You may have to change the name of the Fortran compiler in `FC` at the start of these scripts.
 

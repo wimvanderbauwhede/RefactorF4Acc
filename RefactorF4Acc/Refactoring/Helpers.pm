@@ -592,7 +592,7 @@ sub emit_f95_var_decl {
     if ( ref($var_decl_rec) ne 'HASH' ) {
         croak "NOT a HASH in emit_f95_var_decl(".$var_decl_rec.")"  if $DBG;
     }
-    my $external = exists $var_decl_rec->{'External'} ? 1 : 0;
+    my $external = 0;#exists $var_decl_rec->{'External'} ? 1 : 0;
     my $spaces = $var_decl_rec->{'Indent'};
     croak Dumper($var_decl_rec) if $DBG and not defined $spaces;
 
@@ -698,7 +698,9 @@ sub emit_f95_var_decl {
     if ( not $is_par ) {
         # Variable
         my $intent    =  $var_decl_rec->{'IODir'};
-
+        if (exists $var_decl_rec->{'External'}) {
+            $intent='Unknown';
+        }
         if (not defined $intent or $intent eq '') {
 #        	carp 'Intent not defined for '.Dumper($var_decl_rec) if $W;
         	say 'WARNING: Intent not known for declaration of '.$var if $WWW;#.' '.$var_decl_rec->{'Ann'} if $W;

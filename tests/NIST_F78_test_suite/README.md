@@ -23,40 +23,40 @@ Generating, compiling and running the test suites takes a few minutes.
 
 The final output should look like:
 
-      real	1m1.733s
-      user	0m52.830s
-      sys	0m7.598s
+real	0m59.622s
+user	0m50.761s
+sys	0m7.799s
 
-      # Generation of the refactored test suite code:
-      TOTAL TESTS: 196
-      TESTS RUN: 191
-      SKIPPED: 5
-      Generation Failed:
-      0
-      Generation Succeeded:
-      191
+# Generation of the refactored test suite code:
+TOTAL TESTS: 197
+TESTS RUN: 192
+SKIPPED: 5
+Generation Failed:
+0
+Generation Succeeded:
+192
 
-      real	0m8.489s
-      user	0m4.626s
-      sys	0m2.583s
+real	0m7.762s
+user	0m4.590s
+sys	0m2.470s
 
 
-      # Compilation of the refactored test suite:
+# Compilation of the refactored test suite:
 
-      Total  : 191
-      Passed : 183
-      Failed : 0
-      Skipped: 8
+Total  : 192
+Passed : 184
+Failed : 0
+Skipped: 8
 
-      real	1m3.382s
-      user	0m22.800s
-      sys	0m10.138s
+real	0m59.369s
+user	0m22.236s
+sys	0m9.107s
 
-      # Running the refactored test suite:
-      PASSED: 2745
-      FAILED: 6
-      REQUIRE INSPECTION: 161
-      TOTAL: 2912
+# Running the refactored test suite:
+PASSED: 2769
+FAILED: 10
+REQUIRE INSPECTION: 170
+TOTAL: 2949
 
 With the current version (6.1.0), the failing tests are:
 
@@ -72,6 +72,32 @@ The other failing is FM302 test 13
       C                                                                    
       C          TEST 013 IS DESIGNED TO TEST THE EXTENSION OF NAMED COMMON
       C     BLOCK STORAGE BY EQUIVALENCE ASSOCIATION OF A VARIABLE AND AN  
-      C     ARRAY.                                                         
+      C     ARRAY.          
 
-This behaviour can't be made type safe, so I am not supporting it. 
+And a further 4 tests in FM501 (the minor modification of FM500):
+
+    13     FAIL
+                 COMPUTED=  0.00000E+00
+                 CORRECT=      34
+
+This is a genuine failure, because the test is
+
+      REAL VARIABLE - EQUIVALENCED INTEGER
+
+and this is a type error because the equivalence is at byte level, whereas rf4a refactors this through casting.
+The specified behaviour can't be made type safe, and I am not supporting it. 
+
+The other three failures in FM500 are:
+
+    15     FAIL
+                 COMPUTED=  0.3489999872D+10
+                 CORRECT=   0.3490000000D+10
+    16     FAIL
+                 COMPUTED=  0.2122999907D+01
+                 CORRECT=   0.2123000000D+01
+    17     FAIL
+                 COMPUTED=  0.8738400269D+02
+                 CORRECT=   0.8738400000D+02
+
+These are simply rounding errors.
+

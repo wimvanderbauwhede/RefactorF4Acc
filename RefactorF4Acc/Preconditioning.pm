@@ -717,6 +717,19 @@ sub _split_multivar_decls {
                 }    # for each $var
                 
             }
+            elsif ( exists $info->{'External'} ) {
+                if ( scalar keys %{ $info->{'External'}} > 1) {
+                    for my $f_ext (sort keys %{ $info->{'External'}}) {
+                        my $rinfo_c = dclone($info);
+                        my %rinfo = %{$rinfo_c};
+                        my $line = $info->{'Indent'}.'external '. $f_ext;
+                        $rinfo{'External'}={$f_ext=>1};
+                        $rinfo{'LineID'} = $nextLineID++;
+                    # carp Dumper [$line, {%rinfo}];
+                        push @{$new_annlines}, [$line, {%rinfo}];
+                    }
+                }
+            }
             elsif ( exists $info->{'ParamDecl'} 
             # and not exists $info->{'ParsedParDecl'}
             ) {
@@ -773,7 +786,7 @@ sub _split_multivar_decls {
                     # die if $f eq 'sub0' and $var eq 'sz';
                     # say "PLINE $line" if $f=~/test_loop/;
                     # say Dumper %rinfo;
-                    push @{$new_annlines}, [$line, {%rinfo}];          
+                    push @{$new_annlines}, [$line, {%rinfo}];
                 }
             }
             else {

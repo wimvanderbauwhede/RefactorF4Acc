@@ -65,7 +65,7 @@ sub move_StatementFunctions_after_SpecificationStatements { my ( $stref, $f, $an
 			( my $annline ) = @_;
 			(my $line,my $info)=@{$annline};
 			return (
-				exists $info->{'HasVars'}
+				(exists $info->{'HasVars'} and not exists $info->{'SpecificationStatement'})
 			or exists $info->{'Control'}
 			or exists $info->{'EndControl'}
 			) ? 1 : 0;
