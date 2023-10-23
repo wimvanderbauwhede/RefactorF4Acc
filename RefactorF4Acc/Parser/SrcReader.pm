@@ -2,9 +2,9 @@ package RefactorF4Acc::Parser::SrcReader;
 use v5.10;
 use RefactorF4Acc::Config;
 use RefactorF4Acc::Utils
-  qw( sub_func_incl_mod show_status show_annlines %F95_reserved_words %F95_types pp_annlines);
+  qw( sub_func_incl_mod show_status show_annlines %F95_reserved_words %F95_types pp_annlines toLower tabToFixed warning error);
 use RefactorF4Acc::Preconditioning qw( split_multiblock_common_lines );
-use RefactorF4Acc::Refactoring::Common;
+use RefactorF4Acc::Refactoring::Helpers;
 use Fortran::F95Normaliser qw( normalise_F95_src );
 
 #
@@ -12,7 +12,7 @@ use Fortran::F95Normaliser qw( normalise_F95_src );
 #
 
 use vars qw( $VERSION );
-$VERSION = "2.1.1";
+$VERSION = "5.1.0";
 
 #use warnings::unused;
 use warnings;
@@ -58,7 +58,6 @@ sub read_fortran_src {
         return $stref;
     }
     elsif ( exists $Sf->{'AnnLines'} ) {
-
         # It is not clear how this could ever work without this
         return $stref;
     }
@@ -89,7 +88,7 @@ sub read_fortran_src {
         if ( not exists $stref->{'SourceContains'}{$fpath}
             or ( scalar @{ $stref->{'SourceContains'}{$fpath}{'List'} } == 0 ) )
         {
-            $no_need_to_read = 0; 
+            $no_need_to_read = 0;
         }
         else {
 
@@ -175,8 +174,8 @@ sub read_fortran_src {
                 push @lines, "      \n";
 
 #                croak "$sub_func_incl $code_unit_name".Dumper($stref->{$sub_func_incl}{$code_unit_name});
-                my $free_form =
-                  $stref->{$sub_func_incl}{$code_unit_name}{'FreeForm'};
+                my $free_form = $stref->{$sub_func_incl}{$code_unit_name}{'FreeForm'};
+                # carp Dumper "$code_unit_name $free_form";
 
 #  die "$sub_func_incl $code_unit_name FreeForm=$free_form".Dumper($stref->{$sub_func_incl}{$code_unit_name}).'BOOM!!!' if $code_unit_name =~/mpif.h/;#!$free_form;
                 my $srctype = $sub_func_incl;
@@ -201,10 +200,10 @@ line_p1 &
 (&) line_p3
 
 so, as soon as we detect an & at the end of a line, we are in multi-line parsing mode
--If we find a non-blank, non-comment line without & at the end, that's the end of the multi-line 
+-If we find a non-blank, non-comment line without & at the end, that's the end of the multi-line
 -If we find a comment, we push it on the stack, and we emit all comments before the multi-line
 -Blanks are simply skipped
--Comments at the end of a line are discarded                                                                         
+-Comments at the end of a line are discarded
 
 So, in this case, is there any reason to look ahead?
 Suppose we don't:
@@ -214,8 +213,8 @@ Suppose we don't:
                     my @comments_stack = ();
                     my $norm_lines     = normalise_F95_src( [@lines] );
 
-                    #					map { say $_} @{$norm_lines };
-                    #					croak ;
+                    					# map { say $_} @{$norm_lines };
+                    					# croak if $f=~/unroll/;
 
                     for my $line ( @{$norm_lines} ) {
 
@@ -226,7 +225,6 @@ Suppose we don't:
                                 $f, $line, $free_form, __LINE__ );
                         }
                     }
-
 # So problem here is that in _pushAnnLine() we don't move the sub source to Subroutines
 
       # --------------------- # END of free-form parsing # ---------------------
@@ -270,21 +268,19 @@ Suppose we don't:
                     if ( $max_line_length > 72 && $max_line_length < 102 ) {
 
 #                    	die "WARNING: The file $f is a fixed-form F77 source file but the max line length is $max_line_length characters, using $MAX_LINE_LENGTH-character lines. To use a different max line length, set MAX_LINE_LENGTH in the config file.";
-                        say
-"WARNING: The file $f is a fixed-form F77 source file but the max line length is $max_line_length characters, using $Config{'MAX_LINE_LENGTH'}-character lines.\nTo use a different max line length, set MAX_LINE_LENGTH in the config file."
-                          if $W;
+                        warning("The file $f is a fixed-form F77 source file so the default line length is 72 characters.\n\tThe max line length in $f is $max_line_length characters, using $Config{'MAX_LINE_LENGTH'}-character lines.\n\tTo use a different max line length, set MAX_LINE_LENGTH in the config file.");
                     }
                     my $ncols = $Config{'MAX_LINE_LENGTH'};   #$max_line_length > 72 ? 132 : 72;
 
                     for my $line (@lines) {
+                        ($line, my $cols1to6) = tabToFixed($line);
                         $line = substr( $line, 0, $ncols );
-
-# Here a minor hack: if there is a label in the 6th col and a non-blank in the 7th, I insert a blank
-                        if ( length($line) > 6 ) {
+                        # A minor HACK: if there is a '0' label in the 6th col and a non-blank in the 7th, I remove the '0' and insert a blank
+                        if ( length($line) > 6 and $line=~/^\s*\d+/) { # something like 300v=5
                             my $c6 = substr( $line, 5, 1 );
                             my $c7 = substr( $line, 6, 1 );
-                            if ( $c6 eq '0' ) {
-                                $line = substr( $line, 0, 5 ) . ' '
+                            if ( $c6 eq '0' ) { # '0' because non-zero character is a continuation line
+                                $line = substr( $line, 0, 5 ) . ($c7=~/\S/ ? ' '  : '')
                                   . substr( $line, 6 );
                             }
 
@@ -292,13 +288,13 @@ Suppose we don't:
 #                    		$line = substr($line,0,6).' '.substr($line,6);
 #                    	}
                         }
-                        $line =~ s/\x{d}//;
+                        $line =~ s/\x{d}//;  # removes a CR
+                        # say $line; die if $line=~/do\ while\ \(sumz\.gt\.0\.99\.and\.k\.lt\.10\)/;
                     }
-                    
+
                     while (@lines) {
 
 # OK, this is a HACK but I will remove anything after the 72nd character
-#                    	say "$code_unit_name LINE: $line";# if $code_unit_name eq './timdata.f';
                         $line_set_to_nextline = 0;
                         if ($next2) {
                             $line = shift @lines;
@@ -313,41 +309,27 @@ Suppose we don't:
                         }
                         my $remove_spaces_ok = $joinedline =~ /\w\s*$/ ? 1 : 0;
 
-                        #  say "LINE: $line" ;
-                        #  say "NEXTLINE: $nextline";
-                        #  die if $line=~/GO TO 0121/;
 #######################################################################
 
                         if ($in_cont) {
-                          # say "HERE1";
                             if ( _isCont( $line, $free_form ) ) {
-                          # say "HERE2";
                                 if ( _isCont( $nextline, $free_form ) ) {
-                          # say "HERE3";
-
-                         #                                    print DBG "C++\n";
 
                                     #+ l
                                     #+ n
-# say "JOINEDLINE4 $joinedline";
 
                                     @comments_stack = ();    # redundant?
                                     $joinedline .=
                                       _removeCont( $line, $free_form,
                                         $remove_spaces_ok );
-# say "JOINEDLINE5 $joinedline";
                                     my $remove_spaces_ok2 =
                                       $joinedline =~ /\w\s*$/ ? 1 : 0;
 
                                     $joinedline .=
                                       _removeCont( $nextline, $free_form,
                                         $remove_spaces_ok2 );
-# say "JOINEDLINE6 $joinedline";
-
                                 }
                                 elsif ( _isCommentOrBlank($nextline) ) {
-
-                         #                                    print DBG "C+!\n";
 
                                     #+ l
                                     #! n
@@ -360,9 +342,6 @@ Suppose we don't:
                                     $line_set_to_nextline = 1;
                                 }
                                 else {    # isPlain
-                                # say "HERE6";
-
-                         #                                    print DBG "C+ \n";
 
                              #+ l
                              #  n
@@ -370,7 +349,6 @@ Suppose we don't:
                                     $joinedline .=
                                       _removeCont( $line, $free_form,
                                         $remove_spaces_ok );
-# say "JOINEDLINE7 $joinedline";
 
                                     ( $stref, $code_unit_name, $srctype ) =
                                       _pushAnnLine( $stref, $code_unit_name,
@@ -386,8 +364,6 @@ Suppose we don't:
                             elsif ( _isCommentOrBlank($line) ) {
                                 if ( _isCont( $nextline, $free_form ) ) {
 
-                         #                                    print DBG "C!+\n";
-
                                     #! l
                                     #+ n
                                     #=> ignore the comment, join n
@@ -398,8 +374,6 @@ Suppose we don't:
                                 }
                                 elsif ( _isCommentOrBlank($nextline) ) {
 
-                         #                                    print DBG "C!!\n";
-
                                     #! l
                                     #! n
                                     # => skip both comments
@@ -407,8 +381,6 @@ Suppose we don't:
                                     push @comments_stack, $nextline;
                                 }
                                 else {    # isPlain
-
-                         #                                    print DBG "C! \n";
 
                                     #! l
                                     #  n
@@ -440,8 +412,6 @@ Suppose we don't:
                             else {    # isPlain
                                 if ( _isCont( $nextline, $free_form ) ) {
 
-                         #                                    print DBG "C +\n";
-
                                     #  l
                                     #+ n
                                     #=> emit the joinedline
@@ -468,8 +438,6 @@ Suppose we don't:
                                 }
                                 elsif ( _isCommentOrBlank($nextline) ) {
 
-                         #                                    print DBG "C !\n";
-
   #  l
   #! n
   #=> emit the joined line; set maybe_in_cont; push l on joined; push n on stack
@@ -491,13 +459,10 @@ Suppose we don't:
                                 }
                                 else {    # isPlain
 
-                         #                                    print DBG "C  \n";
-
                                     #  l
                                     #  n
                                     #=> emit the joinedline; emit l
                                     #=> l=n , set maybe_in_cont
-# say "JOINEDLINE8 $joinedline";
 
                                     if ( $joinedline ne '' ) {
                                         ( $stref, $code_unit_name, $srctype ) =
@@ -523,8 +488,6 @@ Suppose we don't:
                         else {    # not $in_cont
                             if ( _isCont( $line, $free_form ) ) {
                                 if ( _isCont( $nextline, $free_form ) ) {
-                         
-                         #                                    print DBG "M++\n";
 
                                    #+ l
                                    #+ n
@@ -542,8 +505,6 @@ Suppose we don't:
                                 }
                                 elsif ( _isCommentOrBlank($nextline) ) {
 
-                         #                                    print DBG "M+!\n";
-
                             #+ l
                             #! n
                             #=> dump the comments, join l, set $in_cont, set l=n
@@ -557,8 +518,6 @@ Suppose we don't:
                                     $line_set_to_nextline = 1;
                                 }
                                 else {    # isPlain
-
-                         #                                    print DBG "M+ \n";
 
          #+ l
          #  n
@@ -580,8 +539,6 @@ Suppose we don't:
                             elsif ( _isCommentOrBlank($line) ) {
                                 if ( _isCont( $nextline, $free_form ) ) {
 
-                         #                                    print DBG "M!+\n";
-
                                     #! l
                                     #+ n
                                     #=> dump the comments, join n, set in_cont
@@ -593,8 +550,6 @@ Suppose we don't:
                                 }
                                 elsif ( _isCommentOrBlank($nextline) ) {
 
-                         #                                    print DBG "M!!\n";
-
                                     #! l
                                     #! n
                                     #=> push both comments
@@ -602,8 +557,6 @@ Suppose we don't:
                                     push @comments_stack, $nextline;
                                 }
                                 else {    # isPlain
-
-                         #                                    print DBG "M! \n";
 
                #! l
                #  n
@@ -639,9 +592,6 @@ Suppose we don't:
                             else {    # isPlain
                                 if ( _isCont( $nextline, $free_form ) ) {
 
-                         #                                    print DBG "M +\n";
-# say "JOINEDLINE1 $joinedline" ;
-
                                     #  l
                                     #+ n
                                     #=> emit $joinedline; emit the comments
@@ -670,18 +620,15 @@ Suppose we don't:
                                     $joinedline .=
                                       _removeCont( $line, $free_form,
                                         $remove_spaces_ok );
-# say "JOINEDLINE2 $joinedline" ;
 
                                     my $remove_spaces_ok2 =
                                       $joinedline =~ /\w\s*$/ ? 1 : 0;
                                     $joinedline .=
                                       _removeCont( $nextline, $free_form,
                                         $remove_spaces_ok2 );
-# say "JOINEDLINE3 $joinedline" ;
                                 }
                                 elsif ( _isCommentOrBlank($nextline) ) {
 
-                         #                                    print DBG "M !\n";
 
 #  l
 #! n
@@ -714,8 +661,6 @@ Suppose we don't:
                                 }
                                 else {             # isPlain
 
-                         #                                    print DBG "M  \n";
-
                           #  l
                           #  n
                           #=> emit the comments and l
@@ -730,8 +675,6 @@ Suppose we don't:
                                             __LINE__
                                           );
                                         $joinedline = '';
-
-                     #                                        print DBG "---\n";
                                     }
 
               # FIXME: comments that come before a function/subroutine signature
@@ -747,7 +690,6 @@ Suppose we don't:
                                     }
                                     @comments_stack = ();
 
-                        #                                    print DBG "----\n";
                                     ( $stref, $code_unit_name, $srctype ) =
                                       _pushAnnLine( $stref, $code_unit_name,
                                         $srctype, $f, $line,
@@ -762,10 +704,6 @@ Suppose we don't:
                     }    # loop over source lines
 
                     my $remove_spaces_ok = $joinedline =~ /\w\s*$/ ? 1 : 0;
-
-                    #					say "$f L:<$line>";
-                    #					say "$f N:<$nextline>";
-                    #					say "$f J:<$joinedline>";
 
                     # This part is to handle the final line
                     if ($in_cont) {
@@ -790,8 +728,6 @@ Suppose we don't:
                             }
                             elsif ( _isCommentOrBlank($nextline) ) {
 
-                             #                                print DBG "C+!\n";
-
                                 #+ l
                                 #! n
                                 $joinedline .= _removeCont( $line, $free_form,
@@ -807,8 +743,6 @@ Suppose we don't:
                                     $free_form, __LINE__ );
                             }
                             else {    # isPlain
-
-                             #                                print DBG "C+ \n";
 
                              #+ l
                              #  n
@@ -828,8 +762,6 @@ Suppose we don't:
                         elsif ( _isCommentOrBlank($line) ) {
                             if ( _isCont( $nextline, $free_form ) ) {
 
-                             #                                print DBG "C!+\n";
-
                                 #! l
                                 #+ n
                                 #=> ignore the comment, join n
@@ -843,8 +775,6 @@ Suppose we don't:
 
                             }
                             elsif ( _isCommentOrBlank($nextline) ) {
-
-                             #                                print DBG "C!!\n";
 
                                 #! l
                                 #! n
@@ -863,8 +793,6 @@ Suppose we don't:
                             }
                             else {    # isPlain
 
-                             #                                print DBG "C! \n";
-
                                 #! l
                                 #  n
                                 ( $stref, $code_unit_name, $srctype ) =
@@ -882,8 +810,6 @@ Suppose we don't:
                         }
                         else {    # isPlain
                             if ( _isCont( $nextline, $free_form ) ) {
-
-                             #                                print DBG "C +\n";
 
                                 #  l
                                 #+ n
@@ -912,8 +838,6 @@ Suppose we don't:
                             }
                             elsif ( _isCommentOrBlank($nextline) ) {
 
-                             #                                print DBG "C !\n";
-
   #  l
   #! n
   #=> emit the joined line; set maybe_in_cont; push l on joined; push n on stack
@@ -934,8 +858,6 @@ Suppose we don't:
 
                             }
                             else {    # isPlain
-
-                             #                                print DBG "C  \n";
 
                                 #  l
                                 #  n
@@ -962,8 +884,6 @@ Suppose we don't:
                         if ( _isCont( $line, $free_form ) ) {
                             if ( _isCont( $nextline, $free_form ) ) {
 
-                             #                                print DBG "M++\n";
-
                                 #+ l
                                 #+ n
                                 #=> dump the comments, join both, set in_cont
@@ -983,8 +903,6 @@ Suppose we don't:
                             }
                             elsif ( _isCommentOrBlank($nextline) ) {
 
-                             #                                print DBG "M+!\n";
-
                             #+ l
                             #! n
                             #=> dump the comments, join l, set $in_cont, set l=n
@@ -1001,8 +919,6 @@ Suppose we don't:
                                     $free_form, __LINE__ );
                             }
                             else {    # isPlain
-
-                             #                                print DBG "M+ \n";
 
          #+ l
          #  n
@@ -1027,8 +943,6 @@ Suppose we don't:
                         elsif ( _isCommentOrBlank($line) ) {
                             if ( _isCont( $nextline, $free_form ) ) {
 
-                             #                                print DBG "M!+\n";
-
                                 #! l
                                 #+ n
                                 #=> dump the comments, join n, set in_cont
@@ -1042,8 +956,6 @@ Suppose we don't:
 
                             }
                             elsif ( _isCommentOrBlank($nextline) ) {
-
-                             #                                print DBG "M!!\n";
 
                                 #! l
                                 #! n
@@ -1072,8 +984,6 @@ Suppose we don't:
 
                             }
                             else {    # isPlain
-
-                             #                                print DBG "M! \n";
 
                #! l
                #  n
@@ -1135,8 +1045,6 @@ Suppose we don't:
                             }
                             elsif ( _isCommentOrBlank($nextline) ) {
 
-                             #                                print DBG "M !\n";
-
 #  l
 #! n
 # WV20190625 this comment makes no sense
@@ -1164,21 +1072,16 @@ Suppose we don't:
                             }
                             else {    # isPlain
 
-                             #                                print DBG "M  \n";
-
                               #  l
                               #  n
                               #=> emit the comments and l
                               #=> l=n , (set maybe_in_cont)
-                              #                                print DBG "--\n";
                                 if ( $joinedline ne '' ) {
                                     ( $stref, $code_unit_name, $srctype ) =
                                       _pushAnnLine( $stref, $code_unit_name,
                                         $srctype, $f,
                                         $joinedline, $free_form, __LINE__ );
                                     $joinedline = '';
-
-                         #                                    print DBG "---\n";
                                 }
                                 for my $commentline (@comments_stack) {
                                     ( $stref, $code_unit_name, $srctype ) =
@@ -1198,7 +1101,7 @@ Suppose we don't:
                     }
 ####### POSTAMBLE
                     if (
-                      $DBG and 
+                      $DBG and
                         not
                         exists $stref->{$srctype}{$code_unit_name}{'Status'} )
                     {
@@ -1210,8 +1113,6 @@ Suppose we don't:
                         $stref->{$srctype}{$code_unit_name}{'Status'} = $READ;
                     }
 
-                    # say Dumper(pp_annlines($stref->{$srctype}{$code_unit_name}{'AnnLines'}));die;
-
                 # else {
                 #                         if ($code_unit_name=~/PMPI_Sizeof/i) {
                 #   print "OK: $srctype $code_unit_name\n";croak;
@@ -1221,14 +1122,16 @@ Suppose we don't:
 
                 # Split lines with multiple common block declarations
                 # TODO this should no longer be necessary with a better parser!
-                $stref = split_multiblock_common_lines( $stref, $fpath );
+                $stref = split_multiblock_common_lines( $stref, $code_unit_name,$fpath );
 
             }    #ok
         }
         else {
             print "NO NEED TO READ $code_unit_name\n" if $I;
         }    # if $need_to_read
+        croak $stref->{'Subroutines'}{$code_unit_name}{'Status'} if $code_unit_name =~/nm_opt/i or $fpath=~/nm_opt/i or $f=~/nm_opt/i;
     }    # if $f is defined
+
     return $stref;
 }    # END of read_fortran_src()
 
@@ -1246,12 +1149,13 @@ sub _pushAnnLine {
         or $stref->{$srctype}{$f}{'Status'} < $PARSED )
     {
 
-        my $pline = _procLine( $line, $free_form );
+        my $annline = _procLine( $line, $free_form );
+        my ($rline, $info) = @{$annline};
         if ( exists $stref->{'Macros'} ) {
-            $pline->[0] = _restore_case_of_macros( $stref, $pline->[0] );
+            $annline->[0] = _restore_case_of_macros( $stref, $annline->[0] );
         }
 
-        if ( exists $pline->[1]{'Module'} and $srctype eq 'Modules' ) {
+        if ( exists $info->{'Module'} and $srctype eq 'Modules' ) {
 
             if ( $f ne 'UNKNOWN_SRC' ) {
                 if ( $stref->{$srctype}{$f}{'Status'} < $READ )
@@ -1261,8 +1165,8 @@ sub _pushAnnLine {
             }
         }
 
-        if (   exists $pline->[1]{'SubroutineSig'}
-            or exists $pline->[1]{'FunctionSig'} )
+        if (   exists $info->{'SubroutineSig'}
+            or exists $info->{'FunctionSig'} )
         {
             if ( not defined $stref->{$srctype}{$f}{'Status'} ) {
                 $stref->{$srctype}{$f}{'Status'} = $UNREAD;
@@ -1273,11 +1177,11 @@ sub _pushAnnLine {
                     $stref->{$srctype}{$f}{'Status'} = $READ;
                 }
             }
-            if ( exists $pline->[1]{'SubroutineSig'} ) {
-                $f = $pline->[1]{'SubroutineSig'}[1];
+            if ( exists $info->{'SubroutineSig'} ) {
+                $f = $info->{'SubroutineSig'}[1];
             }
             else {
-                $f = $pline->[1]{'FunctionSig'}[1];
+                $f = $info->{'FunctionSig'}[1];
                 if ( not exists $stref->{'Subroutines'}{$f}{'Function'} ) {
                     $stref->{'Subroutines'}{$f}{'Function'} = 1;
                 }
@@ -1288,17 +1192,18 @@ sub _pushAnnLine {
                 and $stref->{'Subroutines'}{$f}{'Status'} == $PARSED );
         }
 
-        if ( exists $pline->[1]{'EndModule'} and $srctype eq 'Subroutines' ) {
+        if ( exists $info->{'EndModule'} and $srctype eq 'Subroutines' ) {
             if ( $f ne 'UNKNOWN_SRC' ) {
+              if ( not defined $stref->{$srctype}{$f}{'Status'}  ) { croak $f,Dumper $stref->{$srctype}{$f}; }
                 if ( $stref->{$srctype}{$f}{'Status'} < $READ ) {
                     $stref->{$srctype}{$f}{'Status'} = $READ;
                 }
             }
-            my $mod_name = $pline->[1]{'EndModule'};
-            push @{ $stref->{'Modules'}{$mod_name}{'AnnLines'} }, $pline
+            my $mod_name = $info->{'EndModule'};
+            push @{ $stref->{'Modules'}{$mod_name}{'AnnLines'} }, $annline
               unless $stref->{'Modules'}{$mod_name}{'Status'} == $PARSED;
         }
-        elsif ( exists $pline->[1]{'EndSubroutine'}
+        elsif ( exists $info->{'EndSubroutine'}
             and $srctype eq 'Subroutines' )
         {
 
@@ -1307,7 +1212,7 @@ sub _pushAnnLine {
                     and $stref->{$srctype}{$f}{'Status'} == $PARSED )
               )
             {
-                push @{ $stref->{$srctype}{$f}{'AnnLines'} }, $pline;
+                push @{ $stref->{$srctype}{$f}{'AnnLines'} }, $annline;
                 $stref->{$srctype}{$f}{'Status'} = $READ;
             }
         }
@@ -1319,7 +1224,7 @@ sub _pushAnnLine {
                         and $stref->{$srctype}{$f}{'Status'} == $PARSED )
                   )
                 {
-                    push @{ $stref->{$srctype}{$f}{'AnnLines'} }, $pline;
+                    push @{ $stref->{$srctype}{$f}{'AnnLines'} }, $annline;
                 }
             }
             else {
@@ -1330,13 +1235,13 @@ sub _pushAnnLine {
 
                   # This should only happen on the firs read of the sourcefile
                   if ( $stref->{'SourceFiles'}{$src}{'Status'} == 1) {
-                    push @{ $stref->{'SourceFiles'}{$src}{'AnnLines'} }, $pline;
+                    push @{ $stref->{'SourceFiles'}{$src}{'AnnLines'} }, $annline;
                   }
 
             }
         }
 
-        #	      say $ann. ' : '.Dumper($pline);
+        	      # say $ann. ' : '.Dumper($annline);
     }
 
     return ( $stref, $f, $srctype );
@@ -1493,6 +1398,7 @@ sub _procLine {
 # If you put an exclamation mark (!) in any column of the statement field, except within character literals, then everything after the ! on that line is a comment.
         $info->{'OrigComments'} = 1;
         $info->{'Comments'} = 1;
+        $line = '! '.substr($line,1);
     }
     elsif ( $line =~ /^\s*contains\s*$/i ) {
         $info->{'Contains'} = 1;
@@ -1603,7 +1509,7 @@ sub _procLine {
           )
         {
             my $keyword = lc($1);
-            my $name    = defined $2 ? lc($2) : 'NO_NAME';
+            my $name    = defined $2 ? toLower($2) : 'NO_NAME';
             if ( $keyword eq 'block' and $name eq 'data' ) {
                 $keyword = 'block data';
                 $name    = 'block_data';
@@ -1623,10 +1529,12 @@ sub _procLine {
             die "_procLine(): No $keyword name " if $name eq '';
             my $spaces = ' ' x 6;
             if ( $keyword =~ /function/ ) {
-                $info->{'FunctionSig'} = [ $spaces, $name, [] ];
+              $line=~/\((.+?)\)/; my $rest = $1 // '';
+                $info->{'FunctionSig'} = [ $spaces, $name, [split(/\s*,\s*/,$rest)] ];
             }
             elsif ( $keyword eq 'module' ) {
                 $info->{'Module'} = $name;
+                $info->{'NonSpecificationStatement'} = 1;
             }
             elsif ( $keyword eq 'entry' ) {
                 $info->{'EntrySig'} = $name;
@@ -1634,16 +1542,16 @@ sub _procLine {
             else {
                 $info->{'SubroutineSig'} = [ $spaces, $name, [] ];
             }
-            $line = lc($line);
+            $line = toLower($line);
         }
         elsif (
             $line =~ /^\s*end\s+(subroutine|module|function|program)\s+(\w+)/i )
         {
             # This will likely only work for F95 code
             my $unit_type = ucfirst( lc($1) );
-            my $unit_name = lc($2);
+            my $unit_name = toLower($2);
             $info->{ 'End' . $unit_type } = $unit_name;
-            $line = lc($line);
+            $line = toLower($line);
         }
         elsif ( $line =~ /^\s*$/ ) {
             $line = '';
@@ -1670,7 +1578,7 @@ sub _procLine {
             my $lcline =
               ( substr( $line, 0, 2 ) eq '! ' )
               ? $line
-              : lc($line);
+              : toLower($line);
             $lcline =~ s/__ph(\d+)__/__PH$1__/g;
             $line = $lcline;
             $info->{'PlaceHolders'} = $phs_ref

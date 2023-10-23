@@ -5,7 +5,7 @@
 #
 
 # Fortran compiler name
-FC='g77'
+#FC='g77'
 # option to produce executable name
 EXECOPT='-o'
 # run test 257 (that uses PAUSE)
@@ -73,6 +73,7 @@ __EOT__
       ./a.out > "${result}"
     fi
 
+    cp a.out bin/${basename}
     rm -f a.out
   fi
 done

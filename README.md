@@ -9,7 +9,8 @@ An Automated Fortran Code Refactoring Tool to Make Numerical Simulation Code Acc
 School of Computing Science, University of Glasgow, UK
 
 ## Note
-Please be aware of RefactorF4Acc's <a href="#limitations">limitations</a> and the <a href="#issues">known issues of the current version</a>. 
+
+Please be aware of RefactorF4Acc's [limitations and known issues](LIMITATIONS.md)</a>. 
 
 ## Table of Contents
 * <a href="#howhelp">How can RefactorF4Acc help you?</a>
@@ -19,12 +20,11 @@ Please be aware of RefactorF4Acc's <a href="#limitations">limitations</a> and th
     - <a href="#nist">US National Institute of Standards and Technology (NIST) test suite</a>
     - <a href="#physics">Test on four real-word physics simulation models</a>
 * <a href="#limitations">Limitations of RefactorF4Acc</a>
-* <a href="#issues">Known issues in the current version</a>
 * <a href="#underthehood">What RefactorF4Acc does under the hood</a>
 * <a href="#installing">Installing RefactorF4Acc</a>
 * <a href="#gettingstarted">Getting started</a>
 * <a href="#using">Using RefactorF4Acc</a>
-    - <a href="#config">Format of the Configuration file</a>
+    - <a href="#config">Configuration</a>
     - <a href="#commandline">Command line flags</a>
 * <a href="#examples">Examples of RefactorF4Acc in action </a>
     - <a href="#refactor">Refactoring code</a>
@@ -64,23 +64,31 @@ Our compiler automates this process as much as possible.
   * No `IMPLICIT` declarations, all variables are declared explicitly
   * proper `DO` ... `END DO` -loops, removal of redundant `GOTO`
   * All subroutines in the call tree are refactored so that there are no shared global (`COMMON`) variables
+  * `EQUIVALENCE` statements are replaced by explicit assignments
   * Preserves comments
 
 * OpenCL/C translation
-  * Once refactored, modules can be translated to C or OpenCL kernel code in a separate pass (see [Automatic parallelisation using OpenCL](https://github.com/wimvanderbauwhede/RefactorF4Acc/blob/master/README.md#automatic-parallelisation-using-opencl))
-
-* Subroutine extraction  
-    * simply add an annotation
-
-          !$ACC SUBROUTINE <optional subroutine name>  
-          ... <code to be extracted as subroutine>
-          !$ACC END SUBROUTINE <optional subroutine name>
-
-* Call graph generation
+  * Once refactored, modules can be translated to C or OpenCL kernel code in a separate pass (see [Translating refactored code to OpenCL/C](README.md#translate)), but note that the compiler does not auto-parallelise.
 
 * Part of the toolchain for automatic parallelisation using OpenCL: 
 Automatic parallelisation and offloading of legacy code to accelerators is the ultimate aim of the project, and already works for many cases.
 However, the work flow is more complicated and requires an additional compiler, [AutoParallel-Fortran](https://github.com/wimvanderbauwhede/AutoParallel-Fortran). This compiler is written in Haskell, which is not yet a mainstream programming language. Furthermore, the generated OpenCL code relies on the [OclWrapper Fortran OpenCL API](https://github.com/wimvanderbauwhede/OpenCLIntegration), written in C++, and uses [scons](http://scons.org/), a Python-based build system. For these reasons, it is harder to install this autoparallelising compiler. However, if you have installed it, a test case for the full flow is provided in the `tests` folder, see <a href="#fulltoolchain">Example of full toolchain from FORTRAN77 to parallel OpenCL</a> for more details. 
+
+
+* Subroutine extraction
+    * add an annotation
+
+            !$ACC Subroutine <optional subroutine name>
+            ... <code to be extracted as subroutine>
+            !$ACC End Subroutine <optional subroutine name>
+
+* Subroutine inlining
+    * add an annotation
+
+            !$ACC Begin Inline
+            ... <code to be inlined>
+            !$ACC Begin Inline
+
 
 <a name="correctness"></a>
 ## Correctness and capability of RefactorF4Acc 
@@ -89,7 +97,7 @@ However, the work flow is more complicated and requires an additional compiler, 
 ###  US National Institute of Standards and Technology (NIST) test suite
 To assess the correctness and capability of our refactoring compiler, we used the NIST (US National Institute of Standards and Technology) [FORTRAN78 test suite](http://www.itl.nist.gov/div897/ctg/fortran_form.htm), which aims to validate adherence to the ANSI X3.9-1978 (FORTRAN 77) standard. We used [a version with some minor changes from Arnaud Desitter](http://www.fortran-2000.com/ArnaudRecipes/fcvs21_f95.html): All files are properly formed; a non standard conforming FORMAT statement has been fixed in test file `FM110.f`; Hollerith strings in FORMAT statements have been converted to quoted strings. This test suite comprises about three thousand tests organised into 192 files.
 
-We skipped/modified some tests because they test features that our compiler does not support (see below for more details). After skipping these types of tests, 2899 tests remain, in total 190 files for which refactored code is generated. The testbench driver provided in the archive skips another 8 tests because they relate to features deleted in Fortran 95. In total the test suite contains 72,473 lines of code (excluding comments). Three test files (FM302, FM406 and FM923) contain tests that fail in gfortran (3 tests in total). Our compiler currently fails one additional test, test 13 in FM302, see ["Known issues"](#issues).
+We skipped/modified some tests because they test features that our compiler does not support (see below for more details). After skipping these types of tests, 2899 tests remain, in total 190 files for which refactored code is generated. The testbench driver provided in the archive skips another 8 tests because they relate to features deleted in Fortran 95. In total the test suite contains 72,473 lines of code (excluding comments). Three test files (FM302, FM406 and FM923) contain tests that fail in gfortran (3 tests in total). Our compiler currently fails one additional test, test 13 in FM302, see [the README for the testsuite](tests/NIST_F78_test_suite/README.md).
 
 Our compiler successfully generates refactored code for _all_ tests, and the refactored code compiles correctly and passes all other tests (2895 tests in total). The tests are available in `tests/NIST_F78_test_suite`, together with a dedicated readme. For full details, please refer to <a href="#appnist">Appendix: Validation of RefactorF4Acc using the NIST test</a> and 
 <a href="https://doi.org/10.1016/j.compfluid.2018.06.005">"Domain-specific acceleration and auto-parallelization of legacy scientific code in FORTRAN 77 using source-to-source compilation"</a> (Wim Vanderbauwhede and Gavin Davidson; Computers & Fluids Vol 173, 15 September 2018, Pages 1-5).
@@ -112,23 +120,17 @@ Full details of these four real-world examples can be found in
 
 <a name="limitations"></a>
 ## Limitations of RefactorF4Acc
+
+Limitations and known issues are discussed in detail in [`LIMITATIONS.md`](LIMITATIONS.md). In short:
+
 - This tool was developed for a specific purpose: refactoring FORTRAN77 code into Fortran 95 code _suitable for offloading to GPUs and FPGAs_. The refactorings it includes are there to support that goal. Therefore, many refactorings that you might do to improve code on CPU, e.g. to benefit from SIMD, are _not_ included, for example replacing loops by array operations.
+- I have gradually been adding support for more F77, F90 and F95 features, but there is still a lot that is not supported.
+- This is a full-source compiler, so it assumes full visibility of the entire source code. That means that external subroutines for which there is no source code will lead to incorrect refactoring, because the compiler needs either know or be able to infer the subroutine signature. You can work around this by adding a stub subroutine.
 - To perform static code analysis, the compiler requires all array bounds to be constants at compile time. If your code contains array bounds defined using variables, in particular subroutine arguments, the analysis can't work.
 - The resulting code is also _not_ GPU-ready, it is still ordinary, single-threaded Fortran code. For the process to generate fully parallel OpenCL code for GPU, see <a href="#fulltoolchain">Example of full toolchain from FORTRAN77 to parallel OpenCL</a>. 
 - This is a research project and because of the limited time I can put into it, it is _definitely not complete or bug free_. Therefore, the chance that it might not work on your particular code is quite high.
 - I would like you to get in touch but I can't guarantee a speedy resolution of your issues.
 
-<a name="issues"></a>
-## Known issues in the current version
-
-- The compiler completely ignores C preprocessor macros, so it your code uses these, it is best to run `cpp` in advance.
-- The compiler supports mainly FORTRAN77. If your code is a mixture of FORTRAN77 and Fortran-90 or later, it may or may not work.
-- Some FORTRAN77 features are ignored (i.e. kept as-is), notably `ASSIGN`, `DECODE` and `ENCODE`.
-- `SAVE` statements are deleted in PROGRAM code units, ignored elsewhere.
-- "The extension of named `COMMON` block storage by `EQUIVALENCE` association of a variable and an array" as tested by `NIST FM302 TEST 013` is not handled correctly. 
-- `EQUIVALENCE` handling for arrays is incorrect for non-constant indices.
-
-  
 <a name="underthehood"></a>
 ## What RefactorF4Acc does under the hood
 
@@ -142,11 +144,11 @@ Full details of these four real-world examples can be found in
 <a name="installing"></a>
 ## Installing RefactorF4Acc
 
-Please see [INSTALL.md].
+Please see [`INSTALL.md`](INSTALL.md).
 
 <a name="gettingstarted"></a>
 ## Getting started
-Please see [GETTING_STARTED.md] for a demonstration of using RefactorF4Acc to refactor a "Hello, world!" program that uses several legacy Fortran features. The files and readme accompanying the  "Hello, world!" program can be found in the sub-directory `tests`.
+Please see [`GETTING_STARTED.md`](GETTING_STARTED.md) for a demonstration of using RefactorF4Acc to refactor a "Hello, world!" program that uses several legacy Fortran features. The files and readme accompanying the  "Hello, world!" program can be found in the sub-directory `tests`.
 
 To use RefactorF4Acc: 
 1. Create a minimal configuration file using the following template:
@@ -166,55 +168,20 @@ To use RefactorF4Acc:
 ## Using RefactorF4Acc
 
 <a name="config"></a>
-### Format of the Configuration file 
+### Configuration
 
+If you run `rf4a` without any flags, it will look in the current directory for a configuration file `rf4a.cfg`.
+If that file does not exist, it will present you with a text-based wizard to create the configuration.
 The configuration file is a text file containing key-value pairs separated with an '='. Lines starting with '#' are comments.
-The following keys are defined:
 
-<dl>
-<dt>TOP:</dt><dd>The name of the toplevel code unit for the analysis. Typically this is the main program name.</dd>
-<dt>PREFIX:</dt><dd>The path to the directory  where the script will run. Typically this is '.'.</dd>
-
-<dt>SRCDIRS:</dt><dd>A comma-separated list of directories (relative to PREFIX) to be searched for source files.</dd>
-<dt>EXTSRCDIRS:</dt><dd>A comma-separated list of directories (relative to PREFIX) to be searched for source files.</dd>
-<dt>EXCL_SRCS:</dt><dd>A comma-separated list of regular expressions matching the source files to be excluded from the analysis. This is relative to `SRCDIRS` unless it starts with '^', so for example 
-      SRCDIRS: src
-      EXCL_SRCS: hello.f95
-will exclude `hello.f95` from sources in directory `src` and so will
-      SRCDIRS: src
-      EXCL_SRCS: ^src\/hello.f95
-</dd>
-<dt>EXCL_DIRS:</dt><dd>A comma-separated list of directories (relative to PREFIX) NOT to be searched for source files.</dd>
-<dt>MACRO_SRC:</dt><dd>If the sources use the C preprocessor, you can provide a file containing C preprocessor macro definitions</dd>
-<dt>NEWSRCPATH:</dt><dd>Path to the directory that will contain the refactored sources</dd>
-
-<dt>SOURCEFILES:</dt><dd>A comma-separated list of source files to be refactored. Same as specifying them with `-s` on command line</dd>
-
-<dt>KERNEL:</dt><dd>For OpenCL translatation, the name of the subroutine to become the OpenCL kernel (actually same as TOP).</dd>
-<dt>MODULE_SRC:</dt><dd>For OpenCL translatation, the name of the source file containing a module which contains the kernel subroutine.</dd>
-<dt>MODULE:</dt><dd>For OpenCL translatation, the name of the module which contains the kernel subroutine</dd>
-
-<dt>NO_MODULE:</dt><dd>List of source files that should not be changed to modules</dd>
-<dt>RENAME_EXT:</dt><dd>Extension for variables that need to be renamed because of conflicts (usually you don't need this; the default is _GLOB)</dd>
-<dt>INLINE_INCLUDES:</dt><dd>Inline all includes, in the same way the preprocessor would do. Use this if your code has include files that can't be turned into modules because they are not self-contained.</dd>
-<dt>NO_ONLY:</dt><dd>Do not use the ONLY qualifier on the USE declaration</dd>
-<dt>SPLIT_LONG_LINES:</dt><dd>Split long lines into chunks of no more than 80 characters</dd>
-<dt>MAX_LINE_LENGTH:</dt><dd>Maximum line length for fixed-format FORTRAN77 code. The default is 132 characters.</dd>
-<dt>ALLOW_SPACES_IN_NUMBERS:</dt><dd>Allow spaces in numeric constants for fixed-format FORTRAN77 code. Default 0.</dd>
-<dt>EVAL_PARAM_EXPRS:</dt><dd>Evaluate RHS expression of parameter declarations. Default is 0.</dd>
-<dt>EXT</dt><dd>Extension of generated source files. Default is `.f90`; must include the dot</dd>
-<dt>LIBS</dt><dd>SCons LIBS, comma-separated list</dd>
-<dt>LIBPATH</dt><dd>SCons LIBPATH, comma-separated list</dd>
-<dt>INCLPATH</dt><dd>SCons F90PATH or F95PATH (based on EXT), comma-separated list</dd>
-</dl>
+For a list of the defined option and thier defaults, see [`CONFIGURATION.md`](CONFIGURATION.md).
 
 <a name="commandline"></a>
 ### Command line flags
 
     -h: help
     -V: print the version number
-    -w: show warnings 
-    -W: show more warnings
+    -w <level>: show warnings, levels 0 (none) to 3 (most). default level = 1
     -v: verbose (implies -w)
     -i: show info messages
     -d: show debug messages
@@ -226,7 +193,7 @@ will exclude `hello.f95` from sources in directory `src` and so will
     -A: Annotate the refactored lines 
     -P: Name of pass to be performed
     -s: Provide a comma-separated list of source files to be refactored. Same as specifying SOURCEFILES in the config file
-
+    -o: Provide a custom output path
 
 <a name="examples"></a>
 ## Examples of RefactorF4Acc in action 
@@ -300,7 +267,7 @@ The test `tests/ShallowWater2D` is an example of automatic parallelisation and G
 
 As explained above, to run this test you need to install the [AutoParallel-Fortran](https://github.com/wimvanderbauwhede/AutoParallel-Fortran) compiler and the [OclWrapper Fortran OpenCL API](https://github.com/wimvanderbauwhede/OpenCLIntegration), as well as [scons](http://scons.org/), a Python-based build system.
 
-A more detailed explanation of the steps is available in the file [tests/ShallowWater2D/Auto-acceleration-README.md](https://github.com/wimvanderbauwhede/RefactorF4Acc/blob/devel/tests/ShallowWater2D/Auto-acceleration-README.md).
+A more detailed explanation of the steps is available in the file [tests/ShallowWater2D/Auto-acceleration-README.md](tests/ShallowWater2D/Auto-acceleration-README.md).
 
       $ cd tests/ShallowWater2D/fortran
 
@@ -335,22 +302,21 @@ You can now build the refactored code for GPU as follows:
 
 Running the accelerated code on this GPU results in 14x speedup compared to the original code running on the host (Intel Core i7 CPU @ 3.50GHz).
 
-[INSTALL.md]: https://github.com/wimvanderbauwhede/RefactorF4Acc/blob/master/INSTALL.md
-[GETTING_STARTED.md]: https://github.com/wimvanderbauwhede/RefactorF4Acc/blob/master/GETTING_STARTED.md
+## Read these too
+
+* [`INSTALL.md`](INSTALL.md)
+* [`GETTING_STARTED.md`](GETTING_STARTED.md)
+* [`CONFIGURATION.md`](CONFIGURATION.md)
+* [`LIMITATIONS.md`](LIMITATIONS.md)
 
 <a name="appnist"></a>
 ## Appendix: Validation of RefactorF4Acc using the NIST test
 
-We use the [NIST FORTRAN78 test suite](ftp://ftp.fortran-2000.com/fcvs21_f95.tar.bz2) for validation.
+This is discussed in more detail in [tests/NIST_F78_test_suite/README.md](tests/NIST_F78_test_suite/README.md). We use the [NIST FORTRAN78 test suite](ftp://ftp.fortran-2000.com/fcvs21_f95.tar.bz2) for validation.
 
       $ cd tests/NIST_F78_test_suite
 
-The original FORTRAN 77 test suite source files are in `fcvs21_f95/`.
-
-- The file `FM090.f` is a modified version of `FM010.f` without spaces in types, variable names, values and labels.
-- The file `FM091.f` is a modified version of `FM011.f` without spaces in types, variable names, values and labels.
-- The file `FM210.f` is a modified version of `FM200.f` without spaces in variable names and values.
-- The files `FM500.f` and `FM509.f` contain tests for corner cases of common blocks and block data (37+16 tests) which we don't support.
+The original FORTRAN 77 test suite source files are in `fcvs21_f95/`. See [tests/NIST_F78_test_suite/README.md](tests/NIST_F78_test_suite/README.md) for details on the test suite, modifications and failed tests.
 
 Please ensure that the environment varianble `$FC` is set to the Fortran compiler you want to use. I have tested the code only with `gfortran 4.9` to `gfortran 10.0`. 
 To generate the refactored Fortran-95 code for the test suite, build it and run it, do:
@@ -361,39 +327,40 @@ Generating, compiling and running the test suites takes a few minutes. The refac
 
 The final output should look like:
 
-      real	0m51.079s
-      user	0m46.688s
-      sys	0m4.372s
+        real	0m59.622s
+        user	0m50.761s
+        sys	0m7.799s
 
-      # Generation of the refactored test suite code:
-      TOTAL TESTS: 196
-      TESTS RUN: 191
-      SKIPPED: 5
-      Generation Failed:
-      0
-      Generation Succeeded:
-      191
+        # Generation of the refactored test suite code:
+        TOTAL TESTS: 197
+        TESTS RUN: 192
+        SKIPPED: 5
+        Generation Failed:
+        0
+        Generation Succeeded:
+        192
 
-      real	0m6.303s
-      user	0m4.832s
-      sys	0m1.484s
+        real	0m7.762s
+        user	0m4.590s
+        sys	0m2.470s
 
-      # Compilation of the refactored test suite:
 
-      Total  : 191
-      Passed : 183
-      Failed : 0
-      Skipped: 8
+        # Compilation of the refactored test suite:
 
-      real	0m25.071s
-      user	0m21.046s
-      sys	0m4.014s
+        Total  : 192
+        Passed : 184
+        Failed : 0
+        Skipped: 8
 
-      # Running the refactored test suite:
-      PASSED: 2744
-      FAILED: 6
-      REQUIRE INSPECTION: 161
-      TOTAL: 2911
+        real	0m59.369s
+        user	0m22.236s
+        sys	0m9.107s
+
+        # Running the refactored test suite:
+        PASSED: 2769
+        FAILED: 10
+        REQUIRE INSPECTION: 170
+        TOTAL: 2949
 
 To verify the original FORTRAN 77 test suite you can use the original scripts `driver_parse` and `driver_run`. You may have to change the name of the Fortran compiler in `FC` at the start of these scripts.
 

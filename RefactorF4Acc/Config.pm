@@ -1,20 +1,23 @@
 package RefactorF4Acc::Config;
 use v5.10;
-# 
+#
 #   (c) 2010-2019 Wim Vanderbauwhede <wim@dcs.gla.ac.uk>
-#   
+#
 
 use vars qw( $VERSION );
-$VERSION = "2.1.1";
+$VERSION = "5.1.0";
 
 use warnings;
 use strict;
 use Exporter;
 
+# use Carp;
+# use Data::Dumper;
+
 @RefactorF4Acc::Config::ISA = qw(Exporter);
 @RefactorF4Acc::Config::EXPORT = qw(
 $NEW_PARSER
-$V $W $WW $I $DBG $DUMMY $ANN
+$V $W $WW $WWW $I $DBG $DUMMY $ANN $WARNING_LEVEL $SHOW
 $NO $YES $GO
 $UNREAD $INVENTORIED $READ $PARSED $FROM_BLOCK $C_SOURCE $FILE_NOT_FOUND $UNUSED
 $noop
@@ -25,8 +28,12 @@ $gen_sub
 $translate
 $targetdir
 %Config
-&read_rf4a_config    
+&read_rf4a_config
 &interactive_create_rf4a_cfg
+&read_config
+&init_config
+$messages
+$config_menu
 );
 # $SPLIT_LONG_LINES
 # $NO_ONLY
@@ -35,16 +42,23 @@ $targetdir
 # $SOURCEFILES
 # $RENAME_EXT
 # $EXT
-# 
+#
 # $LIBS $LIBPATHS $INCLPATHS
 our $NEW_PARSER = 1;
 
-
+our $messages ={
+    INFO => {},
+    WARNING => {},
+    VERBOSE => {},
+};
 our $V = 0;    # Verbose
 our $W = 0;    # Warnings
 our $WW = 0; # Extended warnings
+our $WWW = 0; # Even more extended warnings
+our $WARNING_LEVEL = 1;
 our $I = 0;    # Info
 our $DBG = 0;    # Debug
+our $SHOW = 0;
 our $ANN = 1; # Annotations
 our $DUMMY = 0; # Dummy run, print out code rather than printing to file
 
@@ -55,7 +69,7 @@ my $NO_ONLY = 0;
 my $RENAME_EXT = '_GLOB';
 my $EXT = '.f90'; # You can set this in rf4a.cfg, changed from .f95 default to .f90 default on suggestion of @rouson
 
-our $LIBS = []; 
+our $LIBS = [];
 our $LIBPATHS =  [];
 our $INCLPATHS = [];
 
@@ -86,7 +100,7 @@ our $targetdir = '../RefactoredSources';
 
 #PREFIX = .
 #SRCDIRS = .
-#EXTSRCDIRS = ../NetCDF 
+#EXTSRCDIRS = ../NetCDF
 
 # Config should support at least the following keys:
 
@@ -98,18 +112,24 @@ our $targetdir = '../RefactoredSources';
 
 #
 
+# WV2023-10-03 this is now populated from $config_menu using init_config() called in Main::main
 our %Config=(
 'INLINE_INCLUDES' => 0,
+'RENAME_PARS_IN_INLINED_SUBS' => 1,
+'RENAME_VARS_IN_INLINED_SUBS' => 1,
+'PRESERVE_CASE' => 0,
+'FOLD_CONSTANTS' => 0,
 'SPLIT_LONG_LINES' => $SPLIT_LONG_LINES,
 'MAX_LINE_LENGTH' =>  $MAX_LINE_LENGTH,
 'NO_ONLY' => $NO_ONLY,
+'NO_SAVE' => 1,
 'RENAME_EXT' => $RENAME_EXT,
 'EXT' => $EXT,
 'ALLOW_SPACES_IN_NUMBERS' => 0,
 'HAS_F77_SOURCES' => 0,
-'LIBS' => [], 
-'LIBPATHS' => [], 
-
+'LIBS' => [],
+'LIBPATHS' => [],
+'EXE' => '',
 
 'TOP' => '',
 'PREFIX' => '.',
@@ -118,8 +138,10 @@ our %Config=(
 'EXTSRCDIRS'  => [],
 'EXCL_SRCS' => [],
 'EXCL_DIRS'  => [],
+'EXCLUDE_ALL_SUBDIRS' => 0,
 'MACRO_SRC' => '',
 'NEWSRCPATH' => '',
+'CUSTOM_PASS_OUTPUT_PATH' => '',
 'SOURCEFILES'  => [],
 
 'KERNEL' => '',
@@ -127,10 +149,15 @@ our %Config=(
 'MODULE'  => '',
 
 'NO_MODULE'  => [],
+'ONE_SUB_PER_MODULE' => 1,
 
 'SUB_SUFFIX'  => '',
 'REFACTOR_TOPLEVEL_GLOBALS' => 1,
 'EVAL_PARAM_EXPRS'  => 0,
+
+'STRICT_COMMONS_CHECKS' => 1,
+'STRICT_EQUIVALENCE_CHECKS' => 1,
+'IGNORE_ERRORS' => 0,
 
 'TEST'   => 0,
 'CUSTOM_PASS_OUTPUT_PATH' => '',
@@ -140,8 +167,12 @@ our %Config=(
 'F77PATH' => [],
 'FFLAGS'  => ['-cpp','-O3', '-m64', '-ffree-form', '-ffree-line-length-0','-fconvert=little-endian', '-frecord-marker=4'],
 'F77FLAGS'  => ['-cpp','-O3', '-m64', '-fconvert=little-endian', '-frecord-marker=4'],
-
+'FIXES' => {},
+'PURPOSE_CFG' => 'purpose.cfg',
+'Macros' => {}
 );
+
+
 
 my @maybe_lib_paths = ('/usr/lib','/opt/local/lib','/usr/local/lib');
 
@@ -149,7 +180,7 @@ for my $maybe_lib_path ( @maybe_lib_paths ) {
 	if (-d $maybe_lib_path) {
 		push @{ $Config{'LIBPATHS'} }, $maybe_lib_path;
 	}
-} 
+}
 my @maybe_inc_paths = ('/opt/local/include','/usr/local/include');
 
 for my $maybe_inc_path ( @maybe_inc_paths ) {
@@ -158,35 +189,73 @@ for my $maybe_inc_path ( @maybe_inc_paths ) {
     }
 }
 
-sub read_rf4a_config { 
+sub read_rf4a_config {
 	(my $cfgrc)=@_;
 	open my $CFG, '<', $cfgrc or die $!,': ',$cfgrc;
 	say "INFO: CONFIG FILE $cfgrc:" if $I;
 	for my $line (<$CFG>) {
-#	say "LINE:".$line;
-	next if $line=~/^\s*#/;
-	next unless $line=~/=/;
-	print $line if $V;
-	chomp $line;
-	$line=~s/\s+$//;
-	(my $k, my $v) = split(/\s*\=\s*/,$line);
-    if (ref($Config{$k}) eq 'ARRAY') {
-		my @vs=split(/\s*,\s*/,$v);
-		$Config{$k}=[@vs];
-	} elsif ($k eq 'TOP') {
-		$Config{$k}=lc($v);
-    } else {
-        $Config{$k}=$v;
+    #	say "LINE:".$line;
+        next if $line=~/^\s*#/;
+        next unless $line=~/=/;
+        print $line if $V;
+        chomp $line;
+        $line=~s/\s+$//;
+        (my $k, my $v) = split(/\s*\=\s*/,$line);
+        if (ref($Config{$k}) eq 'ARRAY') {
+            my @vs=split(/\s*,\s*/,$v);
+            $Config{$k}=[@vs];
+        } elsif (ref($Config{$k}) eq 'HASH') {
+            my @vs=split(/\s*,\s*/,$v);
+            $Config{$k}= { map {$_ => 1} @vs};
+        } elsif ($k eq 'TOP') {
+            $Config{$k}= $Config{'PRESERVE_CASE'} ? $v : lc($v);
+        } else {
+            $Config{$k}=$v;
+        }
+        say "INFO: $k => $v" if $I;
+    }
+    close $CFG;
+}
+
+sub read_config {
+	my ($cfgrc,$cfg_hash)=@_;
+    if (not defined $cfg_hash) {
+        $cfg_hash={};
+    }
+    if (-e $cfgrc) {
+	open my $CFG, '<', $cfgrc or die $!,': ',$cfgrc;
+	say "INFO: CONFIG FILE $cfgrc:" if $I;
+
+	for my $line (<$CFG>) {
+        next if $line=~/^\s*#/;
+        next unless $line=~/=/;
+        print $line if $V;
+        chomp $line;
+        $line=~s/\s+$//;
+        (my $k, my $v) = split(/\s*\=\s*/,$line);
+        if (ref($cfg_hash->{$k}) eq 'ARRAY') {
+            my @vs=split(/\s*,\s*/,$v);
+            $cfg_hash->{$k}=[@vs];
+        } elsif (ref($cfg_hash->{$k}) eq 'HASH') {
+            my @vs=split(/\s*,\s*/,$v);
+            $cfg_hash->{$k}= { map {$_ => 1} @vs};
+        } else {
+            $cfg_hash->{$k}=$v;
+        }
+
+        say "INFO: $k => $v" if $I;
     }
 
+    close $CFG;
 
-	say "INFO: $k => $v" if $I;
+    } else {
+        warn "Config file $cfgrc does not exists";
+    }
+    return $cfg_hash;
+}
 
-}
-close $CFG;
-}
 =pod
-TOP :: String: The name of the toplevel code unit for the analysis. Typically this is the main program name. 
+TOP :: String: The name of the toplevel code unit for the analysis. Typically this is the main program name.
 PREFIX :: String: The path to the directory  where the script will run. Typically this is '.'.
 
 SRCDIRS :: [String]: A comma-separated list of directories (relative to PREFIX) to be searched for source files.
@@ -233,7 +302,7 @@ EXCL_SRCS = main_screenshot.f, test.f, ^tmp.*
 EXCL_DIRS = GIS, data, RefactoredSources.*,  PostCPP,testDest.*
 NO_ONLY = 0
 SPLIT_LONG_LINES = 1
-RENAME_EXT =  
+RENAME_EXT =
 
 MODULE = module_adam_bondv1_feedbf_les_press_v_etc_superkernel
 MODULE_SRC = module_adam_bondv1_feedbf_les_press_v_etc_superkernel.f95
@@ -248,53 +317,103 @@ MACRO_SRC = macros.h
 RENAME_EXT = _G
 =cut
 
-our $config_menu= {
-    'BASIC' => [
-        ['SRCDIRS','Relative path to the original Fortran source code','src'],
-        ['NEWSRCPATH','Relative path to the refactored Fortran source code','refactored-src'],
+# TODO: the defaults should be taken from %Config (or the other way round)
+our $config_menu= [
+    ['BASIC' => [
         ['TOP', 'Name of the subroutine to start from. If this is the main program, leave blank.',''],
+        ['SRCDIRS','Relative path to the original Fortran source code (comma-separated list)','src'],
+        ['NEWSRCPATH','Relative path to the refactored Fortran source code','refactored-src'],
+        ['STRICT_COMMONS_CHECKS','Return ERROR if COMMON blocks are not type-safe? 0/1', '1'],
+        ['STRICT_EQUIVALENCE_CHECKS','Return ERROR if EQUIVALENCE statements are not type-safe? 0/1', '1'],
+        ['IGNORE_ERRORS','Ignore errors and continue code generation? 0/1','0'],
         ['CONFIG:ADVANCED', 'Advanced configuration? y/n','n'],
-    ],
-    'ADVANCED' => [
+    ]],
+    ['ADVANCED' => [
         ['PREFIX','Prefix for all relative paths','.'],
+        ['EXTSRCDIRS','Comma-separated list of directories (relative to PREFIX) to be searched for source files (these will not be refactored)',''],
         ['EXT','Extension of refactored source files','.f90'],
         ['EXCL_SRCS', 'Source files to be excluded (comma-separated list)',''],
+        ['EXCLUDE_ALL_SUBDIRS','Exclude all subfolders in the source folder? 0/1','0'],
         ['EXCL_DIRS', 'Source folders to be excluded (comma-separated list)',''],
         ['INLINE_INCLUDES', 'Inline all include files? 0/1','0'],
         ['SPLIT_LONG_LINES', 'Split long lines into chunks of no more than 80 characters? 0/1','1'],
         ['MAX_LINE_LENGTH','Maximum line length for fixed-format F77 code', '132'],
-        ['ALLOW_SPACES_IN_NUMBERS','Allow spaces in numeric constants for fixed-format F77 code', '0'],
+        ['ALLOW_SPACES_IN_NUMBERS','Allow spaces in numeric constants for fixed-format F77 code? 0/1', '0'],
+        ['PRESERVE_CASE','Treat the source code as if it is case-sensitive? 0/1','0'],
+        ['NO_SAVE','Delete SAVE statements? 0/1','1'],
         ['CONFIG:SCONS', 'SCons-specific configuration? y/n','n'],
         ['CONFIG:OCL', 'OpenCL-specific configuration? y/n','n'],
+        ['CONFIG:CUSTOM', 'Custom pass-specific configuration? y/n','n'],
         ['CONFIG:SUPER_ADVANCED', 'Super-dvanced configuration? y/n','n'],
-    ],
+    ]],
 
-    'SCONS' => [
+    ['SCONS' => [
         ['EXE','Name of executable to be build (default is program name)',''],
         ['LIBS','SCons LIBS, comma-separated list',''],
-        ['LIBPATH','SCons LIBPATH, comma-separated list',''],
+        ['LIBPATHS','SCons LIBPATH, comma-separated list',''],
         ['INCLPATH','SCons F90PATH or F95PATH (based on EXT), comma-separated list',''],
-        ['HAS_F77_SOURCES','Tells SCons to add the F77 compiler as well as the F90 compiler','0'],
-        ['FFLAGS','SCons FFLAGS, comma-separated list',''],
-        ['F77FLAGS','SCons F77FLAGS, comma-separated list',''],
+        ['HAS_F77_SOURCES','Tells SCons to add the F77 compiler as well as the F90 compiler? 0/1','0'],
+        ['FFLAGS','SCons FFLAGS, comma-separated list',"'-cpp','-O3', '-m64', '-ffree-form', '-ffree-line-length-0','-fconvert=little-endian', '-frecord-marker=4'"],
+        ['F77FLAGS','SCons F77FLAGS, comma-separated list',"'-cpp','-O3', '-m64', '-fconvert=little-endian', '-frecord-marker=4'"],
         ['F90FLAGS','SCons F77FLAGS, comma-separated list',''],
-    ],
+    ]],
 
-    'OCL' => [
+    ['OCL' => [
         ['KERNEL','For OpenCL translatation, the name of the subroutine to become the OpenCL kernel (actually same as TOP)',''],
         ['MODULE_SRC','For OpenCL translatation, the name of the source file containing a module which contains the kernel subroutine',''],
         ['MODULE','For OpenCL translatation, the name of the module which contains the kernel subroutine',''],
         ['NO_MODULE','Comma-separated list of source files that should not be changed to modules','']
-    ],
+    ]],
 
-    'SUPER_ADVANCED' => [
+    ['CUSTOM' => [
+        ['CUSTOM_PASS_OUTPUT_PATH','Output path for custom pass','']
+    ]],
+
+    ['SUPER_ADVANCED' => [
         ['NO_ONLY','Generate USE without ONLY? 0/1','0'],
         ['RENAME_EXT', 'Suffix for renaming clashing variables ','_GLOB'],
         ['EVAL_PARAM_EXPRS','Evaluate RHS expression of parameter declarations? 0/1','0'],
+        ['RENAME_PARS_IN_INLINED_SUBS','Rename parameters in inlined subroutines (to avoid name conflicts)? 0/1','0'],
+        ['RENAME_VARS_IN_INLINED_SUBS','Rename variables in inlined subroutines (to avoid name conflicts)? 0/1','0'],
+        ['FOLD_CONSTANTS','Fold constants (replace parameters by their values)? 0/1','0'],
         ['NO_MODULE','Comma-separated list of source files that should not be changed to modules',''],
-        ['MACRO_SRC','Relative path to C-style header file with macro definitions','macros.h']
-    ]
-};
+        ['ONE_SUB_PER_MODULE', 'Create a module for each subroutine? 0/1','1'],
+        ['SOURCEFILES','Comma-separated list of source files to be refactored. Same as specifying -s on command line',''],
+        ['MACRO_SRC','Relative path to C-style header file with macro definitions','macros.h'],
+        ['PURPOSE_CFG','Relative path to the Purpose configuration','purpose.cfg']
+    ]]
+];
+
+# 'F90PATH'  => [],
+# 'F95PATH' => [],
+# 'F77PATH' => [],
+
+sub init_config {
+    for my $pair (@{$config_menu}) {
+        my $rubric = $pair->[0]; # unused
+        my $options = $pair->[1];
+        for my $option (@{$options}) {
+            my ($key, $desc, $default) = @{$option};
+            next if $key=~/:/;
+            if ($desc=~/list/) {
+                $default=~s/\'//g;
+                my $lst = [split(/\s*,\s*/,$default)];
+                $Config{$key} = $lst;
+            } else {
+                if ($default=~/^\d+$/) {
+                    $default*=1;
+                } 
+                elsif ($default eq 'n') {
+                    $default=0;
+                }
+                elsif ($default eq 'y') {
+                    $default=1;
+                }
+                $Config{$key} = $default;
+            }
+        }
+    }
+}
 
 sub interactive_create_rf4a_cfg { #(my $config) = @_;
     my $lines = process_config($config_menu,'BASIC',[]);
@@ -312,8 +431,8 @@ sub write_config { (my $lines) = @_;
             $cfg = <STDIN>;
             chomp $cfg;
         }
-   } 
-    
+   }
+
    say "Writing configuration to $cfg";
    open my $CFG, '>', $cfg or die $!;
     for my $line (@{$lines}) {
@@ -324,17 +443,20 @@ sub write_config { (my $lines) = @_;
 }
 
 sub process_config {
-    (my $config, my $class, my $lines) = @_;
+    (my $config_as_list, my $class, my $lines) = @_;
+
+    my $config = {map { $_->[0] => $_->[1] } @{$config_as_list}};
+    
     for my $entry (@{$config->{$class}}) {
          (my $key, my $desc, my $default) = @{$entry};
          my $value = get_entry_value($desc, $default);
-        if ($key=~/CONFIG:(\w+)/) {  
+        if ($key=~/CONFIG:(\w+)/) {
             my $class=$1;
             if ( $value eq 'y') {
                 $lines = process_config($config, $class, $lines);
             }
         } else {
-            if ($class eq 'BASIC') {               
+            if ($class eq 'BASIC') {
                 $default = '#'; # so that basic defaults will be entered in the cfg file
             }
             push @{$lines}, write_key($key, $desc, $value, $default);
@@ -342,7 +464,7 @@ sub process_config {
     }
     return $lines;
 }
-    
+
 sub get_entry_value { (my $desc, my $default) = @_;
     print "$desc: [$default] ";
     my $value = <STDIN>;

@@ -8,7 +8,7 @@ use RefactorF4Acc::Config;
 #   
 
 use vars qw( $VERSION );
-$VERSION = "2.1.1";
+$VERSION = "5.1.0";
 
 #use warnings::unused;
 use warnings;
@@ -32,7 +32,7 @@ sub create_build_script {
     my $gfortran = $ENV{'FC'};
     my $gcc = $ENV{'CC'};
     my $EXT = $Config{EXT};
-    my $exe = (exists $Config{'EXE'} and $Config{'EXE'} ne '')
+    my $exe = ($Config{'EXE'} ne '')
     ? $Config{'EXE'}
     : $stref->{'Top'}; 
     
@@ -129,5 +129,6 @@ At the moment I've removed support for C sources.
 
 # -----------------------------------------------------------------------------
 sub build_executable {
+    chdir $targetdir;
     system('scons -f SConstruct.rf4a');
 }

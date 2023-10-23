@@ -1,12 +1,12 @@
 package RefactorF4Acc::Utils;
 use v5.10;
 use RefactorF4Acc::Config;
-# 
+#
 #   (c) 2010-2017 Wim Vanderbauwhede <wim@dcs.gla.ac.uk>
-#   
+#
 
 use vars qw( $VERSION );
-$VERSION = "2.1.1";
+$VERSION = "5.1.0";
 
 #use warnings::unused;
 use warnings;
@@ -20,47 +20,51 @@ use Exporter;
 @RefactorF4Acc::Utils::ISA = qw(Exporter);
 
 @RefactorF4Acc::Utils::EXPORT = qw(
-    %F95_reserved_words    
+    %F95_reserved_words
     %F95_function_like_reserved_words
     %F95_intrinsics
     %F95_intrinsic_functions
+    %F95_assoc_intrinsic_functions
     %F95_other_intrinsics
     %F95_types
     %F95_io_keywords
     &sub_func_incl_mod
     &show_annlines
     &pp_annlines
+    &pp_info
     &write_out
     &get_maybe_args_globs
     &type_via_implicits
-    &zip
-    &union
-    &difference
-    &intersection
-    &ordered_union
-    &ordered_difference
-    &ordered_intersection
-    &find_duplicates_in_list
     &module_has
     &module_has_only
-    &make_lookup_table    
-    &generate_docs    
+    &module_has_also
+    &generate_docs
     &show_status
     &in_nested_set
     &get_vars_from_set
+    &merge_subsets
     &get_var_record_from_set
     &add_var_decl_to_set
     &remove_var_decl_from_set
     &get_kv_for_all_elts_in_set
     &append_to_set
+    &find_keys_for_value
     &comment
     &numeric
     $BLANK_LINE
     &annotate
+    &add_ann_to_info
     &alias_ordered_set
     &remove_vars_from_ordered_set
     &get_module_name_from_source
     &get_kernel_and_module_names
+    &get_block_id
+    &is_array_decl
+    &warning
+    &error
+    &coderef_to_subname
+    &toLower
+    &tabToFixed
 );
 
 
@@ -69,7 +73,7 @@ our $BLANK_LINE = ['',{'Blank'=>1,'Ref'=>1}];
 
 sub get_kernel_and_module_names {
     my ($kernel_src, $superkernel) = @_;
-    
+
     open my $SRC, '<', $kernel_src or die $!;
     my @src_lines = <$SRC>;
     close $SRC;
@@ -95,7 +99,7 @@ sub get_module_name_from_source { (my $stref,my $fp) = @_;
 		return $fp;
 	}
 }
-# This is a utility function to create references for one set to another. 
+# This is a utility function to create references for one set to another.
 # now we can say e.g.  alias_ordered_set($stref,$f, 'RefactoredArgs','DeclaredOrigArgs')
 sub alias_ordered_set { (my $stref,my $f,my $alias,my $orig) = @_;
 	$stref->{'Subroutines'}{$f}{$alias}{'Set'}=$stref->{'Subroutines'}{$f}{$orig}{'Set'};
@@ -115,10 +119,20 @@ sub remove_vars_from_ordered_set { (my $ordered_set, my $vars_to_remove)=@_;
 	return $ordered_set;
 } # END of remove_var_from_ordered_set
 
-sub annotate { (my $f, my $ann)=@_;	
-    (my $package, my $filename, my $line, my $subroutine, my @rest) = caller(1);
+sub annotate { (my $f, my $ann, my $nframes)=@_;
+croak "Code unit is not defined in annotate()" if not defined $f;
+    my $n = defined $nframes ? $nframes : 1;
+    (my $package, my $filename, my $line, my $subroutine, my @rest) = caller($n);
     $subroutine=~s/RefactorF4Acc:://;
-    return $subroutine.'('.$f.') '.$ann; 
+    return $subroutine.'('.$f.') '.(defined $nframes? $line.' ' : '').$ann;
+}
+
+sub add_ann_to_info { my ($info, $f, $ann, $nframes)=@_;
+    my $n = defined $nframes ? $nframes : 1;
+    (my $package, my $filename, my $line, my $subroutine, my @rest) = caller($n);
+    $subroutine=~s/RefactorF4Acc:://;
+    push @{$info->{'Ann'}}, $subroutine.'('.$f.') '.(defined $nframes? $line.' ' : '').$ann;
+    return $info;
 }
 
 sub comment { (my $comment)=@_;
@@ -130,13 +144,14 @@ sub comment { (my $comment)=@_;
 	}
 }
 
-sub numeric  ($$) { $_[0] <=> $_[1]; } 
+sub numeric  ($$) { $_[0] <=> $_[1]; }
 
 sub sub_func_incl_mod {
     ( my $f, my $stref ) = @_;
+    local $DBG=1;
     if (not defined $stref) {croak "arg not defined sub_func_incl_mod" }
     croak join(' ; ', caller )  if $DBG and $stref!~/0x/;
-    croak if $DBG and not defined $f;        
+    croak if $DBG and not defined $f;
     if ( exists $stref->{'Subroutines'}{$f} ) {
         if (not  exists $stref->{'Modules'}{$f} ) {
             return 'Subroutines';
@@ -150,18 +165,18 @@ sub sub_func_incl_mod {
     } elsif ( exists $stref->{'IncludeFiles'}{$f} ) {
         return 'IncludeFiles';
     } elsif ( exists $stref->{'Modules'}{$f} ) { # So we only say it's a module if it is nothing else.
-        return 'Modules';        
+        return 'Modules';
     } elsif ( exists $stref->{'SourceFiles'}{$f} ) { # So we only say it's a module if it is nothing else.
         if (exists $stref->{'SourceFiles'}{$f}{'SourceType'} and $stref->{'SourceFiles'}{$f}{'SourceType'} eq 'Modules') {
         	return 'Modules';
         } else {
             return 'SourceFiles';
-        }        
+        }
     } else {
 #        #print Dumper($stref);
 #        #croak "No entry for $f in the state\n";
         # Assuming it's a C function
-#WV23JUL        
+#WV23JUL
         return 'ExternalSubroutines';
     }
 }
@@ -169,7 +184,7 @@ sub sub_func_incl_mod {
 sub write_out { my ($src_str, $out_path)=@_;
     my $out_path_=$out_path;
     if (not defined $out_path ) {
-        if ( not exists $Config{'CUSTOM_PASS_OUTPUT_PATH'}) {
+        if ( $Config{'CUSTOM_PASS_OUTPUT_PATH'} eq '') {
             die "Either provide the output path as 2nd arg, or via CUSTOM_PASS_OUTPUT_PATH";
         } else {
             $out_path_= $Config{'CUSTOM_PASS_OUTPUT_PATH'};
@@ -180,7 +195,7 @@ sub write_out { my ($src_str, $out_path)=@_;
     } else {
         open my $OUT, '>', $out_path_ or die $!.': '.$out_path_;
         print $OUT $src_str;
-        close $OUT; 
+        close $OUT;
     }
 }
 # -----------------------------------------------------------------------------
@@ -203,7 +218,7 @@ sub show_annlines {
                 }
                 print ">\n";
             } else { print "\n";
-                
+
             }
         }
     }
@@ -228,14 +243,75 @@ sub pp_annlines {
                     }
                 }
                 $pp_annline.= ">";
-                
-            } 
+
+            }
             push @pp_annlines,$pp_annline;
         }
     }
     return \@pp_annlines;
 }
- # -----------------------------------------------------------------------------
+# -----------------------------------------------------------------------------
+sub pp_info { my ($info, $full) = @_;
+    local $Data::Dumper::Indent = 0;
+    local $Data::Dumper::Terse  = 1;
+    my $pp_info='';
+    for my $k (keys %{ $info }) {
+        if ( not ref( $info->{$k} ) ) {
+            $pp_info.=  $k.'=>'.$info->{$k}.';';
+        }  else {
+            if ($full){
+                $pp_info.=  $k.'=>'.Dumper($info->{$k}).';';
+            } else {
+                $pp_info.= "$k;"
+            }
+        }
+    }
+    return $pp_info;
+}
+sub toLower { (my $str) = @_;
+    if ($Config{'PRESERVE_CASE'}) { return $str } else { return lc($str) }
+}
+
+# -----------------------------------------------------------------------------
+sub tabToFixed{ (my $line) = @_;
+
+# Tab-Format
+
+# The tab-format source lines are defined as follows: 
+
+#     A tab in any of columns 1 through 6, or an ampersand in column 1, establishes the line as a tab-format source line.
+        # This should really be done in the SrcReader!
+#     If the tab is the first nonblank character, the text following the tab is scanned as if it started in column 7.
+    my $cols1to6 = substr($line,0,6);
+    my $tline = $line;
+    if ($cols1to6 =~/^\t\D/) {
+    #   =>replace tab by 6 spaces
+        $cols1to6 = ' ' x 6;
+        $tline=~s/^\t//; $tline = $cols1to6 . $tline;
+    }
+#  A comment indicator or a statement number can precede the tab.
+    elsif ($cols1to6 =~/^[cC\*]\t/) {
+        # => change to C followed by 5 spaces
+        $cols1to6 = 'C'.(' ' x 5);
+        $tline=~s/^[cC\*]\t//; $tline = $cols1to6 . $tline; 
+    }
+    elsif ($cols1to6 =~ /^(\s*\d+)\t/) { # The space is not following the spec
+        #   => change to $1 followed by 6 - len($1) spaces
+        my $label =$1;
+        $cols1to6 = $label . (' ' x (6 - length($label)));
+        $tline=~s/^\s*\d+\t//; $tline = $cols1to6 . $tline;
+    }
+#     Continuation lines are identified by an ampersand (&) in column 1, or a nonzero digit after the first tab.
+    elsif ($cols1to6 =~ /^(?:\&|\t[1-9])/ ) {
+        # => change to & in column 6
+        $cols1to6 = (' ' x 5) . '&';
+        $tline=~s/^(?:\&|\t[1-9])//; $tline = $cols1to6 . $tline;
+    }
+    
+    # $line = $tline;
+    return ($tline, $cols1to6);
+}
+# -----------------------------------------------------------------------------
 sub get_maybe_args_globs {
     ( my $stref, my $f ) = @_;
     my $Sf         = $stref->{'Subroutines'}{$f};
@@ -256,156 +332,30 @@ sub get_maybe_args_globs {
 }
 # -----------------------------------------------------------------------------
 sub type_via_implicits { (my $stref, my $f, my $var)=@_;
-	#return ($type, $array_or_scalar, $attr);
 if ($DBG and not defined $var or $var eq '') {croak "VAR not defined!"}
-#say 'type_via_implicits'.scalar(@_).$var;
     my $sub_func_incl = sub_func_incl_mod( $f, $stref );
-    my $type ='Unknown';      
+    my $type ='Unknown';
     my $array_or_scalar ='Unknown';
-    
+
 	my $attr='Unknown';
     if (exists $stref->{'Implicits'}{$f}{lc(substr($var,0,1))} ) {
-        print "INFO: VAR <", $var, "> typed via Implicits for $f\n" if $I;                            
+        print "INFO: VAR <", $var, "> typed via Implicits for $f\n" if $I;
         my $type_kind_attr = $stref->{'Implicits'}{$f}{lc(substr($var,0,1))};
         ($type, $array_or_scalar, $attr)=@{$type_kind_attr};
-#        $type.='_IMPLICIT_RULE';
-#croak Dumper($stref->{'Implicits'}{$f}) if $var =~/aa/;
-    } 
+    }
     if ($type eq 'Unknown') {
         print "INFO: Common <", $var, "> has no rule in {'Implicits'}{$f}, typing via Fortran defaults\n" if $I;
         # In the absence of an implicit statement, a program unit is treated as if it had a host with the declaration
         #  implicit integer (i-n), real (a-h, o-z)
-        if ($var=~/^[i-nI-N]/) { # 
-            return ('integer', 'Scalar',  '');        
+        if ($var=~/^[i-nI-N]/) { #
+            return ('integer', 'Scalar',  '');
         } else {
             return ('real', 'Scalar',  '');
         }
-#        $type.='_IMPLICIT'; 
     }
     return ($type, $array_or_scalar, $attr);
 } # END of type_via_implicits()
-# -----------------------------------------------------------------------------
-sub zip { ( my $aref, my $bref ) = @_;
-    my @zip_ab=();
-    my $a_sz = scalar @{$aref};
-    my $b_sz = scalar @{$bref};
-    my $max_sz = $a_sz > $b_sz ? $a_sz : $b_sz;
-    for my $idx (0 .. $max_sz-1) {
-        push @zip_ab, [$aref->[$idx],$bref->[$idx]];
-    }
-    return \@zip_ab;
-} # END of zip
-# -----------------------------------------------------------------------------
-sub union {
-    ( my $aref, my $bref ) = @_;
-    croak("union()") if $DBG and not (defined $aref and defined $bref);    
-    if (not defined $aref) {
-        return $bref;
-    } elsif (not defined $bref) {
-        return $aref;
-    } else {    
 
-    my %as = map { $_ => 1 } @{$aref};
-    for my $elt ( @{$bref} ) {
-        $as{$elt} = 1;
-    }
-    my @us = sort keys %as;
-    return \@us;
-    }
-}    # END of union()
-
-# -----------------------------------------------------------------------------
-# This union is obtained by removing duplicates from @b. It is a bit slower but preserves the order
-sub ordered_union {
-    ( my $aref, my $bref ) = @_;
-    croak("ordered_union(): both args must be defined!") if $DBG and not (defined $aref and defined $bref);   
-    if (not defined $aref) {
-    	return $bref;
-    } elsif (not defined $bref) {
-        return $aref;
-    } else {    
-	    my @us = @{$aref};
-	    my %as = map { $_ => 1 } @{$aref};
-	    for my $elt ( @{$bref} ) {
-	        if ( not exists $as{$elt} ) {
-	            push @us, $elt;
-	        }
-	    }
-	    return \@us;
-    }
-}    # END of ordered_union()
-# -----------------------------------------------------------------------------
-# This is the set of all members of $bref not in $aref, not the other way round
-sub ordered_difference {
-    ( my $aref, my $bref ) = @_;
-    croak("ordered_difference()") if $DBG and not (defined $aref and defined $bref);   
-    if (not defined $aref) { # assume it's empty
-    	return $bref;
-    } elsif (not defined $bref) {
-        return [];
-    } else {    
-	    my @b_diff_a = ();
-	    my %as = map { $_ => 1 } @{$aref}; # all elts of a
-	    for my $elt ( @{$bref} ) {
-	        if ( not exists $as{$elt} ) { # elt is not in a, so OK
-	            push @b_diff_a, $elt;
-	        }
-	    }
-	    return \@b_diff_a;
-    }
-}    # END of ordered_difference()
-# -----------------------------------------------------------------------------
-# This is the set of all members of $bref that also occur in $aref (or vice-versa of course)
-sub ordered_intersection {
-    ( my $aref, my $bref ) = @_;
-    croak("ordered_intersection()") if $DBG and not (defined $aref and defined $bref);   
-    if (not defined $aref) {
-    	return [];
-    } elsif (not defined $bref) {
-        return [];
-    } else {    
-	    my @is = [];
-	    my %as = map { $_ => 1 } @{$aref};
-	    for my $elt ( @{$bref} ) {
-	        if ( exists $as{$elt} ) {
-	            push @is, $elt;
-	        }
-	    }
-	    return \@is;
-    }
-}    # END of ordered_intersection()
-# -----------------------------------------------------------------------------
-# This is the set of all members of $bref that also occur in $aref (or vice-versa of course)
-sub intersection {
-    ( my $aref, my $bref ) = @_;
-    croak("intersection()") if $DBG and not (defined $aref and defined $bref);   
-    if (not defined $aref) {
-    	return {};
-    } elsif (not defined $bref) {
-        return {};
-    } else {    
-	    my $is = {};	    
-	    for my $elt (keys %{$bref} ) {
-	        if ( exists $aref->{$elt} ) {
-	            $is->{$elt}=$aref->{$elt}; # assuming that a and be have the same value for a given key
-	        }
-	    }
-	    return $is;
-    }
-}    # END of intersection()
-# -----------------------------------------------------------------------------
-sub find_duplicates_in_list { (my $lst) =@_;
-	my %uniques=();
-	my $dups={};
-	for my $elt (@{$lst}) {
-		if (not exists $uniques{$elt}) {
-			$uniques{$elt}=$elt;
-		} else {
-			$dups->{$elt}=$elt
-		}
-	}
-	return $dups;
-}
 # -----------------------------------------------------------------------------
 # Returns true if the module contains all items in the  $mod_has_lst
 sub module_has { (my $stref, my $mod_name, my $mod_has_lst) = @_;
@@ -423,10 +373,10 @@ sub module_has { (my $stref, my $mod_name, my $mod_has_lst) = @_;
 # Returns true if the module contains only items in the $mod_only list, at least one of them
 sub module_has_only { (my $stref, my $mod_name, my $mod_only) = @_;
 #print "\nMODULE $mod_name INLINEABLE?\n";
-    
+
 #    print 'MOD_KEYS:'."\n".Dumper(keys %{ $stref->{'Modules'}{$mod_name} });
 my %mod_has=();
-for my $k ( keys %{ $stref->{'Modules'}{$mod_name} } ) {    
+for my $k ( keys %{ $stref->{'Modules'}{$mod_name} } ) {
     $mod_has{$k}=$stref->{'Modules'}{$mod_name}{$k};
 }
 
@@ -438,28 +388,29 @@ for my $k ( keys %{ $stref->{'Modules'}{$mod_name} } ) {
         }
     }
 #    print Dumper($mod_has{ModType});
-#print 'INL MOD_HAS:'.Dumper(sort keys %mod_has)."\n";    
+#print 'INL MOD_HAS:'.Dumper(sort keys %mod_has)."\n";
 #    die $mod_name if $mod_name=~/common/;
-    if (scalar(keys( %mod_has )) > 0 ) { 
+    if (scalar(keys( %mod_has )) > 0 ) {
 #    	print 'NOT INLINEABLE MOD: '.$mod_name."\n";
-    	return 0; 
-    	
+    	return 0;
+
     } else {
 #        print 'MAYBE INLINEABLE MOD: '.$mod_name."\n";
         return 1; }
 }
-# -----------------------------------------------------------------------------
-# A lookup table from one list to another
-sub make_lookup_table {
-    (my $from, my $to)=@_;
-    my $lut={};    
-    for my $idx (0 .. scalar @{$from}-1) {
-        my $f = $from->[$idx];
-        my $t = $to->[$idx];
-        $lut->{$f}=$t;
-    } 
-    return $lut;
-}
+
+sub module_has_also { (my $stref, my $mod_name, my $mod_only) = @_;
+    my %mod_has=();
+    for my $k ( keys %{ $stref->{'Modules'}{$mod_name} } ) {
+        $mod_has{$k}=$stref->{'Modules'}{$mod_name}{$k};
+    }
+    for my $k (@{$mod_only},'Status','Source','FStyle','FreeForm','HasBlocks','Inlineable','InlineableSubs','TabFormat', 'ModType' ) {
+        if (exists $mod_has{$k}) {
+            delete $mod_has{$k};
+        }
+    }
+    return join(', ',sort keys( %mod_has ))
+} # END of module_has_also
 
 
 # -----------------------------------------------------------------------------
@@ -559,11 +510,12 @@ ENDH
 sub show_status {
     (my $st)=@_;
     my @status_str = ( 'UNREAD', 'INVENTORIED', 'READ', 'PARSED', 'FROM_BLOCK', 'C_SOURCE','FILE_NOT_FOUND' );
-    return $status_str[$st];    
+    return $status_str[$st];
 }
-# Test if a var is an element of a nested set. Returns the innermost set 
+# Test if a var is an element of a nested set. Returns the innermost set
 sub in_nested_set { (my $set, my $set_key, my $var)=@_;
-	croak if $DBG and not defined $var;
+
+	croak 'Undefined var in call to in_nested_set()' if $DBG and not defined $var;
     if (exists $set->{$set_key}{'Subsets'} ) {
         for my $subset (keys %{  $set->{$set_key}{'Subsets'} } ) {
             my $retval = in_nested_set($set->{$set_key}{'Subsets'},$subset, $var);
@@ -579,7 +531,7 @@ sub in_nested_set { (my $set, my $set_key, my $var)=@_;
         } else {
         	return ''; # This returns to the caller, does not end the recursion
         }
-    } else {    	
+    } else {
         return '';
     }
 } # END of in_nested_set
@@ -601,9 +553,19 @@ sub get_vars_from_set { (my $set)=@_;
         }
     } elsif (exists $set->{'Set'}) {
 #    	say 'SET!';
-        $vars = $set->{'Set'}  ;        
-    } 
+        $vars = $set->{'Set'}  ;
+    }
         return $vars;
+}
+# $stref->{'Modules'}{$mod}{'Parameters'}{'Subsets'}
+sub merge_subsets { my ($subsets) = @_;
+my $merged_set = {};
+
+for my $subset (sort keys %{$subsets}) {
+    $merged_set = {%{$merged_set}, %{$subsets->{$subset}{'Set'}}}
+}
+my $merged_list = [sort keys %{$merged_set}];
+return ($merged_set, $merged_list);
 }
 
 # set is by name here
@@ -621,30 +583,25 @@ sub remove_var_decl_from_set { (my $Sf, my $set, my $var)=@_;
 	if (exists 	$Sf->{$set}{'Set'}{$var}) {
 		delete $Sf->{$set}{'Set'}{$var};
 		@var_list = grep {$_ ne $var} @{$Sf->{$set}{'List'}};
-		$Sf->{$set}{'List'}=[@var_list];    	
+		$Sf->{$set}{'List'}=[@var_list];
 	}
 	return $Sf;
 } # END of add_var_decl_to_set
 
 
+# Returns undef if the var rec is not there
 sub get_var_record_from_set { (my $set, my $var)=@_;
-# carp  "VAR $var => SET: ".Dumper($set);
     my %vars=();
      if (exists $set->{'Subsets'} ) {
-        #  say "SUBSET ".Dumper($set->{'Subsets'});
-        for my $subset (keys %{  $set->{'Subsets'} } ) {            
-            # say "SUBSET $subset";
+        for my $subset (keys %{  $set->{'Subsets'} } ) {
             my $vars_ref= get_vars_from_set($set->{'Subsets'}{$subset});
-#            say '<'.Dumper($vars_ref).'>';
-#			if (defined $vars_ref) {
             %vars = ( %vars, %{$vars_ref} );
-#			}
         }
     } elsif (exists $set->{'Set'}) {
-        
-        return $set->{'Set'}{$var} ;        
-    } 
-        return $vars{$var};
+
+        return $set->{'Set'}{$var} ;
+    }
+    return $vars{$var};
 }
 
 # For every key in a hash $set, get the hash that is its value, and in that has kind the kv pair for the key $k
@@ -662,15 +619,27 @@ sub get_kv_for_all_elts_in_set {
 	}
 	return $results;
 }
-# This expects a ref to { 'Set' => ...} for $set1 and either { 'Set' => ...} or { 'Subsets' => ...} for $set2 
+# This expects a ref to { 'Set' => ...} for $set1 and either { 'Set' => ...} or { 'Subsets' => ...} for $set2
 sub append_to_set { (my $set1, my $set2) = @_;
 	# Flatten the set
 	my $all_subsets_set2 = get_vars_from_set($set2);
 	$set1->{'Set'} = { %{$set1->{'Set'}}, %{$all_subsets_set2} };
-	$set1->{'List'} = [ sort keys %{ $set1->{'Set'} } ]; # WV: this destroys the order, but does it matter? 
+	$set1->{'List'} = [ sort keys %{ $set1->{'Set'} } ]; # WV: this destroys the order, but does it matter?
 	return $set1;
 }
 
+sub find_keys_for_value { my ($map,$value) = @_;
+# Minimal case: the value can match more than one key
+# {s1=>c1,s2=>c1}
+    my $keys=[];
+    for my $key (sort keys %{$map}) {
+        if ($map->{$key} eq "$value") {
+            push @{$keys},$key;
+        }
+    }
+
+    return $keys;
+}
 # From the gfortran manual
 our @F95_intrinsic_functions_list = qw(
 abort
@@ -898,9 +867,40 @@ zexp
 zlog
 zsin
 zsqrt
-); 
+);
 our %F95_intrinsic_functions = map { $_=>1 } @F95_intrinsic_functions_list;
 
+my @F95_assoc_intrinsic_functions_list = qw(
+max
+max0
+max1
+amax0
+amax1
+dmax1
+qmax1
+i2max0
+imax0
+jmax0
+imax1
+jmax1
+aimax0
+ajmax0
+min
+min0
+min1
+amin0
+amin1
+dmin1
+qmin1
+i2min0
+imin0
+jmin0
+imin1
+jmin1
+aimin0
+ajmin0
+);
+my %F95_assoc_intrinsic_functions = map {$_ => 1} @F95_assoc_intrinsic_functions_list;
 
 our @F95_other_intrinsics = qw(
 idate
@@ -954,7 +954,7 @@ rewrite
 write
 );
 
-our @F95_reserved_words_list = qw( 
+our @F95_reserved_words_list = qw(
 assign
 backspace
 block
@@ -1074,17 +1074,77 @@ double
 precision
 doubleprecision
 logical
-character 
+character
 complex
 doublecomplex
 );
 our %F95_io_keywords = map { $_=>1 } @F95_io_keywords_list;
-our %F95_reserved_words = map { $_=>1 } @F95_reserved_words_list ; 
+our %F95_reserved_words = map { $_=>1 } @F95_reserved_words_list ;
 our %F95_function_like_reserved_words = map { $_=>1 } @F95_function_like_reserved_words_list;
 
 our %F95_types = map { $_=>1 } @F95_types_list;
 
 
 our %F95_intrinsics = (%F95_intrinsic_functions,%F95_other_intrinsics);
+
+sub warning { my ($msg, $lev) = @_;
+    if (not defined $lev) {$lev=0};
+    return if ($WARNING_LEVEL==0 or $WARNING_LEVEL<$lev);
+    if (not exists $messages->{'WARNING'}{$msg}) {
+        $messages->{'WARNING'}{$msg}=1;
+        if ($WARNING_LEVEL<=3) {
+            say "WARNING: $msg"
+        } else {
+            carp "WARNING: $msg"
+        }
+    }
+}
+
+sub error { (my $str, my $dbg, my $extra_info)=@_;
+    $extra_info//='NONE';
+    my %type_errors = (
+        'EQUVALENCE' => $Config{'STRICT_EQUIVALENCE_CHECKS'},
+        'COMMON' => $Config{'STRICT_COMMONS_CHECKS'},
+        'NONE' => 1
+    );
+    my $error_type = exists $type_errors{$extra_info} ? 'TYPE ERROR' : 'ERROR';
+    if ((not exists $Config{'IGNORE_ERRORS'} or $Config{'IGNORE_ERRORS'}==0) and $type_errors{$extra_info}) {        
+        if (defined $dbg and $dbg>0) {
+            croak("$error_type: $str");
+        } else {
+            die "$error_type: $str\n";
+        }
+    } else {
+        warning("IGNORED $error_type: $str");
+    }
+}
+
+sub get_block_id { my ($block, $block_id) = @_;
+    my $line_id = $block->{'LineID'};
+    push @{$block_id},$line_id;
+    my $in_block = $block->{'InBlock'};
+    if (scalar keys %{$in_block} == 0) {
+        return $block_id;
+    } else {
+        get_block_id($in_block,$block_id);
+    }
+}
+
+sub is_array_decl { (my $info)=@_;
+# carp Dumper $info->{'ParsedVarDecl'};
+	return (exists $info->{'ParsedVarDecl'}
+	&& exists $info->{'ParsedVarDecl'}{'Attributes'}
+	&& exists $info->{'ParsedVarDecl'}{'Attributes'}{'Dim'}
+	&& scalar @{$info->{'ParsedVarDecl'}{'Attributes'}{'Dim'}} >0)
+	# because parse_F95_var_decl() returns Scalars as Dim => [0]
+	&& $info->{'ParsedVarDecl'}{'Attributes'}{'Dim'}[0].'' ne '0';
+}
+
+sub coderef_to_subname { my ($coderef) = @_;
+    use B qw(svref_2object);
+    my $cv = svref_2object ( $coderef );
+    my $gv = $cv->GV;
+    return $gv->NAME;
+}
 
 1;

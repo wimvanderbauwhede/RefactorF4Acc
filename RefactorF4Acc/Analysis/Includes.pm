@@ -11,7 +11,7 @@ use RefactorF4Acc::Utils;
 #   
 
 use vars qw( $VERSION );
-$VERSION = "2.1.1";
+$VERSION = "5.1.0";
 
 #use warnings::unused;
 use warnings;
@@ -53,8 +53,8 @@ sub find_root_for_includes {
             say "INFO: $f: INC $inc included from ".join(', ', keys %{$stref->{'IncludeFiles'}{$inc}{'IncludedFrom'}}) if $I;
         } else {
             if ($stref->{'IncludeFiles'}{$inc}{'Source'}  ne 'Virtual') {
-                say "INFO: $f: INC $inc not included anywhere in reachable code, setting status to UNUSED" if $I;
-                say "WARNING: $f: INC $inc not included anywhere in reachable code, setting status to UNUSED" if $W;
+                say "INFO: $f: INCLUDE $inc not included anywhere in reachable code" if $I;
+                say "DBG: $f: INCLUDE $inc not included anywhere in reachable code, setting status to UNUSED" if $DBG;
                 $stref->{'IncludeFiles'}{$inc}{'Status'} = $UNUSED;
                 next;
             }

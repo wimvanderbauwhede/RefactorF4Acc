@@ -14,7 +14,7 @@ use RefactorF4Acc::Config;
 use RefactorF4Acc::Utils qw( annotate );
 
 use vars qw( $VERSION );
-$VERSION = "2.1.1";
+$VERSION = "5.1.0";
 
 use Carp;
 use Data::Dumper;
@@ -30,8 +30,8 @@ cast_call_argument
 );
 
 # More utter evil
-#   integer fnami (33)
-#   character*132 fname
+#   integer fnami (33) ! 33*4
+#   character*132 fname 
 #   equivalence (fname,fnami)
 # create_cast_annlines :: (Decl,VarStr) -> (Decl, VarStr) -> [AnnLine]
 sub create_cast_annlines {
@@ -52,7 +52,7 @@ sub create_cast_annlines {
 # FIXME: this does assume essentially kind=4
 # _cast_annlines :: (TypeStr, VarStr) -> (TypeStr, VarStr) -> [AnnLine]
 # returns a list of AnnLines with the code for the cast and an empty $info
-sub _cast_annlines {
+sub _cast_annlines {	
 	my ( $to_type, $to_var, $from_type, $from_var ) = @_;
 	if ( $from_type eq $to_type ) {
 		return [
@@ -108,7 +108,7 @@ sub cast_call_argument {
 		}
 	} elsif ( $call_type eq 'real' ) {
 		if ( $sig_type eq 'logical' ) {
-			croak if $DBG and $call_arg eq '.true.';
+			croak if  (($call_arg eq '.true.') or ($call_arg eq '.false.'));
 			return "$call_arg /= 0.0";
 		} elsif ( $sig_type eq 'integer' ) {
 			return "int($call_arg, $sig_kind)"
@@ -137,12 +137,12 @@ sub cast_call_argument {
 
 
 
-sub _assignment_info { my ($lhs_var, $rhs_vars) = @_;
+sub _assignment_info { my ($lhs_var, $rhs_vars) = @_; 
 	return {
 		'Assignment'=>1,
 		'HasVars'=>1,
 		'Rhs' =>{
-			'VarList' => {
+			'Vars' => {
 				'List'=> $rhs_vars,
 				'Set' => {}
 			},

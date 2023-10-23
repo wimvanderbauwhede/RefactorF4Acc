@@ -7,11 +7,11 @@ use v5.10;
 use RefactorF4Acc::Config;
 use RefactorF4Acc::Utils;
 use RefactorF4Acc::Parser::Expressions qw( get_vars_from_expression parse_expression emit_expr_from_ast );
-use RefactorF4Acc::Refactoring::Common qw( splice_additional_lines_cond );
+use RefactorF4Acc::Refactoring::Helpers qw( splice_additional_lines_cond_inplace emit_f95_var_decl);
 # use RefactorF4Acc::Parser qw( parse_fortran_src );
 
 use vars qw( $VERSION );
-$VERSION = "2.1.1";
+$VERSION = "5.1.0";
 
 #use warnings::unused;
 use warnings;
@@ -219,7 +219,7 @@ sub __find_parameter_used_in_inc_and_add_to_Only {
         my $line = $srcref->[$index][0];
         my $info = $srcref->[$index][1];
         next if exists $info->{'Comments'};
-        next if exists $info->{'Skip'};
+        next if exists $info->{'Deleted'};
         if (exists $info->{'Include'}
             and $info->{'Include'}{'InclType'} eq 'Parameter')
         {
@@ -239,6 +239,7 @@ sub __find_parameter_used_in_inc_and_add_to_Only {
                         my $ast  = parse_expression($maybe_pars_str, {}, $stref, $inc);
                         my $pars = get_vars_from_expression($ast,    {});
                         for my $par (keys %{$pars}) {
+                            
                             $Sinc->{'Includes'}{"params_$inc"}{'Only'}{$par} = 1;
                         }
                     }
@@ -257,6 +258,7 @@ sub __find_parameter_used_in_inc_and_add_to_Only {
                         my $ast  = parse_expression($maybe_pars_str, {}, $stref, $inc);
                         my $pars = get_vars_from_expression($ast,    {});
                         for my $par (keys %{$pars}) {
+                            # say "params_$inc : ONLY $par";
                             $Sinc->{'Includes'}{"params_$inc"}{'Only'}{$par} = 1;
                         }
                     }
@@ -329,38 +331,6 @@ sub __get_includes {
 #
 # DeclCount is only used to count StmtCount. I will delete it after parsing. Same for DoneInitTables, FreeForm, FStyle
 #
-
-=info_keys_not_to_be_changed 
-  IncludedParameters
-  Root
-  Source
-  Status
-  RefactorGlobals
-=cut
-
-=info_irrelevant_keys
-CalledEntries 
-CalledSubs
-Entries
-Entry
-
-ReferencedLabels
-
-ParametersFromContainer
-UsedGlobalVars
-UsedLocalVars
-UsedParameters
-
-DeclCount
-DoneInitTables
-FStyle
-FreeForm
-
-HasBlocks
-DeclaredOrigLocalArgs
-UndeclaredOrigArgs
-ExGlobVarDeclHook
-=cut
 
 our @ks = qw(
   Commons
@@ -484,7 +454,7 @@ sub __merge_include {
           : 0;
     };
     my $merged_annlines =
-      splice_additional_lines_cond($stref, $inc, $insert_cond_subref, $old_annlines, \@n_inc_annlines, 0, 1, 1);
+      splice_additional_lines_cond_inplace($stref, $inc, $insert_cond_subref, $old_annlines, \@n_inc_annlines, 0, 1, 1);
     $stref->{'IncludeFiles'}{$inc}{'AnnLines'} = $merged_annlines;
 
 # For variables, we only need to update the leaf sets
@@ -587,7 +557,7 @@ sub __merge_include_into_subroutine {
         # ]
     } @n_inc_annlines;
     my $merged_annlines =
-      splice_additional_lines_cond($stref, $f, $insert_cond_subref, $old_annlines, \@n_inc_annlines_ann, 0, 1, 1);
+      splice_additional_lines_cond_inplace($stref, $f, $insert_cond_subref, $old_annlines, \@n_inc_annlines_ann, 0, 1, 1);
     $Sf->{'AnnLines'} = $merged_annlines;
 # croak Dumper(pp_annlines($stref->{'Subroutines'}{$f}{'AnnLines'})) if $f eq 'mpi_reduce_real';
 # For variables, we only need to update the leaf sets
@@ -681,13 +651,44 @@ sub _split_multivar_decls {
                     $rinfo_c->{'StmtCount'}{$var} = $info->{'StmtCount'}{$var};
 
                     my %rinfo = %{$rinfo_c};
+                    
+                    if (exists $rinfo{'ArgDecl'}) {
+                        if (not exists $rinfo{'ArgDecl'}{$var}) {
+                            delete $rinfo{'ArgDecl'}
+                        }
+                    }
                     $rinfo{'LineID'} = $nextLineID++;
                     my $subset    = in_nested_set($Sf, 'Vars', $var);
-                    my $orig_decl = $Sf->{$subset}{'Set'}{$var};
-                    $rinfo{'VarDecl'} = {'Name' => $var}, my $rline = $line;
+                    
+                    $rinfo{'VarDecl'} = {'Name' => $var};
+                    # This is because we use the ParsedVarDecl field in custom passes so the F77 and F95 decls both need it.
+                    if (not exists $rinfo{'ParsedVarDecl'} or not exists $rinfo{'ParsedVarDecl'}{'Vars'}) {
+                        my $orig_decl = $Sf->{$subset}{'Set'}{$var};
+                        $rinfo{'ParsedVarDecl'}{'Vars'} =[$var] ;      
+                        $rinfo{'ParsedVarDecl'}{'Pragmas'} = {
+                            'AccKeyword' => 'ArgMode',
+                            'AccVal' => 'ReadWrite'
+                        };
+                        $rinfo{'ParsedVarDecl'}{'Pars'} = {
+                        'Var' => undef,
+                        'Val' => undef
+                        };
+                        $rinfo{'ParsedVarDecl'}{'TypeTup'} = {
+                            'Type' => $orig_decl->{'Type'}
+                        };
+                
+                        # $rinfo{'ParsedVarDecl'}{'Decl'} =$orig_decl ;
+                        if (exists $orig_decl->{'Dim'} and scalar @{$orig_decl->{'Dim'}} >0) {
+                            $rinfo{'ParsedVarDecl'}{'Attributes'}{'Dim'}=[map { $_->[0].':'.$_->[1]  } @{$orig_decl->{'Dim'}}];
+                        }
+                    } else {
+                        $rinfo{'ParsedVarDecl'}{'Vars'} =[$var] ;
+                    }
+                    my $rline = $line;
                     $Sf->{$subset}{'Set'}{$var}{'Name'} = $var;
                     if (scalar @{$info->{'VarDecl'}{'Names'}} > 1) {
                         for my $nvar (@nvars) {
+                            
                             if ($nvar ne $var) {
 
                                 # FIXME: This should use \b not \W !!!
@@ -711,10 +712,82 @@ sub _split_multivar_decls {
                                 }
                             }
                         }
-                    }
-
+                    }                    
                     push @{$new_annlines}, [$rline, {%rinfo}];
                 }    # for each $var
+                
+            }
+            elsif ( exists $info->{'External'} ) {
+                if ( scalar keys %{ $info->{'External'}} > 1) {
+                    for my $f_ext (sort keys %{ $info->{'External'}}) {
+                        my $rinfo_c = dclone($info);
+                        my %rinfo = %{$rinfo_c};
+                        my $line = $info->{'Indent'}.'external '. $f_ext;
+                        $rinfo{'External'}={$f_ext=>1};
+                        $rinfo{'LineID'} = $nextLineID++;
+                    # carp Dumper [$line, {%rinfo}];
+                        push @{$new_annlines}, [$line, {%rinfo}];
+                    }
+                }
+            }
+            elsif ( exists $info->{'ParamDecl'} 
+            # and not exists $info->{'ParsedParDecl'}
+            ) {
+                my $nvars = [];
+                if (exists $info->{'ParamDecl'}{'Names'}
+                and scalar @{$info->{'ParamDecl'}{'Names'}}>0
+                ) {
+                    $nvars = $info->{'ParamDecl'}{'Names'};
+                } elsif (exists $info->{'ParamDecl'}{'Name'}) {
+                    $nvars = [$info->{'ParamDecl'}{'Name'}[0]];
+                } 
+                # say  Dumper $nvars;
+                push @{$info->{'Ann'}}, annotate($f, __LINE__);
+                my $idx=0;
+                for my $var (@{$nvars}) {                
+                    my $rinfo_c = dclone($info);
+                    my %rinfo = %{$rinfo_c};
+                    $rinfo{'ParamDecl'}{'Names'}=[$var];
+                    if (not exists $rinfo{'ParsedParDecl'} or not exists $rinfo{'ParsedParDecl'}{'Pars'}) {
+                        my $subset    = in_nested_set($Sf, 'Vars', $var);
+                        my $orig_decl = $Sf->{$subset}{'Set'}{$var};
+                        # croak Dumper $orig_decl;
+                        my $val=$orig_decl->{'Val'};
+                        $rinfo{'ParsedParDecl'}{'Vars'} = [] ;      
+                        $rinfo{'ParsedParDecl'}{'Pragmas'} = {
+                            'AccKeyword' => 'ArgMode',
+                            'AccVal' => 'ReadWrite'
+                        };
+                        $rinfo{'ParsedParDecl'}{'Pars'} = {
+                        'Var' => $var,
+                        'Val' => $val
+                        };
+                        $rinfo{'ParsedParDecl'}{'TypeTup'} = {
+                            'Type' => $orig_decl->{'Type'}
+                        };
+                
+                        $rinfo{'ParsedParDecl'}{'Attributes'}{'Parameter'}='parameter';
+                    }  else {
+                        # say Dumper $rinfo{'ParsedParDecl'}{'Pars'};
+                        my $val = ref($rinfo{'ParsedParDecl'}{'Pars'}{'Val'}) eq 'ARRAY' 
+                        ? $rinfo{'ParsedParDecl'}{'Pars'}{'Val'}[$idx]
+                        :  $rinfo{'ParsedParDecl'}{'Pars'}{'Val'};
+                        # WV20230901 This is hacky because if $val would be an array, this would not work. FIXME!
+                        my $ast = ref($rinfo{'ParsedParDecl'}{'Pars'}{'Val'}) eq 'ARRAY' ? $rinfo{'ParsedParDecl'}{'Pars'}{'AST'}[$idx] : $rinfo{'ParsedParDecl'}{'Pars'}{'AST'};
+                        $rinfo{'ParsedParDecl'}{'Pars'} = {
+                        'Var' => $var,
+                        'Val' => $val,
+                        'AST' => $ast
+                        };
+
+                    }    
+                    ++$idx;
+                    # say Dumper %rinfo;
+                    # die if $f eq 'sub0' and $var eq 'sz';
+                    # say "PLINE $line" if $f=~/test_loop/;
+                    # say Dumper %rinfo;
+                    push @{$new_annlines}, [$line, {%rinfo}];
+                }
             }
             else {
                 push @{$new_annlines}, $annline;
@@ -722,6 +795,7 @@ sub _split_multivar_decls {
         }
         $Sf->{'AnnLines'} = $new_annlines;
     }
+    
     return $stref;
 }    # END of _split_multivar_decls
 
@@ -755,61 +829,11 @@ sub _split_multipar_decls_and_set_type {
                         $rinfo{'LineID'}    = $nextLineID++;
                         $rinfo{'ParamDecl'} = {'Name'=>$var}; # WV20190729 New approach. I don't see why anything but the name is needed
                         $rinfo{'VarDecl'} = {'Name' => $var};                        
-                        my $val =  exists $param_decl->{'Ast'} ? emit_expr_from_ast($param_decl->{'Ast'}) : $param_decl->{'Val'};
-                        my $rline = $param_decl->{'Indent'}."parameter($var=$val)"; # F77 syntax, this should not be used anyway
+                        my $val =  exists $param_decl->{'AST'} ? emit_expr_from_ast($param_decl->{'AST'}) : $param_decl->{'Val'};
+                        # my $rline = $param_decl->{'Indent'}."parameter($var=$val)"; # F77 syntax, this should not be used anyway
+                        my $rline = emit_f95_var_decl($param_decl); 
                         push @{$new_annlines}, [$rline, \%rinfo];
-                    }
-                            
-            # if (0) {
-            #             my @nvars_nvals = @{$info->{'ParamDecl'}{'Names'}};
-            #             for my $var_val (@{$info->{'ParamDecl'}{'Names'}}) {
-
-            #                 my $var = $var_val->[0];
-            #                 my $val = $var_val->[1];
-
-            #                 my %rinfo = %{$info};
-            #                 $rinfo{'LineID'}    = $nextLineID++;
-            #                 $rinfo{'ParamDecl'} = {};
-
-            #                 my $param_decl = {
-            #                     'Indent'          => $info->{'Indent'},
-            #                     'Type'            => $Sf->{'LocalParameters'}{'Set'}{$var}{'Type'},
-            #                     'Attr'            => $Sf->{'LocalParameters'}{'Set'}{$var}{'Attr'},
-            #                     'Dim'             => [],
-            #                     'Parameter'       => 'parameter',
-            #                     'Name'            => [$var, $val],
-            #                     'Val'             => $val, # backwards comp
-            #                     'Var'             => $var, # backwards comp
-            #                     'Status'          => 1,
-            #                     'InheritedParams' => $Sf->{'LocalParameters'}{'Set'}{$var}{'InheritedParams'},
-            #                 };
-
-            #                 $Sf->{'LocalParameters'}{'Set'}{$var} = $param_decl;
-            #                 $rinfo{'ParamDecl'} = {'Name' => [$var, $val]};
-            #                 $rinfo{'VarDecl'} = {'Name' => $var};
-
-            #                 my $rline = $line;
-            #                 if (scalar @{$info->{'ParamDecl'}{'Names'}} > 1) {
-
-            #                     # This is a line with multiple param decls, split it.
-            #                     for my $nvar_vals (@nvars_nvals) {
-            #                         my $nvar = $nvar_vals->[0];
-            #                         if ($nvar ne $var) {
-            #                             my $nval = $Sf->{'LocalParameters'}{'Set'}{$nvar}{'Val'};
-            #                             # TODO: WEAK we only support scalars parnam=parval
-            #                             # FIXME: This should use \b not \W !!!
-            #                             if ($rline =~ /\s*,\s*$nvar\s*=\s*$nval\W?/) {
-            #                                 $rline =~ s/\s*,\s*$nvar\s*=\s*$nval(\W?)/$1/;
-            #                             }
-            #                             elsif ($rline =~ /(\W)$nvar\s*=\s*$nval\s*,\s*/) {
-            #                                 $rline =~ s/(\W)$nvar\s*=\s*$nval\s*,\s*/$1/;
-            #                             }
-            #                         }
-            #                     }
-            #                 }
-            #                 push @{$new_annlines}, [$rline, \%rinfo];
-            #             } #for
-            #         } # if 0
+                    }                            
                 }
                 else { # problem: No 'Names'
                     croak "NO Names for parameter in $f: $line";
@@ -825,13 +849,13 @@ sub _split_multipar_decls_and_set_type {
 }    # END of _split_multipar_decls_and_set_type
 
 sub split_multiblock_common_lines {
-    my ($stref, $f) = @_;
+    my ($stref, $f, $fpath) = @_;
 
     # Split lines with multiple common block declarations
-    for my $sub_or_func (@{$stref->{'SourceContains'}{$f}{'List'}}) {
-        my $sub_func_type = $stref->{'SourceContains'}{$f}{'Set'}{$sub_or_func};
+    for my $sub_or_func (@{$stref->{'SourceContains'}{$fpath}{'List'}}) {
+        my $sub_func_type = $stref->{'SourceContains'}{$fpath}{'Set'}{$sub_or_func};
 
-        my $Sf = $stref->{$sub_func_type}{$sub_or_func};
+        my $Sf = $stref->{$sub_func_type}{$sub_or_func};        
         next if (exists $Sf->{'Entry'} and $Sf->{'Entry'} == 1);
 
         my @annlines     = @{$Sf->{'AnnLines'}};

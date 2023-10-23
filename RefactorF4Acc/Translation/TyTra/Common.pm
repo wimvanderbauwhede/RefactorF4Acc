@@ -2,6 +2,8 @@ package RefactorF4Acc::Translation::TyTra::Common;
 use v5.10;
 use RefactorF4Acc::Config;
 use RefactorF4Acc::Utils;
+use RefactorF4Acc::State qw( initialise_per_code_unit_tables);
+
 #
 #   (c) 2016 Wim Vanderbauwhede <wim@dcs.gla.ac.uk>
 #
@@ -126,10 +128,11 @@ sub __isMainOutArg {
     my $tytracl_ast = $stref->{$stref->{'EmitAST'}};
     my $orig_args   = $tytracl_ast->{'OrigArgs'};
 
-
-# say "TEST OUT: $var_name $ctr ";# <> ".$tytracl_ast->{'UniqueVarCounters'}{$var_name}." <$ext> <".(exists
-# say $orig_args->{$var_name};# ) .">";
-# carp $var_name,Dumper $orig_args->{$var_name};
+# say "TEST OUT: $var_name $ctr <> ".$tytracl_ast->{'UniqueVarCounters'}{$var_name}."; EXT:'$ext' <> ''"; # <".(exists
+# say "VAR $var_name : ".($orig_args->{$var_name} // 'NOT orig arg ');# ) .">";
+# if (exists $orig_args->{$var_name}) {
+# carp $var_name, Dumper $orig_args->{$var_name};
+# }
     return (
              $ctr == $tytracl_ast->{'UniqueVarCounters'}{$var_name}
           && $ext eq ''
@@ -263,7 +266,8 @@ sub addTypeDecl {
     $stref->{'Subroutines'}{$f}{'ArrayAccesses'}{0}{'Arrays'}{$var_name} = {'Dims' => $dim};
     $stref->{'Subroutines'}{$f}{'DeclaredOrigArgs'}{'Set'}{$var_name} = {
         'Type' => $var_type,
-        'Dim' => $dim
+        'Dim' => $dim,
+        'ArrayOrScalar' => scalar @{$dim} >0 ? 'Array' : 'Scalar'
         };
     return $stref;
 }
@@ -300,7 +304,7 @@ $stref = mkAST(
 =cut    
 
 sub mkAST {
-    (my $lines, my $decls) = @_;
+    my ($lines, $decls,$comment) = @_;
     my $stref = {};
     $stref->{'EmitAST'}     = 'TyTraCL_AST';
     $stref->{'TyTraCL_AST'} = {
@@ -311,6 +315,7 @@ sub mkAST {
         'Portions'     => {},
         'Main'         => {},
         'MainFunction' => 'main',
+        'Comment'      => $comment
     };
     my @funcs = ();
     my %vecs  = ();
@@ -320,13 +325,14 @@ sub mkAST {
     for my $node (@{$lines}) {
         
         push @funcs, $node->{'FunctionName'};
+
         if (   $node->{'NodeType'} eq 'Map'
             or $node->{'NodeType'} eq 'Fold')
         {
             
             my $vs = $node->{'Rhs'}{$node->{'NodeType'}.'Args'}{'Vars'};
             if ($node->{'NodeType'} eq 'Map') {
-                $vs = [@{$vs}, @{$node->{'Lhs'}{'Vars'}}]
+                $vs = [@{$vs}, @{$node->{'Lhs'}{'Vars'}}];
             }
             for my $v_rec (@{$vs}) {
                 (my $v, my $ct, my $s, my $ve) = @{$v_rec};
@@ -349,7 +355,7 @@ sub mkAST {
             }            
         }
         if ($node->{'NodeType'} eq 'Fold') {
-            my $as = $node->{'Rhs'}{'AccArgs'}{'Vars'};          
+            my $as = [@{$node->{'Rhs'}{'AccArgs'}{'Vars'}},@{$node->{'Lhs'}{'Vars'}}];
             
             for my $a_rec (@{$as}) {
                 (my $a, my $ct, my $s, my $ve) = @{$a_rec};
@@ -362,62 +368,47 @@ sub mkAST {
                     croak 'TROUBLE!';
                 }
             }            
-            # carp Dumper %accs;
+            # my $out_accs = $node->{'Lhs'}{'Vars'};
         }
     }
-
+            
     for my $f (@funcs) {
+        $stref->{'Subroutines'}{$f} = {};
+        my $Sf = $stref->{'Subroutines'}{$f};
+        $Sf = initialise_per_code_unit_tables($Sf, $stref, $f,0 ,0);
+
         for my $v (sort keys %vecs) {
             $stref = addTypeDecl($stref, $f, $v, $decls->{$v}[0], [$decls->{$v}[1]]);
         }
         for my $a (sort keys %accs) {
-            $stref = addTypeDecl($stref, $f, $a, $decls->{$a}[0], []);
+            $stref = addTypeDecl($stref, $f, $a, $decls->{$a}[0], scalar @{$decls->{$a}} == 3 ? [$decls->{$a}[1]] : []);
         }
         for my $a (sort keys %nons) {
-            $stref = addTypeDecl($stref, $f, $a, $decls->{$a}[0], []);
+            $stref = addTypeDecl($stref, $f, $a, $decls->{$a}[0], scalar @{$decls->{$a}} == 3 ? [$decls->{$a}[1]] : []);
         }
     }
     my $args = {};
     for my $v (sort keys %vecs) {
         $args->{$v} = $decls->{$v}[2];
     }
+        # croak Dumper %vecs, $args, $decls;
     
     for my $a (sort keys %accs) {    
-        $args->{$a} = $decls->{$a}[2];
+        $args->{$a} = $decls->{$a}[1];
     }
 
     for my $n (sort keys %nons) {        
         $args->{$n} = $decls->{$n}[-1];
+          
     }
-    
-
+      
+    # WV 2021-05-13 I don't understand why I wipe the record here.
     $stref->{'TyTraCL_AST'}             = {};
+    $stref->{'TyTraCL_AST'}{'Comment'}    = $comment;
     $stref->{'TyTraCL_AST'}{'Lines'}    = $lines;
     $stref->{'TyTraCL_AST'}{'OrigArgs'} = $args;
     $stref->{'TyTraCL_AST'}{'UniqueVarCounters'} = {%vecs, %accs};
 
-    # $stref->{'TyTraCL_AST'}{'Main'} ={};
-    # my $main_rec = $stref->{'TyTraCL_AST'}{'Main'};
-
-
-    # $main_rec->{'InArgsTypes'}={};
-    # $main_rec->{'OutArgsTypes'}={};
-    # $main_rec->{'InArgs'}=[];
-    # $main_rec->{'OutArgs'}=[];
-
-    # for my $var (sort keys %{$stref->{'TyTraCL_AST'}{'UniqueVarCounters'}}) {
-    #     my $ct = $stref->{'TyTraCL_AST'}{'UniqueVarCounters'}{$var};
-    #     my $decl = $decls->{$var};
-    #     my $vec_sz = $decl->[1][1];
-    #     my $scalar_type = $decl->[0];
-    #     push @{$main_rec->{'InArgs'}}, $var.'_0';
-    #     push @{$main_rec->{'OutArgs'}}, $var.'_'.$ct;
-    #     $main_rec->{'InArgsTypes'}{$var.'_0'}=['Vec', $vec_sz, $scalar_type];
-    #     $main_rec->{'OutArgsTypes'}{$var.'_',$ct}=['Vec', $vec_sz, $scalar_type];
-    # }
-
-    # $stref->{'TyTraCL_AST'}{'Main'} = $main_rec;
-    # croak Dumper($stref->{'TyTraCL_AST'}{'Main'});
     return $stref;
 } # END of mkAST
 

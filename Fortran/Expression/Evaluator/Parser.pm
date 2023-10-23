@@ -100,7 +100,7 @@ $ast_node_type=
 	)(	14
 		15	
 		
-$ast_node_type+(++$nodeId<<4)		
+$ast_node_type+(++$nodeId<<8)		
 =cut
 
 use strict;
@@ -196,7 +196,7 @@ sub _next_token {
 # The corresponding AST looks like this: ['{', $s1, $s2, $s3, ... ]
 sub _program {
     my $self = shift;
-    my @res = ( 0x0+( ++$nodeId << 4) );
+    my @res = ( 0x0+( ++$nodeId <<8) );
     while (defined $self->_next_token()){
         push @res, $self->_statement();
     }
@@ -255,7 +255,7 @@ sub _value {
 # parses a function call, the AST looks like this: [{'&', $name, @args]
 sub _function_call {
     my $self = shift;
-    my @res = (0x1+(++$nodeId<<4), $self->_match("Name"));
+    my @res = (0x1+(++$nodeId<<8), $self->_match("Name"));
     $self->_match("OpenParen");
     if ($self->_is_next_token("ClosingParen")){
         $self->_proceed();
@@ -276,7 +276,7 @@ sub _function_call {
 sub _get_variable {
     my $self = shift;
     my $var_name = $self->_match("Name");
-    return [0x2+(++$nodeId<<4), $var_name];
+    return [0x2+(++$nodeId<<8), $var_name];
 }
 
 # <statement> -> <_assignment> | <expression>
@@ -311,7 +311,7 @@ sub _assignment {
     $self->_match("AssignmentOp");
     my $val = $self->_expression();
     if (is_lvalue($e)){
-        return [0x9+(++$nodeId<<4), $e, $val];
+        return [0x9+(++$nodeId<<8), $e, $val];
     } else {
         confess("Not an lvalue in _assignment");
     }
@@ -335,24 +335,24 @@ sub _term {
 #	BOOM!
     my $self = shift;
     my $val = $self->_exponential();
-    my @res = (0x5+(++$nodeId<<4), $val);
+    my @res = (0x5+(++$nodeId<<8), $val);
     while (my $op = $self->_is_next_token("MulOp")){
         if ($op eq '*'){
             $self->_proceed();
             push @res, $self->_exponential();
         } elsif ($op eq '/'){
             $self->_proceed();
-#       		@res = (0x6+(++$nodeId<<4), $val);     
+#       		@res = (0x6+(++$nodeId<<8), $val);     
 #            push @res, $self->_exponential();
-            push @res, [ 0x6+(++$nodeId<<4),  $self->_exponential()];
+            push @res, [ 0x6+(++$nodeId<<8),  $self->_exponential()];
         } elsif ($op eq '%') {
             $self->_proceed();
             # WV: CHEAP! I assume a % b % c does never occur
-            @res = (0x7+(++$nodeId<<4), $val);
+            @res = (0x7+(++$nodeId<<8), $val);
             push @res, $self->_exponential();
             # XXX not very efficient
-#            @res = ( 0x5+(++$nodeId<<4), [ 0x7+(++$nodeId<<4), [@res], $self->_exponential()]);
-#            push @res, [ 0x7+(++$nodeId<<4),  $self->_exponential()];
+#            @res = ( 0x5+(++$nodeId<<8), [ 0x7+(++$nodeId<<8), [@res], $self->_exponential()]);
+#            push @res, [ 0x7+(++$nodeId<<8),  $self->_exponential()];
         } else {
             die "Don't know how to handle MulOp $op\n";
         }
@@ -364,14 +364,14 @@ sub _term {
 sub _expression {
     my $self = shift;
 #   print STDERR "expression...\n";
-    my @res = ( 0x3+(++$nodeId<<4) );
+    my @res = ( 0x3+(++$nodeId<<8) );
     if (my $op = $self->_is_next_token("AddOp")){
         # unary +/-
         $self->_proceed();
         if ($op eq '+'){
             push @res, $self->_term();
         } else {
-            push @res, [ 0x4+(++$nodeId<<4), $self->_term()];
+            push @res, [ 0x4+(++$nodeId<<8), $self->_term()];
         }
     } else {
         push @res, $self->_term();
@@ -383,7 +383,7 @@ sub _expression {
         } else {
             # a '-'
             $self->_proceed();
-            push @res, [0x4+(++$nodeId<<4), $self->_term()];
+            push @res, [0x4+(++$nodeId<<8), $self->_term()];
         }
     }
     return _return_simplify(@res);
@@ -410,7 +410,7 @@ sub _exponential {
     my $val = $self->_factor();
     if ($self->_is_next_token("ExpOp")){
         $self->_match("ExpOp");
-        return [0x8+(++$nodeId<<4), $val, $self->_factor()];
+        return [0x8+(++$nodeId<<8), $val, $self->_factor()];
     } else {
         return $val;
     }

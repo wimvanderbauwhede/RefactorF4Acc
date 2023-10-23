@@ -2,7 +2,8 @@ package RefactorF4Acc::Translation::TyTra::MemoryReduction;
 use v5.10;
 use RefactorF4Acc::Config;
 use RefactorF4Acc::Utils;
-use RefactorF4Acc::Refactoring::Common qw( pass_wrapper_subs_in_module emit_f95_var_decl);
+use RefactorF4Acc::Utils::Functional qw( zip );
+use RefactorF4Acc::Refactoring::Helpers qw( pass_wrapper_subs_in_module emit_f95_var_decl);
 use RefactorF4Acc::Refactoring::Fixes qw( remove_redundant_arguments_and_fix_intents );
 use RefactorF4Acc::Translation::TyTra::Common qw( 
     _mkVarName    
@@ -16,13 +17,18 @@ use RefactorF4Acc::Translation::TyTra::Common qw(
 );
 
 use RefactorF4Acc::Analysis::ArrayAccessPatterns qw( identify_array_accesses_in_exprs );
+use RefactorF4Acc::Refactoring::FoldConstants qw( fold_constants_in_decls );
+
 use RefactorF4Acc::Translation::TyTraCL qw( 
     emit_TyTraCL construct_TyTraCL_AST_Main_node 
     generate_TyTraCL_stencils 
     _add_TyTraCL_AST_entry
     _emit_TyTraCL_FunctionSigs
     __toTyTraCLType
-     );
+    );
+
+
+use RefactorF4Acc::Translation::TyTra::MemoryReduction::Tests qw( memory_reduction_tests );
 
 #
 #   (c) 2016 Wim Vanderbauwhede <wim@dcs.gla.ac.uk>
@@ -52,13 +58,15 @@ use Exporter;
 
 
 sub pass_memory_reduction {
-    (my $stref, my $module_name) = @_;
+    (my $stref, my $superkernel_module_name) = @_;
     
-    my $TEST =  exists $Config{'TEST'} ? $Config{'TEST'} : 0;
-    
+    my $superkernel_name = $Config{'KERNEL'};
+    my $comment =  $superkernel_name;
+
     # WV: I think Selects and Inserts should be in Lines but I'm not sure
     $stref->{'EmitAST'}     = 'TyTraCL_AST';
     $stref->{'TyTraCL_AST'} = {
+        'Comment'      => $comment,
         'Lines'        => [],
         'Selects'      => [],
         'Inserts'      => [],
@@ -68,9 +76,12 @@ sub pass_memory_reduction {
         'MainFunction' => 'main',
         'ASTEmitter'   => \&_add_TyTraCL_AST_entry
     };
-if ($TEST==0) {
+
+if ($Config{'TEST'} == 0 ) { 
+    # Get Purpose for the superkernel args
+    $stref = _get_Purpose_from_file($stref, $superkernel_name);
     $stref = pass_wrapper_subs_in_module(
-        $stref, $module_name,
+        $stref, $superkernel_name,
 
         # module-specific passes
         [],
@@ -78,196 +89,43 @@ if ($TEST==0) {
         # subroutine-specific passes
         [
 #				[ sub { (my $stref, my $f)=@_;  alias_ordered_set($stref,$f,'DeclaredOrigArgs','DeclaredOrigArgs'); } ],
+            # All Fixes are off by default, list them in $Config{'FIXES'} to enable them
             [\&remove_redundant_arguments_and_fix_intents],
             [\&identify_array_accesses_in_exprs],
+            [\&fold_constants_in_decls],
         ]
     );
+} else { 
+    $stref = memory_reduction_tests($stref);
 }
-elsif ($TEST==1) { 
- # 3 maps with 2 stencils in between.
-    $stref = mkAST(
-        [
-            mkMap('f1'=>[]=>[['v',0,'']]=>[['v',1,'']]),
-            mkStencilDef(1,[-1,0,1]),
-            mkStencilAppl(1,3,['v',1,'']=>['v',1,'s']),            
-            mkMap('f2'=>[]=>[['v',1,'s']]=>[['v',2,'']]),
-            mkStencilDef(2,[-1,0,1]),
-            mkStencilAppl(2,3,['v',2,'']=>['v',2,'s']),
-            mkMap('f3'=>[]=>[['v',2,'s']]=>[['v',3,'']]),            
-        ],
-        {'v' =>[ 'integer', [1,500], 'inout'] }
-    );            
-}
-elsif ($TEST==2) {      
-# two maps, one stencil, but two input vectors      
-    $stref = mkAST(
-        [
-            mkMap('f1'=>[['nm',0,'']]=>[['v1',0,''],['v2',0,'']]=>[['v3',0,'']]),
-            mkStencilDef(1,[-1,0,1]),
-            mkStencilAppl(1,3,['v3',0,'']=>['v3',0,'s']),
-            mkMap('f2'=>[]=>[['v3',0,'s']],[['v4',0,'']]),
-        ],
-        {
-            'nm' =>[ 'integer', 'in'],
-    'v1' =>[ 'integer', [1,500], 'in'],
-    'v2' =>[ 'integer', [1,500], 'in'],
-    'v3' =>[ 'integer', [1,500], 'local'],
-    'v4' =>[ 'integer', [1,500], 'out']   
-}
-    );  
-}
-elsif ($TEST==3) {
-# fold-stencil-map    
-    $stref = mkAST(
-        [
-            mkFold('f1'=>[]=>[['acc',0,'']]=>[['v',0,'']],[['acc',1,'']]),
-            mkStencilDef(1,[-1,0,1]),
-            mkStencilAppl(1,3,['v',0,'']=>['v',0,'s']),
-            mkMap('f2'=>[['acc',1,'']]=>[['v',0,'s']],[['v',1,'']]),
-        ],
-        {
-        'v' =>[ 'integer', [1,500], 'inout'],
-        'acc' =>[ 'integer',  'in'],
-        }
-    );  
-}    
-elsif ($TEST==4) {
-# stencil-fold-map    
-    $stref = mkAST(
-        [
-            
-            mkStencilDef(1,[-1,0,1]),
-            mkStencilAppl(1,3,['v',0,'']=>['v',0,'s']),
-            mkFold('f1'=>[]=>[['acc',0,'']]=>[['v',0,'s']],[['acc',1,'']]),
-            mkMap('f2'=>[['acc',1,'']]=>[['v',0,'s']],[['v',1,'']]),
-        ],
-        {
-        'v' =>[ 'integer', [1,500], 'inout'],
-        'acc' =>[ 'integer',  'in'],
-        }
-    );  
-}  
-elsif ($TEST==5) {
-# stencil-map-fold-map    
-    $stref = mkAST(
-        [            
-            mkStencilDef(1,[-1,0,1]),
-            mkStencilAppl(1,3,['v',0,'']=>['v',0,'s']),
-            mkMap('f1'=>[]=>[['v',0,'s']],[['v',1,'']]),
-            mkFold('f2'=>[]=>[['acc',0,'']]=>[['v',1,'']],[['acc',1,'']]),
-            mkMap('f3'=>[['acc',1,'']]=>[['v',1,'']],[['v',2,'']]),
-        ],
-        {
-        'v' =>[ 'integer', [1,500], 'inout'],
-        'acc' =>[ 'integer',  'in'],
-        }
-    );  
-}  
-elsif ($TEST==6) {
-# stencil-fold-map-stencil-map-fold-map    
-    $stref = mkAST(
-        [            
-            mkStencilDef(1,[-1,0,1]),
-            mkStencilAppl(1,3,['v',0,'']=>['v',0,'s']),
-            mkFold('f0'=>[['t1',0,''],['t2',0,'']]=>[['acc1',0,'']]=>[['v',0,'']]=>[['acc1',1,'']]),
-            mkMap('f1'=>[['acc1',1,'']]=>[['v',0,'s']],[['v',1,'']]),
-            # stencil
-            mkStencilDef(2,[-1,0,1]),
-            mkStencilAppl(2,3,['v',1,'']=>['v',1,'s']),
-            # map
-            mkMap('f4'=>[]=>[['v',1,'s']],[['v',2,'']]),
-            mkFold('f2'=>[]=>[['acc3',0,'']]=>[['v',2,'']],[['acc3',1,'']]),
-            mkMap('f3'=>[['acc3',1,'']]=>[['v',2,'']],[['v',3,'']]),
-        ],
-        {
-        'v' =>[ 'integer', [1,500], 'inout'],
-        't1' =>[ 'integer',  'in'],
-        't2' =>[ 'integer',  'in'],
-        'acc1' =>[ 'integer',  'in'],
-        'acc3' =>[ 'integer',  'in'],
-        }
-    );  
-} 
-elsif ($TEST==7) {
- # map map map stencil map stencil map
-    $stref = mkAST(
-        [
-            mkMap('f1a'=>[]=>[['va',0,''],['vc',0,'']]=>[['va',1,'']]),
-            mkMap('f1b'=>[]=>[['vb',0,'']]=>[['vb',1,'']]),
-            mkMap('f1c' =>[]=>[['va',1,''],['vb',1,'']]=>[['v',0,'']]),
-            mkStencilDef(1,[-1,0,1]),
-            mkStencilAppl(1,3,['v',0,'']=>['v',1,'s']),
-            mkMap('f2'=>[]=>[['v',1,'s']]=>[['v',2,'']]),
-            mkStencilDef(2,[-1,0,1]),
-            mkStencilAppl(2,3,['v',2,'']=>['v',2,'s']),
-            mkMap('f3'=>[]=>[['v',2,'s']]=>[['v',3,'']]),            
-        ],
-        {
-            'va' =>[ 'real', [1,500], 'in'] ,
-            'vc' =>[ 'real', [1,500], 'in'] ,
-            'vb' =>[ 'real', [1,500], 'in'] ,
-            'vab' =>[ 'real', [1,500], 'local'] ,
-            'v' =>[ 'real', [1,500], 'out'] ,
-            }
-    );            
-}
-elsif ($TEST==8) {
-    # stencil map map 
-$stref = mkAST(
-        [
-            mkStencilDef(1,[-1,0,1]),
-            mkStencilAppl(1,3,['etan',0,'']=>['etan',0,'s']),
-            mkMap( "shapiro_map_16" => [] => [ ["wet",0,''],["etan",0,'s']] => [ ['eta',0,''] ]),
-            mkMap ( "update_map_24" => [] => [ ["eta",0,''],["un",0,'']  ] => [ ["h",0,''],["u",0,''],["wet",1,'']] )
-      ],
-        {
-            'wet' => ['int',[1,500], 'inout'] ,
-            'etan' => ['real',[1,500], 'in'] ,
-            'eta'=> ['real',[1,500], 'local'] ,
-            'un'=> ['real',[1,500], 'in'] ,
-            'u'=> ['real',[1,500], 'out'] ,
-            'h'=> ['real',[1,500], 'out'] ,
-        }
-);
-}
-elsif ($TEST==9) {
-    # iterative stencil-map 
-$stref = mkAST(
-        [
-mkStencilDef(1,[-1,0,1]),
-mkStencilAppl(1,3,['p','0',''],['p','1','s']),
-mkMap('sor',[],[['p','1','s']],[['p','1','']]),
-mkStencilAppl(1,3,['p','1',''],['p','2','s']),
-mkMap('sor',[],[['p','2','s']],[['p','2','']]),
-mkStencilAppl(1,3,['p','2',''],['p','3','s']),
-mkMap('sor',[],[['p','3','s']],[['p','3','']]),
-mkStencilAppl(1,3,['p','3',''],['p','4','s']),
-mkMap('sor',[],[['p','4','s']],[['p','4','']]),
-      ],
-        {
-            'p' => ['real',[1,500], 'inout'] ,
-        }
-);
-}
-
-
-
+# croak Dumper get_vars_from_set($stref->{'Subroutines'}{'f'}{'Vars'});
+# croak  Dumper $stref->{'Subroutines'}{ f }{'ArrayAccesses'};
+# croak  Dumper ($stref->{TyTraCL_AST});
     $stref = construct_TyTraCL_AST_Main_node($stref);
+# croak  Dumper ($stref->{TyTraCL_AST});
 
     $stref = _emit_TyTraCL_FunctionSigs($stref);    
-
     $stref = _add_VE_to_AST($stref);
+# croak  Dumper ($stref->{TyTraCL_AST});
     
     $stref = _emit_TyTraCL_Haskell_AST_Code($stref);
 
+    
     # What this does is emitting the Haskell AST to a Haskell module file
-    my $tytracl_hs_str = $stref->{'TyTraCL_Haskell_AST_Code'};
+    my $tytracl_hs_str = $stref->{'TyTraCL_Haskell_AST_Code'} ;
 
-    write_out($tytracl_hs_str);
+    
 
     $stref = emit_TyTraCL($stref);
     my $tytracl_str = $stref->{'TyTraCL_Code'};
+    my $tytracl_as_hs_comment = "\n\n{-\n".$tytracl_str."\n-}\n";
+    # .join("\n",map {'-- '.$_} @{$stref->{'TyTraCL_CodeLines'}});
+    # croak $tytracl_as_hs_comment;    
+
     say $tytracl_str;
+
+    $tytracl_hs_str .= $tytracl_as_hs_comment;    
+    write_out($tytracl_hs_str);
     # This makes sure that no fortran is emitted by emit_all()
     $stref->{'SourceContains'} = {};
 
@@ -509,6 +367,26 @@ sub _emit_TyTraCL_Haskell_AST_Code {
     my $tytracl_ast  = $stref->{'TyTraCL_AST'};
 
     my @stencil_defs=();
+    my %unique_names_for_stencils =();
+    my %stencil_names_to_unique_names = ();
+    for my $node (@{$tytracl_ast->{'Lines'}}) {
+        if ($node->{'NodeType'} eq 'StencilDef') {
+            my $lhs   = $node->{'Lhs'};
+            my $rhs   = $node->{'Rhs'};
+            my $ctr = $lhs->{'Ctr'};
+            my $stencils_          = generate_TyTraCL_stencils($rhs->{'StencilPattern'});
+            my $stencil_definition = '[' . join(',', @{$stencils_}) . ']';
+            my $stencil_name = "s$ctr";
+            if (exists $unique_names_for_stencils{$stencil_definition}) {
+                $stencil_names_to_unique_names{$stencil_name} = $unique_names_for_stencils{$stencil_definition}
+            } else {
+                $unique_names_for_stencils{$stencil_definition}=$stencil_name;                
+                push @stencil_defs, [ $stencil_name, $stencil_definition];
+            }                        
+            # push @stencil_defs, [ $stencil_name, $stencil_definition];
+        }        
+    }   
+    
     # [($f, [($orig_name, $tytracl_name)])]
     my @origNamesList=();
 
@@ -516,13 +394,15 @@ sub _emit_TyTraCL_Haskell_AST_Code {
     for my $node (@{$tytracl_ast->{'Lines'}}) {
 
         if ($node->{'NodeType'} eq 'StencilDef') {
-            my $lhs   = $node->{'Lhs'};
-            my $rhs   = $node->{'Rhs'};
-            my $ctr = $lhs->{'Ctr'};
-            my $stencils_          = generate_TyTraCL_stencils($rhs->{'StencilPattern'});
-            my $stencil_definition = '[' . join(',', @{$stencils_}) . ']';
+            # do nothing
 
-            push @stencil_defs, [ "s$ctr", $stencil_definition];
+        #     my $lhs   = $node->{'Lhs'};
+        #     my $rhs   = $node->{'Rhs'};
+        #     my $ctr = $lhs->{'Ctr'};
+        #     my $stencils_          = generate_TyTraCL_stencils($rhs->{'StencilPattern'});
+        #     my $stencil_definition = '[' . join(',', @{$stencils_}) . ']';
+
+        #     push @stencil_defs, [ "s$ctr", $stencil_definition];
             
         }
         elsif ($node->{'NodeType'} eq 'StencilAppl') {
@@ -531,18 +411,20 @@ sub _emit_TyTraCL_Haskell_AST_Code {
 
             my $svec_type = $tytracl_ast->{'Main'}{'VarTypes'}{$svec_var};
             $node->{'VecType'}= $svec_type->[2];
-            my $line = mkStencilApplAST($node);
+            my $line = mkStencilApplAST($node,\%stencil_names_to_unique_names );
             push @{$tytracl_hs_ast_strs}, $line;
         }
 
         elsif ($node->{'NodeType'} eq 'Map') {
             my $fname = $node->{'FunctionName'};
+            die "get_global_id() is an OpenCL intrinsic and should not be defined\n" if $fname eq 'get_global_id';
             $node->{'NonMapType'}= $tytracl_ast->{'Main'}{'VarTypes'}{$fname}{'NonMapArgType'};
             $node->{'VecType'}= $tytracl_ast->{'Main'}{'VarTypes'}{$fname}{'MapArgType'};
             $node->{'ReturnType'}= $tytracl_ast->{'Main'}{'VarTypes'}{$fname}{'ReturnType'};
-            my $line = mkMapAST($node);            
+            my $line = mkMapAST($stref,$fname,$node);
             push @origNamesList, __origNamesListEntry($node);
             push @{$tytracl_hs_ast_strs}, $line;
+
         }
         elsif ($node->{'NodeType'} eq 'Fold') {
             my $fname = $node->{'FunctionName'};
@@ -581,16 +463,27 @@ sub _emit_TyTraCL_Haskell_AST_Code {
 
     my $tytracl_hs_ast_code_str = join("\n", @indented_tytracl_hs_ast_strs);
 
+    my $comment = $stref->{'TyTraCL_AST'}{'Comment'};
+    my $superkernel_name = $comment;
+    if ($superkernel_name=~/\W/) {
+        $superkernel_name=~s/\W+/_/g;
 
+        # $superkernel_name = 'module_'.lc($superkernel_name);
+    }
     my $header =
+    "-- $comment\n" .
 'module ASTInstance ( ast
         , functionSignaturesList
         , stencilDefinitionsList
         , mainArgDeclsList 
         , scalarisedArgsList
         , origNamesList
+        , superkernelName
         ) where
 import TyTraCLAST
+
+superkernelName :: String
+superkernelName = "'.$superkernel_name.'"
 
 ast :: TyTraCLAST
 ast = [
@@ -834,7 +727,7 @@ sub _add_DType_to_AST {
 # I could then re-emit the Perl AST and go from there to Fortran, or emit Fortran straight from Haskell
 
 sub mkStencilApplAST {
-    (my $stencilApplNode) = @_;
+    (my $stencilApplNode, my $stencil_names_to_unique_names ) = @_;
 
     # $stencilApplNode = {
     #     'Lhs' => {'Var' => ['etan',0,'s']},
@@ -846,6 +739,9 @@ sub mkStencilApplAST {
     my $var      = _mkVarName($stencilApplNode->{'Rhs'}{'Var'});
     my $ve       = $stencilApplNode->{'Rhs'}{'Var'}[3];
     my $s        = 's' . $stencilApplNode->{'Rhs'}{'StencilCtr'};
+    if (exists $stencil_names_to_unique_names->{$s}) {
+        $s = $stencil_names_to_unique_names->{$s};
+    }
     my $s_sz     = $stencilApplNode->{'Rhs'}{'StencilSz'};
     my $ast_line = '(Vec VS (SVec '.$s_sz.' (Scalar VDC D'.$vec_type.' "' . $s_var . '" )) ,'
     . ' Stencil (SVec ' . $s_sz . ' (Scalar VDC DInt "' . $s . '")) '
@@ -873,16 +769,17 @@ So really the only issue is the I/O/S/T type
 
 # This will need context, unless I already add the I/O/T/S types when creating the AST
 sub mkMapAST {
-    (my $mapNode) = @_;
+    my($stref,$fname, $mapNode) = @_;
     my $non_map_type = $mapNode->{'NonMapType'};
     my $vec_type = $mapNode->{'VecType'}; # This is a list as it could be a tuple; can be SVecs as well
     my $ret_type = $mapNode->{'ReturnType'};
+    # carp $fname.Dumper $mapNode;
 # I need to determine if a vector is VO, VI, VS or VS
 # VS is for stencil
 # I should know the inputs and outputs
 # anything else is VT
     my $lhs_vars_types = zip( $mapNode->{'Lhs'}{'Vars'}, $ret_type );
-    
+
 # more than one
     my $lhs = scalar @{$mapNode->{'Lhs'}{'Vars'}} > 1
       ? '(Tuple [' . join(',', map { __mkVec($_) } @{$lhs_vars_types}) . '])'
@@ -890,6 +787,7 @@ sub mkMapAST {
       : __mkVec($lhs_vars_types->[0]);
 
     my $non_map_vars_types = zip( $mapNode->{'Rhs'}{'NonMapArgs'}{'Vars'}, $non_map_type);
+    # croak Dumper $non_map_vars_types;
 
     my $map_vars_types=zip($mapNode->{'Rhs'}{'MapArgs'}{'Vars'}, $vec_type);
     my $map_args =
@@ -902,7 +800,14 @@ sub mkMapAST {
         and scalar @{$mapNode->{'Rhs'}{'NonMapArgs'}{'Vars'}} > 0)
     {
 # FIXME: I guess a single arg should not be a tuple ...
-        $non_map_arg_str = ' [' . join(',', map { __mkScalar($_,'In') } @{$non_map_vars_types}) . ']';        
+        # $non_map_arg_str = ' [' . join(',', map { __mkScalar($_,'In') } @{$non_map_vars_types}) . ']';        
+
+        my $idx = 0;
+        $non_map_arg_str = ' [' . join(',',
+        map {
+        _create_Haskell_TyTraAST_type($stref,$fname,$_->[0],$idx++,'MapFSig')
+        } @{$non_map_vars_types}) . ']'; 
+        # croak $non_map_arg_str;
         # $non_map_arg_str = ' [' . join(',', map { '"'._mkVarName($_).'"' } @{$mapNode->{'Rhs'}{'NonMapArgs'}{'Vars'}}) . ']';
     }
     my $rhs_core = 'Map (Function "' . $f_exp . '" '.$non_map_arg_str. ') ' . $map_args ;
@@ -972,17 +877,25 @@ sub mkFoldAST {
 # (Vec VS (SVec 5 (Scalar DFloat "eta_s_0") ) )
 # ['SVec',3,'DFloat']
 sub __mkType { (my $t_rec, my $v_name, my $v_intent)=@_; 
-    my $ve = defined $v_intent ? 'V'.ucfirst(substr($v_intent,0,1)) : 'VDC';
+    my $ve = (defined $v_intent and $v_intent ne '') ? 'V'.ucfirst(substr($v_intent,0,1)) : 'VDC';
     # carp Dumper($v_intent);#$ve;
-    if ($t_rec->[0] ne 'SVec') {
+    if ($t_rec->[0] ne 'SVec' and $t_rec->[0] ne 'FVec') {
         return 'Scalar '.$ve.' D'.$t_rec->[0].' "'.$v_name.'"';
-    } else {
-        return 'SVec '.$t_rec->[1]. '(Scalar '.$ve.' D'.$t_rec->[2].' "'.$v_name.'")';
+    } else {        
+        if ($t_rec->[0] eq 'SVec')  {
+        return 'SVec '.$t_rec->[1]. ' (Scalar '.$ve.' D'.$t_rec->[2].' "'.$v_name.'")';
+        } else {
+                    my $dims = $t_rec->[1];
+        my $dims_str = join(',', map { '('. $_->[0] .','.$_->[1].')' } @{$dims});
+            #  croak Dumper [ $t_rec, $ve, $v_name];
+             return 'FVec ['.$dims_str. '] (Scalar '.$ve.' D'.$t_rec->[2].' "'.$v_name.'")';
+        }
     }
 }
 
 sub __mkVec {
     my ($var_type_rec, $v_intent) = @_;
+    carp '__mkVec: var_type_rec not defined' if not defined $var_type_rec;
     my ($v_rec, $t_rec) = @{$var_type_rec};
     # t_rec is either [Int] or [SVec,3,Int]
     my $v_name  = _mkVarName($v_rec);
@@ -1077,23 +990,108 @@ sub _create_TyTraCL_Haskell_signatures { (my $stref) = @_;
         
         my $ftypedecl = $stref->{'TyTraCL_AST'}{'Main'}{'VarTypes'}{$f}{'FunctionTypeDecl'} ;
         my $fsig =$stref->{'TyTraCL_FunctionSigs'}{$f};
+        # carp 'FunctionTypeDecl: '. Dumper $stref->{'TyTraCL_AST'}{'Main'}{'VarTypes'}{$f}{'FunctionTypeDecl'};
+        # carp 'TyTraCL_FunctionSigs: '.Dumper $stref->{'TyTraCL_FunctionSigs'}{$f};#$stref->{'TyTraCL_AST'};
         
         my $fname = $ftypedecl->[0] ;
-        croak unless $fname eq $f;
+        croak "PROBLEM: $fname <> $f" unless $fname eq $f;
         # For every argument tuple, i.e. Non-{Map,Fold} [,Acc], {Map,Fold}, Out
         my $typed_arg_tups=[];
+        my $args_types = {%{$stref->{'TyTraCL_AST'}{'Main'}{'InArgsTypes'}},%{$stref->{'TyTraCL_AST'}{'Main'}{'OutArgsTypes'}}};
+
+			# my $subset = in_nested_set( $stref->{'Subroutines'}{$f}, 'Vars', $array_var );
+			# # say "SUBSET <$subset>";
+			# if ($subset) { 
+			# 	my $decl = get_var_record_from_set( $stref->{'Subroutines'}{$f}{'Vars'},$array_var);
+            # }        
+        
         for my $idx (1 .. scalar @{$ftypedecl} - 1) {
             my $typetup = $ftypedecl->[$idx] ;#[ [], [ [ 'Int' ] ], [ [ 'Int' ] ], [ [ 'Int' ] ] ],
             my $argtup = $fsig->[$idx-1]; # [ [], ['v_s'],[ 'v'] ]
             my $typed_arg_tup=[];
             if (scalar @{$typetup}) {
                 for my $type (@{$typetup}) {
-                    my $arg = shift @{$argtup};
-                    if ($type->[0] ne 'SVec') { # It's a scalar 
-                        push @{$typed_arg_tup}, 'Scalar VDC D'.$type->[0].' "'.$arg.'"';
+                    my $arg_rec = shift @{$argtup};
+                    # carp "$f  arg rec:".Dumper($arg_rec)."\ntypetup: ",Dumper( $typetup);
+                    my $arg = $arg_rec->[0];
+                    my $arg_name = _mkVarName($arg_rec);
+                    
+                    my $subset = in_nested_set( $stref->{'Subroutines'}{$f}, 'Vars', $arg );
+                    # say "SUBSET <$subset>";
+                    if ($subset) { 
+                        my $decl = get_var_record_from_set( $stref->{'Subroutines'}{$f}{'Vars'},$arg);
+                        # say $arg. Dumper($decl);
+                        # If the argument is the first, it is Non-Map or Non-Fold
+                        # But in principle the Accumulator can also be a vector
+                        # Non-maps and accumulators are always SVec i.o. Vec; 
+                        # But the other args can be SVec or Vec
+                        my $svec = (($idx == 1) or ($FSig_ctor eq 'FoldFSig' and $idx == 2))
+                            ? 1 
+                            : ($type->[0] eq 'SVec') ? 1 : 0;
+                            # say "$idx <". $type->[0]."> <$svec>";
+                        # croak Dumper $decl if $svec==1;    
+                        my $arg_type = ($type->[0] eq 'SVec') 
+                            ? $type
+                            : ($decl->{'ArrayOrScalar'} eq 'Array') 
+                                # Vec of SVec depending on $svec
+                                ? __toTyTraCLType($decl->{'Type'},$decl->{'ConstDim'},$svec)
+                                # Scalar
+                                : __toTyTraCLType($decl->{'Type'},[],$svec); 
+                        # say "$f $arg => $arg_name:\narg rec:".Dumper($arg_rec)."\n type: ".$type->[0]."\n argtype: ". $arg_type->[0] ;
+                        # die Dumper $decl if $arg_name eq 'v_nm_0';
+                        # This is not good. Basically
+
+                        if ($arg_type->[0] ne 'SVec' and 
+                            $arg_type->[0] ne 'Vec') { # It's a scalar FIXME: This information is not there!
+                            if (defined $decl) {
+                                if ($decl->{'ArrayOrScalar'} eq 'Array' and
+                                    scalar @{$decl->{'Dim'}}>0) { # it's an array
+                                        if ($svec) {
+                                            # push @{$typed_arg_tup}, 'Scalar '.$arg_rec->[3].' D'.$arg_type->[0].' "'.$arg_name.'"';
+                                            my $tytra_cl_type= __toTyTraCLType($decl->{'Type'},$decl->{'ConstDim'},1);
+                                            my $intent = exists $decl->{'Intent'} 
+                                                ? $decl->{'Intent'} 
+                                                : defined $arg_rec->[3]
+                                                ? __VE_to_Intent($arg_rec->[3])
+                                                : croak "Can't work out INTENT for $arg_name in $f";
+                                            my $hs_type_decl_str = __mkType($tytra_cl_type,$arg_name,$intent);
+                                            push @{$typed_arg_tup}, $hs_type_decl_str;
+                            # SVec '.$arg_type->[1].' (Scalar V'.$arg_rec->[3]. ' D'.$arg_type->[2].' "'.$arg_name.'")';
+                                           
+                                        } else {
+                                            # Functions are scalarised
+                                            push @{$typed_arg_tup}, 'Scalar '.$arg_rec->[3].' D'.$arg_type->[0].' "'.$arg_name.'"';
+                                        }
+                                    } else {
+                                push @{$typed_arg_tup}, 'Scalar '.$arg_rec->[3].' D'.$arg_type->[0].' "'.$arg_name.'"';
+                                    }
+                            } else {
+                                push @{$typed_arg_tup}, 'Scalar '.$arg_rec->[3].' D'.$arg_type->[0].' "'.$arg_name.'"';
+                            }
+                        } elsif ($arg_type->[0] eq 'Vec') {
+                            # croak Dumper $arg_type;
+                            # push @{$typed_arg_tup}, 'Vec '.$arg_rec->[3].' (Scalar VDC D'.$arg_type->[2].' "'.$arg_name.'")';
+                            # push @{$typed_arg_tup}, 'Vec '.$arg_rec->[3].' (Scalar VDC D'.$arg_type->[2].' "'.$arg_name.'")';
+                            push @{$typed_arg_tup}, 'Scalar '.$arg_rec->[3].' D'.$arg_type->[2].' "'.$arg_name.'"';
+                        } else {
+                                            # my $tytra_cl_type= __toTyTraCLType($decl->{'Type'},$decl->{'Dim'},1);
+                                            # my $intent = exists $decl->{'Intent'} 
+                                            #     ? $decl->{'Intent'} 
+                                            #     : defined $arg_rec->[3]
+                                            #     ? __VE_to_Intent($arg_rec->[3])
+                                            #     : croak "Can't work out INTENT for $arg_name in $f";
+                                            # my $hs_type_decl_str = __mkType($tytra_cl_type,$arg_name,$intent);                            
+                            my $svec_sz = ref($arg_type->[1]) eq 'ARRAY' ? $arg_type->[1][1] : $arg_type->[1];
+                            push @{$typed_arg_tup}, 'SVec '.$svec_sz.' (Scalar VDC D'.$arg_type->[2].' "'.$arg_name.'")';
+                            # croak $arg_name.' : '.Dumper($arg_rec).$hs_type_decl_str .Dumper($typed_arg_tup);
+                        }  
+                        # croak Dumper $decl if $arg_name eq 'v_nm_0';
                     } else {
-                        push @{$typed_arg_tup}, 'SVec '.$type->[1].' (Scalar VDC D'.$type->[2].' "'.$arg.'")';
-                    }                    
+                        croak "TROUBLE: NO DECL for $arg in $f: ".Dumper($stref->{'Subroutines'});
+                    }       
+        
+
+                  
                 }
             } 
             push @{$typed_arg_tups}, $typed_arg_tup;
@@ -1170,11 +1168,20 @@ sub __toHaskellFDecl {(my $arg_name, my $tytracl_var_rec, my $intent) =@_;
     );
 
     my $vt  = shift @{$tytracl_var_rec };
-    if ($vt eq 'Vec' or $vt eq 'SVec') {
-        my $dim = shift @{$tytracl_var_rec };
+    if ($vt eq 'Vec' or $vt eq 'SVec' ) {
+        my $offset_dim = shift @{$tytracl_var_rec };
+        (my $offset, my $dim) = @{$offset_dim};
+        # my $dim = shift @{$tytracl_var_rec };
         my $vt = shift @{$tytracl_var_rec};
         # return $fortran_type{$vt}.', dimension(1:'.$dim.'), intent('.$intent.') :: '. $arg_name;
-        return 'MkFDecl "'.$fortran_type{$vt}.'"  (Just ['.$dim.']) (Just '.$intent.') ["'.$arg_name.'"]';
+        return 'MkFDecl "'.$fortran_type{$vt}.'"  (Just [('.$offset.','.$dim.')]) (Just '.$intent.') ["'.$arg_name.'"]';   
+    } elsif ( $vt eq 'FVec') {
+        my $dims = shift @{$tytracl_var_rec };
+        my $dims_str = join(',', map { '('. $_->[0] .','.$_->[1].')' } @{$dims});
+        # my $dim = shift @{$tytracl_var_rec };
+        my $vt = shift @{$tytracl_var_rec};
+        # return $fortran_type{$vt}.', dimension(1:'.$dim.'), intent('.$intent.') :: '. $arg_name;
+        return 'MkFDecl "'.$fortran_type{$vt}.'"  (Just ['.$dims_str.']) (Just '.$intent.') ["'.$arg_name.'"]';           
     } else {
         # return $fortran_type{$vt}.', intent('.$intent.') :: '. $arg_name;
         return 'MkFDecl "'.$fortran_type{$vt}.'" Nothing (Just '.$intent.') ["'.$arg_name.'"]';
@@ -1197,7 +1204,8 @@ and a list $f => [($orig_name, $stencil_index)] with the order for the scalarise
 
 Then for every f we map (orig_name, stencil_index) -> ((origNames ! f) ! orig_name)++(if stencil_index==0 then "" else "("++(show stencil_index++")")))
 =cut
-
+# in the script memory_reduction.pl we set
+# $stref->{'ScalarisedArgs'}{$f}=$stref_init->{'Subroutines'}{$f}{'DeclaredOrigArgs'};
 sub _create_TyTraCL_Haskell_scalarisedArgsList { (my $stref)=@_;
     
     my @scalarisedArgsList = ();
@@ -1265,8 +1273,6 @@ sub _create_TyTraCL_Haskell_origNamesList { (my $orig_names_list)=@_;
 sub __origNamesListEntry { my ($node) = @_;
     my $arg_name_pairs = [];
     my $fname = $node->{'FunctionName'};
-# croak Dumper $node if $fname eq 'dyn_map_65';
-
         if ($node->{'NodeType'} eq 'Map') {
 
             my %out_args = ();
@@ -1298,7 +1304,11 @@ sub __origNamesListEntry { my ($node) = @_;
                         push @{$arg_name_pairs},[
                             $arg_rec->[0],[
                                 _mkVarName($arg_rec)
-                                , exists $out_args{$arg_rec->[0]} ? 'Out' : 'In'
+                                , 
+                                # exists $out_args{$arg_rec->[0]} ? 'Out' : 'In'
+                                $arg_rec->[3] ne 'VT' 
+                                    ? __VE_to_Intent($arg_rec->[3])
+                                    : exists $out_args{$arg_rec->[0]} ? 'Out' : 'In'
                             ]
                         ];
                     } 
@@ -1310,66 +1320,148 @@ sub __origNamesListEntry { my ($node) = @_;
         }
         elsif ($node->{'NodeType'} eq 'Fold') {
 
-            # my %out_args = ();
-            # map { $out_args{$_->[0]} = $_ } @{$node->{'Lhs'}{'Vars'}};
-            # say Dumper %out_args;
-            # # my %out_args = map { $_->[0]=>$_ } @{$node->{'Lhs'}{'Vars'}};
-            # say Dumper $node->{'Rhs'}{'AccArgs'}{'Vars'};# = [['acc',0,'','VI']];
-            # say Dumper $node->{'Rhs'}{'FoldArgs'}{'Vars'};# = [['acc',0,'','VI']];
-            # my @tmp1 = map { $_->[0] } @{$node->{'Rhs'}{'AccArgs'}{'Vars'}};
-            # say Dumper @tmp1;
-            # my @tmp2 =   grep { exists $out_args{$_} } @tmp1;
-            # say Dumper @tmp2;
-            # my %tmp3 = map { $_->[0]=>[$_,$out_args{$_}] } @tmp2;            
-            # my %inout_args =  map { $_->[0]=>[$_,$out_args{$_->[0]}] } grep { exists $out_args{$_->[0]} } map { $_->[0] } @{$node->{'Rhs'}{'AccArgs'}{'Vars'}};
-            # my %done=();
-
             my %out_args = ();
             map { $out_args{$_->[0]} = $_ } @{$node->{'Lhs'}{'Vars'}};
+
             my %inout_args =  map { 
                 $_->[0]=>[[$_,'In'],[$out_args{$_->[0]},'Out']] 
                 } grep { exists $out_args{$_->[0]}  } @{$node->{'Rhs'}{'MapArgs'}{'Vars'}};
-            my %done=();
 
+            my %done=();
 
             for my $arg_rec (
                 @{$node->{'Lhs'}{'Vars'}}
                ,@{$node->{'Rhs'}{'FoldArgs'}{'Vars'}}
                ,@{$node->{'Rhs'}{'NonFoldArgs'}{'Vars'}}
-            ,@{$node->{'Rhs'}{'AccArgs'}{'Vars'}}
+               ,@{$node->{'Rhs'}{'AccArgs'}{'Vars'}}
             ) {
-
-                                if (exists $inout_args{$arg_rec->[0]}) {
+                if (exists $inout_args{$arg_rec->[0]}) {
                     my $entry = [ map { 
                             [
                                 _mkVarName($_->[0]), $_->[1]
                             ]
                      }  @{$inout_args{$arg_rec->[0]}}
-                     ];            
+                     ];         
+                        
                      $done{$arg_rec->[0]}=1;  
                      delete $inout_args{$arg_rec->[0]};       
                     push @{$arg_name_pairs},[$arg_rec->[0],$entry];
                 } else {
                     if (not exists $done{$arg_rec->[0]}) {
-                        push @{$arg_name_pairs},[
+                        my $entry = [
                             $arg_rec->[0],[
-                                _mkVarName($arg_rec)
-                                , exists $out_args{$arg_rec->[0]} ? 'Out' : 'In'
+                                _mkVarName($arg_rec),
+                                # THIS IS WRONG! Why not take it from VE?
+                                # Can be we might need to change In to InOut?                                
+                                # exists $out_args{$arg_rec->[0]} ? 'Out' : 'In'
+                                # I don't think we ever have VT here but it does not hurt
+                                $arg_rec->[3] ne 'VT' ? __VE_to_Intent($arg_rec->[3])
+                                : exists $out_args{$arg_rec->[0]} ? 'Out' : 'In'
                             ]
                         ];
+                        push @{$arg_name_pairs}, $entry;
                     } 
-                    # else {
-                    #     carp "Skipping ". $arg_rec->[0];
-                    # }
                 }
-
-                # push @{$arg_name_pairs},[$arg_rec->[0],_mkVarName($arg_rec)];
             }
         }
-        
     return [$fname,$arg_name_pairs];
         
 } # END of __origNamesListEntry
 
+# Only Intent if VI, VO or VS. VT is local.
+# VS is a stencil and that is per definition In
+sub __VE_to_Intent { my ($ve) = @_;
+    $ve eq 'VI' 
+        ? 'In' 
+        : $ve eq 'VO' 
+            ? 'Out'
+            : $ve eq 'VS' 
+                ? 'In' 
+                : ''
+}
 
+sub _create_Haskell_TyTraAST_type { my ($stref,$f,$arg_rec,$idx,$FSig_ctor,$type) = @_;
+
+                    my $arg = $arg_rec->[0];
+                    my $arg_name = _mkVarName($arg_rec);
+                    
+                    my $subset = in_nested_set( $stref->{'Subroutines'}{$f}, 'Vars', $arg );
+                    # say "SUBSET <$subset>";
+                    if ($subset) { 
+                        my $decl = get_var_record_from_set( $stref->{'Subroutines'}{$f}{'Vars'},$arg);
+                        if (not defined $type) {
+                            $type = ($decl->{'ArrayOrScalar'} eq 'Array') 
+                                    # Vec, SVec or FVec depending on $svec
+                                    ? __toTyTraCLType($decl->{'Type'},$decl->{'ConstDim'},1)
+                                    # Scalar
+                                    : __toTyTraCLType($decl->{'Type'},[],0); 
+                        }                        
+                        
+                        # If the argument is the first, it is Non-Map or Non-Fold
+                        # But in principle the Accumulator can also be a vector
+                        # Non-maps and accumulators are always FVec i.o. Vec; 
+                        # But the other args can be SVec or Vec
+                        my $svec = (($idx == 1) or ($FSig_ctor eq 'FoldFSig' and $idx == 2))
+                            ? 1 
+                            : ($type->[0] eq 'FVec') ? 1 : 0;
+                        my $arg_type = ($type->[0] eq 'FVec') 
+                            ? $type
+                            : ($decl->{'ArrayOrScalar'} eq 'Array') 
+                                # Vec of FVec depending on $svec
+                                ? __toTyTraCLType($decl->{'Type'},$decl->{'ConstDim'},$svec)
+                                # Scalar
+                                : __toTyTraCLType($decl->{'Type'},[],$svec); 
+
+                        if ($arg_type->[0] ne 'SVec' and 
+                            $arg_type->[0] ne 'FVec' and 
+                            $arg_type->[0] ne 'Vec') { # It's a scalar FIXME: This information is not there!
+                            if (defined $decl) {
+                                if ($decl->{'ArrayOrScalar'} eq 'Array' and
+                                    scalar @{$decl->{'Dim'}}>0) { # it's an array
+                                        if ($svec) {
+                                            my $tytra_cl_type= __toTyTraCLType($decl->{'Type'},$decl->{'ConstDim'},1);
+                                            my $intent = exists $decl->{'Intent'} 
+                                                ? $decl->{'Intent'} 
+                                                : defined $arg_rec->[3]
+                                                ? __VE_to_Intent($arg_rec->[3])
+                                                : croak "Can't work out INTENT for $arg_name in $f";
+                                            my $hs_type_decl_str = __mkType($tytra_cl_type,$arg_name,$intent);
+                                            return $hs_type_decl_str;                                           
+                                        } else {
+                                            # Functions are scalarised
+                                            return 'Scalar '.$arg_rec->[3].' D'.$arg_type->[0].' "'.$arg_name.'"';
+                                        }
+                                    } else {
+                                return 'Scalar '.$arg_rec->[3].' D'.$arg_type->[0].' "'.$arg_name.'"';
+                                    }
+                            } else {
+                                return 'Scalar '.$arg_rec->[3].' D'.$arg_type->[0].' "'.$arg_name.'"';
+                            }
+                        } elsif ($arg_type->[0] eq 'Vec') {
+                            return 'Scalar '.$arg_rec->[3].' D'.$arg_type->[2].' "'.$arg_name.'"';
+                        } elsif ($arg_type->[0] eq 'FVec') {
+                            # croak  'FVec '.Dumper $arg_type;
+                            my $dims = $arg_type->[1];
+                            my $dims_str = join(',', map { '('. $_->[0] .','.$_->[1].')' } @{$dims});
+
+                            return 'FVec ['.$dims_str.'] (Scalar VDC D'.$arg_type->[2].' "'.$arg_name.'")';
+                        } else {
+                            # croak  'SVec '.$arg_type->[1].' (Scalar VDC D'.$arg_type->[2].' "'.$arg_name.'")';
+                            return 'SVec '.$arg_type->[1][1].' (Scalar VDC D'.$arg_type->[2].' "'.$arg_name.'")';
+                        }  
+                    } else {
+                        croak "TROUBLE: NO DECL for $arg in $f: ".Dumper($stref->{'Subroutines'});
+                    }       
+} # END of _create_Haskell_TyTraAST_type
+
+sub _get_Purpose_from_file { my ($stref, $f) = @_;
+    my $purpose_for_args = read_config($Config{'PURPOSE_CFG'});
+
+    for my $arg (sort keys %{$purpose_for_args}) {
+        $stref->{'Subroutines'}{$f}{'DeclaredOrigArgs'}{'Set'}{$arg}{'Purpose'} = $purpose_for_args->{$arg};
+        say "SET Purpose for $arg in $f to ".$purpose_for_args->{$arg};
+    }
+
+    return $stref;
+}
 1;

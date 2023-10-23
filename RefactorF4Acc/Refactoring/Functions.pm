@@ -2,14 +2,14 @@ package RefactorF4Acc::Refactoring::Functions;
 use v5.10;
 use RefactorF4Acc::Config;
 use RefactorF4Acc::Utils;
-use RefactorF4Acc::Refactoring::Common qw( context_free_refactorings stateful_pass );
-
-# 
+use RefactorF4Acc::Refactoring::Helpers qw( stateful_pass_inplace );
+use RefactorF4Acc::Refactoring::ContextFree qw( context_free_refactorings );
+#
 #   (c) 2010-2017 Wim Vanderbauwhede <wim@dcs.gla.ac.uk>
-#   
+#
 
 use vars qw( $VERSION );
-$VERSION = "2.1.1";
+$VERSION = "5.1.0";
 
 #use warnings::unused;
 use warnings;
@@ -38,63 +38,65 @@ Functions
 
 
 sub remove_vars_masking_functions { ( my $stref ) = @_;
-	
+
     my $pass_actions = sub {
         (my $annline,  my $state) = @_;
         (my $stref, my $f) =@{$state};
         (my $line, my $info) = @{$annline};
         
         if (exists $info->{'VarDecl'}) {
-        	
-            my $var = $info->{'VarDecl'}{'Name'};            
+
+            my $var = $info->{'VarDecl'}{'Name'};
             if (exists $stref->{'Subroutines'}{$f}{'CalledSubs'}{'Set'}{$var}) {
                 say "INFO: VAR $var is masking a function/sub in $f, LINE: $line" if $I;
-                my $Sf = $stref->{'Subroutines'}{$f};                                
+                my $Sf = $stref->{'Subroutines'}{$f};
 				my $src = $Sf->{'Source'};
 				if (exists $stref->{'Subroutines'}{$var}{'Source'}) { # otherwise $var must be external
 	           		my $cs_src = $stref->{'Subroutines'}{$var}{'Source'};
-	           		# We comment the line out unless it's a program 
+	           		# We comment the line out unless it's a program
                  	if (
-                 		($cs_src eq $src) and                  		
+                 		($cs_src eq $src) and
                  		(
                  		(exists $stref->{'Subroutines'}{$var}{'Program'} and $stref->{'Subroutines'}{$var}{'Program'}==1)
                  		or ($stref->{'Program'} eq $src)
                  		)
     	        	) {
-    	        		
     	        		$line.= '! decl of func/sub in program' if $DBG;
-    	        		
     	        	} else {
 						delete $Sf->{'Vars'}{$var};
     	        	    delete $Sf->{'OrigArgs'}{$var};
         	        	delete $Sf->{'RefactoredArgs'}{$var};
             	    	$info->{'Deleted'}=1;
             		 	$line = '! '.$line. "$cs_src <> $src;".$stref->{'Subroutines'}{$var}{'Program'}.';'.$stref->{'Program'};
-         	   		}                
+         	   		}
 				} else {
 					# $var is an external subroutine, for now just mark it
-					$line = '! '.$line. '! EXTERNAL SUB' if $DBG;
-				}     
-               
-                push @{$info->{'Ann'}}, annotate($f, __LINE__  );    
-                         
+					$line = '! '.$line. ($DBG ? '! EXTERNAL SUB' : '') ;
+				}
+
+                push @{$info->{'Ann'}}, annotate($f, __LINE__  );
+
                 return ([ [$line, $info] ], [$stref, $f]);
             }
+            elsif (exists $info->{'External'}) { 
+                $line = '! '.$line. ($DBG ? '! EXTERNAL SUB' : '') ;
+                 return ([ [$line, $info] ], $state);
+            }
         }
-        return ([$annline], $state)        
+        return ([$annline], $state)
     };
-    
-    for my $f ( keys %{ $stref->{'Subroutines'} } ) {   
-    	     
+
+    for my $f ( keys %{ $stref->{'Subroutines'} } ) {
+
         next unless (defined $f and $f ne '');
         next if exists $F95_intrinsic_functions{$f};
         next if exists $stref->{'Entries'}{$f};
         next if exists $stref->{'ExternalSubroutines'}{$f};
         next if exists $stref->{'Modules'}{$f}; # HACK! FIXME!
         my $state = [$stref,$f];
-        ($stref, $state) = stateful_pass($stref,$f, $pass_actions, $state, '');
+        ($stref, $state) = stateful_pass_inplace($stref,$f, $pass_actions, $state, '');
     }
-    return $stref;    
+    return $stref;
 }
 # -----------------------------------------------------------------------------
 # The test for called functions is the status:
@@ -108,13 +110,13 @@ sub refactor_called_functions {
         	my $Ff = $stref->{'Subroutines'}{$f};
         	if ( defined $Ff->{'Called'} ) { # FIXME: This test is weak because the caller might not be called itself!
         		if ($Ff->{'Status'} == $READ) { 
-        		    warn "refactor_called_functions(): Function $f was never parsed ";
+        		    warning( "Function $f (" .$Ff->{'Source'}.  ") was never parsed ");
                     croak Dumper($Ff) if $DBG;
-        		} else {        
+        		} else {
             		$stref = _refactor_function( $f, $stref );
         		}
         	}
-        } 
+        }
     }
     return $stref;
 }    # END of refactor_called_functions()
@@ -129,8 +131,8 @@ sub _refactor_function {
         print "#" x 80, "\n";
     }
     my $Ff = $stref->{'Subroutines'}{$f};
-    print "CONTEXT-FREE REFACTORING FUNCTION $f\n" if $V;    
-	
+    print "CONTEXT-FREE REFACTORING FUNCTION $f\n" if $V;
+
     if (   not exists $Ff->{'RefactoredCode'}
         or $Ff->{'RefactoredCode'} == []
         ) {
@@ -162,15 +164,15 @@ Syntax
 ([dummy-arg-names]) [RESULT (result-name)]
 
  $ftype_decl function $fname($arg1,...) result($out_arg)
-    $arg1_type, intent(In) :: $arg1 
+    $arg1_type, intent(In) :: $arg1
     if ($ftype_decl eq '') {
     $out_arg_type             :: $out_arg
-    } 
+    }
     $out_arg = ...
  end function $fname
- 
- 
- 
+
+
+
  The syntax for a subroutine definition is:
 subroutine-stmt
 [use-stmts]
@@ -218,11 +220,11 @@ sub _convert_function_to_subroutine {
 #@     Dim       => []
 #@     Parameter => 'parameter'
 #@     Names     => [@var_vals]
-#@     Status    => 0    
+#@     Status    => 0
 
 sub add_function_var_decls_from_calls {
     ( my $stref, my $f ) = @_;
-    
+
     my $Sf = $stref->{'Subroutines'}{$f};
 
     #   local $DBG= ;
@@ -230,10 +232,10 @@ sub add_function_var_decls_from_calls {
 
     my $__add_function_var_decls_from_calls = sub {
         ( my $annline, my $state ) = @_;
-        ( my $line, my $info )  = @{$annline};        
+        ( my $line, my $info )  = @{$annline};
         ( my $stref, my $f) = @{$state};
         my $Sf     = $stref->{'Subroutines'}{$f};
-        
+
         if ( exists $info->{'FunctionCalls'} ) {
         	for my $fcall ( @{ $info->{'FunctionCalls'} } ) {
         	   my $fname = $fcall->{'Name'};
@@ -241,32 +243,32 @@ sub add_function_var_decls_from_calls {
 #								carp $fname  . Dumper($Sf->{'DeclaredOrigLocalVars'}{'Set'}{$fname}) if exists $Sf->{'DeclaredOrigLocalVars'}{'Set'}{$fname} ;
                 if (
                 not exists $Sf->{'DeclaredOrigLocalVars'}{'Set'}{$fname}
-                and not exists $Sf->{'UndeclaredOrigLocalVars'}{'Set'}{$fname}) {                	
+                and not exists $Sf->{'UndeclaredOrigLocalVars'}{'Set'}{$fname}) {
                 	my $decl = {
                 		'Name' => $fname,
                 		'Indent' => '      ', # no idea, best would be to inherit
                 		'Attr' => $stref->{'Subroutines'}{$fname}{'Signature'}{'ReturnTypeAttr'}, # TODO, in principle the type-spec could be something like integer(size=4) or maybe even an array or character string
-                		'Type' => $stref->{'Subroutines'}{$fname}{'Signature'}{'ReturnType'}, 
+                		'Type' => $stref->{'Subroutines'}{$fname}{'Signature'}{'ReturnType'},
                 		'Dim' =>[],
                 		 'ArrayOrScalar' => 'Scalar'
                 	};
                 	$Sf->{'UndeclaredOrigLocalVars'}{'Set'}{$fname}=$decl;
-                	@{ $Sf->{'UndeclaredOrigLocalVars'}{'List'} } = sort keys %{ $Sf->{'UndeclaredOrigLocalVars'}{'Set'} }; 
-                } 
+                	@{ $Sf->{'UndeclaredOrigLocalVars'}{'List'} } = sort keys %{ $Sf->{'UndeclaredOrigLocalVars'}{'Set'} };
+                }
             }
         }
-        
+
 	    $state = [ $stref, $f];
         return ( [$annline], $state );
-        
+
     };
 
     my $state = [ $stref, $f];
 
-    ( $stref, $state ) = stateful_pass( $stref, $f, $__add_function_var_decls_from_calls, $state, '_add_function_var_decls_from_calls() ' . __LINE__ );
+    ( $stref, $state ) = stateful_pass_inplace( $stref, $f, $__add_function_var_decls_from_calls, $state, '_add_function_var_decls_from_calls() ' . __LINE__ );
     $stref = $state->[0];
     return $stref;
-	
+
 } # END of add_function_var_decls_from_calls
 
 1;

@@ -8,7 +8,7 @@ use RefactorF4Acc::Config;
 #
 
 use vars qw( $VERSION );
-$VERSION = "2.1.1";
+$VERSION = "5.1.0";
 
 use warnings;
 use warnings FATAL => qw(uninitialized);
@@ -947,7 +947,6 @@ sub __rename_arg_regs {
     my ($ast_node, $regs_to_args, $reg_offset) = @_;
     if (ref($ast_node) eq 'ARRAY') {
         if ($ast_node->[0] eq 'Reg') {
-# carp Dumper $ast_node;
             # rename it
             if (exists $regs_to_args->{$ast_node->[1]}) {
                 $ast_node->[1] = $regs_to_args->{$ast_node->[1]};

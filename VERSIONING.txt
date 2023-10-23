@@ -8,5 +8,5 @@
 
 - 1.1.0: 1 Nov 2018
 - Major version increments each year
-- Minor version increments each quarter
+- Minor version increments each quarter, i.e. if it's 3 months after the previous release, +1 
 - Patch version increments inside a quarter, ad-hoc

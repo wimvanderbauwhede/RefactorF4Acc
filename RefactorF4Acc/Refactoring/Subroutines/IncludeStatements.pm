@@ -65,7 +65,7 @@ sub create_additional_include_statements {
             my $tinc = $inc;
             
             $tinc=~s/\./_/g;
-            	my $rline = "      use $tinc";
+            	my $rline = "      use $tinc  ! create_additional_include_statements ";
             $info->{'Ann'} = [annotate($f, __LINE__  )];
             $info->{'Include'}{'Name'} = $inc;
             $info->{'Ref'}=1;

@@ -1,0 +1,13 @@
+import os
+
+FC=os.environ.get('FC')
+
+print( FC )
+fsources = ['func1.f', 'func2.f', 'func3.f', 'sub1.f', 'sub2.f', 'sub3.f', 'test1_main.f']
+
+LDFLAGS= [] 
+FFLAGS  = ['-cpp', '-Wall'] #,'-ffree-form', '-ffree-line-length-0', '-fconvert=big-endian','-mcmodel=medium']
+
+envF=Environment(FORTRAN=FC,F77=FC,LINK=FC,LINKFLAGS=LDFLAGS,F77FLAGS=FFLAGS,F77PATH=['.'])
+
+envF.Program('test1',fsources,LIBS=[],LIBPATH=['.'])

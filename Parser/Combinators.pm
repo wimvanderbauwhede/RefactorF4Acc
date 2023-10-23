@@ -25,6 +25,7 @@ use Exporter 'import';
   sepByChar
   oneOf
   word
+  mixedCaseWord
   natural
   number
   symbol
@@ -439,7 +440,7 @@ sub sepByChar ($$) {
 }
 
 # This is a lexeme parser, so it skips trailing whitespace
-# Should be called "identifier" I think
+# Should be called "identifier" I think; also, why is this lower-case only?
 sub word {
 	my $gen = sub {
 		( my $str ) = @_;
@@ -458,6 +459,26 @@ sub word {
 		}
 	};
 	return $gen;
+}
+
+sub mixedCaseWord {
+    my $gen = sub {
+        ( my $str ) = @_;
+        say "* word( '$str' )" if $V;
+        if ( $str =~ /^([a-zA-Z_]\w*)/ ) {
+            my $m       = $1;
+            my $matches = $m;
+            $str =~ s/^$m\s*//;
+            say "word: remainder => <$str>"   if $V;
+            say "word: matches => [$matches]" if $V;
+            return ( 1, $str, $matches );
+        } else {
+            say "word: match failed => <$str>" if $V;
+            return ( 0, $str, undef )
+              ;   # assumes $status is 0|1, $str is string, $matches is [string]
+        }
+    };
+    return $gen;	
 }
 
 sub identifier {
@@ -691,10 +712,10 @@ sub oneOf {
 }
 
 # Enough rope: this parser will parse whatever the regex is, stripping trailing whitespace
-sub regex {
+sub regex {	
 	( my $regex_str ) = @_;
-	my $gen = sub {
-		( my $str ) = @_;
+	my $gen = sub { 
+		( my $str ) = @_;		
 #		$regex_str=~s/\//\\\//g;
 		$regex_str=~s/\*/\\\*/g;
 		say "* regex( '/$regex_str/', '$str' )" if $V;
@@ -753,64 +774,6 @@ sub empty {
 	return ( @{$elt_in_array} ) ? 0 : 1;
 }
 
-# This function returns labeled items in the parse tree.
-# It is rather aggressive in removing unlabeled items
-sub get_tree_as_lists {
-	( my $list ) = @_;
-	#	say "LIST: get_tree_as_lists:".Dumper($list);
-	my $hlist = [];
-	for my $elt ( @{$list} ) {
-		if ( ref($elt) eq 'ARRAY' and scalar @{$elt} > 0 ) {    # non-empty list
-#			say 'ARRAY:' . Dumper($elt);
-			my $telt = get_tree_as_lists($elt);
-			if ( ref($telt) eq 'HASH' or scalar @{$telt} > 0 ) {
-				push @{$hlist}, $telt;
-			} else {
-#				say Dumper($telt);
-				push @{$hlist}, $telt;
-			}
-		} elsif ( ref($elt) eq 'HASH' )
-		{    # hash: need to process the rhs of the pair
-			for my $k ( keys %{$elt} ) {
-				my $v = $elt->{$k};
-#				say "DU: $k => " . Dumper($v);
-				if ( ref($v) ne 'ARRAY' )
-				{    # not an array => wrap in array and redo
-					push @{$hlist}, { $k => $v };
-				} elsif ( scalar @{$v} == 1 and ref( $v->[0] ) eq 'ARRAY' )
-				{    # a single-elt array where the elt also an array
-#					say 'nested singleton ' . Dumper($v);
-					my $tv = get_tree_as_lists($v);
-#					say 'TV:' . Dumper($tv);
-					push @{$hlist}, { $k => $tv };    #$v->[0]};
-				} else {
-#            		say "DU2:".Dumper($v);
-					my $pv = [
-						map {
-							if ( ref($_) eq 'ARRAY' and @{$_} > 0 )
-							{
-								get_tree_as_lists($_);
-							} elsif ( ref($_) eq 'HASH' ) {
-								get_tree_as_lists( [$_] );
-							} elsif ( defined $_ ) {
-								$_;
-							}
-						  } @{$v}
-					];
-					my @ppv = grep { ref($_) ne 'XXX' } @{$pv};
-					push @{$hlist}, { $k => \@ppv };
-				}
-			}
-		}
-	}
-
-	#	while (ref($hlist) eq 'ARRAY' and scalar @{$hlist}==1) {
-	#		$hlist=$hlist->[0];
-	#	}
-	#	return $hlist;
-	return scalar @{$hlist} == 1 ? $hlist->[0] : $hlist;
-}
-
 sub is_list_of_objects {
 	( my $mlo ) = $_;
 	if ( ref($mlo) eq 'ARRAY' ) {
@@ -839,7 +802,103 @@ sub flatten_lists_in_tree {
 	}
 }
 
-sub add_to_map {
+sub remove_nested_singletons {
+	( my $hlist ) = @_;
+	if ( ref($hlist) eq 'ARRAY' ) {
+		if ( scalar @{$hlist} == 1 ) {
+			$hlist = $hlist->[0];
+			$hlist = remove_nested_singletons($hlist);
+		}
+	}
+
+	# At this point it should be a multi-elt array or a hash
+	if ( ref($hlist) eq 'ARRAY' ) {
+		for my $elt ( @{$hlist} ) {
+			$elt = remove_nested_singletons($elt);
+		}
+	} elsif ( ref($hlist) eq 'HASH' ) {
+		for my $k ( keys %{$hlist} ) {
+			$hlist->{$k} = remove_nested_singletons( $hlist->{$k} );
+		}
+
+	} else {
+
+		# do nothing
+	}
+	return $hlist;
+}
+
+# ========================================================================
+
+sub _remove_undefined_values {
+	( my $hlist ) = @_;
+	my @nhlist=();
+	if ( ref($hlist) eq 'ARRAY' ) {
+		for my $elt ( @{$hlist} ) {
+			if (defined $elt) {
+				my $nelt = _remove_undefined_values($elt);
+				push @nhlist, $nelt;
+			} 
+		}
+		$hlist = [@nhlist];
+	} elsif ( ref($hlist) eq 'HASH' ) {
+		for my $k ( keys %{$hlist} ) {
+			$hlist->{$k} = _remove_undefined_values( $hlist->{$k} );
+			if (not defined $hlist->{$k}) {
+				delete $hlist->{$k};
+			} 
+		}		
+	} 
+	return $hlist;
+}
+
+# This function returns labeled items in the parse tree.
+# It is rather aggressive in removing unlabeled items
+sub _get_tree_as_lists {
+	( my $list ) = @_;
+	my $hlist = [];
+	for my $elt ( @{$list} ) {
+		if ( ref($elt) eq 'ARRAY' and scalar @{$elt} > 0 ) {    # non-empty list
+			my $telt = _get_tree_as_lists($elt);
+			if ( ref($telt) eq 'HASH' or scalar @{$telt} > 0 ) {
+				push @{$hlist}, $telt;
+			} else {
+				push @{$hlist}, $telt;
+			}
+		} elsif ( ref($elt) eq 'HASH' )
+		{    # hash: need to process the rhs of the pair
+			for my $k ( keys %{$elt} ) {
+				my $v = $elt->{$k};
+				if ( ref($v) ne 'ARRAY' )
+				{    # not an array => wrap in array and redo
+					push @{$hlist}, { $k => $v };
+				} elsif ( scalar @{$v} == 1 and ref( $v->[0] ) eq 'ARRAY' )
+				{    # a single-elt array where the elt also an array
+					my $tv = _get_tree_as_lists($v);
+					push @{$hlist}, { $k => $tv };    #$v->[0]};
+				} else {
+					my $pv = [
+						map {
+							if ( ref($_) eq 'ARRAY' and @{$_} > 0 )
+							{
+								_get_tree_as_lists($_);
+							} elsif ( ref($_) eq 'HASH' ) {
+								_get_tree_as_lists( [$_] );
+							} elsif ( defined $_ ) {
+								$_;
+							}
+						  } @{$v}
+					];
+					my @ppv = grep { ref($_) ne 'XXX' } @{$pv};
+					push @{$hlist}, { $k => \@ppv };
+				}
+			}
+		}
+	}
+	return scalar @{$hlist} == 1 ? $hlist->[0] : $hlist;
+}
+
+sub __add_to_map {
 	( my $hmap, my $k, my $rv ) = @_;
 	if ( exists $hmap->{$k} ) {
 		if ( ref( $hmap->{$k} ) ne 'ARRAY' ) {
@@ -857,72 +916,9 @@ sub add_to_map {
 
 }
 
-sub remove_undefined_values {
-	( my $hlist ) = @_;
-	my @nhlist=();
-	if ( ref($hlist) eq 'ARRAY' ) {
-		for my $elt ( @{$hlist} ) {
-			if (defined $elt) {
-				my $nelt = remove_undefined_values($elt);
-				push @nhlist, $nelt;
-			} 
-		}
-		$hlist = [@nhlist];
-	} elsif ( ref($hlist) eq 'HASH' ) {
-		for my $k ( keys %{$hlist} ) {
-			$hlist->{$k} = remove_undefined_values( $hlist->{$k} );
-			if (not defined $hlist->{$k}) {
-				delete $hlist->{$k};
-			} 
-		}		
-	} 
-	return $hlist;
-}
-	
-	
-
-sub remove_nested_singletons {
-	( my $hlist ) = @_;
-	if ( ref($hlist) eq 'ARRAY' ) {
-		if ( scalar @{$hlist} == 1 ) {
-			$hlist = $hlist->[0];
-			$hlist = remove_nested_singletons($hlist);
-		}
-	}
-
-	# At this point it should be a multi-elt array or a hash
-	if ( ref($hlist) eq 'ARRAY' ) {
-		for my $elt ( @{$hlist} ) {
-			$elt = remove_nested_singletons($elt);
-
-			#			if (ref($elt) eq 'HASH') {
-			#					my $nelt={};
-			#					for my $k (keys %{$elt}) {
-			#						$nelt->{$k} = remove_nested_singletons($elt->{$k});
-			#					}
-			#					$elt = $nelt;
-			#			} elsif (ref($elt) eq 'ARRAY') {
-			#				if (scalar @{$elt} ==1) {
-			#					$elt = $elt->[0];
-			#					$elt = remove_nested_singletons($elt);
-			#				}
-			#			}
-		}
-	} elsif ( ref($hlist) eq 'HASH' ) {
-		for my $k ( keys %{$hlist} ) {
-			$hlist->{$k} = remove_nested_singletons( $hlist->{$k} );
-		}
-
-	} else {
-
-		# do nothing
-	}
-	return $hlist;
-}
-
 # list to map
 # This is a map with a list of matches for every tag, so if the tags are not unique the matches are grouped.
-sub l2m {
+sub _l2m {
 	( my $hlist, my $hmap ) = @_;
 	if ( ref($hlist) eq 'ARRAY' ) {
 
@@ -937,7 +933,6 @@ sub l2m {
 			return $hlist;
 		} else {
 			for my $elt ( @{$hlist} ) {
-	#			say "ELT IN:".Dumper($elt);
 				#	- if what it contains is a single-elt hash,
 				if ( ref($elt) eq 'HASH' ) {
 					if ( scalar keys %{$elt} == 1 ) {
@@ -945,17 +940,12 @@ sub l2m {
 			 #first check the value: if it is also an array, call the function on it
 						( my $k, my $v ) = each( %{$elt} );
 	
-	#					say "PAIR1 $k => ".Dumper($v);
 						if ( ref($v) eq 'ARRAY' ) { 
-#							say "ARRAY1 v: ".Dumper($v);
-							my $mv = l2m( $v, {} );
-#							say "ARRAY1 mv: ".Dumper($mv);
+							my $mv = _l2m( $v, {} );
 							#add it to a new hash
-							$hmap=add_to_map( $hmap, $k, $mv );
+							$hmap=__add_to_map( $hmap, $k, $mv );
 						} else {
-	#						say "PAIR2 $k => ".Dumper($v);
-							$hmap=add_to_map( $hmap, $k, $v );
-	#						say 'PAIR3:'.Dumper($hmap);						
+							$hmap=__add_to_map( $hmap, $k, $v );
 						}
 					} else {
 						die 'BOOM!';
@@ -963,102 +953,43 @@ sub l2m {
 				} elsif ( ref($elt) eq 'ARRAY' ) {
 	
 	#	- if it is an array, descend and return the hash and make sure it gets added as well
-
-					my $mv = l2m( $elt, {} );
+					my $mv = _l2m( $elt, {} );
 					if (ref($mv) ne 'HASH') {
 						croak(Dumper($elt));
 					}
-					say Dumper($mv);
+#say Dumper($mv);
 					for my $k ( keys %{$mv} ) {
-						$hmap=add_to_map( $hmap, $k, $mv->{$k} );
+						$hmap=__add_to_map( $hmap, $k, $mv->{$k} );
 					}
 				} else {
-	#				say "ELT: <$elt>";
 					return $elt;
 				}
-	#			say 'AFTER:'.Dumper($elt);
 			}
 		}
 	} elsif ( ref($hlist) eq 'HASH' ) {
 		say Dumper($hlist);
 		for my $k ( keys %{$hlist} ) {
 			say $k;
-			$hmap=add_to_map( $hmap, $k, $hlist->{$k} );
+			$hmap=__add_to_map( $hmap, $k, $hlist->{$k} );
 		}
 	} else {
 		return $hlist;
 	}
-#	say 'PAIR4:'.Dumper($hmap);	
 	return $hmap;
-}
+} # END of _l2m
 
-sub l2m_OLD {
-	( my $hlist ) = @_;
-	if ( ref($hlist) eq 'ARRAY' ) {
-		my $hmap     = {};
-		my @hmap_kvs = map {
-			if ( ref($_) eq 'HASH' )
-			{
-				( my $k, my $v ) = %{$_};
-				{ 'K' => $k, 'V' => $v };
-			} else {
-				my $retval = l2m($_);
-				say Dumper($retval);
-			}
-		} @{$hlist};
-
-##	    my @hmap_vals = map {
-##	    	if (ref($_) eq 'HASH') {
-##	    	 (my $k, my $v)=%{$_} ; $v
-##	    	} else {
-##	    		l2m($_);
-##	    	}
-##	    } @{$hlist};
-##        my @hmap_keys = map {
-##        	if (ref($_) eq 'HASH') {
-##        	  (my $k, my $v)=%{$_}; say Dumper($k);
-##        	  $k
-##        	}   else {
-##	    		l2m($_);
-##	    	}
-##        	} @{$hlist};
-		#        my @hmap_rvals = map {
-		#        	is_list_of_objects($_) ? l2m($_) : $_ } @hmap_vals;
-		#        my @hmap_keys_vals = map {  each %{$_} } @{$hlist}
-		#        for my $k ( @hmap_keys ) {
-		#            my $rv = shift @hmap_rvals;
-
-		#            for my $kv ( @hmap_kvs ) {
-		#            	my $k = $kv->{K};
-		#            	my $rv = $kv->{V};
-		#            if (exists $hmap->{$k}) {
-		#            	if( ref($hmap->{$k}) ne 'ARRAY') {
-		#            		$hmap->{$k}=[$hmap->{$k}];
-		#            	}
-		#            		push @{ $hmap->{$k} }, $rv;
-		#
-		#            } else {
-		#            	$hmap->{$k}=$rv;
-		#            }
-		#        }
-
-		#        my %{$hmap} = @hmap_keys_vals;
-		#        return $hmap;
-		return \@hmap_kvs;
-	} else {
-		return $hlist;
-	}
-}
-
+# --------------------------------------------------------------------------------
+# Given (my $st, my $rest, my $matches)
+# Extract $matches
 sub getParseTree {
 	( my $m ) = @_;
-	my $mm = remove_undefined_values($m);
-#	say "AFTER remove_undefined_values:".Dumper($mm);
-	my $tal = get_tree_as_lists($m);
-#	say "AFTER get_tree_as_lists:".Dumper($tal);
+	my $mm = _remove_undefined_values($m);
+	# say "AFTER _remove_undefined_values:".Dumper($mm);
+	my $tal = _get_tree_as_lists($m);
+	# say "AFTER _get_tree_as_lists:".Dumper($tal);
 
-	my $map = l2m( $tal, {} );
-#   say "AFTER l2m:".Dumper($map);
+	my $map = _l2m( $tal, {} );
+#   say "AFTER _l2m:".Dumper($map);
 
 	return $map;
 }

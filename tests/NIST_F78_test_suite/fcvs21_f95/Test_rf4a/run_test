@@ -1,0 +1,1 @@
+$FC -cpp -ffree-form -ffree-line-length-0 $* 2>/dev/null && ./a.out

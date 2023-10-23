@@ -8,7 +8,7 @@ use RefactorF4Acc::Utils;
 #   
 
 use vars qw( $VERSION );
-$VERSION = "2.1.1";
+$VERSION = "5.1.0";
 
 #use warnings::unused;
 use warnings;
@@ -103,10 +103,10 @@ for every assignemnt below the KernelWrapper region
 		if it is a kernel arg marked as Out or InOut, it has to become an arg for the wrapper
 I think there is a third case: if the argument is Out or InOut for the caller of the KernelWrapper, then we also need to bring it out?
 I am actually not sure about any of this, because in practice there is no point in doing anything with the results after the time loop has finished.
-Of course one could argue that it is not the !$ACC KernelWrapper pragma that decides the region, but the loop around it. If so we need to detect the OuterLoopEndPos, not only the OuterLoop(Start)Pos. To do that it would help if the EndDo has a label corresponding to the BeginDo. 
+Of course one could argue that it is not the $RF4A KernelWrapper pragma that decides the region, but the loop around it. If so we need to detect the OuterLoopEndPos, not only the OuterLoop(Start)Pos. To do that it would help if the EndDo has a label corresponding to the BeginDo. 
 Now, this is the case for labeled loops (of course) in F77 but it means that I would have to line up the do's and end do's otherwise.
 
-OTOH, that is definitely not essential. We can assume that for now, the ACC region covers the body of the loop.
+OTOH, that is definitely not essential. We can assume that for now, the RF4A region covers the body of the loop.
 If this really is to work across subroutine calls and with nested loops, we need to find all loop iterators and check them as well, because obviously the loop iterators are needed in almost all kernels. So I must build a list of loop iterators. 
 To make things worse, there can of course be assignments inside nested loops, and these assigned variables can also be used inside the kernel subs.
 So in principle when I go up, I need to track all the LHS of assignments as well as all loop iters, call this "LoopVars"

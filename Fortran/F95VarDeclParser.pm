@@ -30,6 +30,7 @@ sub parse_F95_var_decl {
 #$str=~s/^\s+//;
 #chomp $str;
 	print $str,"\n" if $VV;
+
 	my $p =f95_var_decl_parser();
 	(my $st, my $rest, my $matches) =$p->($str);
     print "\n" if $VV;
@@ -40,7 +41,10 @@ sub parse_F95_var_decl {
 #carp Dumper($matches);
 	my $pt = getParseTree($matches);
 	print 'PARSE TREE:'.Dumper($pt),"\n" if $VV;
-#carp $str .' => '.Dumper($pt);	
+    # carp $str .' => <'.Dumper($pt).'>';
+    if(ref($pt) ne 'HASH') {
+            die "Fortran::F95VarDeclParser::parse_F95_var_decl('$str'): Parse error\n";
+    }
 	my $typetup = $pt->{TypeTup};
 #	carp "TYPE TUPLE:".Dumper( $typetup );
 	if (exists $typetup->{'Type'}{'Opt'}) {
@@ -49,21 +53,38 @@ sub parse_F95_var_decl {
 		$typetup->{'Type'}= $typetup->{'Type'}{'Main'};
 	}
 	if (ref($typetup) eq 'ARRAY') {
-		
+
 		$pt->{TypeTup} = { each %{$typetup->[0]}, Kind => 4};
 	} elsif (exists $pt->{TypeTup}{Kind}) {
-		
-		$pt->{TypeTup}{Kind}*=1 unless $pt->{TypeTup}{Kind} eq '*';
+		$pt->{TypeTup}{Kind}*=1 unless ($pt->{TypeTup}{Kind} eq '*' or $pt->{TypeTup}{Kind} eq ':' );
 	}
 #	print "parse_F95_var_decl:".Dumper($pt);
-    if ((exists $pt->{Attributes}) && (ref($pt->{Attributes}) eq 'HASH')) {
-        if ( exists $pt->{Attributes}{Dim}) {
-	       my $dim = $pt->{Attributes}{Dim};    
+    if ((exists $pt->{'Attributes'}) && (ref($pt->{'Attributes'}) eq 'HASH')) {
+        if ( exists $pt->{'Attributes'}{'Dim'}) {
+	       my $dim = $pt->{'Attributes'}{'Dim'};
 	       if (ref($dim) ne 'ARRAY') {
-		      $pt->{Attributes}{Dim} = [$dim];
+		      $pt->{'Attributes'}{'Dim'} = [$dim];
             }
+			# This evals expressions but not with symbolic constants
+			my $evaled_dim_exprs=[];
+			for my $dim_expr (@{$pt->{'Attributes'}{'Dim'}}) {
+				if ($dim_expr=~/^\d+$/) {
+					push @{$evaled_dim_exprs},$dim_expr;
+				} elsif ($dim_expr=~/^(\d+):(\d+)$/) {
+					# This is wrong as we lose the start index
+					# push @{$evaled_dim_exprs},$2-$1+1;
+					push @{$evaled_dim_exprs},$1.':'.$2;
+				} elsif ($dim_expr=~/^\d[\d\+\-\*\/\%]+\d$/) {
+					push @{$evaled_dim_exprs},eval($dim_expr);
+				} else {
+					push @{$evaled_dim_exprs},$dim_expr;
+				}
+			}
+			# say Dumper($pt->{'Attributes'}{'Dim'},$evaled_dim_exprs);
+			$pt->{'Attributes'}{'Dim'} = $evaled_dim_exprs;
         } else {
-        	$pt->{Attributes}{Dim} = [0];
+			# WV 2021-05-19 would it not be better to delete this field? FIXME!
+        	$pt->{'Attributes'}{'Dim'} = [0];
         }
     }
 
@@ -73,31 +94,31 @@ sub parse_F95_var_decl {
 	}
 
     my $parlist = $pt->{'Pars'};#->[0]; #HACK
-#    say Dumper($parlist);	
+#    say Dumper($parlist);
     my $lhs =$parlist->{Lhs};
     my $rhs =$parlist->{Rhs};
      	$pt->{'Pars'} = {Var => $lhs, Val => $rhs};
-#	if (ref($parlist) ne 'ARRAY') {    
+#	if (ref($parlist) ne 'ARRAY') {
 #		$pt->{'Pars'} = [$parlist];
 #	}
 	if (not exists $pt->{AccPragma}) {
 		$pt->{AccPragma} = {AccKeyword => 'ArgMode', AccVal => 'ReadWrite'}
 	}
-	
-if (exists  $pt->{VarsDims} && exists  $pt->{VarsDims}{'Dim'} ) {
-	if (ref($pt->{VarsDims}{'Dim'}) eq 'ARRAY' and  @{  $pt->{VarsDims}{'Dim'} } > 0 ) {
-	
-	    my @dims = map { [  map { ':' } @{ $_->{'Sep'} }] } @{$pt->{VarsDims}{Dim}};
-	    $pt->{Attributes}{Dim}=\@dims;
-	    $pt->{'Vars'}= $pt->{VarsDims}{Var};
-	    delete  $pt->{VarsDims} ;
-	} else {
-	    my @dims = ( [  map { ':' } @{ $pt->{VarsDims}{Dim}{Sep} } ] );
-	    $pt->{Attributes}{Dim}=\@dims;
-	    $pt->{'Vars'}= [$pt->{VarsDims}{Var}];
-	    delete  $pt->{VarsDims} ;
+
+	if (exists  $pt->{VarsDims} && exists  $pt->{VarsDims}{'Dim'} ) {
+		if (ref($pt->{VarsDims}{'Dim'}) eq 'ARRAY' and  @{  $pt->{VarsDims}{'Dim'} } > 0 ) {
+
+			my @dims = map { [  map { ':' } @{ $_->{'Sep'} }] } @{$pt->{VarsDims}{Dim}};
+			$pt->{Attributes}{Dim}=\@dims;
+			$pt->{'Vars'}= $pt->{VarsDims}{Var};
+			delete  $pt->{VarsDims} ;
+		} else {
+			my @dims = ( [  map { ':' } @{ $pt->{VarsDims}{Dim}{Sep} } ] );
+			$pt->{Attributes}{Dim}=\@dims;
+			$pt->{'Vars'}= [$pt->{VarsDims}{Var}];
+			delete  $pt->{VarsDims} ;
+		}
 	}
-}
 
     print "<<<".Dumper($pt),">>>\n" if $VV;
 
@@ -115,8 +136,8 @@ sub f95_var_decl_parser {
         ]
         ),
     	&varlist_parser,
-		maybe( &openacc_pragma_parser) 
-	] 
+		maybe( &openacc_pragma_parser)
+	]
 };
 
 
@@ -128,38 +149,40 @@ sub f95_var_decl_parser_ORIG {
 		    sequence [
 			    comma,
                 &dim_parser
-	    	] 
+	    	]
     	),
 	    maybe(
     		sequence [
 	    		comma,
 		    	&intent_parser
-    		] 
+    		]
 	    ),
     	&varlist_parser,
-		maybe( &openacc_pragma_parser) 
-	] 
+		maybe( &openacc_pragma_parser)
+	]
 };
 
 # where
-sub attribute_parser {     
-    choice(&dim_parser, &intent_parser, &parameter_parser, &allocatable_parser)
+sub attribute_parser {
+    choice(&dim_parser, &intent_parser, &parameter_parser, &allocatable_parser, &volatile_parser)
 }
 
-sub type_parser {	
+sub type_parser {
 		sequence [
         {'Type' =>	sequence( [{'Main' => word},maybe( {'Opt'=>word} ) ])  },
-        choice( sequence([symbol('*'),{ 'Kind' => natural }]),
-        maybe( parens( choice(
-                {'Kind' => natural},
+        choice( sequence([symbol('*'),{ 'Kind' => natural }]), # integer*4
+        maybe( parens( choice( 
+                {'Kind' => natural}, # integer(4)
+				{'Kind' => char('*')}, # character(*)
+				{'Kind' => char(':')}, 
 						sequence [
-							choice( symbol('kind'), symbol('len') ),
+							choice( symbol('kind'), symbol('len') ), # integer(kind=4)
 							symbol('='),
-                            {'Kind' => choice(natural, char('*'))}
-						] 
+                            {'Kind' => choice(natural, char('*'), char(':'))} # character(len=*)
+						]
 					)  ))
-            )      
-		] 
+            )
+		]
 }
 
 sub dim_parser {
@@ -170,57 +193,67 @@ sub dim_parser {
 # This is a very ugly hack, it works only for 1 pair of parens
 # What this matches is "start with anything except ",)(", then "(" whatever ")"
 		{'Dim' =>  parens( &comma_sep_expr_list ) }
-#        {'Dim' => parens sepByChar(',',  
-#        	choice( 
-#        		regex('^[^,\)\(]+?(?:\([^,\)\(]+\))[^,\(\)]+'), 
+#        {'Dim' => parens sepByChar(',',
+#        	choice(
+#        		regex('^[^,\)\(]+?(?:\([^,\)\(]+\))[^,\(\)]+'),
 #        		regex('^[^,\)\(]+?(?:\([^,\)\(]+\))'),
-#        		regex('^[^,\)]+') 
-#        		)   
-#        	) 
+#        		regex('^[^,\)]+')
+#        		)
+#        	)
 #        },
 #        maybe( char(')'))
-		] 
+		]
 }
 
 sub intent_parser {
 	 sequence [
         symbol('intent'),
-     {'Intent' => parens word}
-		] 
+     {'Intent' => parens mixedCaseWord}
+		]
 }
 
 sub parameter_parser {
-    symbol('parameter')
+    { 'Parameter' => symbol('parameter') }
 }
+
+sub volatile_parser {
+    symbol('volatile')
+}
+
 
 sub allocatable_parser {
     {'Allocatable' => symbol('allocatable')}
 }
 
 sub varlist_parser {
-	sequence( [	
-	symbol('::'),		
+	sequence( [
+	symbol('::'),
 	choice({'Pars' => try(sepBy(comma,&param_assignment)) }
         #, {'VarsDims' =>sepByChar(',',  choice( regex('^[^,\)\(]+?(?:\([^,\)\(]+\))[^,\(\)]+'), regex('^[^,\)\(]+?(?:\([^,\)\(]+\))'),regex('^[^,\)]+') )   )}
-        , {'VarsDims' => sepByChar(',',#comma, 
+        , {'VarsDims' => sepByChar(',',#comma,
                 sequence [
-                    {'Var' => word}, 
+                    {'Var' => mixedCaseWord},
                     {'Dim' => parens(
-                            {'Sep' => sepBy(comma, symbol(':')) } 
+                            {'Sep' => sepBy(comma, symbol(':')) }
                     )
                 }
                 ]
-#                choice(  regex('\w+\(:\)') , regex('\w+\(:,:\)'), regex('\w+\(:,:,:\)') )  
+#                choice(  regex('\w+\(:\)') , regex('\w+\(:,:\)'), regex('\w+\(:,:,:\)') )
             ) }
-        ,{'Vars' => sepByChar(',',word) } )
+        ,{'Vars' => sepByChar(',',mixedCaseWord) } )
 	] )
 }
 
 sub param_assignment {
     sequence( [
-        {'Lhs' => word },
-        symbol('='),                
-		{'Rhs' => choice(word,regex('[\-\.\dedq]+')) } #FIXME  weak !
+        {'Lhs' => mixedCaseWord },
+        symbol('='),
+		{'Rhs' => choice(
+			regex('^[\w\s\*\+\-\/]+'),
+			regex('^[\-\.\dedq]+'),
+			regex('^(?:\(\/|\[).+?(?:\]|\/\))'), # Array constant
+			word #FIXME  weak !word,
+			) }
     ] )
 }
 sub openacc_pragma_parser { sequence [
@@ -248,10 +281,12 @@ sub comma_sep_expr_list {
 		if ( scalar @{$matches} > 0  ) {
 			$status = 1;
 #			$str = substr($str,0,length($str)-length($remainder)); # 1234 5678
-			say "comma_sep_expr_list: remainder => <$remainder>"   if $V;		
-#			say "comma_sep_expr_list: str => <$str>"   if $V;			
+			say "comma_sep_expr_list: remainder => <$remainder>"   if $V;
+			# FIXME
+
+#			say "comma_sep_expr_list: str => <$str>"   if $V;
 			say "comma_sep_expr_list: matches => [".join(',',@{$matches})."]" if $V;
-			return ( $status, $remainder, $matches );			
+			return ( $status, $remainder, $matches );
 		} else {
 			say "comma_sep_expr_list: match failed => <$str>" if $V;
 			return ( $status, $str, undef );   # assumes $status is 0|1, $str is string, $matches is [string]

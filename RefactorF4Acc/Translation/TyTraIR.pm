@@ -2,7 +2,7 @@ package RefactorF4Acc::Translation::TyTraIR;
 use v5.10;
 use RefactorF4Acc::Config;
 use RefactorF4Acc::Utils;
-use RefactorF4Acc::Refactoring::Common qw(
+use RefactorF4Acc::Refactoring::Helpers qw(
   pass_wrapper_subs_in_module
 );
 use RefactorF4Acc::Refactoring::Fixes qw( remove_redundant_arguments_and_fix_intents );
@@ -22,7 +22,7 @@ use RefactorF4Acc::Analysis::ArrayAccessPatterns qw( identify_array_accesses_in_
 #
 
 use vars qw( $VERSION );
-$VERSION = "2.1.1";
+$VERSION = "5.1.0";
 
 #use warnings::unused;
 use warnings;
@@ -62,6 +62,8 @@ sub pass_emit_TyTraIR {
 #		'MainFunction' => ''
         'ASTEmitter' => \&_add_TyTraIR_AST_entry
     };
+
+    $Config{'FIXES'}{'remove_redundant_arguments_and_fix_intents'} = 1;
     $stref = pass_wrapper_subs_in_module(
         $stref, $module_name,
 
@@ -71,6 +73,7 @@ sub pass_emit_TyTraIR {
         # subroutine-specific passes
         [
 #				[ sub { (my $stref, my $f)=@_;  alias_ordered_set($stref,$f,'DeclaredOrigArgs','DeclaredOrigArgs'); } ],
+            # All Fixes are off by default, list them in $Config{'FIXES'} to enable them
             [\&remove_redundant_arguments_and_fix_intents],
             [   \&identify_array_accesses_in_exprs,
             ],

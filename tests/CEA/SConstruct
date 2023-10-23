@@ -1,0 +1,13 @@
+import os
+
+FC=os.environ.get('FC')
+
+fsources = ['src/cea2.f']
+
+LDFLAGS= [] 
+FFLAGS  = ['-Wall' ]
+#,'-Wno-character-truncation','-Wno-unused-label' ,'-Wno-unused-variable' ,'-Wno-unused-dummy-argument','-ffree-form', '-ffree-line-length-0','-fmax-stack-var-size=262144']#, '-fconvert=big-endian','-mcmodel=medium']
+
+envF=Environment(FORTRAN=FC,LINK=FC,LINKFLAGS=LDFLAGS,FORTRANFLAGS=FFLAGS,FORTRANPATH=['.','./src'])
+
+envF.Program('cea2',fsources,LIBS=[],LIBPATH=['.'])

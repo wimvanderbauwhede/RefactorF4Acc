@@ -2,9 +2,16 @@ package RefactorF4Acc::Analysis::ArgumentIODirs;
 use v5.10;
 
 use RefactorF4Acc::Config;
-use RefactorF4Acc::Utils
-  qw( pp_annlines get_maybe_args_globs type_via_implicits in_nested_set get_var_record_from_set %F95_intrinsic_functions);
-use RefactorF4Acc::Refactoring::Common qw( get_annotated_sourcelines stateful_pass emit_f95_var_decl get_f95_var_decl );
+use RefactorF4Acc::Utils qw( 
+    pp_annlines 
+    add_ann_to_info
+    get_maybe_args_globs 
+    type_via_implicits 
+    in_nested_set 
+    get_var_record_from_set 
+    %F95_intrinsic_functions warning
+    );
+use RefactorF4Acc::Refactoring::Helpers qw( get_annotated_sourcelines stateful_pass_inplace emit_f95_var_decl get_f95_var_decl );
 
 #use RefactorF4Acc::Refactoring::Subroutines::Signatures qw( refactor_subroutine_signature );
 
@@ -13,7 +20,7 @@ use RefactorF4Acc::Refactoring::Common qw( get_annotated_sourcelines stateful_pa
 #
 
 use vars qw( $VERSION );
-$VERSION = "2.1.1";
+$VERSION = "5.1.0";
 
 #use warnings::unused;
 use warnings;
@@ -58,7 +65,10 @@ sub determine_argument_io_direction_rec {
             }
             next if exists $stref->{'ExternalSubroutines'}{$calledsub};    # Don't descend into external subs
             if (exists $subs{$calledsub}) {
-				say "WARNING: LOOP for $calledsub: ".join(', ', @{ $stref->{'CallStack'} }) if $WW;
+                warning("CALL LOOP for $calledsub in $f. This does not conform to the ANSI X3.9-1978 standard, proceed at your peril!",1);
+                warning('<'.join(', ', @{ $stref->{'CallStack'} }).'>',2);
+				# say "WARNING: CALL LOOP for $calledsub in $f. This does not conform to the ANSI X3.9-1978 standard, proceed at your peril!" if $W;
+				# say join(', ', @{ $stref->{'CallStack'} }) if $WW;
 				next;
 			}
             $stref->{Counter}++ if $V;
@@ -68,7 +78,7 @@ sub determine_argument_io_direction_rec {
     }
     print "\t" x $c, "--------\n" if $V;
     $stref = _determine_argument_io_direction_core($stref, $f);
-
+    pop  @{ $stref->{'CallStack'} };
     return $stref;
 }    # determine_argument_io_direction_rec()
 
@@ -226,7 +236,8 @@ sub _set_iodir_ignore {
 sub _set_iodir_vars {
     (my $vars, my $args_ref, my $subref) = @_;
 
-    for my $mvar (@{$vars}) {
+    for my $mvar (@{$vars}) { 
+        croak if not defined $mvar;
         if (exists $args_ref->{$mvar} and ref($args_ref->{$mvar}) eq 'HASH') {
             if (exists $args_ref->{$mvar}{'IODir'}) {
                 $args_ref = $subref->($mvar, $args_ref);
@@ -274,18 +285,11 @@ sub _analyse_src_for_iodirs {
     my $Sf = $stref->{'Subroutines'}{$f};
 
     if (not exists $Sf->{'IODirInfo'} or $Sf->{'IODirInfo'} == 0) { # This is to avoid doing this more than once
-        # croak Dumper $Sf if not defined $Sf->{'RefactoredArgs'}{List};
-        if (not $Sf->{'Program'} # because of course a program does not have arguments
-            and (not exists $Sf->{'RefactoredArgs'}{'List'} or scalar @{$Sf->{'RefactoredArgs'}{'List'}} == 0)) {
-            # say Dumper($Sf->{'RefactoredArgs'});
-            # $Sf->{'RefactoredArgs'}{'Set'} = {};
+        if ( $Sf->{'Program'} # because of course a program does not have arguments
+            or not exists $Sf->{'RefactoredArgs'}{'List'} or scalar @{$Sf->{'RefactoredArgs'}{'List'}} == 0) {
             say "INFO: SUB $f DOES NOT HAVE RefactoredArgs" if $I;
-            # croak 'BOOM! Logic is wrong:  HasRefactoredArgs 0/1 does not indicate presence of RefactoredArgs List/Set' . "\n" 
-            #   . __LINE__. "\n" . ' ' . $f . ' : ' . Dumper($Sf);
         }
-        else 
-        {
-
+        else {
             my $args      = dclone($Sf->{'RefactoredArgs'}{'Set'});
             my $args_list = $Sf->{'RefactoredArgs'}{'List'};
 
@@ -305,7 +309,6 @@ sub _analyse_src_for_iodirs {
             else {
 
                 my $annlines = get_annotated_sourcelines($stref, $f);
-# croak Dumper(pp_annlines($annlines,1)) if $f eq 'fs052';
                 for my $index (0 .. scalar(@{$annlines}) - 1) {
 
                     (my $line, my $info) = @{$annlines->[$index]};
@@ -336,18 +339,20 @@ sub _analyse_src_for_iodirs {
 
                     # -----------------------------------------------------------------------------
                     if (exists $info->{'Do'}) {
-                        my $mvar = $info->{'Do'}{'Iterator'};
-                        if (exists $args->{$mvar}
-                            and ref($args->{$mvar}) eq 'HASH')
-                        {
-                            if (exists $args->{$mvar}{'IODir'}) {
-                                $args = _set_iodir_write($mvar, $args);
-                            }
-                        }
-                        for my $mvar (@{$info->{'Do'}{'Range'}{'Vars'}}) {
-                            if (exists $args->{$mvar} and ref($args->{$mvar}) eq 'HASH') {
+                        if (exists $info->{'Do'}{'Iterator'}) {
+                            my $mvar = $info->{'Do'}{'Iterator'};
+                            if (exists $args->{$mvar}
+                                and ref($args->{$mvar}) eq 'HASH')
+                            {
                                 if (exists $args->{$mvar}{'IODir'}) {
-                                    $args = _set_iodir_read($mvar, $args);
+                                    $args = _set_iodir_write($mvar, $args);
+                                }
+                            }
+                            for my $mvar (@{$info->{'Do'}{'Range'}{'Vars'}}) {
+                                if (exists $args->{$mvar} and ref($args->{$mvar}) eq 'HASH') {
+                                    if (exists $args->{$mvar}{'IODir'}) {
+                                        $args = _set_iodir_read($mvar, $args);
+                                    }
                                 }
                             }
                         }
@@ -427,7 +432,7 @@ sub _analyse_src_for_iodirs {
                         next;
                     }
                     if (exists $info->{'If'}) {
-                        my $cond_vars = $info->{'CondVars'}{'List'};
+                        my $cond_vars = $info->{'Cond'}{'Vars'}{'List'};
                         $args = _set_iodir_vars($cond_vars, $args, \&_set_iodir_read);
 
 #						next; # NOT next: maybe it is a subcall or an assignment!
@@ -438,7 +443,6 @@ sub _analyse_src_for_iodirs {
                     if (exists $info->{'SubroutineCall'} && exists $info->{'SubroutineCall'}{'Name'}) {
                         my $name = $info->{'SubroutineCall'}{'Name'};
 
-#					carp "SUBCALL $name in $f: ".Dumper($stref->{'Subroutines'}{$name}{RefactoredArgs}{Set}{ivd005}) if $name eq 'sn705';
 # So we get the IODir for every arg in the call to the subroutine
 # We need both the original args from the call and the ex-glob args
 # It might be convenient to have both in $info; otoh we can get ExGlobArgs from the main table
@@ -454,36 +458,38 @@ sub _analyse_src_for_iodirs {
                             }
                         }
 
-#carp "BEFORE _get_iodirs_from_subcall: SUBCALL $name in $f: ".Dumper($stref->{'Subroutines'}{$name}{RefactoredArgs}{Set}{ivd005}) if $name eq 'sn705';
                         my $iodirs_from_call = _get_iodirs_from_subcall($stref, $f, $info);
-
-# say "HERE $f $name" .Dumper($iodirs_from_call ) if $name eq 'predict_loc';
-# say Dumper($info) if $name eq 'predict_loc';
-# carp Dumper($stref->{'Subroutines'}{$name}{'RefactoredArgs'}{Set}{xn}) if $name eq 'predict_loc';
-
-# die if $name eq 'predict_loc';
-#croak "AFTER _get_iodirs_from_subcall: SUBCALL $name in $f: ".Dumper($stref->{'Subroutines'}{$name}{RefactoredArgs}{Set}{ivd005}) if $name eq 'sn705';
+                        
                         for my $var (keys %{$iodirs_from_call}) {
 
 # Damn Perl! exists $args->{$var}{'IODir'} creates the entry for $var if it did not exist!
+
                             if (exists $args->{$var} and ref($args->{$var}) eq 'HASH') {
                                 if (exists $args->{$var}{'IODir'}) {
                                     if (not defined $args->{$var}{'IODir'}) {
                                         $args->{$var}{'IODir'} = 'Unknown';
                                     }                                    
-                                    if ($iodirs_from_call->{$var} eq 'In') {
+                                    # Call arg IN
+                                    my $call_arg_iodir = lc($iodirs_from_call->{$var});
+                                    if ($call_arg_iodir eq 'inout') {
+                                        $call_arg_iodir = 'InOut'
+                                    } else {
+                                        $call_arg_iodir = ucfirst($call_arg_iodir);
+                                    }
+                                    if ($call_arg_iodir eq 'In') {
                                         if (not defined $args->{$var}{'IODir'}
                                             or $args->{$var}{'IODir'} eq 'Unknown')
                                         {
+                                            # Sig arg IN if unknown
                                             $args->{$var}{'IODir'} = 'In';
                                         }
                                         elsif ($args->{$var}{'IODir'} eq 'Out') {
-
                                             # if the parent arg is Out and the child arg is In, parent arg stays Out!
                                             $args->{$var}{'IODir'} = 'Out';
                                         }    # if it's already In or InOut, it stays like it is.
                                     }
-                                    elsif ($iodirs_from_call->{$var} eq 'InOut') {
+                                    # Call arg INOUT
+                                    elsif ($call_arg_iodir eq 'InOut') {
                                         if ($args->{$var}{'IODir'} eq 'Unknown') {
                                             $args->{$var}{'IODir'} = 'InOut';
                                         }
@@ -494,7 +500,8 @@ sub _analyse_src_for_iodirs {
                                             $args->{$var}{'IODir'} = 'InOut';
                                         }    # if it is In, it stays In
                                     }
-                                    elsif ($iodirs_from_call->{$var} eq 'Out') {
+                                    # Call arg OUT
+                                    elsif ($call_arg_iodir eq 'Out') {
                                         if ($args->{$var}{'IODir'} eq 'Unknown') {
                                             $args->{$var}{'IODir'} = 'Out';
                                         }
@@ -502,12 +509,15 @@ sub _analyse_src_for_iodirs {
                                             $args->{$var}{'IODir'} = 'InOut';
                                         }    # if it's already InOut or Out, stays like it is.
                                     }
-                                    else {
-                                        say "WARNING: Intent for $var in call to $name in $f is unknown" if $WW;
+                                    else {                                        
+                                        warning("Intent for call arg $var in call to $name in $f is unknown");
+                                        # carp Dumper $iodirs_from_call;
+                                        # carp "ARG $var RefactoredArgs => ".Dumper $stref->{Subroutines}{$f}{RefactoredArgs}{Set}{$var};
+                                        # croak "ARG $var DeclaredOrigArgs => ".Dumper $stref->{Subroutines}{$f}{DeclaredOrigArgs}{Set}{$var};
                                     }
                                 }
                                 else {
-                                    say "WARNING: $f: NO IODir info for $var" if $W;
+                                    warning("$f: NO IODir info for $var" ,1);
                                 }
                             }
                             else {
@@ -528,9 +538,9 @@ sub _analyse_src_for_iodirs {
 # Encounter Assignment
                     elsif (exists $info->{'Assignment'}) {
                             
-                        # say "LINE: $line";
+                        # say "$f LINE: $line INFO: ".Dumper($info);
                         # First check the RHS
-                        my $rhs_vars = $info->{'Rhs'}{'VarList'}{'List'};
+                        my $rhs_vars = $info->{'Rhs'}{'Vars'}{'List'};
 
                         # say "RHS: ".Dumper($rhs_vars);
                         if (scalar @{$rhs_vars} > 0) {
@@ -549,7 +559,7 @@ sub _analyse_src_for_iodirs {
                         next;
                     }
                     else {    # not an assignment, do as before
-                        say "NON-ASSIGNMENT LINE: $line in $f" if $DBG;
+#say "NON-ASSIGNMENT LINE: $line in $f" if $DBG;
                         _find_vars_w_iodir($line, $args, \&_set_iodir_read);
                     }
                 }
@@ -760,9 +770,8 @@ sub _get_iodirs_from_subcall {
 # The $call_arg can be Array, Scalar, Sub, Expr or Const
 # Only if it is Array or Scalar  does it need to be considered for writing to by the subroutine
 # We need to check the other variables in Array, Sub and Expr but they cannot be anything else than read-only
-#				croak $f.' => '.$name."($call_arg => $sig_arg)\t".Dumper($info);
                     my $call_arg_type = $info->{'SubroutineCall'}{'Args'}{'Set'}{$call_arg}{'Type'};
-                    # carp "CALL ARG: $sig_arg => $call_arg  " . Dumper($call_arg_type);
+                    # carp Dumper($info->{'SubroutineCall'});
                     if ($call_arg_type eq 'Scalar' or $call_arg_type eq 'Array') {
 
                         # This means that $call_arg is an argument of the caller $f
@@ -804,7 +813,7 @@ sub _get_iodirs_from_subcall {
                                 say "CALLER ARG <$call_arg> for call to $name in $f IS A PARAMETER." if $DBG;
                                 say
                                   "WARNING: Setting intent(In) for argument $sig_arg of $name because the called argument is a parameter!"
-                                  if $W;
+                                  if $DBG;
                                 print
                                   "INFO: $name in $f is called only once; $sig_arg is a parameter, setting IODir to 'In'\n"
                                   if $I;
@@ -833,7 +842,7 @@ sub _get_iodirs_from_subcall {
    # It leads to Error: Non-variable expression in variable definition context (actual argument to INTENT = OUT/INOUT) at (1)
                         say
                           "WARNING: Setting intent(In) for argument $sig_arg of $name because the called argument is not a variable!"
-                          if $W;
+                          if $DBG;
                         $Sname->{'RefactoredArgs'}{'Set'}{$sig_arg}{'IODir'} = 'In';
 
                     }
@@ -932,7 +941,7 @@ sub update_argument_io_direction_all_subs {
         $stref = _update_argument_io_direction($stref, $f);
     }
     return $stref;
-}
+} # END of update_argument_io_direction_all_subs
 
 sub _update_argument_io_direction {
     (my $stref, my $f) = @_;
@@ -943,6 +952,7 @@ sub _update_argument_io_direction {
         (my $annline, my $state) = @_;
         (my $line,    my $info)  = @{$annline};
         (my $stref, my $f, my $rest) = @{$state};
+        
         my $Sf = $stref->{'Subroutines'}{$f};
         if (exists $info->{'VarDecl'}) {
 
@@ -995,17 +1005,22 @@ sub _update_argument_io_direction {
                     $decl->{'IODir'} = 'In';
                 }
                 if (exists $stref->{'Subroutines'}{$f}{'BlockData'} and $stref->{'Subroutines'}{$f}{'BlockData'} == 1) {
-
-#						warn "BLOCK DATA $f";
                     $decl->{'IODir'} = 'InOut';
                 }
-
-					
+                # Add INTENT to the generated declaration. I think we should do this elsewhere!
+                # $info->{'Intent'} = $decl->{'IODir'};
+                
                 my $rline = emit_f95_var_decl($decl);
-                push @{$info->{'Ann'}}, '_update_argument_io_direction';
-                if (exists $info->{'Skip'}) {
+                
+                # WV 2021-06-11 ad hoc, because I use it in the inliner
+                $info->{'ParsedVarDecl'}{'Attributes'}{'Intent'} = $decl->{'IODir'};
+                if (not exists $info->{'ArgDecl'}) {
+                    $info->{'ArgDecl'}{$varname}=1;
+                }
+                add_ann_to_info($info, $f, '_update_argument_io_direction() '.__LINE__);
+                if (exists $info->{'Deleted'}) {
                     $rline = '! ' . $rline;
-                    push @{$info->{'Ann'}}, 'SKIP';
+                    add_ann_to_info($info, $f, __LINE__ .' Deleted');
                 }
                 $annline = [$rline, $info];
 
@@ -1018,10 +1033,8 @@ sub _update_argument_io_direction {
         return ([$annline], $state);
     };
     my $state = [$stref, $f, {}];
-    ($stref, $state) = stateful_pass($stref, $f, $__update_decl, $state, '_update_argument_io_direction() ' . __LINE__);
+    ($stref, $state) = stateful_pass_inplace($stref, $f, $__update_decl, $state, '_update_argument_io_direction() ' . __LINE__);
 
-#	say "SUB: $f"  if $f eq 'sn705';
-#croak Dumper($Sf->{'RefactoredArgs'}{'Set'}{'ivd005'}) if $f eq 'sn705';
     return $stref;
-}    # _update_argument_io_direction
+} # END of _update_argument_io_direction
 1;

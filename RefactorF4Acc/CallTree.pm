@@ -2,12 +2,12 @@ package RefactorF4Acc::CallTree;
 use v5.10;
 use RefactorF4Acc::Config;
 use RefactorF4Acc::Utils;
-# 
+#
 #   (c) 2010-2017 Wim Vanderbauwhede <wim@dcs.gla.ac.uk>
-#   
+#
 
 use vars qw( $VERSION );
-$VERSION = "2.1.1";
+$VERSION = "5.1.0";
 
 #use warnings::unused;
 use warnings;
@@ -42,9 +42,9 @@ $stref->{'CallTree'}{ 'Chain'} {$entry}++
 
 =cut
 
-sub create_call_tree { ( my $stref, my $subname ) = @_;	
+sub create_call_tree { ( my $stref, my $subname ) = @_;
     push @{ $stref->{'CallStack'} }, $subname;
-    my %subs = map {$_=>1} @{ $stref->{'CallStack'} }; 
+    my %subs = map {$_=>1} @{ $stref->{'CallStack'} };
     for my $entry ( @{ $stref->{'CallTree'}{ $subname } } ) {
         if (exists $subs{$entry}) {
             # croak "Found LOOP for $entry\n".Dumper($stref->{'CallStack'});
@@ -55,8 +55,8 @@ sub create_call_tree { ( my $stref, my $subname ) = @_;
 	    	my $str = _format_call_tree_line($entry,$stref);
             # print $entry;
 	    	push @{$stref->{'PPCallTree'}}, $str;
-	    	
-	    	   $stref->{'Indents'} += 4;    	
+
+	    	   $stref->{'Indents'} += 4;
 	    	   create_call_tree ($stref,$entry);
 	    	   $stref->{'Indents'} -= 4;
     }
@@ -102,12 +102,15 @@ ratio="fill";
 }
 
 # -----------------------------------------------------------------------------
+# This is not a proper call tree, and it is only used in OpenCLTranslation
+# For every parent, we have a list of the called functions. 
 
 sub add_to_call_tree {
     ( my $f, my $stref, my $p) = @_;
     push @{ $stref->{'CallTree'}{$p} }, $f;
     return $stref;
 }    # END of add_to_call_tree()
+
 # -----------------------------------------------------------------------------
 sub _format_call_tree_line {
 	(my $f, my $stref ) = @_;
@@ -125,7 +128,7 @@ sub _format_call_tree_line {
     my $tgt        = $is_func ? 'FUN' : uc( substr( $sub_or_func, 0, 3 ) );
     my @strs       = (
         ' ' x $stref->{'Indents'},
-        $f, 
+        $f,
         ' ' x $nspaces,
         $tgt, ' ', $src_padded, "\t", $incls, "\n"
     );

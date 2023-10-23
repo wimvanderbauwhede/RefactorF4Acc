@@ -1,8 +1,14 @@
 package RefactorF4Acc::Translation::TyTra::Staging;
+#
+#   (c) 2016- Wim Vanderbauwhede <wim@dcs.gla.ac.uk>
+#
+
+# Staging is the idea to run a computation until it hits a fold, then prune the graph and run it again, until the graph is reduced entirely.
+# The exported routine identify_array_accesses_in_exprs() is only used in Translation::TyTra::DataFlowGraph which is stand-alone.
 use v5.10;
 use RefactorF4Acc::Config;
 use RefactorF4Acc::Utils;
-use RefactorF4Acc::Refactoring::Common qw(
+use RefactorF4Acc::Refactoring::Helpers qw(
 	pass_wrapper_subs_in_module					
 	);
 use RefactorF4Acc::Translation::TyTra::Common qw(
@@ -14,11 +20,8 @@ F2D2C
 F1D2C 
 F4D2C 
 );
-
 use RefactorF4Acc::Analysis::ArrayAccessPatterns qw( identify_array_accesses_in_exprs );
-#
-#   (c) 2016 Wim Vanderbauwhede <wim@dcs.gla.ac.uk>
-#
+
 
 use vars qw( $VERSION );
 $VERSION = "1.2.0";
@@ -41,7 +44,7 @@ use Exporter;
 );
 
 =info
-Then we look at all fold kernels. For these, we make another dependency list. 
+We look at all fold kernels. For these, we make a dependency list. 
 What we want to do is find the folds that do not depend on folds; then the folds that depend on these; etc.
 
 I can do this elegantly, or brute force, it does not really matter I think.
@@ -71,7 +74,7 @@ I fnot, it should not be written to.
 The annotation is simply the set of stages where it is OK to write.
 
 ----
-I realise I alos need the StencilDef nodes in Nodes, just so that at the end we can include them via EntryID
+I realise I also need the StencilDef nodes in Nodes, just so that at the end we can include them via EntryID
 
 
 =cut

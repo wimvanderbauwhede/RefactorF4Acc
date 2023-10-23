@@ -24,7 +24,8 @@ use Exporter;
 our @ISA = qw(Exporter);
 
 our @EXPORT_OK = qw(
-    emit_subroutine_sig            
+    emit_subroutine_sig 
+	emit_end_subroutine           
 	emit_subroutine_call
 );
 
@@ -50,7 +51,7 @@ sub emit_subroutine_sig { #(my $stref, my $f,
         #my $Sf        = $stref->{'Subroutines'}{$f};
 	    
 	    my $name = $info->{'Signature'}{'Name'};
-		if (exists $Config{'SUB_SUFFIX'} ) {
+		if ($Config{'SUB_SUFFIX'} ne '' ) {
 			$name.=$Config{'SUB_SUFFIX'};
 		}
 		my $args_ref = $info->{'Signature'}{'Args'}{'List'};	
@@ -99,6 +100,20 @@ sub emit_subroutine_sig { #(my $stref, my $f,
 		return ( $indent . $rline , $info );
 } # END of emit_subroutine_sig
 
+# If there is a SUB_SUFFIX, change the $annline to match it
+sub emit_end_subroutine { my ( $annline) = @_;
+	my ($line, $info) = @{$annline};
+	my $name = $info->{'EndSubroutine'}{'Name'};
+	if ($Config{'SUB_SUFFIX'} ne '' ) {
+		$name.=$Config{'SUB_SUFFIX'};
+		$line.=$Config{'SUB_SUFFIX'};
+	}
+    $info->{'EndSubroutine'}{'Name'} = $name;
+    $info->{'Block'}{'Name'} = $name;
+	$info->{'Block'}{'InBlock'}{'Name'} = $name;
+	$annline = [$line,$info];
+	return $annline;
+} #END of emit_end_subroutine
 # ================================================================================================================================================
 # This is fairly generic and assumes the updated call args are DeclaredOrigArgs
 # But an Emitter should really only turn an AST into source code, so what is happening here?
@@ -116,7 +131,16 @@ sub emit_subroutine_call {
     my $maybe_label =
       (exists $info->{'Label'} and exists $Sf->{'ReferencedLabels'}{$info->{'Label'}}) ? $info->{'Label'} . ' ' : '';
 	my @call_args = @{$info->{'SubroutineCall'}{'Args'}{'List'}};
-    my @call_exprs   = map { $info->{'SubroutineCall'}{'Args'}{'Set'}{$_}{'Expr'} } @call_args;
+    my @call_exprs   = map { 
+		# WV 2021-06-09 This is a HACK, an element in List MUST be in Set, FIXME!
+			if (exists $info->{'SubroutineCall'}{'Args'}{'Set'}{$_} 
+			and exists $info->{'SubroutineCall'}{'Args'}{'Set'}{$_}{'Expr'}
+			) {
+				$info->{'SubroutineCall'}{'Args'}{'Set'}{$_}{'Expr'} 
+			} else {
+				$_
+			}
+		} @call_args;
     my $args_str         = join(',', @call_exprs);
     my $rline            = "call $name($args_str)\n";
 

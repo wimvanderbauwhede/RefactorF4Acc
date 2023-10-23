@@ -2,13 +2,13 @@ package RefactorF4Acc::Analysis::LoopDetect;
 use v5.10;
 use RefactorF4Acc::Config;
 use RefactorF4Acc::Utils;
-
+use RefactorF4Acc::Utils::Functional qw( make_lookup_table );
 #
 #   (c) 2015 Wim Vanderbauwhede <wim@dcs.gla.ac.uk>
 #
 
 use vars qw( $VERSION );
-$VERSION = "2.1.1";
+$VERSION = "5.1.0";
 
 #use warnings::unused;
 use warnings;
@@ -33,7 +33,7 @@ The purpose is to identify the variables that belong to the loops.
 This routine is called from Parser::_analyse_lines()
 
 The way it works is:
-- give the $kernelwrapper (which _analyse_lines() determined from the !$ACC line)
+- give the $kernelwrapper (which _analyse_lines() determined from the $RF4A line)
 - get the subroutine name and startindex:
 $stref->{'KernelWrappers'}{$kernelwrapper}={
     'OuterLoopStartPos'=>[$f1,$idx1],
@@ -200,11 +200,11 @@ So:
 HOWEVER: the above is only correct for values that are going to be copied to the OpenCL device!
 Additionally, any variables that are used read-only in init() and run() but not copied to the device 
 are required as arguments to run() as well as init().
-One way to do this is use the additional !$ACC KernelSub but the question is, what's the point of marking a set of subroutines 
+One way to do this is use the additional $RF4A KernelSub but the question is, what's the point of marking a set of subroutines 
 to go inside the kernel wrapper and then not use them as kernels?
-TODO: We can try a simple different approach: just allow the user to specify additional arguments to the kernel wrapper in the !$ACC:
+TODO: We can try a simple different approach: just allow the user to specify additional arguments to the kernel wrapper in the $RF4A:
 
-!$ACC KernelWrapper $kernelwrapper, extra_args(data20,nmax)
+$RF4A KernelWrapper $kernelwrapper, extra_args(data20,nmax)
 
 With the current state we can take the subroutine and split it into an init() and run() part with the right arguments for both. 
 So the next point is the content of these subroutines. The init() routine is relatively easy because we already generate it. 
@@ -254,17 +254,17 @@ croak 'NOT UP TO DATE!';
                 $code_region = $LOOP;
             }
             if (    $code_region == $LOOP
-                and exists $info->{'AccPragma'}
-                and exists $info->{'AccPragma'}{'BeginKernelWrapper'}
-                and $info->{'AccPragma'}{'BeginKernelWrapper'}[0] eq
+                and exists $info->{'Pragmas'}
+                and exists $info->{'Pragmas'}{'BeginKernelWrapper'}
+                and $info->{'Pragmas'}{'BeginKernelWrapper'}[0] eq
                 $kernelwrapper )
             {
                 $code_region = $WRAPPER;
             }
             if (    $code_region == $WRAPPER
-                and exists $info->{'AccPragma'}
-                and exists $info->{'AccPragma'}{'EndKernelWrapper'}
-                and $info->{'AccPragma'}{'EndKernelWrapper'}[0] eq
+                and exists $info->{'Pragmas'}
+                and exists $info->{'Pragmas'}{'EndKernelWrapper'}
+                and $info->{'Pragmas'}{'EndKernelWrapper'}[0] eq
                 $kernelwrapper )
             {
                 $code_region = $LOOP;
