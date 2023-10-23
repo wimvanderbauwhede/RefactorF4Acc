@@ -312,7 +312,7 @@ Running the accelerated code on this GPU results in 14x speedup compared to the 
 <a name="appnist"></a>
 ## Appendix: Validation of RefactorF4Acc using the NIST test
 
-We use the [NIST FORTRAN78 test suite](ftp://ftp.fortran-2000.com/fcvs21_f95.tar.bz2) for validation.
+This is discussed in more detail in [tests/NIST_F78_test_suite/README.md](tests/NIST_F78_test_suite/README.md). We use the [NIST FORTRAN78 test suite](ftp://ftp.fortran-2000.com/fcvs21_f95.tar.bz2) for validation.
 
       $ cd tests/NIST_F78_test_suite
 
