@@ -73,16 +73,16 @@ Our compiler automates this process as much as possible.
 * Subroutine extraction
     * add an annotation
 
-        !$ACC Subroutine <optional subroutine name>
-        ... <code to be extracted as subroutine>
-        !$ACC End Subroutine <optional subroutine name>
+            !$ACC Subroutine <optional subroutine name>
+            ... <code to be extracted as subroutine>
+            !$ACC End Subroutine <optional subroutine name>
 
 * Subroutine inlining
     * add an annotation
 
-        !$ACC Begin Inline
-        ... <code to be inlined>
-        !$ACC Begin Inline
+            !$ACC Begin Inline
+            ... <code to be inlined>
+            !$ACC Begin Inline
 
 * Call graph generation
 
@@ -174,7 +174,7 @@ If you run `rf4a` without any flags, it will look in the current directory for a
 If that file does not exist, it will present you with a text-based wizard to create the configuration.
 The configuration file is a text file containing key-value pairs separated with an '='. Lines starting with '#' are comments.
 
-For a list of the defined option and thier defaults, see [CONFIGURATION.md].
+For a list of the defined option and thier defaults, see [`CONFIGURATION.md`](CONFIGURATION.md).
 
 <a name="commandline"></a>
 ### Command line flags
@@ -302,8 +302,10 @@ You can now build the refactored code for GPU as follows:
 
 Running the accelerated code on this GPU results in 14x speedup compared to the original code running on the host (Intel Core i7 CPU @ 3.50GHz).
 
-* [`INSTALL.md`:](INSTALL.md)
-* [`GETTING_STARTED.md`:](GETTING_STARTED.md)
+## See also
+
+* [`INSTALL.md`](INSTALL.md)
+* [`GETTING_STARTED.md`](GETTING_STARTED.md)
 
 <a name="appnist"></a>
 ## Appendix: Validation of RefactorF4Acc using the NIST test
