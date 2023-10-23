@@ -9,7 +9,7 @@ use RefactorF4Acc::Refactoring::ContextFree qw( context_free_refactorings );
 #
 
 use vars qw( $VERSION );
-$VERSION = "2.1.1";
+$VERSION = "6.1.0";
 
 #use warnings::unused;
 use warnings;
@@ -109,8 +109,8 @@ sub refactor_called_functions {
         if (exists $stref->{'Subroutines'}{$f}{'Function'}) {
         	my $Ff = $stref->{'Subroutines'}{$f};
         	if ( defined $Ff->{'Called'} ) { # FIXME: This test is weak because the caller might not be called itself!
-        		if ($Ff->{'Status'} == $READ) {
-        		    warn "refactor_called_functions(): Function $f was never parsed ";
+        		if ($Ff->{'Status'} == $READ) { 
+        		    warning( "Function $f (" .$Ff->{'Source'}.  ") was never parsed ");
                     croak Dumper($Ff) if $DBG;
         		} else {
             		$stref = _refactor_function( $f, $stref );

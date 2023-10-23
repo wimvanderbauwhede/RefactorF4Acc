@@ -27,7 +27,7 @@ use RefactorF4Acc::Analysis::CommonBlocks qw( analyse_common_blocks );
 #
 
 use vars qw( $VERSION );
-$VERSION = "2.1.1";
+$VERSION = "6.1.0";
 
 #use warnings::unused;
 use warnings;
@@ -195,7 +195,7 @@ sub analyse_all {
 	}
 
 # ================================================================================================================================
-$stref = analyse_common_blocks($stref);
+	$stref = analyse_common_blocks($stref);
 # croak Dumper($stref->{'Subroutines'}{'genmap'}{ExGlobArgs});
 # carp 'OCC5d:'.$stref->{'Subroutines'}{'genmap'}{DeclaredCommonVars}{Set}{w1}{Type};
 # carp 'OCC5e:'.$stref->{'Subroutines'}{'genmap'}{ExGlobArgs}{Set}{w1}{Type};

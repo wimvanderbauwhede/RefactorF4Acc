@@ -22,7 +22,7 @@ use RefactorF4Acc::Refactoring::FoldConstants qw( fold_constants_all );
 # use RefactorF4Acc::Analysis::LoopNature qw( analyse_loop_nature_all );
 
 use vars qw( $VERSION );
-$VERSION = "2.1.1";
+$VERSION = "6.1.0";
 
 #use warnings::unused;
 use warnings;
@@ -53,7 +53,8 @@ sub refactor_all {
 
     $stref = refactor_include_files($stref) unless $Config{'INLINE_INCLUDES'} == 1;
 
-# FIXME: this should be treated just like subs, but of course that requires full parsing of expressions that contain function calls
+# TODO: this should be treated just like subs, but of course that requires full parsing of expressions that contain function calls
+# All this does at the moment is context-free refactoring, which is done in Refactoring::Subroutines as well
     $stref = refactor_called_functions($stref); # Context-free only
 
  	# say "BEFORE refactor_all_subroutines";
