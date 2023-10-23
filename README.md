@@ -97,7 +97,7 @@ However, the work flow is more complicated and requires an additional compiler, 
 ###  US National Institute of Standards and Technology (NIST) test suite
 To assess the correctness and capability of our refactoring compiler, we used the NIST (US National Institute of Standards and Technology) [FORTRAN78 test suite](http://www.itl.nist.gov/div897/ctg/fortran_form.htm), which aims to validate adherence to the ANSI X3.9-1978 (FORTRAN 77) standard. We used [a version with some minor changes from Arnaud Desitter](http://www.fortran-2000.com/ArnaudRecipes/fcvs21_f95.html): All files are properly formed; a non standard conforming FORMAT statement has been fixed in test file `FM110.f`; Hollerith strings in FORMAT statements have been converted to quoted strings. This test suite comprises about three thousand tests organised into 192 files.
 
-We skipped/modified some tests because they test features that our compiler does not support (see below for more details). After skipping these types of tests, 2899 tests remain, in total 190 files for which refactored code is generated. The testbench driver provided in the archive skips another 8 tests because they relate to features deleted in Fortran 95. In total the test suite contains 72,473 lines of code (excluding comments). Three test files (FM302, FM406 and FM923) contain tests that fail in gfortran (3 tests in total). Our compiler currently fails one additional test, test 13 in FM302, see ["Known issues"](#issues).
+We skipped/modified some tests because they test features that our compiler does not support (see below for more details). After skipping these types of tests, 2899 tests remain, in total 190 files for which refactored code is generated. The testbench driver provided in the archive skips another 8 tests because they relate to features deleted in Fortran 95. In total the test suite contains 72,473 lines of code (excluding comments). Three test files (FM302, FM406 and FM923) contain tests that fail in gfortran (3 tests in total). Our compiler currently fails one additional test, test 13 in FM302, see [the README for the testsuite](tests/NIST_F78_test_suite/README.md).
 
 Our compiler successfully generates refactored code for _all_ tests, and the refactored code compiles correctly and passes all other tests (2895 tests in total). The tests are available in `tests/NIST_F78_test_suite`, together with a dedicated readme. For full details, please refer to <a href="#appnist">Appendix: Validation of RefactorF4Acc using the NIST test</a> and 
 <a href="https://doi.org/10.1016/j.compfluid.2018.06.005">"Domain-specific acceleration and auto-parallelization of legacy scientific code in FORTRAN 77 using source-to-source compilation"</a> (Wim Vanderbauwhede and Gavin Davidson; Computers & Fluids Vol 173, 15 September 2018, Pages 1-5).
@@ -124,7 +124,7 @@ Full details of these four real-world examples can be found in
 Limitations and known issues are discussed in detail in [`LIMITATIONS.md`](LIMITATIONS.md). In short:
 
 - This tool was developed for a specific purpose: refactoring FORTRAN77 code into Fortran 95 code _suitable for offloading to GPUs and FPGAs_. The refactorings it includes are there to support that goal. Therefore, many refactorings that you might do to improve code on CPU, e.g. to benefit from SIMD, are _not_ included, for example replacing loops by array operations.
-- I have gradually been adding support for more F77, F90 and F95 features, but there is still a lot that is not supported, see [`LIMITATIONS.md`].
+- I have gradually been adding support for more F77, F90 and F95 features, but there is still a lot that is not supported.
 - This is a full-source compiler, so it assumes full visibility of the entire source code. That means that external subroutines for which there is no source code will lead to incorrect refactoring, because the compiler needs either know or be able to infer the subroutine signature. You can work around this by adding a stub subroutine.
 - To perform static code analysis, the compiler requires all array bounds to be constants at compile time. If your code contains array bounds defined using variables, in particular subroutine arguments, the analysis can't work.
 - The resulting code is also _not_ GPU-ready, it is still ordinary, single-threaded Fortran code. For the process to generate fully parallel OpenCL code for GPU, see <a href="#fulltoolchain">Example of full toolchain from FORTRAN77 to parallel OpenCL</a>. 
@@ -302,10 +302,12 @@ You can now build the refactored code for GPU as follows:
 
 Running the accelerated code on this GPU results in 14x speedup compared to the original code running on the host (Intel Core i7 CPU @ 3.50GHz).
 
-## See also
+## Read these too
 
 * [`INSTALL.md`](INSTALL.md)
 * [`GETTING_STARTED.md`](GETTING_STARTED.md)
+* [`CONFIGURATION.md`](CONFIGURATION.md)
+* [`LIMITATIONS.md`](LIMITATIONS.md)
 
 <a name="appnist"></a>
 ## Appendix: Validation of RefactorF4Acc using the NIST test
