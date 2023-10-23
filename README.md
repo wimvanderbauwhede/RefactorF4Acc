@@ -68,7 +68,12 @@ Our compiler automates this process as much as possible.
   * Preserves comments
 
 * OpenCL/C translation
-  * Once refactored, modules can be translated to C or OpenCL kernel code in a separate pass (see [Automatic parallelisation using OpenCL](README.md#automatic-parallelisation-using-opencl))
+  * Once refactored, modules can be translated to C or OpenCL kernel code in a separate pass (see [Translating refactored code to OpenCL/C](README.md#translate)), but note that the compiler does not auto-parallelise.
+
+* Part of the toolchain for automatic parallelisation using OpenCL: 
+Automatic parallelisation and offloading of legacy code to accelerators is the ultimate aim of the project, and already works for many cases.
+However, the work flow is more complicated and requires an additional compiler, [AutoParallel-Fortran](https://github.com/wimvanderbauwhede/AutoParallel-Fortran). This compiler is written in Haskell, which is not yet a mainstream programming language. Furthermore, the generated OpenCL code relies on the [OclWrapper Fortran OpenCL API](https://github.com/wimvanderbauwhede/OpenCLIntegration), written in C++, and uses [scons](http://scons.org/), a Python-based build system. For these reasons, it is harder to install this autoparallelising compiler. However, if you have installed it, a test case for the full flow is provided in the `tests` folder, see <a href="#fulltoolchain">Example of full toolchain from FORTRAN77 to parallel OpenCL</a> for more details. 
+
 
 * Subroutine extraction
     * add an annotation
@@ -84,11 +89,6 @@ Our compiler automates this process as much as possible.
             ... <code to be inlined>
             !$ACC Begin Inline
 
-* Call graph generation
-
-* Part of the toolchain for automatic parallelisation using OpenCL: 
-Automatic parallelisation and offloading of legacy code to accelerators is the ultimate aim of the project, and already works for many cases.
-However, the work flow is more complicated and requires an additional compiler, [AutoParallel-Fortran](https://github.com/wimvanderbauwhede/AutoParallel-Fortran). This compiler is written in Haskell, which is not yet a mainstream programming language. Furthermore, the generated OpenCL code relies on the [OclWrapper Fortran OpenCL API](https://github.com/wimvanderbauwhede/OpenCLIntegration), written in C++, and uses [scons](http://scons.org/), a Python-based build system. For these reasons, it is harder to install this autoparallelising compiler. However, if you have installed it, a test case for the full flow is provided in the `tests` folder, see <a href="#fulltoolchain">Example of full toolchain from FORTRAN77 to parallel OpenCL</a> for more details. 
 
 <a name="correctness"></a>
 ## Correctness and capability of RefactorF4Acc 
