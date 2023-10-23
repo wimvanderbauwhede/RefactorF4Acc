@@ -204,7 +204,6 @@ sub _fix_end_lines {
 
 		( my $line, my $info ) = @{$annline};
 
-		#		say "$f REV LINE: $line" if $f eq 'cphs';
 		next if ( $line =~ /^\s*$/ );    # Skip comments
 		if (   $line =~ /^\s*end\s+$sub_or_prog/
 			or $line =~ /^\s*\d+\s+end\s+$sub_or_prog/ )
@@ -229,13 +228,10 @@ sub _fix_end_lines {
 				if ( exists $Sf->{'ReferencedLabels'}{$label} ) {
 
 					$end_sub_line = $indent.$label.' end '.$sub_or_prog.' '.$f;
-					# croak $end_sub_line.Dumper($info);
 				}
 		 	}
 			$info->{'End'.ucfirst($sub_or_prog)} = $f;
 			push @{$rlines}, [$end_sub_line,$info];
-
-			# push @{$rlines}, [ $line . " $sub_or_prog $f", $info ];
 			$done_fix_end = 1;
 		}
 
@@ -430,24 +426,7 @@ sub _add_implicit_none {
 				push @{$rlines}, [ $indent . 'implicit none', $r_info ];
 			}
 		}
-		# if ( ( exists $info->{'VarDecl'} or exists $info->{'ParamDecl'} or exists $info->{'Equivalence'} )
-		# 	and $first_vardecl )
-		# {
-		# 	$first_vardecl = 0;
 
-		# 	# Here I think I can insert 'implicit none'
-		# 	if ( not exists $Sf->{'ImplicitNone'} ) {
-		# 		say "Adding 'implicit none' at " . __PACKAGE__ . ' ' . __LINE__
-		# 		  if $V;
-		# 		my $r_info = {};
-		# 		my $indent = ' ' x 6;
-		# 		$r_info->{'LineID'}       = $prev_line_id - 1; # ad hoc!
-		# 		$r_info->{'Indent'}       = $indent;
-		# 		$r_info->{'ImplicitNone'} = 1;
-		# 		$r_info->{'Ann'}          = [ annotate( $f, __LINE__ ) ];
-		# 		push @{$rlines}, [ $indent . 'implicit none', $r_info ];
-		# 	}
-		# }
 		push @{$rlines}, $annline;
 	}
 	return $rlines;

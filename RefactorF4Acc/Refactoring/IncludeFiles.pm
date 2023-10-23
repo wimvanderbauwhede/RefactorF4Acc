@@ -99,9 +99,7 @@ sub _refactor_include_file {
 				{
 					my $gvar =
 					  $stref->{'IncludeFiles'}{$inc_f}{'ConflictingGlobals'}{$var}[0];
-					print
-"WARNING: CONFLICT in var decls in $inc_f: renaming $var to $gvar\n"
-					  if $W;
+					warning("CONFLICT in var decls in $inc_f: renaming $var to $gvar");
 					$nvar = $gvar;
 					$line =~ s/\b$var\b/$gvar/;
 					$info->{'Ref'}++;
@@ -110,11 +108,9 @@ sub _refactor_include_file {
 			$annline->[1]{'VarDecl'}{'Name'} = $nvar;
 		} 
 		if ( exists $info->{'ParamDecl'} ) {
-			# print $line,':',Dumper(%{$info});
             if (exists $info->{'ParamDecl'}{'Name'}) {
 			my $var_val = $info->{'ParamDecl'}{'Name'};
 			(my $var,my $val)=@{$var_val};
-#				print "PAR: $var ($line)\n";
                 if ( exists $stref->{'IncludeFiles'}{$inc_f}{'ConflictingGlobals'}
                     {$var} )
                 {
@@ -127,20 +123,16 @@ sub _refactor_include_file {
             } elsif (exists $info->{'ParamDecl'}{'Names'}) { 
                 for my $var_val (@{ $info->{'ParamDecl'}{'Names'} }) {
                     (my $var,my $val)=@{$var_val};
-                if ( exists $stref->{'IncludeFiles'}{$inc_f}{'ConflictingGlobals'} {$var} )
-                {
-                    croak 'BOOM!' if $DBG;
-                	my $gvar=$stref->{'IncludeFiles'}{$inc_f}{'ConflictingGlobals'}{$var}[0];
-                	$line=~s/\b$var\b/$gvar/;
-                	$info->{'Ref'}++;
-                    $info->{'ParamDecl'}{'Name'}=[$gvar,$val];    
-                    print "WARNING: WEAK! renamed $var to $gvar ($line) refactor_include_file() ".__LINE__."\n" if $WW;                 
-                }			
+					if ( exists $stref->{'IncludeFiles'}{$inc_f}{'ConflictingGlobals'} {$var} ) {
+						croak 'BOOM!' if $DBG;
+						my $gvar=$stref->{'IncludeFiles'}{$inc_f}{'ConflictingGlobals'}{$var}[0];
+						$line=~s/\b$var\b/$gvar/;
+						$info->{'Ref'}++;
+						$info->{'ParamDecl'}{'Name'}=[$gvar,$val];    
+						print "WARNING: WEAK! renamed $var to $gvar ($line) refactor_include_file() ".__LINE__."\n" if $WW;                 
+					}
                 }
- 
             }
-
-
 		}
 		if ( exists $info->{'Implicit'} ) {
 		    print "WARNING: IMPLICIT: removing the implicit type declaration <$line> in $inc_f, please make sure your code does not use them!\n" if $W;		    

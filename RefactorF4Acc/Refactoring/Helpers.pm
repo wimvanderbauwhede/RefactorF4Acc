@@ -168,13 +168,10 @@ sub split_long_line {
     # FIXME: add split on ';' and on operators (F95)
     my $smart = 0;
     if ( length($line) > $nchars ) {
-        # croak $line;
         my $patt  = '';
         my $ll    = length($line);
         my $rline = join( '', reverse( split( '', $line ) ) );
 
-        #       print $rline,"\n";
-        #       print "$ll - $nchars = ",$ll - $nchars,"\n";
         my $idx  = index( $rline, $split_on,  $ll - $nchars );
         my $idx2 = index( $rline, $split_on2, $ll - $nchars );
         my $idx3 = index( $rline, $split_on3, $ll - $nchars );
@@ -205,9 +202,6 @@ sub split_long_line {
             $patt = join( '', reverse( split( '', $split_on4 ) ) );
         }
 
-#       if ($smart==1) {
-#           die substr( $line, 0, $ll - $idx3, '' ) if length(substr( $line, 0, $ll - $idx3, '' ))>$nchars;
-#       }
         push @chunks, substr( $line, 0, $ll - $idx, '' );
         print "CHUNKS:\n", join( "\n", @chunks ), "\n" if $DBG;
         print "REST:\n", $line, "\n" if $DBG;
@@ -230,9 +224,6 @@ sub split_long_line {
                     if ( $chunk =~ /^\s*$/ ) {
                         $chunk = '';
                     } else {
-
-                        #                       $chunk = '     &  ' . $chunk;
-                        #                        $chunk = '     &' . $chunk;
                         $chunk = '      '
                           . $chunk;   # WARNING: free form but with 6 spaces ...
                     }
@@ -467,7 +458,7 @@ sub format_f95_par_decl {
     my $shape = $dim;
     my $dimrec = [];
     if ( @{$shape} ) {
-        $dimrec = $shape; #', dimension(' . join( ',', @dims ) . ') ';
+        $dimrec = $shape;
     }
 
     my $final_par_rec=
@@ -480,14 +471,8 @@ sub format_f95_par_decl {
         'Name' => [ $var, $val ] ,
         'Status' => 1
     };
-    # if ($isArray) {
-    #     $final_par_rec->{'Dimension'} = [];
-    # }
 
      carp "FINAL PAR REC $f:".Dumper($final_par_rec) if $DBG and $type eq 'Unknown';
-#     if ($type eq 'Unknown') {
-#     	$final_par_rec->{'Type'} = 'real';
-#     }
 
     return $final_par_rec;
 }    # format_f95_par_decl()

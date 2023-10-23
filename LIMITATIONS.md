@@ -86,12 +86,12 @@ There is still a considerable subset of code that rf4a can't handle correctly, a
 
 ## Known bugs
 
-* in the expression parses, `=` has incorrect precedence
-
-
-
-
-
-
-
+* In the expression parser, `=` has incorrect precedence. So in particular implied DO might not always parse correctly.
+* Sometimes the end of a block is not identified correctly.
+* Creating and using modules is still a bit flaky.
+* Refactoring globals sometimes leads to name conflicts between parameters and variables, and these are not always resolved correctly.
+* Casting between types currently assumes that `kind=4`.
+* Reshaping of arrays to refactor `EQUIVALENCE` is incomplete.
+* Constant folding is incomplete.
+* `ENTRY` handling is probably flaky.
 

@@ -416,7 +416,6 @@ sub __reparse_extracted_subroutines {
 sub __update_caller_datastructures {
     ( my $stref, my $f, my $blocksref ) = @_;
 
-    #   delete $blocksref->{'OUTER'};
     # Create new CalledSubs for $f
 
     my @called_subs=();
@@ -486,7 +485,6 @@ sub __find_vars_in_block {# warn "This should use the same code as RefactorF4A::
 		print "\nVARS in $block:\n\n" if $V;
 		for my $annline (@annlines) {
             ( my $tline, my $info ) = @{$annline};
-            #  say "$block => $tline";#.Dumper($info);
 			if ( exists $info->{'Do'} ) {
 				my $iter = $info->{'Do'}{'Iterator'};
 				push @{ $itersref->{$block} }, $iter;
@@ -495,7 +493,6 @@ sub __find_vars_in_block {# warn "This should use the same code as RefactorF4A::
 				for my $var_in_do ( @{ $info->{'Do'}{'Range'}{'Vars'} } ) {
 					if ( exists $tvars{$var_in_do} ) {
 						print "FOUND $var_in_do\n" if $V;
-						# $occsref->{$block}{$var_in_do} = $var_in_do;
                         if (exists $varsref->{$var_in_do}{'Parameter'}
                         and not exists $Sf->{'UsedParameters'}{'Set'}{$var_in_do}
                         ) {
@@ -510,7 +507,6 @@ sub __find_vars_in_block {# warn "This should use the same code as RefactorF4A::
                 my $vars_on_line_ref=identify_vars_on_line($annline);
 
                 for my $var_on_line (@{$vars_on_line_ref}) {
-                    # say $annline->[0]." => $var_on_line" ;
                     if  ( exists $tvars{$var_on_line} ) {
                         if (exists $varsref->{$var_on_line}{'Parameter'}
                         and not exists $Sf->{'UsedParameters'}{'Set'}{$var_on_line}
@@ -524,7 +520,6 @@ sub __find_vars_in_block {# warn "This should use the same code as RefactorF4A::
                                 my $decl = get_var_record_from_set($Sf->{$subset},$var_on_line);
                                 if (exists $decl->{'Dim'} and scalar @{$decl->{'Dim'}}>0 ) { # A non-empty Dim record, so it is an array
                                     # Quick and dirty
-                                    # carp "$tline => $var_on_line" .Dumper $decl->{'Dim'};
                                     my $expr_str = '('.join(',',map {$_->[0].','.$_->[1]} @{$decl->{'Dim'}}).')';
 
                                     my ($ast,$str,$error,$has_funcs)=parse_expression_no_context($expr_str);
