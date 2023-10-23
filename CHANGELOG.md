@@ -12,8 +12,12 @@ The versioning convention is as follows:
     - Minor version increments each quarter
     - Patch version increments inside a quarter, ad-hoc
 
-## [Unreleased]
-### Planned
+## [5.1.0] - 2023-10-23
+    - Better support for F90/F95 features, see `LIMITATIONS.md` for details
+    - Better errors and warnings
+    - Better documentation of limitations, see `LIMITATIONS.md` 
+    - More NIST tests pass, and in the process a lot of bugs were fixed
+    - Better documentation of configuration options, see `CONFIGURATION.md`
     - Inlining of function and subroutine calls
 
 ## [2.1.1] - 2020-07-27

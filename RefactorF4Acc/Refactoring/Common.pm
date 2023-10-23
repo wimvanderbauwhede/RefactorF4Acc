@@ -31,7 +31,7 @@ use RefactorF4Acc::Analysis::Arrays qw(
 use RefactorF4Acc::Refactoring::Casts qw( cast_call_argument );
 
 use vars qw( $VERSION );
-$VERSION = "6.1.0";
+$VERSION = "5.1.0";
 
 use Carp;
 use Data::Dumper;

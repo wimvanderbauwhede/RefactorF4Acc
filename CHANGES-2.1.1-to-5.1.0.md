@@ -1,4 +1,4 @@
-version 6.1.0
+version 5.1.0
 
 - The main change in this release is better support for F90/F95 syntax and features.
 - The parser is much improved, esp. for IO operations

@@ -5,7 +5,7 @@ package RefactorF4Acc::Analysis::LoopNature;
 #   
 
 use vars qw( $VERSION );
-$VERSION = "6.1.0";
+$VERSION = "5.1.0";
 
 use warnings;
 use warnings FATAL => qw(uninitialized);

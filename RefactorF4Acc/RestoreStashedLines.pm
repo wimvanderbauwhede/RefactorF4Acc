@@ -7,7 +7,7 @@ use RefactorF4Acc::Config;
 #   
 	
 use vars qw( $VERSION );
-$VERSION = "6.1.0";
+$VERSION = "5.1.0";
 
 use v5.10;
 use warnings;

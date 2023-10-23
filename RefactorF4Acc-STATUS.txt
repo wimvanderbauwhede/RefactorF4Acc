@@ -15,12 +15,12 @@ TO RELEASE
 - update the version:
   $  ./update_version.pl 1.2.1
 - update CHANGELOG.md
-- switch to master
-  $  git checkout master
+- switch to main
+  $  git checkout main
 
-* On branch master
+* On branch main
 - Get the changed or added files:
-  $ git diff --name-status master devel
+  $ git diff --name-status main devel
 - Checkout the required files from devel
 !!! CAREFUL, this does not merge, it overwrites !!!
   $  git checkout devel relative-file-path

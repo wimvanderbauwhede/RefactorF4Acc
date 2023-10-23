@@ -25,7 +25,7 @@ use RefactorF4Acc::Refactoring::Equivalence qw( change_EQUIVALENCE_to_assignment
 use RefactorF4Acc::Refactoring::StatementFunctions qw( move_StatementFunctions_after_SpecificationStatements );
 
 use vars qw( $VERSION );
-$VERSION = "6.1.0";
+$VERSION = "5.1.0";
 
 use Carp;
 use Data::Dumper;

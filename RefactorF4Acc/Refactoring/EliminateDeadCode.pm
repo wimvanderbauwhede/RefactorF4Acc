@@ -21,7 +21,7 @@ use RefactorF4Acc::Analysis::DeadCodeElimination qw( analyse_for_dead_code );
 #
 
 use vars qw( $VERSION );
-$VERSION = "6.1.0";
+$VERSION = "5.1.0";
 
 #use warnings::unused;
 use warnings;
