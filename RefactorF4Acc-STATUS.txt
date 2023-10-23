@@ -22,7 +22,7 @@ TO RELEASE
 - Get the changed or added files:
   $ git diff --name-status master devel
 - Checkout the required files from devel
-!!! CAREFUL, this does not merge, it overwrites !!!h
+!!! CAREFUL, this does not merge, it overwrites !!!
   $  git checkout devel relative-file-path
 !!! To do it selectively:
   $  git checkout --patch devel relative-file-path

@@ -64,17 +64,25 @@ Our compiler automates this process as much as possible.
   * No `IMPLICIT` declarations, all variables are declared explicitly
   * proper `DO` ... `END DO` -loops, removal of redundant `GOTO`
   * All subroutines in the call tree are refactored so that there are no shared global (`COMMON`) variables
+  * `EQUIVALENCE` statements are replaced by explicit assignments
   * Preserves comments
 
 * OpenCL/C translation
   * Once refactored, modules can be translated to C or OpenCL kernel code in a separate pass (see [Automatic parallelisation using OpenCL](https://github.com/wimvanderbauwhede/RefactorF4Acc/blob/master/README.md#automatic-parallelisation-using-opencl))
 
-* Subroutine extraction  
-    * simply add an annotation
+* Subroutine extraction
+    * add an annotation
 
-          !$ACC SUBROUTINE <optional subroutine name>  
-          ... <code to be extracted as subroutine>
-          !$ACC END SUBROUTINE <optional subroutine name>
+        !$ACC Subroutine <optional subroutine name>
+        ... <code to be extracted as subroutine>
+        !$ACC End Subroutine <optional subroutine name>
+
+* Subroutine inlining
+    * add an annotation
+
+        !$ACC Begin Inline
+        ... <code to be inlined>
+        !$ACC Begin Inline
 
 * Call graph generation
 

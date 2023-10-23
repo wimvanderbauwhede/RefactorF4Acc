@@ -51,10 +51,6 @@ Subroutines
 
 sub refactor_all_subroutines {
 	( my $stref ) = @_;
-# croak Dumper(  $stref->{'Subroutines'}{'termo'}{'Status'} );
-# for my $f ( sort keys %{ $stref->{'Subroutines'} } ) {
-	
-# }
 
 	for my $f ( sort keys %{ $stref->{'Subroutines'} } ) {
 
@@ -145,7 +141,7 @@ sub _refactor_subroutine_main {
 	}
 
 	if (
-		1 or $Sf->{'HasCommons'} or (                    # FIXME
+		1 or $Sf->{'HasCommons'} or (                    # TODO: this does too much, not only COMMON
 			exists $Sf->{'Contains'} and scalar @{ $Sf->{'Contains'} } > 0
 		)
 	  )
@@ -173,17 +169,10 @@ sub _refactor_subroutine_main {
 		$annlines = _add_ExMismatchedCommonArg_assignment_lines( $stref, $f, $annlines );
 		$Sf->{'RefactoredCode'} = $annlines;
 
-		# Re-parsing to get the Info for the emitted lines
-		# FIXME: at this stage the PlaceHolders have already been put back! This breaks the parser in some places!
-
-		#	    $stref = parse_fortran_src($f, $stref);
-		#	    $annlines=$Sf->{'AnnLines'};
 	}
 
 	$annlines = change_EQUIVALENCE_to_assignment_lines( $stref, $f, $annlines );
 
-	#	$Sf->{'AnnLines'} = $annlines;
-	#	$Sf->{'RefactoredCode'} = $annlines; # cargo cult
 	$annlines = move_StatementFunctions_after_SpecificationStatements( $stref, $f, $annlines );
 
 	$annlines = _emit_refactored_signatures( $stref, $f, $annlines );

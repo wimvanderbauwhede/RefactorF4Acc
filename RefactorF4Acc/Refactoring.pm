@@ -53,7 +53,8 @@ sub refactor_all {
 
     $stref = refactor_include_files($stref) unless $Config{'INLINE_INCLUDES'} == 1;
 
-# FIXME: this should be treated just like subs, but of course that requires full parsing of expressions that contain function calls
+# TODO: this should be treated just like subs, but of course that requires full parsing of expressions that contain function calls
+# All this does at the moment is context-free refactoring, which is done in Refactoring::Subroutines as well
     $stref = refactor_called_functions($stref); # Context-free only
 
  	# say "BEFORE refactor_all_subroutines";

@@ -108,9 +108,9 @@ sub refactor_called_functions {
         	my $Ff = $stref->{'Subroutines'}{$f};
         	if ( defined $Ff->{'Called'} ) { # FIXME: This test is weak because the caller might not be called itself!
         		if ($Ff->{'Status'} == $READ) { 
-        		    warn "refactor_called_functions(): Function $f was never parsed ";
+        		    warning( "Function $f (" .$Ff->{'Source'}.  ") was never parsed ");
                     croak Dumper($Ff) if $DBG;
-        		} else {        
+        		} else {
             		$stref = _refactor_function( $f, $stref );
         		}
         	}

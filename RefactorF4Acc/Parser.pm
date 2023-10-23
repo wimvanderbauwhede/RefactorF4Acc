@@ -19,7 +19,7 @@
 # ENCODE♦ (E)
 # DECODE♦ (E)
 # OPTIONS♦ (E)
-# PRAGMA♦ => we support $RF4A, not $PRAGMA
+# PRAGMA♦ (I)
 
 # Fortran 90/95
 

@@ -1,0 +1,197 @@
+
+Refactoring/Subroutines.pm:198:# For some reason this is BROKEN elsewhere so FIXME!
+
+
+Refactoring/Helpers.pm:168:    # FIXME: add split on ';' and on operators (F95)
+Refactoring/Helpers.pm:451:    # Can't trust the type set via implicits! WEAK! FIXME!
+Refactoring/Helpers.pm:465:    # FIXME: for multiple vars, we need to split this in multiple statements.
+
+Refactoring/Subroutines/Emitters.pm:136:		# WV 2021-06-09 This is a HACK, an element in List MUST be in Set, FIXME!
+
+Refactoring/Modules.pm:294:		next if $used_mod_name eq $mod_name;    # FIXME: ad-hoc!
+Refactoring/Modules.pm:389:				if ( not exists $refactored_sources->{$f} ) {    # FIXME: This is a HACK because we need to make sure this is caught higher up
+
+Refactoring/IncludeFiles.pm:54:	$stref->{'IncludeFiles'}{$inc_f}{'Source'}=$inc_ff.$EXT; # FIXME: ad hoc
+Refactoring/IncludeFiles.pm:61:        or exists $stref->{'BuildSources'}{'C'}{ $If->{'Source'} } ) # FIXME: needed?
+Refactoring/IncludeFiles.pm:63:        $stref = context_free_refactorings( $stref, $inc_f ); # FIXME: why here? 
+Refactoring/IncludeFiles.pm:160:   my $inc_firstline=shift @{ $refactored_lines }; # FIXME This is weak. What we need is the line with "module" 
+Refactoring/IncludeFiles.pm:182:        if ( $line =~/dimension\((.+?)\)/) { # WV: FIXME! BOO!
+
+Refactoring/Blocks.pm:111:    # TODO: Local vars should be separate to declare them locally
+Refactoring/Blocks.pm:138:    # TODO: no need to declare $occsref and $paramsref at this level as they are empty!
+Refactoring/Blocks.pm:170:                    # Now test if this is maybe an ENTRY -- UGH! TODO!
+
+Refactoring/Blocks.pm:352:# FIXME 20170516: need includes for params in decls. Problem is, if we use COMMON blocks in the original subroutine, then there are no args so no decls.
+Refactoring/Blocks.pm:588:                        $decl->{'Indent'}."parameter($param=$val) ! FIXME: F95",
+Refactoring/Blocks.pm:649:        $Sblock->{$varset}{$var} = $varsref->{ $var }; # FIXME: this is "inheritance, but in principle a re-parse is better?"
+
+Refactoring/Casts.pm:52:# FIXME: this does assume essentially kind=4
+
+Refactoring/ContextFree.pm:39:#* WV20150722: problem is this does too much, should not insert any new code, do that separately! FIXME!
+Refactoring/ContextFree.pm:382:            if ( not exists $stref->{'IncludeFiles'}{$inc}{'ExtPath'} ) { # FIXME: this is because 'InclType' => 'External' gets overwritten by 'Parameter' 
+Refactoring/ContextFree.pm:410:					# No 'Only' , FIXME!
+Refactoring/ContextFree.pm:428:                  "      include '$inc'"; # FIXME
+
+Refactoring/Common.pm:745:# TODO here we push the pre-and-post cast assignments
+Refactoring/Common.pm:746:# TODO note that this will work with reshapes too
+Refactoring/Common.pm:747:# TODO and similar for the other places where we generate call lines
+Refactoring/Common.pm:833:				# This is the emitter, maybe that should not be done here but later on? TODO!
+Refactoring/Common.pm:924:				# This is the emitter, maybe that should not be done here but later on? TODO!
+Refactoring/Common.pm:1312:		# FIXME: I will assume that if the array is indexed, all indices are used, i.e. rank is 0
+Refactoring/Common.pm:1364:		# TODO: if they are the same type but different kinds, we also need to cast.
+Refactoring/Common.pm:1483:		# FIXME: I will assume that if the array is indexed, all indices are used, i.e. rank is 0
+Refactoring/Common.pm:1526:	  : __update_function_calls_in_AST( $stref, $Sf, $f, $ast );    # FIXME: $ast gets modified.
+
+Refactoring/FoldConstants.pm:129:                    # FIXME: Surely conditions of if-statements can contain array accesses, so FIX THIS!
+Refactoring/FoldConstants.pm:201:            elsif (exists $info->{'ArgDecl'}) { # This is in case VarDecl is just the Name, FIXME!
+Refactoring/FoldConstants.pm:210:                # WV 2021-06-16 FIXME: somehow $info->{'ParsedParDecl'}{'Pars'}{'Val'} only has the integer part of the value!
+Refactoring/FoldConstants.pm:232:                # FIXME: Surely conditions of if-statements can contain array accesses, so FIX THIS!
+Refactoring/FoldConstants.pm:256:                $info->{'Do'}{'Range'}{'Vars'} = []; # FIXME! Only works if all vars have been replaced!
+
+Refactoring/Equivalence.pm:74:# FIXME: This is not right because we need the variable only I think
+Refactoring/Equivalence.pm:82:		$lhs_v_str = $lhs_var; # Ugly HACK! FIXME!
+
+Refactoring/Equivalence.pm:139:		# FIXME: I don't know how to get array accesses from a READ call, so I pretend they're always scalar
+Refactoring/Equivalence.pm:450:		# FIXME: is this not the same as $replaced above?
+Refactoring/Equivalence.pm:514:			 (scalar @{$dim1}==1 and scalar @{$dim2}==1) # FIXME! WEAK!  
+Refactoring/Equivalence.pm:539:					# FIXME: I will assume that if the array is indexed, all indices are used, i.e. rank is 0
+Refactoring/Equivalence.pm:615:			# FIXME: create a test
+
+Refactoring/Scalarise.pm:202:# 	* SELECT CASE arguments (I'm lazy, FIXME!)
+Refactoring/Scalarise.pm:203:# 	* DO index range expressions (I'm lazy, FIXME!)
+Refactoring/Scalarise.pm:216:'FIXME: What we want is that only array variables with IndexVars are renamed. So constant indices should stay as they are';
+Refactoring/Scalarise.pm:338:# FIXME the sort below means that the tuple is in lexical order of the var names, which makes no sense.
+Refactoring/Scalarise.pm:370:# FIXME: parameter folding messes up the names because the param names in $state->{'StreamVars'}{$var}{'Set'} are replaced with constants in $ordered_stencil_var_tuple
+Refactoring/Scalarise.pm:691:                # TODO: of course this ignores any indices or function call args
+
+Refactoring/Functions.pm:93:        next if exists $stref->{'Modules'}{$f}; # HACK! FIXME!
+Refactoring/Functions.pm:109:        	if ( defined $Ff->{'Called'} ) { # FIXME: This test is weak because the caller might not be called itself!
+Refactoring/Functions.pm:248:                		'Attr' => $stref->{'Subroutines'}{$fname}{'Signature'}{'ReturnTypeAttr'}, # TODO, in principle the type-spec could be something like integer(size=4) or maybe even an array or character string
+
+Analysis/ArrayAccessPatterns.pm:371:                # FIXME: Surely conditions of if-statements can contain array accesses, so FIX THIS!
+Analysis/ArrayAccessPatterns.pm:395:                my $loop_range_exprs = [ $range_start_evaled , $range_stop_evaled, $range_step_evaled ];#[$range_start,$range_stop]; # FIXME Maybe we don't need this. But if we do, we should probably eval() it
+Analysis/ArrayAccessPatterns.pm:486:# FIXME: I think this does not deal with constant accesses
+Analysis/ArrayAccessPatterns.pm:504:					# FIXME!
+Analysis/ArrayAccessPatterns.pm:694:			# WV 2021-05-19 FIXME: should I use the Deps from the LoopIter analysis?
+Analysis/ArrayAccessPatterns.pm:744:				# WV 2021-05-19 FIXME: should I use the Deps from the LoopIter analysis?
+Analysis/ArrayAccessPatterns.pm:796:# TODO I should split out the code generation and emitter
+Analysis/ArrayAccessPatterns.pm:816:    my $block_id=0; # TODO
+Analysis/ArrayAccessPatterns.pm:1153:# TODO: this is unfinished, it currently returns nothing!
+Analysis/ArrayAccessPatterns.pm:1210:				} # TODO: later we must extend this to subroutine calls as well
+Analysis/ArrayAccessPatterns.pm:1466:    # TODO
+Analysis/ArrayAccessPatterns.pm:1799:		# This is not generic! TODO!
+
+Analysis/Globals.pm:180:        # FIXME: This is also true for called ENTRYs
+Analysis/Globals.pm:237:	                # FIXME: the InheritedParams are for ANY new arg, not just ex-glob args!
+
+Analysis/LoopNature.pm:79:# Case is not done yet, $info->{'CaseVar'} should have $info->{'VarAccesses'}, TODO
+Analysis/LoopNature.pm:80:# While should not occur in F77 but still, we should do it, TODO
+Analysis/LoopNature.pm:218:    # FIXME! List content is wrong!
+Analysis/LoopNature.pm:422:    (my $mapAttempt,$accessAnalysis)  = paralleliseLoop_map($stref,$f,$loop_annlines,$newLoopVars,$nonTempVars,$prexistingVars, $dependencies,$accessAnalysis, $block_id);# TODO 
+Analysis/LoopNature.pm:426:    (my $reduceAttempt,$accessAnalysis) = paralleliseLoop_reduce($stref,$f,$mapAttempt_ast,$newLoopVars,$nonTempVars,$prexistingVars,$dependencies,$accessAnalysis);  # TODO
+Analysis/LoopNature.pm:430:    (my $reduceWithOuterIterationAttempt, $accessAnalysis) = paralleliseLoop_reduceWithOuterIteration($stref,$f,$reduceAttempt_ast, $Nothing, $newLoopVars,$newLoopVars,$nonTempVars,$prexistingVars,$dependencies,$accessAnalysis); # TODO
+Analysis/LoopNature.pm:433:    # WV: TODO: if all these fail we should move the loop to the OpenCL device anyway, using a new OpenCLSeq node
+Analysis/LoopNature.pm:441:    my $updated_accessAnalysis = $accessAnalysis; #TODO, currently I update the accessAnalysis rather than creating a fresh copy
+Analysis/LoopNature.pm:810:# TODO
+Analysis/LoopNature.pm:1714:    my $loopAnalysis = analyseLoop_reduce( "Cannot reduce: ", [], [], $loopWrites, $nonTempVars, $prexistingVars, $dependencies, $accessAnalysis, $loop); # TODO
+Analysis/LoopNature.pm:1754:    my $reductionCode = []; # TODO, a list with a single AnnLine, see 
+Analysis/LoopNature.pm:1903:            # FIXME: What we need to do is find the AST node of the expression on the RHS that contains the lhsExpr, so the scalar or more likely array access
+Analysis/LoopNature.pm:1907:            my $associative = isAssociativeExpr($lhsExprInfo->{'ExpressionAST'},$rhsExprInfo->{'ExpressionAST'}); # TODO
+Analysis/LoopNature.pm:2109:                # WV: TODO: if the read operand is an intrinsic function it should not be included I guess
+Analysis/LoopNature.pm:2148:            # WV: TODO: a function call should not mean that the reduction can't be parallelised!
+Analysis/LoopNature.pm:2333:# --    WV: TODO: what about subroutine calls in the loop?
+
+Analysis/Variables.pm:52:# TODO: use the grouped labels Control, IO etc
+
+Analysis/CommonBlocks.pm:341:			# If they are not the same it's a type error, TODO: relax this for the special cases as discussed in the paper
+Analysis/CommonBlocks.pm:755:		# FIXME: I will assume that if the array is indexed, all indices are used, i.e. rank is 0
+
+Analysis/ArgumentIODirs.pm:306:                # FIXME!
+Analysis/ArgumentIODirs.pm:937:        next if exists $stref->{'Modules'}{$f};               # HACK! FIXME!
+
+Analysis/Includes.pm:125:        	# TODO: maybe check if the include is included in any non-external subroutine.
+Analysis/Includes.pm:246:# This is for param includes inside other includes, and it is not recursive, FIXME!
+
+Analysis/Arguments.pm:195:# TODO: make this work with mismatched COMMON vars
+Analysis/Arguments.pm:275:				# This is an UGLY HACK, FIXME!!! I should find out why it was blank instead!
+Analysis/Arguments.pm:439:# TODO: in principle this should also work for called functions ...
+Analysis/Arguments.pm:440:# TODO: the new approach for mismatched COMMON vars only works with direct callers, so if f calls g and g calls h then f is not considered a caller
+Analysis/Arguments.pm:441:# TODO: So if f has COMMON blocks and it calls h via g, and g does not have COMMON blocks, then we have the situation where g should get the args to be passed on to h
+
+Analysis/VarAccessAnalysis.pm:275:                    my $loop_range_exprs = [ $range_start_evaled , $range_stop_evaled ]; # FIXME Maybe we don't need this. But if we do, we should probably eval() it
+Analysis/VarAccessAnalysis.pm:362:# FIXME: I think this does not deal with constant accesses
+
+Preconditioning.pm:56:        next if ( $stref->{'IncludeFiles'}{$inc}{'Status'} == $UNREAD ); # TODO: WARN!
+Preconditioning.pm:65:        next if ( $stref->{'IncludeFiles'}{$inc}{'Status'} == $UNREAD ); # TODO: WARN!
+Preconditioning.pm:95:# TODO: check if this works for F95-style parameters too
+Preconditioning.pm:112:# FIXME: if the parameter was declared before being defined, the declaration should also go into the params file
+Preconditioning.pm:694:                                # FIXME: This should use \b not \W !!!
+Preconditioning.pm:762:                        # WV20230901 This is hacky because if $val would be an array, this would not work. FIXME!
+State.pm:165:# FIXME At the moment we assume automatically that CommonVars become ExGlobArgs
+RunCpp.pm:115:	# FIXME: this only supports one level of subdirectories
+RunCpp.pm:206:            # FIXME: we should actually detect all macros on the line and test if any of them is in the skip list
+Main.pm:432:	$CFG_refactor_toplevel_globals= 1; # FIXME: refactoring while ignoring globals is broken ( $opts{'g'} ) ? 1 : $CFG_refactor_toplevel_globals; # Global from Config
+Main.pm:489:=head1 TODOs
+Main.pm:542:        CallTree -- The call tree as a list of indented strings. #TODO make more generic and add a pretty-printer
+Main.pm:565:    *       RefactoredArgIODirs -- IO dir for every refactored arg #TODO: make this RefactoredArgs -> IODirs, List, ...
+Main.pm:568:        Functions -- Same as Subroutines, but for Functions #TODO: maybe we could simply have a flag "IsFunction" in Subroutines?
+Parser/Expressions.pm:277:#	FIXME!
+Parser/Expressions.pm:815:         left         =   NOTE I put this here, main purpose is implicit do. Actually this should be a separate level between Relational and Logical, TODO!
+Parser/SrcReader.pm:192:                if ($free_form) {    # I take this to mean F95, FIXME!
+Parser/SrcReader.pm:680:              # FIXME: comments that come before a function/subroutine signature
+
+Parser/SrcReader.pm:1333:    if ( $line =~ /.\!.*$/ ) {    # FIXME: trailing comments are discarded!
+Parser/SrcReader.pm:1407:    # FIXME: trailing comments. I think they are discarded!
+Parser/SrcReader.pm:1425:        $cline =~ s/^.+?\!//;    # FIXME: not quite correct
+
+Inventory.pm:114:                return if (!/\.f(?:or|9[05])?$/i &&!/\.c$/); # rather ad-hoc for Flexpart + WRF # FIXME: make pattern configurable in rf4a.cfg
+Inventory.pm:159:    		# FIXME: ugly ad-hoc hack!
+Inventory.pm:262:        # Detect blocks. FIXME: we need to distinguish between the Subroutine and KernelWrapper pragmas!
+Inventory.pm:330:        	# # FIXME: HACK: change TAB to 4 spaces
+Inventory.pm:431:        if ( $line =~ /^\s+interface/i ) { #TODO: should be added to inventory of module
+Inventory.pm:554:                	$stref->{$srctype}{$mod_name}{'Interface'}{$sub}=1; #WV: TODO: add functionality here
+Inventory.pm:602:                            # But let's store the full path here. Should probably be SrcPath, TODO
+Inventory.pm:634:            $line =~/^\s*use\s+([_\w]+)(?:\s*,\s*only\s*:\s*(.+)\s*)?/i && do { #FIXME: no support for R1108 rename ; R1109 is incomplete; no support for R1110, R1111
+Parser.pm:1687:							  $ast->{'FileName'}{'Var'}; # TODO: in principle almost any other field could be a var
+Parser.pm:1908:		# TODO: if we can't find the source, we should search the include path, but not attempt to create a module for that source!
+Parser.pm:1955:		# TODO: if we can't find the source, we should search the include path, but
+Parser.pm:2075:	# TODO: if we can't find the source, we should search the include path, but
+Parser.pm:2137:		# TODO: We currently only allow ONE KernelWrapper region in a code unit (or in fact in a program).
+Parser.pm:2147:			next if ( $line =~ /^\!\s/ and $line !~ /^\!\s*\$(?:ACC|RF4A)\s/i ); # TODO: use $info
+Parser.pm:3031:		# TODO: make this work with Modules as well
+Parser.pm:3174:		$info->{'ParsedParDecl'} = $pt; #WV20150709 currently used by OpenCLTranslation, TODO: use ParamDecl and the AST from the expression parser
+Parser.pm:3193:			# TODO In principle I need a memory space pragma but for the time being I will take the presence
+Parser.pm:3227:				# Note that scalars have a 'Dim' => [0] field! FIXME!
+Parser.pm:3268:								# TODO: allocatable character string
+Parser.pm:3450:		my $chunk_ast = [9,$lhs_ast,$rhs_ast]; # FIXME this is because of a bug in the precedence of '=' in the expression parser
+Parser.pm:3657:    # For backward compat, remove later. TODO
+Parser.pm:4359:		carp "TODO: parse OPEN call using new parser" if $DBG;
+Parser.pm:4383:		carp "TODO: parse CLOSE call using new parser" if $DBG;
+Parser.pm:4829:		my $line= "$nlist_str / $clist_str /"; # TODO: this is not quite one var per DATA line but at least it is one pair per DATA line
+Parser.pm:5327:TODO, one day:
+
+Translation/OpenCLC.pm:205:- If a call arg is an expression, I will need to generate a temp, TODO
+Translation/OpenCLC.pm:251:					carp 'TODO: a const scalar passed as arg';
+Translation/OpenCLC.pm:339:			my $switch_expr = _emit_expression_C([2,$info->{'CaseVar'}],$stref,$f,$info); # FIXME
+Translation/OpenCLC.pm:343:            # FIXME: support macros
+Translation/OpenCLC.pm:368:			# $subcall_ast->[0] = 1; # FIXME '&';
+Translation/OpenCLC.pm:386:				$c_line = $info->{'Indent'}.'pipe '.toCType($ftype).' '.$subcall_ast->[2][1].' __attribute__((xcl_reqd_pipe_depth(32)));'; # TODO: make configurable, this is Xilinx-specific!
+Translation/OpenCLC.pm:390:                $c_line = $info->{'Indent'} . $subcall_ast->[1] .'_block'.'('.$subcall_ast->[2][1][1].','.'&'.$subcall_ast->[2][2][1].');'; # TODO: make configurable, this is Xilinx-specific!
+Translation/OpenCLC.pm:490:# FIXME: only include if they are actually used in the code!
+Translation/OpenCLC.pm:691:	# FIXME! fix for stray '+'
+Translation/OpenCLC.pm:699:# croak 'FIXME: port differences from _emit_expression_C_OLD(), LINE 588';
+Translation/OpenCLC.pm:729:					# AD-HOC, replacing abs/min/max to fabs/fmin/fmax without any type checking ... FIXME!!!
+Translation/OpenCLC.pm:863:							carp "FIXME: we should parse the entire assigment expr so that we know we are dealing with an assignment!";
+Translation/OpenCLC.pm:973:                            $c_line = $info->{'Indent'}.'pipe '.toCType($ftype).' '.$var.' __attribute__((xcl_reqd_pipe_depth(32)));'; # TODO: make configurable, this is Xilinx-specific!
+Translation/OpenCLC.pm:1002:	# AD-HOC, replacing abs/min/max to fabs/fmin/fmax without any type checking ... FIXME!!!
+Translation/OpenCLC.pm:1070:				croak "TODO: Can't handle arguments of type $arg_type yet.";
+Translation/OpenCLC.pm:1088:	if ($kind=~/kind/) {$kind=~s/kind\s*=\s*//;}; # FIXME, this should have been sorted in the Parser
+
+Emitter.pm:219:        # FIXME: the includes should be taken from $stref->{'IncludeFiles'}
+Emitter.pm:233:                  ;    # FIXME: WEAK! only one level!
+Emitter.pm:489:            croak 'TODO: Intrinsic';
+Emitter.pm:492:            croak 'TODO: External';
+
+ExpressionAST/Evaluate.pm:109:						# FIXME: parameters from USEd modules are not found?!
+ExpressionAST/Evaluate.pm:321:			# assuming it is an integer, FIXME
+ExpressionAST/Evaluate.pm:333:			# assuming it is an integer, FIXME
