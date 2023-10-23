@@ -7,7 +7,7 @@ use RefactorF4Acc::Utils;
 #   
 
 use vars qw( $VERSION );
-$VERSION = "1.2.0";
+$VERSION = "2.1.1";
 
 #use warnings::unused;
 use warnings;
@@ -21,7 +21,7 @@ use Exporter;
 
 @RefactorF4Acc::Analysis::Globals::ISA = qw(Exporter);
 
-@RefactorF4Acc::Analysis::Globals::EXPORT = qw(    
+@RefactorF4Acc::Analysis::Globals::EXPORT_OK = qw(    
     &identify_inherited_exglobs_to_rename
     &lift_globals
     &rename_inherited_exglobs
@@ -39,16 +39,21 @@ use Exporter;
 sub identify_inherited_exglobs_to_rename {
 	  (my $stref, my $f) = @_;
 #    local $V=1;
-    my $ext = $RENAME_EXT;#'_GLOB' ;
+ 	push @{ $stref->{'CallStack'} }, $f;
+    my %subs = map {$_=>1} @{ $stref->{'CallStack'} }; 
+
+    my $ext = $Config{RENAME_EXT};
     say '=' x 80, "\nENTER lift_globals( $f )" if $V;
     if (exists $stref->{'Subroutines'}{$f} ) {
     	my $Sf = $stref->{'Subroutines'}{$f};
     	if ( exists $Sf->{'CalledSubs'}{'List'}
         and scalar @{ $Sf->{'CalledSubs'}{'List'} }>0 )
 	    {	    	
-	        # FIXME: do this in the Parser
-	        
-	        for my $csub ( @{ $Sf->{'CalledSubs'}{'List'} }) {       
+	        for my $csub ( @{ $Sf->{'CalledSubs'}{'List'} }) {   
+				if (exists $subs{$csub}) {
+				say "WARNING: LOOP for $csub: ".join(', ', @{ $stref->{'CallStack'} }) if $WW;
+				next;
+				}    
 	       		say "CALL TO  $csub from $f" if $V;     
 	            $stref = identify_inherited_exglobs_to_rename($stref, $csub );
 	            say "RETURN TO $f from CALL to $csub" if $V;
@@ -72,7 +77,7 @@ sub identify_inherited_exglobs_to_rename {
 	        say "SUB $f is LEAF" if $V; 
 	    }    
     }    
-    
+    pop  @{ $stref->{'CallStack'} };
     return $stref;
 } #  END of identify_inherited_exglobs_to_rename()
 
@@ -80,10 +85,15 @@ sub identify_inherited_exglobs_to_rename {
 sub rename_inherited_exglobs  {
 		  (my $stref, my $f) = @_;
 #    local $V=1;
-if ($RENAME_EXT ne '') {
-    my $ext = $RENAME_EXT;#'_GLOB' ;
+
+if ($Config{RENAME_EXT} ne '') {
+    my $ext = $Config{RENAME_EXT};
     
     say '=' x 80, "\nENTER lift_globals( $f )" if $V;
+
+ 	push @{ $stref->{'CallStack'} }, $f;
+    my %subs = map {$_=>1} @{ $stref->{'CallStack'} }; 
+
     if (exists $stref->{'Subroutines'}{$f} ) {
     	my $Sf = $stref->{'Subroutines'}{$f};
 	            
@@ -123,7 +133,11 @@ if ($RENAME_EXT ne '') {
 	    {
 	    	# This sub is calling other subs	    	
 	        my @csubs = @{ $Sf->{'CalledSubs'}{'List'} };	        
-	        for my $csub (@csubs) {       
+	        for my $csub (@csubs) {    
+				if (exists $subs{$csub}) {
+					say "WARNING: LOOP for $csub: ".join(', ', @{ $stref->{'CallStack'} }) if $WW;
+					next;
+				}    
 	       		say "CALL TO  $csub from $f" if $V;     
 	            $stref = rename_inherited_exglobs($stref, $csub );
 	            say "RETURN TO $f from CALL to $csub" if $V;
@@ -134,16 +148,23 @@ if ($RENAME_EXT ne '') {
 	        say "SUB $f is LEAF" if $V; 
 	    }    
     }    
+	pop  @{ $stref->{'CallStack'} };
 }
     return $stref;
 	
-} #  END of identify_globals_to_rename()
+} #  END of rename_inherited_exglobs
 
 
 # The renaming detection should be done in identify_inherited_exglobs_to_rename()
+# What this routine does is:
+#
+
 sub lift_globals { 
     (my $stref, my $f) = @_;
-    local $V=0;
+    # local $V= 0;
+ 	push @{ $stref->{'CallStack'} }, $f;
+    my %subs = map {$_=>1} @{ $stref->{'CallStack'} }; 
+
 #    my $ext = '_GLOB' ;
     say '=' x 80, "\nENTER lift_globals( $f )" if $V; 
     if (exists $stref->{'Subroutines'}{$f} ) {
@@ -151,17 +172,21 @@ sub lift_globals {
     	if ( exists $Sf->{'CalledSubs'}{'List'}
         and scalar @{ $Sf->{'CalledSubs'}{'List'} }>0 )
         # FIXME: This is also true for called ENTRYs
-	    {
-	    	
-	    	# This sub is calling other subs	    	
-	        # Clearly this should be done elsewhere
-#	        $Sf->{'RenamedInheritedExGLobs'}  = { 'List' => [], 'Set' => {}} unless exists $Sf->{'RenamedInheritedExGLobs'};
+	    {	    	
+	    	# This sub is calling other subs. Go through all called subs in turn	    		     
 	        for my $csub ( @{ $Sf->{'CalledSubs'}{'List'} }) {       
+
+				if (exists $subs{$csub}) {
+				say "WARNING: LOOP for $csub: ".join(', ', @{ $stref->{'CallStack'} }) if $WW;
+				next;
+				}    
+
 	       		say "CALL TO  $csub from $f" if $V;   
 	       		# Check if it is an entry
 	       		if (exists $stref->{'Entries'}{$csub}) {
 	       			$csub = $stref->{'Entries'}{$csub};
 	       		}  
+	       		# This is recursive descent but we do nothing in the leaf node, it's just a way to get to them
 	            $stref = lift_globals($stref, $csub );
 	            say "RETURN TO $f from CALL to $csub" if $V;
 	            my $Scsub = $stref->{'Subroutines'}{$csub};
@@ -169,16 +194,31 @@ sub lift_globals {
 	            # If $f and $csub both have globals, merge them, otherwise inherit them
 	            
 	            if (exists $Scsub->{'ExGlobArgs'} and defined $Scsub->{'ExGlobArgs'}) {
+					# say "HERE1";
 	                if (exists $Sf->{'ExGlobArgs'}{'List'} ) {
+						# say "HERE1a";
 	                	# Merge ExGlobArgs of $csub with those of $f  
 	                    $Sf->{'ExGlobArgs'}{'List'} = ordered_union( $Sf->{'ExGlobArgs'}{'List'},$Scsub->{'ExGlobArgs'}{'List'} );  	                    
 	                } else {
+						# say "HERE1b";
 	                	# Inherit
 	                    $Sf->{'ExGlobArgs'}{'List'} = [@{$Scsub->{'ExGlobArgs'}{'List'} }];
 	                } 
 	                if ( exists $Sf->{'ExGlobArgs'}{'Set'} ) {
 	                	# Merge      
-	            	   $Sf->{'ExGlobArgs'}{'Set'} = { %{ $Sf->{'ExGlobArgs'}{'Set'} }, %{ dclone( $Scsub->{'ExGlobArgs'}{'Set'} ) } };
+	            	#    $Sf->{'ExGlobArgs'}{'Set'} = { %{ $Sf->{'ExGlobArgs'}{'Set'} }, %{ dclone( $Scsub->{'ExGlobArgs'}{'Set'} ) } };
+
+						for my $called_var (sort keys %{ $Scsub->{'ExGlobArgs'}{'Set'} } )  {
+							if (not exists $Sf->{'ExGlobArgs'}{'Set'}{$called_var}) {
+								# say "Merging $called_var from $csub into $f";
+								$Sf->{'ExGlobArgs'}{'Set'}{$called_var} = dclone($Scsub->{'ExGlobArgs'}{'Set'}{$called_var});
+							} 
+
+							# else {
+							# 	carp "$called_var from $calledsub already defined in $f";
+							# }
+						}
+
 	                } else {
 	                	# Inherit
 	                    $Sf->{'ExGlobArgs'}{'Set'} = dclone( $Scsub->{'ExGlobArgs'}{'Set'} );
@@ -189,7 +229,9 @@ sub lift_globals {
 	                # FIXME: the InheritedParams are for ANY new arg, not just ex-glob args!
 	                
 	                for my $var (@{ $Scsub->{'ExGlobArgs'}{'List'} } ) {
+						# carp "$f $var ".Dumper($Scsub->{'ExGlobArgs'}{'Set'}{$var}) if $var eq 'ev';
 	                	if (exists $Scsub->{'ExGlobArgs'}{'Set'}{$var}{'InheritedParams'}) {
+							
 	                		my $all_inherited_parameters = _get_all_inherited_parameters(
 	                			$Scsub,
         						$Scsub->{'ExGlobArgs'}{'Set'}{$var}{'InheritedParams'}{'Set'},
@@ -197,7 +239,13 @@ sub lift_globals {
         					);
         					for my $par (keys %{ $all_inherited_parameters } ) {
         						my $subset = in_nested_set($Scsub,'Parameters',$par);
-        						$Sf->{'InheritedParameters'}{'Set'}{$par}=dclone($Scsub->{$subset}{'Set'}{$par});
+        						# The problem is that a sub from a module can have module globals via that module
+        						# So these would have to be shared with the caller I think
+        						if (not exists $Scsub->{$subset}{'Set'}{$par}{'Indent'}) {
+#        							carp "$par: $f <$csub> <$subset> ".Dumper($Scsub->{$subset}{'Set'}{$par}) ;
+        						} else {
+        							$Sf->{'InheritedParameters'}{'Set'}{$par}=dclone($Scsub->{$subset}{'Set'}{$par});									
+        						}
         					}	
 	                	}
 	                }     
@@ -206,7 +254,7 @@ sub lift_globals {
 	            # ------------------	                             
 	        } 
 	    } else {
-	        # Leaf node, find globals
+	        # Leaf node, do nothing ( used to be find globals)
 	        say "SUB $f is LEAF" if $V; 
 #	        $stref = _identify_globals_used_in_subroutine( $f, $stref );
 	    }    
@@ -214,7 +262,7 @@ sub lift_globals {
 	    # We only come here when the recursion and merge is done.   
 #	    $stref = _resolve_conflicts_with_params( $f, $stref );
     }
-    
+    pop  @{ $stref->{'CallStack'} };
     return $stref;
     
 } # END of lift_globals()
@@ -228,8 +276,10 @@ sub _get_all_inherited_parameters { (my $Sf,my $pars, my $all_inherited_paramete
 	    and exists $Sf->{$subset}{'Set'}{$par}{'InheritedParams'}{'Set'}) { 
 	        $all_inherited_parameters = { %{$all_inherited_parameters}, %{ $Sf->{$subset}{'Set'}{$par}{'InheritedParams'}{'Set'} } };
 	        $all_inherited_parameters = _get_all_inherited_parameters($Sf, $Sf->{$subset}{'Set'}{$par}{'InheritedParams'}{'Set'},$all_inherited_parameters);
+			# carp 'EXISTS: '.Dumper($all_inherited_parameters);
 	    } else {
-	        $all_inherited_parameters->{$par}=1; 
+			# carp 'NOT EXISTS: '.Dumper($pars->{$par}) ;
+	        $all_inherited_parameters->{$par}=$pars->{$par}; #croak 'HERE IS THE PROBLEM!';
 	    }
 	}
 	return $all_inherited_parameters;

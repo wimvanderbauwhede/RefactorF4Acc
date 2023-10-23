@@ -5,7 +5,7 @@ package RefactorF4Acc::MacroFileToCmdLine;
 #   
 	
 use vars qw( $VERSION );
-$VERSION = "1.2.0";
+$VERSION = "2.1.1";
 
 use v5.10;
 use warnings;
@@ -30,7 +30,7 @@ sub macro_file_to_cmd_line_str { (my $macros_src, my $flag)=@_;
 	# if $flag is not defined '-D' is used for defined and '-U' for undefined
 	# e.g. 
 	# #define VERBOSE
-	# #undefine TEST
+	# #undef TEST
 	# #define NTH 8
 	# e.g. -X: -X VERVBOSE NTH=8 (undefineds are skipped)
 	# e.g. else: -DVERVBOSE -UTEST -DNTH=8			
@@ -70,7 +70,10 @@ sub get_macro_defs_from_file { (my $macros_src)=@_;
 	    $line=~s/\s*$//;
         $line=~s/^\s*#(\w+)\s+//;
         my $cmd = $1;
-        $line=~s/\s+//;
+		
+        $line=~s/\s+$//;
+		$line=~s/^\s+//;
+		
         if ($cmd eq 'define') {
         	$line=~s/\#define\s*//;
         	$line=~s/\s+(\d+)/=$1/;

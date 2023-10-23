@@ -35,6 +35,7 @@ Subroutines
 # --------------------------------------------------------------------------------
 # This routine creates the actual refactored source text of the sig. 
 # This uses the arguments from $Sf->{'RefactoredArgs'}
+# TODO: call this emit_... and put it in Emitters
 sub create_refactored_subroutine_signature {
     ( my $stref, my $f, my $annline, my $rlines ) = @_;
     my $Sf        = $stref->{'Subroutines'}{$f};
@@ -50,6 +51,7 @@ sub create_refactored_subroutine_signature {
     	$args_ref = $Sname->{'RefactoredArgs'}{'List'};    	
     }
     my $args_str = join( ',', @{$args_ref} );
+    
     my $what_is_block_data = 'subroutine'; #'block data'
     my $block_data_has_args = 1;
     print "NEW ARGS: $args_str\n" if $DBG;
@@ -74,26 +76,37 @@ sub create_refactored_subroutine_signature {
     	$rline = $annline->[0];
     	$rline =~s/entry.*$//;	
         $rline .= 'entry ' . $name . '(' . $args_str . ')';    	                	        
-    } else {    
+    } else {            
     	$rline = $annline->[0];
     	$rline =~s/subroutine.*$//;	
         $rline .= 'subroutine ' . $f . '(' . $args_str . ')';
     }
     $info->{'Refactored'} = 1;
     $info->{'Ref'} = 1;
-    $info->{'Signature'}{'Args'}=$Sf->{'RefactoredArgs'};
-    $info->{'Signature'}{'RefactoredArgs'}=$Sf->{'RefactoredArgs'}; # not sure if this is needed
-    $Sf->{'HasRefactoredArgs'} = 1;
     
-    push @{$rlines}, [ $rline, $info ];
     
+    if (not exists $info->{'EntrySig'} ) {
+	    $info->{'Signature'}{'Args'}=$Sf->{'RefactoredArgs'};
+	    $info->{'Signature'}{'RefactoredArgs'}=$Sf->{'RefactoredArgs'}; # not sure if this is needed
+	    $Sf->{'HasRefactoredArgs'} = 1;        	
+    } else {
+    	# ENTRY!
+    	my $name = $info->{'Signature'}{'Name'};
+    	my $Sname = $Sf->{'Entries'}{'Set'}{$name};
+	    $info->{'Signature'}{'Args'}=$Sname->{'RefactoredArgs'};
+	    $info->{'Signature'}{'RefactoredArgs'}=$Sname->{'RefactoredArgs'}; # not sure if this is needed
+	    $Sname->{'HasRefactoredArgs'} = 1;    	    	
+    }    
+    
+    push @{$rlines}, [ $rline, $info ];    
 
     return $rlines;
 }    # END of create_refactored_subroutine_signature()
 # -----------------------------------------------------------------------------
 
 # -----------------------------------------------------------------------------
-# This subroutine populates $Sf->{'RefactoredArgs'}
+# This subroutine populates $Sf->{'RefactoredArgs'} based on Globals
+# 'Globals' means COMMON declarations in Include files 
 sub refactor_subroutine_signature {
     ( my $stref, my $f ) = @_;
     my $Sf = $stref->{'Subroutines'}{$f};
@@ -108,7 +121,7 @@ sub refactor_subroutine_signature {
 
     # Loop over all globals and create the list @exglobs by concatenation
     # Also add all vars to $Sf->{'Vars'} unless they were already there
-    my @exglobs            = ();        
+    my @exglobs = ();        
     for my $inc ( keys %{ $Sf->{'Globals'} } ) {
         print "INFO: INC $inc in $f\n" if $V;
         if ( not exists $stref->{'IncludeFiles'}{$inc}{'Root'} ) {
@@ -140,10 +153,10 @@ sub refactor_subroutine_signature {
     		say "INFO VAR: $var" if $I;
 			push @exglobs, $var;
     	}             
-    }    # for
+    } # for
     
     # Loop over @exglobs, rename vars that conflict with parameters
-    my @nexglobs           = ();
+    my @nexglobs = ();
     for my $var (@exglobs) {
         if ( exists $Sf->{'ConflictingParams'}{$var} ) {
             print "WARNING: CONFLICT in arguments for $f, renamed $var to ${var}_GLOB\n" if $W;
@@ -153,7 +166,7 @@ sub refactor_subroutine_signature {
             push @nexglobs, $var;
         }
     }
-    
+#    croak Dumper(@nexglobs);
     # Now combine the original subroutine arguments with the ex-globals and store in $Sf->{'RefactoredArgs'}{'List'}     
     my $args_ref = (exists $Sf->{'OrigArgs'}) ? ordered_union( $Sf->{'OrigArgs'}{'List'}, \@nexglobs ) : \@nexglobs;
     $Sf->{'RefactoredArgs'}{'List'} = $args_ref;

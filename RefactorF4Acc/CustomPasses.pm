@@ -9,17 +9,20 @@ use RefactorF4Acc::Utils;
 use RefactorF4Acc::Refactoring::Common qw( top_src_is_module stateful_pass stateless_pass get_annotated_sourcelines );
 use RefactorF4Acc::Refactoring::Modules qw( add_module_decls );
 
-use RefactorF4Acc::Refactoring::Streams qw( pass_rename_array_accesses_to_scalars ); # CUSTOM PASS
+#### CUSTOM PASSES ####
 
-use RefactorF4Acc::Translation::SaC qw( translate_module_to_SaC ); # CUSTOM PASS
-use RefactorF4Acc::Translation::OpenCLC qw( translate_module_to_C ); # CUSTOM PASS
-use RefactorF4Acc::Translation::TyTraCL qw( pass_emit_TyTraCL ); # CUSTOM PASS
-use RefactorF4Acc::Translation::TyTraIR qw( pass_emit_TyTraIR ); # CUSTOM PASS
+use RefactorF4Acc::Refactoring::Streams qw( pass_rename_array_accesses_to_scalars );
 
-use RefactorF4Acc::Analysis::ArrayAccessPatterns qw( pass_identify_stencils ); # CUSTOM PASS
+use RefactorF4Acc::Translation::SaC qw( translate_module_to_SaC );
+use RefactorF4Acc::Translation::OpenCLC qw( translate_module_to_C );
+use RefactorF4Acc::Translation::TyTraCL qw( pass_emit_TyTraCL );
+use RefactorF4Acc::Translation::TyTraIR qw( pass_emit_TyTraIR );
+use RefactorF4Acc::Translation::TyTra::MemoryReduction qw( pass_memory_reduction );
+
+use RefactorF4Acc::Analysis::ArrayAccessPatterns qw( pass_identify_stencils );
 
 use vars qw( $VERSION );
-$VERSION = "1.2.0";
+$VERSION = "2.1.1";
 
 #use warnings::unused;
 use warnings;
@@ -41,8 +44,12 @@ use Exporter;
 # -----------------------------------------------------------------------------
 
 sub run_custom_passes {
-	( my $stref, my $code_unit_name, my $pass) = @_;
+	( my $stref, my $code_unit_name, my $pass, my $is_source_file_path) = @_;
 	my $sub_or_func_or_mod = sub_func_incl_mod( $code_unit_name, $stref );
+	if ($sub_or_func_or_mod eq 'Modules' and $is_source_file_path) {
+       $code_unit_name = get_module_name_from_source($stref,$code_unit_name);
+    }
+	 
     # Some of these passes use functionality that requires RefactoredArgs, so let's make sure it is populated
     # I assume that the input for a custom pass is essentially the output of the main compiler, so no globals, etc
     # So all args should be in DeclaredOrigArgs
@@ -51,38 +58,49 @@ sub run_custom_passes {
             
 # Custom passes
 	if ($pass =~/emit_TyTraCL/i) {
-		$stref = pass_emit_TyTraCL($stref);				
-	}	
+		$stref = pass_emit_TyTraCL($stref,$code_unit_name);
+	}		
 	if ($pass =~/emit_TyTraIR/i) {
-		$stref = pass_emit_TyTraIR($stref);				
+		$stref = pass_emit_TyTraIR($stref,$code_unit_name);		
 	}	
 	if ($pass =~/identify_stencils/) {
-		$stref = pass_identify_stencils($stref);				
+		$stref = pass_identify_stencils($stref,$code_unit_name);
 	}	
-	if ($pass =~/rename_array_accesses_to_scalars/) {
-		$stref = pass_rename_array_accesses_to_scalars($stref);				
+	if ($pass =~/rename_array_accesses_to_scalars|scalarize/) {
+		$stref = pass_rename_array_accesses_to_scalars($stref,$code_unit_name);				
+	}
+	if ($pass =~/memory_reduction/) {
+		$stref = pass_memory_reduction($stref,$code_unit_name);
 	}
 	if ($pass =~/translate_to_C/) {
-		$stref = translate_module_to_C($stref,0);
+		$stref = translate_module_to_C($stref,$code_unit_name,0);
+	} elsif ( $pass =~/translate_to_TyTraC/) {              
+        $stref = translate_module_to_C($stref,$code_unit_name,2);
+	} elsif ( $pass =~/translate_to_TyTraLlvmIR/) {              
+        $stref = translate_module_to_C($stref,$code_unit_name,4);		
+	} elsif ( $pass =~/translate_to_OpenCL_with_pipes/) {              
+        $stref = translate_module_to_C($stref,$code_unit_name,3);
 	} elsif ( $pass =~/translate_to_OpenCL/) {				
-		$stref = translate_module_to_C($stref,1);
+		$stref = translate_module_to_C($stref,$code_unit_name,1);
 	} elsif ( $pass =~/translate_to_SaC/) {				
-		$stref = translate_module_to_SaC($stref);
+		$stref = translate_module_to_SaC($stref,$code_unit_name);
 	}
 	if ($pass =~/ifdef_io/i) {
 		$stref = _ifdef_io_all($stref);				
 	}
 # After a custom pass, do some postprocessing and exit	
-	if ($pass ne '') {
-		
+	if ($pass ne '' ) {
+		if (exists $stref->{'CustomPassPostProcessing'}) {
 		$stref=_substitute_placeholders($stref);
         # This is of course useless if the target language is not Fortran
         # So I should have a way to exclude this
         # The way to do this is to let the pass make sure that
         # top_src_is_module() is false
         # The easiest way is to set $stref->{'SourceContains'} = {}
+
 		if (top_src_is_module($stref, $code_unit_name)) {
             $stref=add_module_decls($stref);
+		}
 		}
 	} else {
         # Should never happen!
@@ -177,7 +195,7 @@ sub _ifdef_io_per_source_PASS1 { (my $stref,my $f) =@_;
 					(my $next_relevant_statement, my $relevant_annline_idx) = get_next_relevant_statement($annlines, $idx);
 					if (exists  $next_relevant_statement->[1]{'EndIf'} or exists $next_relevant_statement->[1]{'Else'} or exists $next_relevant_statement->[1]{'ElseIf'}) {
 						#remove the Else and the block but NOT the EndIf/Else
-						croak if $idx == $relevant_annline_idx-1;
+						# croak if $idx == $relevant_annline_idx-1;
 					 	for my $b_idx ($idx .. $relevant_annline_idx-1) {
 					 		$annlines->[$b_idx][1]{'Removed'}=1;
 					 		$removed_count++;

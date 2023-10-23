@@ -7,7 +7,7 @@ use RefactorF4Acc::Utils;
 #   
 
 use vars qw( $VERSION );
-$VERSION = "1.2.0";
+$VERSION = "2.1.1";
 
 #use warnings::unused;
 use warnings;
@@ -47,11 +47,13 @@ sub create_call_tree { ( my $stref, my $subname ) = @_;
     my %subs = map {$_=>1} @{ $stref->{'CallStack'} }; 
     for my $entry ( @{ $stref->{'CallTree'}{ $subname } } ) {
         if (exists $subs{$entry}) {
+            # croak "Found LOOP for $entry\n".Dumper($stref->{'CallStack'});
         	push @{$stref->{'PPCallTree'}}, "Found LOOP for $entry\n";
     	   last;
         }
 
 	    	my $str = _format_call_tree_line($entry,$stref);
+            # print $entry;
 	    	push @{$stref->{'PPCallTree'}}, $str;
 	    	
 	    	   $stref->{'Indents'} += 4;    	
@@ -115,8 +117,9 @@ sub _format_call_tree_line {
     if (not defined $src) {
     	$src='<unknown source>';
     }
-    my $nspaces     = 64 - $stref->{'Indents'} - length($f); # -length($src) -2;
+    my $nspaces     = 160 - $stref->{'Indents'} - length($f); # -length($src) -2;
     my $incls = join( ',', keys %{ $stref->{$sub_or_func}{$f}{'Includes'} } );
+    # croak $src if 320 < length($src);
     my $padding = ' ' x ( 32 - length($src) );
     my $src_padded = $src . $padding;
     my $tgt        = $is_func ? 'FUN' : uc( substr( $sub_or_func, 0, 3 ) );
@@ -127,6 +130,7 @@ sub _format_call_tree_line {
         $tgt, ' ', $src_padded, "\t", $incls, "\n"
     );
     my $str = join( '', @strs );
-	
+	$stref->{'CallTreeInfo'}{$src}{$f}=$tgt;
+    map {$stref->{'CallTreeInfo'}{$_}='INC'} keys %{ $stref->{$sub_or_func}{$f}{'Includes'} };
 	return $str;
 }

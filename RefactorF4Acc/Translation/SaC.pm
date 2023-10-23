@@ -3,20 +3,25 @@ use v5.10;
 
 use RefactorF4Acc::Config;
 use RefactorF4Acc::Utils;
-use RefactorF4Acc::Analysis::ArrayAccessPatterns qw( eval_expression_with_parameters );
+use RefactorF4Acc::ExpressionAST::Evaluate qw( eval_expression_with_parameters );
 use RefactorF4Acc::Refactoring::Common qw( stateful_pass pass_wrapper_subs_in_module ); # emit_f95_var_decl);
-use RefactorF4Acc::Refactoring::Streams qw( _declare_undeclared_variables _removed_unused_variables _fix_scalar_ptr_args _fix_scalar_ptr_args_subcall );
+use RefactorF4Acc::Refactoring::Fixes qw( 
+	_declare_undeclared_variables
+	_removed_unused_variables
+	_fix_scalar_ptr_args
+	_fix_scalar_ptr_args_subcall
+	);
 use RefactorF4Acc::Parser::Expressions qw(
 	parse_expression
-	emit_expression
 	get_vars_from_expression	
+	@sigils
 	);
 # 
 #   (c) 2010-2018 Wim Vanderbauwhede <wim@dcs.gla.ac.uk>
 #   
 
 use vars qw( $VERSION );
-$VERSION = "1.2.0";
+$VERSION = "2.1.1";
 
 #use warnings::unused;
 use warnings;
@@ -36,12 +41,17 @@ use Exporter;
 
 #### #### #### #### BEGIN OF SaC TRANSLATION CODE #### #### #### ####
 
-sub translate_module_to_SaC {  (my $stref) = @_;
+sub translate_module_to_SaC {  (my $stref, my $module_name) = @_;
 	my $ocl=1;
 	$stref->{'OpenCL'}=$ocl;
 	$stref->{'TranslatedCode'}=[];	
 	
-	$stref = pass_wrapper_subs_in_module($stref,[
+	$stref = pass_wrapper_subs_in_module($stref,$module_name,
+	           # module-specific passes 
+            [],
+            # subroutine-specific passes 
+	
+	   [
 	    [\&_hack_to_fix_iodirs, 
 	    \&_hack_to_fix_param_decls_in_superkernel, 
 	    \&_hack_to_fix_kernel_sub],
@@ -140,7 +150,7 @@ sub _translate_sub_to_SaC {  (my $stref, my $f) = @_;
 			my $lhs_ast =  $info->{'Lhs'}{'ExpressionAST'};	
 			my $mvar = $lhs_ast->[1];
 			
-			if (($lhs_ast->[0] & 0x0F) == 10 and  $stref->{'Subroutines'}{$f}{'DeclaredOrigArgs'}{'Set'}{$mvar}{'IODir'} ne 'out') {
+			if (($lhs_ast->[0] & 0xFF) == 10 and  $stref->{'Subroutines'}{$f}{'DeclaredOrigArgs'}{'Set'}{$mvar}{'IODir'} ne 'out') {
 #			say "LHS ARRAY $mvar "	
 				$pass_state->{'ArrayAssignments'}{$mvar}=1;	
 			} 
@@ -698,8 +708,221 @@ sub _emit_ifthen_C { (my $stref, my $f, my $info)=@_;
 	return $rline;
 }
 
-sub _emit_expression_SaC {(my $ast, my $expr_str, my $stref, my $f)=@_;
 
+sub _emit_expression_SaC { my ($ast, $stref, $f)=@_;
+	my $Sf = $stref->{'Subroutines'}{$f};
+# croak 'FIXME: port differences from _emit_expression_SaC_OLD(), LINE 588';
+#	say Dumper($ast);
+    if (ref($ast) eq 'ARRAY') {
+        if (scalar @{$ast}==3) {
+			if ($ast->[0] == 8) { #eq '^'
+				$ast->[0]='pow';
+				unshift @{$ast},1;# '&' 
+			} 
+			elsif ($ast->[0] == 1  and $ast->[1] eq 'mod') {#eq '&'
+					shift @{$ast};
+					$ast->[0]= 7 ;# '%';					
+			}
+
+            if ($ast->[0] ==1 or $ast->[0] ==10) { # '&' array access or function call
+                (my $sigil, my $name, my $args) =@{$ast};
+				# if (in_nested_set($Sf,'Vars',$name)) {
+				# 	say "NAME $name is an ARRAY (".$ast->[0].')';
+				# 	$ast->[0]=10;
+				# } else {
+				# 	say "NAME $name is a FUNCTION (".$ast->[0].')';
+				# }
+				if ($ast->[0]==1) {
+				 	$stref->{'CalledSub'}= $name;
+				}
+
+                if (@{$args}) {
+					if ($args->[0] != 14 ) { # NOT ')('
+						my @args_lst=();
+
+						if($args->[0] == 27) { # ','
+						# more than one arg
+							for my $idx (1 .. scalar @{$args}-1) {
+								my $arg = $args->[$idx];
+								push @args_lst, _emit_expression_SaC($arg, $stref, $f);
+							}
+
+							#                    for my $arg (@{$args->[1]}) {
+							#       push @args_lst, _emit_expression_SaC($arg, $stref, $f;
+							#    }
+							
+							# return "$name(".join(',',@args_lst).')';
+						} else {
+							# only one arg
+							$args_lst[0] = _emit_expression_SaC($args, $stref, $f);
+							# return "$name("._emit_expression_SaC($args, $stref, $f).')';
+						}
+
+						if ($ast->[0]==10) { 
+							if( $args->[0]==29 and $args->[1] eq '1') {
+								return '(*'.$name.')';
+							} else {
+									my $decl = get_var_record_from_set($stref->{'Subroutines'}{$f}{'Vars'},$name);
+									my $dims =  $decl->{'Dim'};
+			#						if (__all_bounds_numeric($dims)) {
+			#							$expr_str.=$name.'['.__C_array_size($dims).',';
+			#						} else {
+										my $ndims = scalar @{$dims};
+										
+										my @ranges=();
+										my @lower_bounds=();
+										for my $boundspair (@{$dims}) {
+											(my $lb, my $hb)=@{$boundspair };
+											push @ranges, "(($hb - $lb )+1)";
+											push @lower_bounds, $lb; 
+										} 				
+										if ($ndims==1) {
+											return $name.'[F1D2C('.join(',',@lower_bounds). ' , '.join(',',@args_lst).')]';
+										} else {
+											return $name.'[F'.$ndims.'D2C('.join(',',@ranges[0.. ($ndims-2)]).' , '.join(',',@lower_bounds). ' , '.join(',',@args_lst).')]';
+										}
+			#						}
+							}
+						} else {	
+							if ($name eq 'pow') {
+								# Very ad-hoc! FIXME!
+								@args_lst = map { "(float)($_)" } @args_lst;
+							} else { # Basically for any non-intrinsic, not just pow(), FIXME!
+								# We must check the args here and split
+								my $csub = $stref->{'CalledSub'};
+								if (exists $stref->{'Subroutines'}{ $csub  }) {
+									( my $sac_args_out,my $sac_args_in) = _separate_in_out_args( $csub, $stref, \@args_lst);
+									# Another evil SaC hack!
+									return join(',', map {$_=~s/_top$//;$_} @{$sac_args_out}). 
+									" = $name(".
+									join(',',@{$sac_args_in}).
+									')';		
+								} 									
+							}
+							return "$name(".join(',',@args_lst).')';
+						}
+					} else { #  ')(', e.g. f(x)(y)
+					croak 'f()() is not supported, sorry!';
+						(my $sigil,my $args1, my $args2) = @{$args};
+						my $args_str1='';
+						my $args_str2='';
+						if($args1->[0] == 27) { #eq ',' 
+							my @args_lst1=();
+							for my $idx (1 .. scalar @{$args1}-1) {
+								my $arg = $args1->[$idx];
+								push @args_lst1, _emit_expression_SaC($arg, $stref, $f);
+							}
+							$args_str1=join(',',@args_lst1);
+
+						} else {
+							$args_str1= _emit_expression_SaC($args1, $stref, $f);
+						}
+						if($args2->[0] == 27) { #eq ','
+							my @args_lst2=();
+							for my $idx (1 .. scalar @{$args2}-1) {
+								my $arg = $args2->[$idx];
+								push @args_lst2, _emit_expression_SaC($arg, $stref, $f);
+							}
+
+							#                for my $arg (@{$args2->[1]}) {
+							#    push @args_lst2, _emit_expression_SaC($arg, $stref, $f);
+							#}
+							$args_str2=join(',',@args_lst2);
+						} else {
+							$args_str2=_emit_expression_SaC($args2, $stref, $f);
+						}
+						return "$name(".$args_str1.')('.$args_str2.')';
+					}
+				} else {
+					return "$name()";
+				}			
+            } else { # not '&' or '@'
+                (my $opcode, my $lexp, my $rexp) =@{$ast};
+                my $lv = (ref($lexp) eq 'ARRAY') ? _emit_expression_SaC($lexp, $stref, $f) : $lexp;
+                my $rv = (ref($rexp) eq 'ARRAY') ? _emit_expression_SaC($rexp, $stref, $f) : $rexp;
+                return $lv.$sigils[$opcode].$rv;
+            }
+        } elsif (scalar @{$ast}==2) { #  for '{'  and '$'
+		
+            (my $opcode, my $exp) =@{$ast};
+            if ($opcode==0 ) {# eq '('
+                my $v = (ref($exp) eq 'ARRAY') ? _emit_expression_SaC($exp, $stref, $f) : $exp;
+                return "($v)";
+            } elsif ($opcode==28 ) {# eq '(/'
+                my $v = (ref($exp) eq 'ARRAY') ? _emit_expression_SaC($exp, $stref, $f) : $exp;
+                return "{ $v }"; # FIXME: what is a SaC array constant?
+            } elsif ($opcode==2 or $opcode>28) {# eq '$' or constants
+				if ($opcode == 34) {
+					croak 'Fortran LABEL as arg is not supported, sorry!'; #  "*$exp" : $exp;   # Fortran LABEL, does not exist in C
+				}
+				my $mvar = $ast->[1];
+				my $called_sub_name = $stref->{'CalledSub'} // '';
+				if (exists $stref->{'Subroutines'}{$f}{'Pointers'}{$mvar} ) {
+					croak 'SaC does not have pointers!';
+					# Meaning that $mvar is a pointer in $f
+					# Now we need to check if it is also a pointer in $subname
+					my $ptr = $stref->{'Subroutines'}{$f}{'Pointers'}{$mvar};
+					if ($called_sub_name ne '' and exists  $stref->{'Subroutines'}{$called_sub_name} 
+					and exists $stref->{'Subroutines'}{$called_sub_name}{'Pointers'}{$mvar} ) {
+						my $sig_ptr = $stref->{'Subroutines'}{$called_sub_name}{'Pointers'}{$mvar};
+						if ($sig_ptr eq '' and $ptr eq '*') {
+							$ptr = '*'	
+						} elsif ($sig_ptr eq '*' and $ptr eq '') {
+							$ptr = '&'
+						} else {
+							$ptr='';
+						}
+					} 
+                    if ($ptr eq '') {
+                        return $exp;
+                    } else {
+						return '('.$ptr.$exp.')';                        
+                    }
+				} else {
+					if ($opcode == 30) { # Float
+						$exp .= 'f'; # maybe need to check if there is an 'e' in there? TODO/FIXME
+					}
+					return $exp;
+				}
+                # return ($opcode == 34) ?  "*$exp" : $exp;   # Fortran LABEL, does not exist in C         
+            } elsif ($opcode == 21 or $opcode == 4 or $opcode == 3) {# eq '.not.' '-'
+                my $v = (ref($exp) eq 'ARRAY') ? _emit_expression_SaC($exp, $stref, $f) : $exp;
+                return $sigils[$opcode]. $v;
+            } elsif ($opcode == 27) { # ',' 
+                croak Dumper($ast); # WHY is this here?
+                my @args_lst=();
+                for my $arg (@{$exp}) {
+                    push @args_lst, _emit_expression_SaC($arg, $stref, $f);
+                }
+                return join(',',@args_lst);        
+            } else {
+                die 'BOOM! '.Dumper($ast).$opcode;
+            }
+        } elsif (scalar @{$ast} > 3) {
+
+            if($ast->[0] == 27) { # ','
+                my @args_lst=();
+                for my $idx (1 .. scalar @{$ast}-1) {
+                    my $arg = $ast->[$idx];
+                    push @args_lst, _emit_expression_SaC($arg, $stref, $f);
+                }
+                return join(',',@args_lst); 
+            } else {
+                croak Dumper($ast);
+            }
+        }
+    } else {
+		croak Dumper($ast);
+		# UGLY SaC hack!
+		# Also, with the new AST, is this not impossible?
+		if ($ast=~/\d\.\d/) {$ast=$ast.'f';}
+		return $ast;
+	}
+} # END of _emit_expression_SaC
+
+
+sub _emit_expression_SaC_OLD { my ($ast, $expr_str, $stref, $f)=@_;
+croak "REDO THIS BASED ON _emit_expression_SaC!";
 # I assume that means it is a constant
 	if (ref($ast) ne 'ARRAY') {
 		# UGLY SaC hack!
@@ -710,11 +933,11 @@ sub _emit_expression_SaC {(my $ast, my $expr_str, my $stref, my $f)=@_;
 	my @expr_chunks=();
 	my $skip=0;
 	
-	if (($ast->[0] & 0x0F) == 8) { #eq '^'
+	if (($ast->[0] & 0xFF) == 8) { #eq '^'
 		$ast->[0]='pow';
 		unshift @{$ast},1;# '&' FIXME: nodeId
 	} 
-	elsif (($ast->[0] & 0x0F) == 1  and $ast->[1] eq 'mod') {#eq '&'
+	elsif (($ast->[0] & 0xFF) == 1  and $ast->[1] eq 'mod') {#eq '&'
 		shift @{$ast};
 		$ast->[0]= 7 ;# '%';	FIXME: nodeId
 	}
@@ -730,7 +953,7 @@ sub _emit_expression_SaC {(my $ast, my $expr_str, my $stref, my $f)=@_;
 				$skip=1;
             } elsif ($idx==0) {  # Look at the first elt, check the code  
 
-	            if (($entry & 0x0F) == 1) { # eq '&'
+	            if (($entry & 0xFF) == 1) { # eq '&'
 					my $mvar = $ast->[$idx+1];
 					# AD-HOC, replacing abs/min/max to fabs/fmin/fmax without any type checking ... FIXME!!!
 					# The (float) cast is necessary because otherwise I get an "ambiguous" error
@@ -742,7 +965,7 @@ sub _emit_expression_SaC {(my $ast, my $expr_str, my $stref, my $f)=@_;
 					 $stref->{'CalledSub'}= $mvar;
 					 
 					$skip=1;
-				} elsif (($entry & 0x0F) == 2) { #eq '$'
+				} elsif (($entry & 0xFF) == 2) { #eq '$'
 					my $mvar = $ast->[$idx+1];
 	#				carp $mvar;
 					my $called_sub_name = $stref->{'CalledSub'} // '';
@@ -773,7 +996,7 @@ sub _emit_expression_SaC {(my $ast, my $expr_str, my $stref, my $f)=@_;
 						push @expr_chunks,$mvar;
 					}
 					$skip=1;				
-				} elsif (($entry & 0x0F) == 10) {#eq '@'
+				} elsif (($entry & 0xFF) == 10) {#eq '@'
 					
 					my $mvar = $ast->[$idx+1];
 					if ($mvar eq '_OPEN_PAR_') {
@@ -782,8 +1005,7 @@ sub _emit_expression_SaC {(my $ast, my $expr_str, my $stref, my $f)=@_;
 						if (scalar @{$ast} == 3 and $ast->[2] eq '1') {
 							$expr_str.='(*'.$mvar.')';
 							$ast->[2]='';
-							$ast->[0]= 2 + ((++$Fortran::Expression::Evaluator::Parser::nodeId)<<4);# '$';
-	#						croak Dumper($ast);
+							$ast->[0]= 2 + ((++$Fortran::Expression::Evaluator::Parser::nodeId)<<8);# '$';
 						}  else {
 #							say Dumper($mvar);
 							my $decl = get_var_record_from_set($stref->{'Subroutines'}{$f}{'Vars'},$mvar);
@@ -833,9 +1055,9 @@ sub _emit_expression_SaC {(my $ast, my $expr_str, my $stref, my $f)=@_;
 					$skip=1;
 				} elsif ( # It is not '&', '$' or '@'
 	                #$ast->[$idx-1]!~/^[\&\@\$]/ 
-					($ast->[$idx-1] & 0x0F) != 1 and #!~/^[\&\@\$]/ 
-					($ast->[$idx-1] & 0x0F) != 10 and #!~/^[\&\@\$]/ 
-					($ast->[$idx-1] & 0x0F) != 2 #!~/^[\&\@\$]/ 
+					($ast->[$idx-1] & 0xFF) != 1 and #!~/^[\&\@\$]/ 
+					($ast->[$idx-1] & 0xFF) != 10 and #!~/^[\&\@\$]/ 
+					($ast->[$idx-1] & 0xFF) != 2 #!~/^[\&\@\$]/ 
 				) {
 	#				say "ENTRY:$entry SKIP: $skip";
 					push @expr_chunks,$entry;
@@ -845,7 +1067,7 @@ sub _emit_expression_SaC {(my $ast, my $expr_str, my $stref, my $f)=@_;
 		}				
 	} # for
 	
-	if (($ast->[0] & 0x0F) == 1  ) { # eq '&'
+	if (($ast->[0] & 0xFF) == 1  ) { # eq '&'
 	
 		# This removes outer parens if there are no parens in between
 		my @expr_chunks_stripped = map { $_=~s/^\(([^\(\)]+)\)$/$1/;$_} @expr_chunks;
@@ -857,20 +1079,19 @@ sub _emit_expression_SaC {(my $ast, my $expr_str, my $stref, my $f)=@_;
 			my $csub = $stref->{'CalledSub'};
 			if (exists $stref->{'Subroutines'}{ $csub  }) {
 			( my $sac_args_out,my $sac_args_in) = _separate_in_out_args( $csub, $stref, \@expr_chunks_stripped);
-# Another evil SaC hack!
+				# Another evil SaC hack!
 		        $expr_str =  join(',', map {$_=~s/_top$//;$_} @{$sac_args_out}). ' = '.$expr_str;
 		        $expr_str.=join(',',@{$sac_args_in});
 				} else {				 
 					$expr_str.=join(',',@expr_chunks_stripped);
-				}
-				
+				}				
 		}		
 		$expr_str.=')'; 
 		if ($ast->[1]  eq $stref->{'CalledSub'} ) {
 			$stref->{'CalledSub'} ='';
 		}
 		
-	} elsif ( ($ast->[0] & 0x0F) == 10) {				# eq '@'
+	} elsif ( ($ast->[0] & 0xFF) == 10) {				# eq '@'
 		my @expr_chunks_stripped =   map {  $_=~s/^\(([^\(\)]+)\)$/$1/;$_} @expr_chunks;		
 		if ( not ($expr_str=~/^\*/ and $expr_chunks_stripped[0]==1) ) { 
 			$expr_str.=join(',',@expr_chunks_stripped);
@@ -886,11 +1107,11 @@ sub _emit_expression_SaC {(my $ast, my $expr_str, my $stref, my $f)=@_;
 			} 
 		}
 		
-	} elsif (($ast->[0] & 0x0F) != 10
+	} elsif (($ast->[0] & 0xFF) != 10
         #        and $ast->[0] =~ /\W/
     ) {
         my $opcode = $ast->[0];		
-        my $op = $RefactorF4Acc::Parser::Expressions::sigils[$opcode & 0x0F];
+        my $op = $RefactorF4Acc::Parser::Expressions::sigils[$opcode & 0xFF];
 		if (scalar @{$ast} > 2) {
 			my @ts=();
 			for my $idx (1 .. scalar @{$ast} -1 ) {				
@@ -920,15 +1141,15 @@ sub _emit_expression_SaC {(my $ast, my $expr_str, my $stref, my $f)=@_;
 			my $t1 = (ref($ast->[1]) eq 'ARRAY') ? _emit_expression_SaC( $ast->[1], '',$stref,$f) : $ast->[1];
 			my $t2 = (ref($ast->[2]) eq 'ARRAY') ? _emit_expression_SaC( $ast->[2], '',$stref,$f) : $ast->[2];			
 			$expr_str.=$t1.$ast->[0].$t2;
-			if (($ast->[0] & 0x0F) != 9) { # ne '='
+			if (($ast->[0] & 0xFF) != 9) { # ne '='
 				$expr_str="($expr_str)";
 			}			
 		} else {
 			# FIXME! UGLY!
 			my $t1 = (ref($ast->[1]) eq 'ARRAY') ? _emit_expression_SaC( $ast->[1], '',$stref,$f) : $ast->[1];
-            my $op = $RefactorF4Acc::Parser::Expressions::sigils[$ast->[0] & 0x0F];
+            my $op = $RefactorF4Acc::Parser::Expressions::sigils[$ast->[0] & 0xFF];
 			$expr_str=  $op eq '$' ? $t1 :  $op.$t1;
-			if (($ast->[0] & 0x0F) == 6) { #eq '/'
+			if (($ast->[0] & 0xFF) == 6) { #eq '/'
 #				$expr_str='1'.$expr_str; # I choose float as default. FIXME UGLY SaC HACK!
 				$expr_str='1.0f'.$expr_str; # I choose float as default. FIXME UGLY SaC HACK! 
 			}
@@ -960,7 +1181,7 @@ sub _emit_expression_SaC {(my $ast, my $expr_str, my $stref, my $f)=@_;
 	}	
 #	say "AFTER HACK:".$expr_str if $expr_str=~/abs/;
 	return $expr_str;		
-} # END of _emit_expression_SaC()
+} # END of _emit_expression_SaC_OLD
 
 sub _change_operators_to_SaC { (my $cond_expr) = @_;
 	
@@ -1026,12 +1247,6 @@ sub add_to_SaC_build_sources {
     	
     }
 
-#    for my $inc ( keys %{ $stref->{$sub_or_func}{$f}{'Includes'} } ) {
-#        if ( not exists $stref->{'BuildSources'}{'H'}{$inc} ) {
-#            print "ADDING $inc to C Header BuildSources\n" if $V;
-#            $stref->{'BuildSources'}{'H'}{$inc} = 1;
-#        }
-#    }
     return $stref;
 } # END of add_to_SaC_build_sources()
 
@@ -1086,16 +1301,16 @@ sub _add_cast_calls {(my $ast, my $stref, my $f)=@_;
             # we should not descend if this is a subroutine call or an array argument
             # i.e, if we have ['&', 'f' ], don't descend
             # if we have ['@', 'a', [...],...] don't descend
-            if ($idx>1 && (($ast->[0] & 0x0F) == 10) && $ast->[1] ne '_OPEN_PAR_') {
+            if ($idx>1 && (($ast->[0] & 0xFF) == 10) && $ast->[1] ne '_OPEN_PAR_') {
                 # We're in an array, skip
 #                say "Not descending into indices of array ".$ast->[1];
-            } elsif ( ($entry->[0] & 0x0F) == 1 ) {
+            } elsif ( ($entry->[0] & 0xFF) == 1 ) {
                 # This is a subroutine, don't go in there
 #                say "Not descending into function call ".$entry->[1];
             } else {
                 # OK, go in there
                 $entry = _add_cast_calls( $entry, $stref, $f);
-                if( ($entry->[0] & 0xF) == 2 or ($entry->[0] & 0xF) == 10  ) {
+                if( ($entry->[0] & 0xFF) == 2 or ($entry->[0] & 0xFF) == 10  ) {
                 	my $mvar = $entry->[1];
 				 	if (not(
 			    	   $mvar=~/__[a-z]+__/

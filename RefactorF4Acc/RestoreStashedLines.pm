@@ -7,8 +7,7 @@ use RefactorF4Acc::Config;
 #   
 	
 use vars qw( $VERSION );
-
-$VERSION = "1.2.0";
+$VERSION = "2.1.1";
 
 use v5.10;
 use warnings;
@@ -95,5 +94,8 @@ sub replace_stash { (my $stash_src, my $output_path)=@_;
         close $OUT;
     }
 }
+
+
+#map {say $_ } @{  $ref->{'main.f95'}{7188} };
 
 1;

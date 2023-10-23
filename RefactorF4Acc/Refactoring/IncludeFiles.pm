@@ -9,7 +9,7 @@ use RefactorF4Acc::Refactoring::Common qw( get_annotated_sourcelines context_fre
 #
 
 use vars qw( $VERSION );
-$VERSION = "1.2.0";
+$VERSION = "2.1.1";
 
 #use warnings::unused;
 use warnings;
@@ -49,6 +49,7 @@ sub _refactor_include_file {
 	my $If = $stref->{'IncludeFiles'}{$inc_f};
 	my $inc_ff=$inc_f;
 	$inc_ff=~s/\./_/g;
+	my $EXT = $Config{EXT};
 	$stref->{'IncludeFiles'}{$inc_f}{'Source'}=$inc_ff.$EXT; # FIXME: ad hoc
 	if ($stref->{'IncludeFiles'}{$inc_f}{'InclType'} eq 'Parameter') {
 		$stref->{'BuildSources'}{'F'}{$inc_ff.$EXT}=1;
@@ -71,11 +72,15 @@ sub _refactor_include_file {
     	[ "module $inc_ff", {'BeginModule'=>$inc_ff, 'Ref'=>1} ];
     	
 	for my $annline ( @{$annlines} ) {
-		next if not defined $annline; 
+		next if not defined $annline; 		
 		(my $line, my $info)      =@{ $annline };
 				
 		print '*** ' . join( ',', keys(%{$info}) ) . "\n" if $DBG;
 		print '*** ' . $line . "\n" if $DBG;
+
+		next if exists $info->{'Deleted'}
+			or exists $info->{'Skip'}
+			or exists $info->{'Comments'};
 		my $skip = 0;
 		if ( exists $info->{'Common'} ) {
 			$skip = 1;
@@ -105,7 +110,7 @@ sub _refactor_include_file {
 			$annline->[1]{'VarDecl'}{'Name'} = $nvar;
 		} 
 		if ( exists $info->{'ParamDecl'} ) {
-#			print Dumper(%{$info});
+			# print $line,':',Dumper(%{$info});
             if (exists $info->{'ParamDecl'}{'Name'}) {
 			my $var_val = $info->{'ParamDecl'}{'Name'};
 			(my $var,my $val)=@{$var_val};
@@ -116,21 +121,20 @@ sub _refactor_include_file {
                 	my $gvar=$stref->{'IncludeFiles'}{$inc_f}{'ConflictingGlobals'}{$var}[0];
                 	$line=~s/\b$var\b/$gvar/;
                 	$info->{'Ref'}++;
-                    $info->{'ParamDecl'}=[$gvar];    
+                    $info->{'ParamDecl'}{'Name'}=[$gvar,$val];    
                     print "WARNING: WEAK! renamed $var to $gvar ($line) refactor_include_file() 121\n" if $W;                 
                 }			
-            } elsif (exists $info->{'ParamDecl'}{'Names'}) { #die $line.Dumper($info);
+            } elsif (exists $info->{'ParamDecl'}{'Names'}) { 
                 for my $var_val (@{ $info->{'ParamDecl'}{'Names'} }) {
-			(my $var,my $val)=@{$var_val};
-#				print "PAR: $var ($line)\n";
+                    (my $var,my $val)=@{$var_val};
                 if ( exists $stref->{'IncludeFiles'}{$inc_f}{'ConflictingGlobals'} {$var} )
                 {
-                    die 'BOOM!';
+                    croak 'BOOM!' if $DBG;
                 	my $gvar=$stref->{'IncludeFiles'}{$inc_f}{'ConflictingGlobals'}{$var}[0];
                 	$line=~s/\b$var\b/$gvar/;
                 	$info->{'Ref'}++;
-                    $info->{'ParamDecl'}=[$gvar];    
-                    print "WARNING: WEAK! renamed $var to $gvar ($line) refactor_include_file() 121\n" if $W;                 
+                    $info->{'ParamDecl'}{'Name'}=[$gvar,$val];    
+                    print "WARNING: WEAK! renamed $var to $gvar ($line) refactor_include_file() ".__LINE__."\n" if $WW;                 
                 }			
                 }
  
@@ -181,8 +185,6 @@ sub __resolve_module_deps {
             for my $var ( @vars ) {
 	           if ( not exists $stref->{'IncludeFiles'}{$inc_f}{'Vars'}{$var} ) {
                     for my $inc ( keys %{ $stref->{'IncludeFiles'} } ) {
-#                    	say $inc;
-#                    	say Dumper($stref->{'IncludeFiles'}{$inc});
                         if (exists $stref->{'IncludeFiles'}{$inc}{'InclType'} and $stref->{'IncludeFiles'}{$inc}{'InclType'} eq 'Parameter' ) {
                         	if ( exists $stref->{'IncludeFiles'}{$inc}{'Vars'}{$var} ) {
                         		$stref->{'IncludeFiles'}{$inc_f}{'Deps'}{$inc}=1;
