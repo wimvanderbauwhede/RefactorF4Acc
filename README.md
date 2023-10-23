@@ -68,7 +68,7 @@ Our compiler automates this process as much as possible.
   * Preserves comments
 
 * OpenCL/C translation
-  * Once refactored, modules can be translated to C or OpenCL kernel code in a separate pass (see [Automatic parallelisation using OpenCL](https://github.com/wimvanderbauwhede/RefactorF4Acc/blob/main/README.md#automatic-parallelisation-using-opencl))
+  * Once refactored, modules can be translated to C or OpenCL kernel code in a separate pass (see [Automatic parallelisation using OpenCL](README.md#automatic-parallelisation-using-opencl))
 
 * Subroutine extraction
     * add an annotation
@@ -121,7 +121,7 @@ Full details of these four real-world examples can be found in
 <a name="limitations"></a>
 ## Limitations of RefactorF4Acc
 
-Limitations and known issues are discussed in detail in [`LIMITATIONS.md`]. In short:
+Limitations and known issues are discussed in detail in [`LIMITATIONS.md`](LIMITATIONS.md). In short:
 
 - This tool was developed for a specific purpose: refactoring FORTRAN77 code into Fortran 95 code _suitable for offloading to GPUs and FPGAs_. The refactorings it includes are there to support that goal. Therefore, many refactorings that you might do to improve code on CPU, e.g. to benefit from SIMD, are _not_ included, for example replacing loops by array operations.
 - I have gradually been adding support for more F77, F90 and F95 features, but there is still a lot that is not supported, see [`LIMITATIONS.md`].
@@ -144,11 +144,11 @@ Limitations and known issues are discussed in detail in [`LIMITATIONS.md`]. In s
 <a name="installing"></a>
 ## Installing RefactorF4Acc
 
-Please see [INSTALL.md].
+Please see [`INSTALL.md`](INSTALL.md).
 
 <a name="gettingstarted"></a>
 ## Getting started
-Please see [GETTING_STARTED.md] for a demonstration of using RefactorF4Acc to refactor a "Hello, world!" program that uses several legacy Fortran features. The files and readme accompanying the  "Hello, world!" program can be found in the sub-directory `tests`.
+Please see [`GETTING_STARTED.md`](GETTING_STARTED.md) for a demonstration of using RefactorF4Acc to refactor a "Hello, world!" program that uses several legacy Fortran features. The files and readme accompanying the  "Hello, world!" program can be found in the sub-directory `tests`.
 
 To use RefactorF4Acc: 
 1. Create a minimal configuration file using the following template:
@@ -267,7 +267,7 @@ The test `tests/ShallowWater2D` is an example of automatic parallelisation and G
 
 As explained above, to run this test you need to install the [AutoParallel-Fortran](https://github.com/wimvanderbauwhede/AutoParallel-Fortran) compiler and the [OclWrapper Fortran OpenCL API](https://github.com/wimvanderbauwhede/OpenCLIntegration), as well as [scons](http://scons.org/), a Python-based build system.
 
-A more detailed explanation of the steps is available in the file [tests/ShallowWater2D/Auto-acceleration-README.md](https://github.com/wimvanderbauwhede/RefactorF4Acc/blob/devel/tests/ShallowWater2D/Auto-acceleration-README.md).
+A more detailed explanation of the steps is available in the file [tests/ShallowWater2D/Auto-acceleration-README.md](tests/ShallowWater2D/Auto-acceleration-README.md).
 
       $ cd tests/ShallowWater2D/fortran
 
@@ -302,8 +302,8 @@ You can now build the refactored code for GPU as follows:
 
 Running the accelerated code on this GPU results in 14x speedup compared to the original code running on the host (Intel Core i7 CPU @ 3.50GHz).
 
-[INSTALL.md]: https://github.com/wimvanderbauwhede/RefactorF4Acc/blob/main/INSTALL.md
-[GETTING_STARTED.md]: https://github.com/wimvanderbauwhede/RefactorF4Acc/blob/main/GETTING_STARTED.md
+* [`INSTALL.md`:](INSTALL.md)
+* [`GETTING_STARTED.md`:](GETTING_STARTED.md)
 
 <a name="appnist"></a>
 ## Appendix: Validation of RefactorF4Acc using the NIST test
@@ -312,7 +312,7 @@ We use the [NIST FORTRAN78 test suite](ftp://ftp.fortran-2000.com/fcvs21_f95.tar
 
       $ cd tests/NIST_F78_test_suite
 
-The original FORTRAN 77 test suite source files are in `fcvs21_f95/`. See [tests/NIST_F78_test_suite/README.md] for details on the test suite, modifications and failed tests.
+The original FORTRAN 77 test suite source files are in `fcvs21_f95/`. See [tests/NIST_F78_test_suite/README.md](tests/NIST_F78_test_suite/README.md) for details on the test suite, modifications and failed tests.
 
 Please ensure that the environment varianble `$FC` is set to the Fortran compiler you want to use. I have tested the code only with `gfortran 4.9` to `gfortran 10.0`. 
 To generate the refactored Fortran-95 code for the test suite, build it and run it, do:

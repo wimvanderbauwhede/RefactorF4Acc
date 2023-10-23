@@ -1,3 +1,7 @@
+# Installation
+
+See [INSTALL](INSTALL.md).
+
 #  Refactoring "Hello, world!"
  The following command-line session transcript demonstrates the use of RefactorF4Acc to 
 refactor a "Hello, world!" program that starts with the following legacy Fortran features:
@@ -131,4 +135,4 @@ $ ./hello
  Hello, world!
  All is right with the world.
 ```
-[INSTALL.md]: https://github.com/wimvanderbauwhede/RefactorF4Acc/blob/master/INSTALL.md
+

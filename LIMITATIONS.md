@@ -6,7 +6,7 @@
 * I have gradually been adding support for more F77, F90 and F95 features, but there is still a lot that is not supported, see below.
 * This is a full-source compiler, so it assumes full visibility of the entire source code. That means that external subroutines for which there is no source code will lead to incorrect refactoring, because the compiler needs either know or be able to infer the subroutine signature. You can work around this by adding a stub subroutine.
 * To perform static code analysis, the compiler requires all array bounds to be constants at compile time. If your code contains array bounds defined using variables, in particular subroutine arguments, the analysis can't work.
-* This is not an auto-parallelising compiler. The resulting code is also _not_ GPU-ready, it is still ordinary, single-threaded Fortran code. For the process to generate fully parallel OpenCL code for GPU, see the "Example of full toolchain from FORTRAN77 to parallel OpenCL" in the [README.md]. 
+* This is not an auto-parallelising compiler. The resulting code is also _not_ GPU-ready, it is still ordinary, single-threaded Fortran code. For the process to generate fully parallel OpenCL code for GPU, see the "Example of full toolchain from FORTRAN77 to parallel OpenCL" in the [README](README.md).
 
 ## Refactoring
 
