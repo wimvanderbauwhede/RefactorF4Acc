@@ -19,7 +19,7 @@ if ($opts{'h'}){
     -i : module/program directory (default: .)
     -o : output directory (default: Uxntal)
     -d : debug
-    -e : Fortran source file extension (default is .f90, needs the dot)    
+    -e : Fortran source file extension (default is .f90, needs the dot)
     \n";
 }
 our $V=0;

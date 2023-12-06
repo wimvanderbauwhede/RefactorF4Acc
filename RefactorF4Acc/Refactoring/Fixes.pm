@@ -1104,7 +1104,7 @@ if (not exists $Config{'FIXES'}{'_declare_undeclared_variables'}) { return $stre
 	# Make a list of all variables anywhere in the code via Lhs, Rhs, Args, put in $state->{'ExprVars'}
 	my $pass_action_find_all_used_vars = sub { (my $annline, my $state)=@_;
 		(my $line,my $info)=@{$annline};
-		# say "$f LINE: $line" if $line=~/range/;
+		# say "$f LINE: $line";# if $line=~/range/;
 		my $rline=$line;
 		my $rlines=[];
 
@@ -1154,8 +1154,10 @@ if (not exists $Config{'FIXES'}{'_declare_undeclared_variables'}) { return $stre
 				}
 		}
 		elsif ( exists $info->{'SubroutineCall'} ) {
-			# This means array index expressions will be included
-			$state->{'ExprVars'} ={%{$state->{'ExprVars'}},%{$info->{'SubroutineCall'}{'Args'}{'Set'} } };
+			if (exists $info->{'SubroutineCall'}{'Args'}{'Set'} ) {
+				# This means array index expressions will be included
+				$state->{'ExprVars'} ={%{$state->{'ExprVars'}},%{$info->{'SubroutineCall'}{'Args'}{'Set'} } };
+			}
 		}
 		if (exists $info->{'If'} ) {
 
@@ -1184,7 +1186,8 @@ if (not exists $Config{'FIXES'}{'_declare_undeclared_variables'}) { return $stre
 		if ($expr_var=~/\(/) {
 			$expr_var=~s/\(.+$//;
 		}
-		next if $expr_var=~/^\d/;
+		next if $expr_var=~/^\d/; # skip numbers, WEAK
+		next if $expr_var=~/^\.\w+\./; # skip bools
 
 		if (not exists $state->{'DeclaredVars'}{$expr_var} ) {
 			# FIXME: this variable could be declared through Use or at module level!	

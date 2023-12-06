@@ -56,7 +56,7 @@ our @sigils = ('(', '&', '$', 'ADD', 'SUB', 'MUL', 'DIV', 'mod', 'pow', '=', '@'
 # $ocl: 0 = C, 1 = CPU/GPU OpenCL, 2 = C for TyTraIR aka TyTraC, 3 = pipe-based OpenCL for FPGAs
 # 4 = translate_to_TyTraLlvmIR, 5 = translate_to_OpenCL_memory_reduction
 sub translate_module_to_Uxntal {  (my $stref, my $module_name) = @_;
-	
+
 	($stref,my $new_annlines) = fold_constants_no_iters($stref,$module_name);
 	# $stref = emit_AnnLines( $stref,$module_name,$new_annlines);
 	# croak Dumper pp_annlines($stref->{'RefactoredCode'});
@@ -378,13 +378,7 @@ Instead of the nice but cumbersome approach we had until now, from now on it is 
 		}
 
 		elsif (exists $info->{'Comments'} ) {
-			$c_line = $line;
-			#!$PRAGMA unroll
-			if ($ocl==3 and $line=~/\$pragma/i) {
-				$c_line=~s/\!\$/#/;
-			} else {
-			$c_line = '( '.$c_line.' )';
-			}
+			$c_line = '( '.$line.' )';
 		}
 		elsif (exists $info->{'Use'}) {
 			if ($line=~/$f/) {
@@ -646,15 +640,26 @@ sub _emit_assignment_Uxntal { (my $stref, my $f, my $info, my $pass_state)=@_;
 	$lhs =~s/LDA$/STA/;
 	$lhs =~s/LDA2$/STA2/;
 	my $rline = $info->{'Indent'}.$rhs_stripped . ' '. $lhs;
-	if (exists $info->{'If'}) { croak 'TODO: If without Then';
+	if (exists $info->{'If'}) { 
+		# croak 'TODO: If without Then', Dumper($info);
 		my $id = $info->{'LineID'};
 		$pass_state->{'IfBranchId'} = $id;
 		my $branch_id = $pass_state->{'IfBranchId'};
 		push @{$pass_state->{'IfStack'}},$id;
 		$pass_state->{'IfId'}=$id;
+		my $cond_expr_ast=$info->{'Cond'}{'AST'};
+		my $cond_expr = _emit_expression_Uxntal($cond_expr_ast,$stref,$f,$info);
+	# What we have is e.g. 
+	# if (fl(1:2) == __PH0__) VV = .true.
+	# What we need is
+	# NOT <cond> <label_end> JCN
+		$rline = $indent.' '."$cond_expr EQU #00 ,&branch$branch_id JCN\n" . $rline;
+	# <expr>
+		$rline .= $indent.' '."&branch$branch_id";
 
-		my $if_str = _emit_ifthen_Uxntal($stref,$f,$info,$branch_id);
-		$rline =$indent.$if_str.' '.$rline;
+		# my $if_str = _emit_ifthen_Uxntal($stref,$f,$info,$branch_id);
+		# $rline =$indent.' '.$rline;
+		die $rline;
 	}
 	# carp "$f $rline";
 	return ($rline,$pass_state);
@@ -768,8 +773,18 @@ sub _emit_expression_Uxntal { my ($ast, $stref, $f, $info)=@_;
 								}
 								if ($ndims==1) {
 									return ';'.$f.'_'.$name.' '.$args_lst[0].' ADD2 LDA2'
+								} elsif ($ndims==0 and $decl->{'Type'} eq 'character') {
+									die "No support for strings yet\n" . Dumper($ast);
+									# fl(1:2) == '-v'
+									# I think I should have a streq function and maybe a substr function
+									# we should be able to use a range-fold for this
+									# <chars> ;fl <cb> <ce> streq 
+									
+
+
+
 								} else {
-									die "No support for multidimensional arrays yet\n";
+									die "No support for multidimensional ($ndims) arrays yet\n" . Dumper($ast);
 									# return $maybe_amp.$name.'[F'.$ndims.'D2C('.join(',',@ranges[0.. ($ndims-2)]).' , '.join(',',@lower_bounds). ' , '.join(',',@args_lst).')]';
 								}
 							}
@@ -1159,6 +1174,32 @@ sub toHex { my ($n,$sz) = @_;
 	my $szx2 = $sz*2;
 	return sprintf("#%0${szx2}x",$n);
 }
+sub toRawHex { my ($n,$sz) = @_;
+	my $szx2 = $sz*2;
+	return sprintf("%0${szx2}x",$n);
+}
+
+
+sub genSubstr { my ($strn, $cb,$ce) = @_;
+	return
+	'{ DUP #00 SWP ;'.$strn.' ADD2 LDA' . "\n" .
+	'  SWP #00 SWP '.toHex($cb,4).' SUB2' . "\n" .
+	';substr ADD2 STA'  . "\n" .
+	'JMP2r'  . "\n" .
+	'} STH2r '.toHex($ce,4).' '.toHex($cb,4).' range-map'  . "\n" .
+	'{ @substr $'.toRawHex($ce-$cb+2).' } STH2r';
+}
+
+
+# @scmp ( a* b* -- f )
+# 	STH2
+# 	&l ( a* b* -- f )
+# 		LDAk LDAkr STHr NEQk ?&d
+# 		DUP EOR EQUk ?&d
+# 		POP2 INC2 INC2r !&l
+# 	&d ( a* c1 c2 b* -- f )
+# 		NIP2 POP2r EQU JMP2r
+
 # -----------------------------------------------------------------------------
 sub add_to_C_build_sources {
     ( my $f, my $stref ) = @_;
