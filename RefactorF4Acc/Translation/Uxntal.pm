@@ -225,7 +225,7 @@ Instead of the nice but cumbersome approach we had until now, from now on it is 
 # --------------------------------------------------------------------------------------------
 	my $pass_translate_to_Uxntal = sub { (my $annline, my $state)=@_;
 		(my $line,my $info)=@{$annline};
-		say "LINE:<$line> ".Dumper($info);
+		say "LINE:<$line> ";#.Dumper($info);
 		my $c_line=$line;
 		(my $stref, my $f, my $pass_state)=@{$state};
         my $id = $info->{'LineID'};
@@ -274,13 +274,13 @@ Instead of the nice but cumbersome approach we had until now, from now on it is 
 		elsif (exists $info->{'Do'} ) {
 			if (exists $info->{'Do'}{'While'}) {
 				croak 'TODO: Do While';
-				push @{$pass_state->{'DoStack'}}, [$id,$info->{'Do'}{'ExpressionsAST'}];
+				push @{$pass_state->{'DoStack'}}, [$id,$info->{'Do'}{'ExpressionsAST'},'While'];
 				$c_line = '&while_loop_'.$f.'_'.$id . "\n" ;
 			} else {
 			# $pass_state->{'DoIter'} = $f.'_'.$info->{'Do'}{'Iterator'};
 			# $pass_state->{'DoStep'} = $info->{'Do'}{'Range'}{'Expressions'}[2];
 			# id, iterator, step; loop upper bound is on the wst
-			push @{$pass_state->{'DoStack'}}, [$id,$f.'_'.$info->{'Do'}{'Iterator'},$info->{'Do'}{'Range'}{'Expressions'}[2]];
+			push @{$pass_state->{'DoStack'}}, [$id,$f.'_'.$info->{'Do'}{'Iterator'},$info->{'Do'}{'Range'}{'Expressions'}[2],'Do'];
 				$c_line =
 				$info->{'Do'}{'Range'}{'Expressions'}[1] . ' ' . $info->{'Do'}{'Range'}{'Expressions'}[0] . "\n" .
 				'&loop_'.$f.'_'.$id . "\n" .
@@ -299,6 +299,7 @@ Instead of the nice but cumbersome approach we had until now, from now on it is 
 			($c_line,$pass_state) = _emit_assignment_Uxntal($stref, $f, $info,$pass_state) ;
 		}
 		elsif (exists $info->{'SubroutineCall'} ) {
+			# WV2023-12-07 TODO: what if this has an If without Then?
 			#
 			# my $subcall_ast = [ 1, $info->{'SubroutineCall'}{'Name'},$info->{'SubroutineCall'}{'ExpressionAST'} ];
 
@@ -309,16 +310,30 @@ Instead of the nice but cumbersome approach we had until now, from now on it is 
 			# So what we need to do is check the type in $f and $subname, and use that to see if we need a '*' or even an '&' or nothing
 
             $c_line = _emit_subroutine_call_expr_Uxntal($stref,$f,$info);
+			if (exists $info->{'If'}  ) {
+			croak 'TODO: If without Then'. $line."\n".Dumper($info);
+			}
 		}
 		elsif (exists $info->{'IOCall'}) {
 			if (exists $info->{'PrintCall'}) {
 				$c_line = _emit_expression_Uxntal($info->{'IOCall'}{'Args'}{'AST'},$stref, $f, $info);
 			} else {
-				croak Dumper $info->{'IOCall'}{'Args'}{'AST'};
+				croak 'TODO: IOCall '.Dumper $info->{'IOCall'}{'Args'}{'AST'};
 			}
 		}
 		elsif (exists $info->{'If'} and not exists $info->{'IfThen'} ) {
-			croak 'TODO: If without Then'. Dumper($info);
+			# croak 'TODO: If without Then'. $line."\n".Dumper($info);
+			if (exists $info->{'Goto'}) {
+				$c_line = ',&'.$f.'_'.$info->{'Goto'}{'Label'}.' JMP';
+			} else {
+				croak "If without Then, not assignment, goto or call: $line";
+			}
+			my $indent = $info->{'Indent'};
+			my $branch_id = $info->{'LineID'};
+			my $cond_expr_ast=$info->{'Cond'}{'AST'};
+			my $cond_expr = _emit_expression_Uxntal($cond_expr_ast,$stref,$f,$info);
+			$c_line = "\n( If without Then )\n" . $indent.' '."$cond_expr EQU #00 ,&branch$branch_id JCN\n" . $c_line;
+			$c_line .= $indent.' '."&branch$branch_id";
 		}
         elsif (exists $info->{'IfThen'} and not exists $info->{'ElseIf'} ) {
             $pass_state->{'IfBranchId'} = $id;
@@ -349,11 +364,13 @@ Instead of the nice but cumbersome approach we had until now, from now on it is 
 				exists $info->{'EndDo'}
 			) {
 				my $do_tup = pop @{$pass_state->{'DoStack'}};
-				if (scalar @{$do_tup}== 3) {
+				if ($do_tup->[-1] eq 'Do') {
+					# croak Dumper $do_tup;
 					my ($do_id, $do_iter, $do_step) = @{$do_tup};
-					my $inc = $do_iter == 1 ? 'INC2' : toHex($do_iter,2).' ADD2';
+					my $inc = $do_step == 1 ? 'INC2' : toHex($do_step,2).' ADD2';
             		$c_line = "DUP2 ;$do_iter LDA2 $inc NEQ2 ".',&loop_'.$f.'_'.$do_id.' JCN';
 				} else { # while
+				# croak Dumper $do_tup;
 					my ($do_id, $do_while_cond) = @{$do_tup};
 					$c_line =  _emit_expression_Uxntal($do_while_cond,$stref, $f, $info);
 					$c_line .= "\n".',&while_loop_'.$f.'_'.$do_id.' JCN';
@@ -639,27 +656,27 @@ sub _emit_assignment_Uxntal { (my $stref, my $f, my $info, my $pass_state)=@_;
 	# my $rline = $info->{'Indent'}.$lhs.' = '.$rhs_stripped;
 	$lhs =~s/LDA$/STA/;
 	$lhs =~s/LDA2$/STA2/;
-	my $rline = $info->{'Indent'}.$rhs_stripped . ' '. $lhs;
+	my $rline = "\n( Assignment  )\n" . $info->{'Indent'}.$rhs_stripped . ' '. $lhs;
 	if (exists $info->{'If'}) { 
 		# croak 'TODO: If without Then', Dumper($info);
-		my $id = $info->{'LineID'};
-		$pass_state->{'IfBranchId'} = $id;
-		my $branch_id = $pass_state->{'IfBranchId'};
-		push @{$pass_state->{'IfStack'}},$id;
-		$pass_state->{'IfId'}=$id;
+		my $branch_id = $info->{'LineID'};
+		# $pass_state->{'IfBranchId'} = $id;
+		# my $branch_id = $pass_state->{'IfBranchId'};
+		# push @{$pass_state->{'IfStack'}},$id;
+		# $pass_state->{'IfId'}=$id;
 		my $cond_expr_ast=$info->{'Cond'}{'AST'};
 		my $cond_expr = _emit_expression_Uxntal($cond_expr_ast,$stref,$f,$info);
 	# What we have is e.g. 
 	# if (fl(1:2) == __PH0__) VV = .true.
 	# What we need is
 	# NOT <cond> <label_end> JCN
-		$rline = $indent.' '."$cond_expr EQU #00 ,&branch$branch_id JCN\n" . $rline;
+		$rline = "\n( If without Then )\n" . $indent.' '."$cond_expr EQU #00 ,&branch$branch_id JCN\n" . $rline;
 	# <expr>
 		$rline .= $indent.' '."&branch$branch_id";
 
 		# my $if_str = _emit_ifthen_Uxntal($stref,$f,$info,$branch_id);
 		# $rline =$indent.' '.$rline;
-		die $rline;
+		# die $rline;
 	}
 	# carp "$f $rline";
 	return ($rline,$pass_state);
@@ -976,13 +993,13 @@ sub _emit_subroutine_call_expr_Uxntal { my ($stref,$f,$info) = @_;
 	# croak Dumper ($info, $Ssubname->{'Vars'}) if $f=~/test_subcall/;
 
 
-	my $mvar = $subname;
+	# my $mvar = $subname;
 	# AD-HOC, replacing abs/min/max to fabs/fmin/fmax without any type checking ... FIXME!!!
 	# The (float) cast is necessary because otherwise I get an "ambiguous" error
 	# $mvar=~s/^(abs|min|max)$/(float)f$1/;
 	# $mvar=~s/^am(ax|in)1$/(float)fm$1/;
 	# $mvar=~s/^alog$/(float)log/;
-	my $subname_C = $mvar;
+	# my $subname_C = $mvar;
 # What we need for every argument is IODir , ArrayOrScalar from the record
 # So we'd better loop over the List in the record.
 	#  "inout" args will occur in both places if required.
@@ -992,8 +1009,9 @@ sub _emit_subroutine_call_expr_Uxntal { my ($stref,$f,$info) = @_;
 	for my $sig_arg (@{$Ssubname->{'RefactoredArgs'}{'List'}}) {
 		$idx++;
 		my $rec = $Ssubname->{'RefactoredArgs'}{'Set'}{$sig_arg};
-		my $call_arg_expr_str = $info->{'SubroutineCall'}{'ArgMap'}{$sig_arg};
-		# say "$sig_arg => $call_arg_expr_str";
+		my $call_arg_expr_str = $info->{'SubroutineCall'}{'ArgMap'}{$sig_arg} // $sig_arg;
+		# say Dumper $info->{'SubroutineCall'};
+		# say "$subname: $sig_arg => ";say $call_arg_expr_str;
 		my $intent = $rec->{'IODir'};
 		my $isArray = $rec->{'ArrayOrScalar'} eq 'Array';
 		if (not $isArray  and $rec->{'Type'} eq 'character') {
@@ -1008,7 +1026,9 @@ sub _emit_subroutine_call_expr_Uxntal { my ($stref,$f,$info) = @_;
 		}
 		$wordSz==1 && do {$wordSz=''};
 		# say $info->{'SubroutineCall'}{'Args'}{'Set'}{$call_arg_expr_str}{'Type'};
-		my $isConstOrExpr = (($info->{'SubroutineCall'}{'Args'}{'Set'}{$call_arg_expr_str}{'Type'} eq 'Const' ) or ($info->{'SubroutineCall'}{'Args'}{'Set'}{$call_arg_expr_str}{'Type'} eq 'Expr'));
+		my $isConstOrExpr = exists $info->{'SubroutineCall'}{'Args'}{'Set'}{$call_arg_expr_str} ?
+		(($info->{'SubroutineCall'}{'Args'}{'Set'}{$call_arg_expr_str}{'Type'} eq 'Const' ) or ($info->{'SubroutineCall'}{'Args'}{'Set'}{$call_arg_expr_str}{'Type'} eq 'Expr')) : 0;
+
 		if ($intent eq 'in' or $intent eq 'inout') {
 			if ($isArray) {
 				push @call_arg_expr_strs_Uxntal, ';'.$f.'_'.$call_arg_expr_str;
@@ -1027,7 +1047,7 @@ sub _emit_subroutine_call_expr_Uxntal { my ($stref,$f,$info) = @_;
 	for my $sig_arg (reverse @{$Ssubname->{'RefactoredArgs'}{'List'}}) {
 		$idx++;
 		my $rec = $Ssubname->{'RefactoredArgs'}{'Set'}{$sig_arg};
-		my $call_arg_expr_str = $info->{'SubroutineCall'}{'ArgMap'}{$sig_arg};
+		my $call_arg_expr_str = $info->{'SubroutineCall'}{'ArgMap'}{$sig_arg} // $sig_arg;
 		# say "$sig_arg => $call_arg_expr_str";
 		my $intent = $rec->{'IODir'};
 		my $isArray = $rec->{'ArrayOrScalar'} eq 'Array';
@@ -1043,7 +1063,8 @@ sub _emit_subroutine_call_expr_Uxntal { my ($stref,$f,$info) = @_;
 		}
 		$wordSz==1 && do {$wordSz=''};
 		# say $info->{'SubroutineCall'}{'Args'}{'Set'}{$call_arg_expr_str}{'Type'};
-		my $isConstOrExpr = (($info->{'SubroutineCall'}{'Args'}{'Set'}{$call_arg_expr_str}{'Type'} eq 'Const' ) or ($info->{'SubroutineCall'}{'Args'}{'Set'}{$call_arg_expr_str}{'Type'} eq 'Expr'));
+		my $isConstOrExpr = exists $info->{'SubroutineCall'}{'Args'}{'Set'}{$call_arg_expr_str} ?
+		(($info->{'SubroutineCall'}{'Args'}{'Set'}{$call_arg_expr_str}{'Type'} eq 'Const' ) or ($info->{'SubroutineCall'}{'Args'}{'Set'}{$call_arg_expr_str}{'Type'} eq 'Expr')) : 0;
 		if ($intent eq 'out' or $intent eq 'inout') {
 			if (not $isArray and not $isConstOrExpr) {
 				my $arg_expr_ast = $info->{'SubroutineCall'}{'ExpressionAST'}[0] == 27 ? $info->{'SubroutineCall'}{'ExpressionAST'}[$idx] : $info->{'SubroutineCall'}{'ExpressionAST'};
