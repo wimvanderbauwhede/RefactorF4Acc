@@ -774,12 +774,21 @@ sub _emit_expression_Uxntal { my ($ast, $stref, $f, $info)=@_;
 								if ($ndims==1) {
 									return ';'.$f.'_'.$name.' '.$args_lst[0].' ADD2 LDA2'
 								} elsif ($ndims==0 and $decl->{'Type'} eq 'character') {
-									die "No support for strings yet\n" . Dumper($ast);
-									# fl(1:2) == '-v'
+									# die "No support for strings yet\n" . 
+									# Dumper($info).';'.
+									# Dumper($decl).';'.
+									# croak Dumper($ast);
+									# fl(1:2)
+									my $strn=$ast->[1];
+									my $cb = _emit_expression_Uxntal($ast->[2][1], $stref, $f,$info);
+									my $ce = _emit_expression_Uxntal($ast->[2][2], $stref, $f,$info);
+									my $id=$info->{'LineID'};
+									my $len = $decl->{'Attr'};$len=~s/len=//;
+									return genSubstr($strn, $cb,$ce, $len, $id);
 									# I think I should have a streq function and maybe a substr function
 									# we should be able to use a range-fold for this
 									# <chars> ;fl <cb> <ce> streq 
-									
+
 
 
 
@@ -807,8 +816,17 @@ sub _emit_expression_Uxntal { my ($ast, $stref, $f, $info)=@_;
 
                 my $lv = (ref($lexp) eq 'ARRAY') ? _emit_expression_Uxntal($lexp, $stref, $f,$info) : $lexp;
                 my $rv = (ref($rexp) eq 'ARRAY') ? _emit_expression_Uxntal($rexp, $stref, $f,$info) : $rexp;
-
-                return "$lv $rv  ".$sigils[$opcode].'2'; # FIXME, needs refining
+				if ($lv=~/^\"/) {
+					$lv = "{ $lv 00 } STH2r";
+				}
+				if ($rv=~/^\"/) {
+					$rv = "{ $rv 00 } STH2r";
+				}
+				if (isStrCmp($ast, $stref, $f,$info)) {
+					return "$lv $rv scmp ";
+				} else {
+                	return "$lv $rv  ".$sigils[$opcode].'2'; # FIXME, needs refining
+				}
             }
         } elsif (scalar @{$ast}==2) { #  for '('  and '$'
 
@@ -1180,17 +1198,45 @@ sub toRawHex { my ($n,$sz) = @_;
 }
 
 
-sub genSubstr { my ($strn, $cb,$ce) = @_;
-	return
-	'{ DUP #00 SWP ;'.$strn.' ADD2 LDA' . "\n" .
-	'  SWP #00 SWP '.toHex($cb,4).' SUB2' . "\n" .
-	';substr ADD2 STA'  . "\n" .
-	'JMP2r'  . "\n" .
-	'} STH2r '.toHex($ce,4).' '.toHex($cb,4).' range-map'  . "\n" .
-	'{ @substr $'.toRawHex($ce-$cb+2).' } STH2r';
+sub genSubstr { my ($strn, $cb,$ce, $len,$id) = @_;
+	if ($cb eq $ce) {
+		return $cb . ' #0001 SUB2 ;'.$strn.' ADD2 LDA'
+	} else {
+		my $cbb = $cb; $cbb=~s/^\#00//;$cbb='#'.$cbb;
+		my $ceb = $ce; $ceb=~s/^\#00//;$ceb='#'.$ceb;
+		return
+		'{ DUP #00 SWP ;'.$strn.' ADD2 LDA' . "\n" .
+		'  SWP #00 SWP '.$cb.' SUB2' . "\n" .
+		'  ;substr_'.$id.' ADD2 STA'  . "\n" .
+		'  JMP2r'  . "\n" .
+		'} STH2r '.$ceb.' '.$cbb.' range-map'  . "\n" .
+		'{ @substr_'.$id.' $'.toRawHex($len+1,1).' } STH2r';
+	}
 }
 
-
+sub isStrCmp { my ($ast, $stref, $f,$info) =@_;
+	my $lhs_name = $ast->[1][0] == 10 ? $ast->[1][1] : '';
+	my $rhs_name = $ast->[2][0] == 10 ? $ast->[2][1] : '';
+	my $lhs_is_str = $ast->[1][0] == 33 ? 1 : 0;
+	my $rhs_is_str = $ast->[2][0] == 33 ? 1 : 0;
+	if (not $lhs_is_str) {
+		if ($lhs_name ne '') {
+			my $decl = get_var_record_from_set($stref->{'Subroutines'}{$f}{'Vars'},$lhs_name);
+			if ($decl->{'Type'} eq 'character') {
+				$lhs_is_str=1;
+			}
+		}
+	}
+	if (not $rhs_is_str) {
+		if ($rhs_name ne '') {
+			my $decl = get_var_record_from_set($stref->{'Subroutines'}{$f}{'Vars'},$rhs_name);
+			if ($decl->{'Type'} eq 'character') {
+				$rhs_is_str=1;
+			}
+		}
+	}
+	return $lhs_is_str * $rhs_is_str;
+}
 # @scmp ( a* b* -- f )
 # 	STH2
 # 	&l ( a* b* -- f )
