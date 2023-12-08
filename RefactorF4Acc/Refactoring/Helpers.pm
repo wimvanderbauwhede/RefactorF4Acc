@@ -1163,6 +1163,9 @@ sub emit_f95_parsed_var_decl { (my $pvd) =@_;
     my $type= $pvd->{'TypeTup'}{'Type'} . (exists $pvd->{'TypeTup'}{'Kind'} ?  '( '.$pvd->{'TypeTup'}{'Kind'}.')' : '');
 
     my  @attrs=($type);
+    if ($type eq 'character') {
+        @attrs=($type.'('.$pvd->{'Attributes'}{'Len'}.')' );
+    }
     if (exists $pvd->{'Attributes'}{'Allocatable'}) {
         push @attrs, 'allocatable';
     }

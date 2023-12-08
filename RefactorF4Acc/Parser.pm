@@ -1261,8 +1261,6 @@ or $line=~/^character\s*\(\s*len\s*=\s*[\w\*]+\s*\)/
 			  ) {
 				$type   = $1;
 				$varlst = $2;
-
-
 				( $Sf, $info ) = _parse_f77_var_decl( $Sf, $stref, $f,$indent, $line, $info, $type, $varlst );
 				$info->{'SpecificationStatement'} = 1;
 				# carp __LINE__ . ": $f DECL ".Dumper($info) ;
@@ -3167,14 +3165,14 @@ sub __parse_f95_decl {
     my $is_module = (exists $stref->{'Modules'}{$f}) ? 1 : 0;
 
 	my $pt = parse_F95_var_decl($line);
-# carp $line,Dumper $pt if $line=~/bx4d/;
+# croak $line,Dumper $pt if $line=~/characters/i;
 	# But this could be a parameter declaration, with an assignment ...
 	if ( $line =~ /,\s*parameter\s*.*?::\s*(\w+\s*=\s*.+?)\s*$/ ) {
 		# F95-style parameters
 		$info->{'ParsedParDecl'} = $pt; #WV20150709 currently used by OpenCLTranslation, TODO: use ParamDecl and the AST from the expression parser
-
 		my $parliststr = $1;
 		( $Sf, $info ) = _parse_f77_par_decl(  $Sf, $stref, $f, $indent,  $line, $info, $parliststr , $pt);
+# carp Dumper $info if $line=~/parameter.+maxsize/i;
 		# croak $line. Dumper $pt;# if $line=~/s3/;
 		# croak $line. Dumper($pt,$info) if $line=~/funktalBoolToken/;
 
@@ -3598,7 +3596,7 @@ sub _parse_f77_par_decl {
 			'Val'  => $val,
 			'AST' => $val_ast,
 			'Attr' => $ttatrs_types{$var}[1],#$attr,
-			'DEBUG' => __FILE__.' '.__LINE__,
+			'Ann' => [annotate($f, __LINE__. ' : ParamDecl') ]  ,
 			'Indent'    => $indent,
 			'Dim'       => $dim,
 			'Parameter' => 'parameter',
@@ -3752,6 +3750,7 @@ sub _parse_f77_var_decl {
 		};
 		
 		$decl = __get_params_from_len($decl,$Sf);
+		
 		if ($decl->{'ArrayOrScalar'} eq 'Array' ) {
 			if (exists $pragmas->{'Halos'}) {
 	#                	say "SUB $f VAR $tvar HALOS: ".Dumper($halos);

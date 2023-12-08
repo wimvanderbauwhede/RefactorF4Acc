@@ -344,8 +344,27 @@ sub _create_extra_arg_and_var_decls { #272 lines
 				say "INFO PAR in $f: $par " . Dumper( $Sf->{'UsedParameters'}{'Set'}{$par} )
 				  if $I;
 				my $rdecl = $Sf->{'UsedParameters'}{'Set'}{$par};
+				# carp Dumper $rdecl;
 				my $rline = emit_f95_var_decl($rdecl);
 				my $info  = {};
+				$info->{'ParsedParDecl'} = {
+					'Attributes' => {
+						'Dim' => $rdecl->{'Dim'} ,
+						'Parameter' => $rdecl->{'Parameter'} ,
+					},
+
+					'Pars' => {
+						'Val' => $rdecl->{'Val'} ,
+						'Var' => $rdecl->{'Var'} ,
+						'AST' => $rdecl->{'AST'} ,
+					},
+					'TypeTup' => {
+						'Type' => $rdecl->{'Type'},
+					},
+					'Vars' => [
+						undef
+					]
+  				};
 				$info->{'Ann'}       = [ annotate( $f, __LINE__ . ' : INCLUDED PARAM ' . $annline->[1]{'ExGlobVarDeclHook'} ) ];
 				$info->{'LineID'}    = $nextLineID++;
 				$info->{'Ref'}       = 1;

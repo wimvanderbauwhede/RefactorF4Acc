@@ -664,7 +664,12 @@ sub _split_multivar_decls {
                     # This is because we use the ParsedVarDecl field in custom passes so the F77 and F95 decls both need it.
                     if (not exists $rinfo{'ParsedVarDecl'} or not exists $rinfo{'ParsedVarDecl'}{'Vars'}) {
                         my $orig_decl = $Sf->{$subset}{'Set'}{$var};
-                        $rinfo{'ParsedVarDecl'}{'Vars'} =[$var] ;      
+                        # croak Dumper $orig_decl if $var eq 'characters';
+                        $rinfo{'ParsedVarDecl'}{'Ann'} = [annotate($f, __LINE__. ' : ParsedVarDecl') ];
+                        $rinfo{'ParsedVarDecl'}{'Vars'} =[$var] ;
+                        if ($orig_decl->{'Type'} eq 'character') {
+                        $rinfo{'ParsedVarDecl'}{'Attributes'}{'Len'} = $orig_decl->{'Attr'};
+                        }
                         $rinfo{'ParsedVarDecl'}{'Pragmas'} = {
                             'AccKeyword' => 'ArgMode',
                             'AccVal' => 'ReadWrite'
@@ -760,7 +765,8 @@ sub _split_multivar_decls {
                         };
                         $rinfo{'ParsedParDecl'}{'Pars'} = {
                         'Var' => $var,
-                        'Val' => $val
+                        'Val' => $val,
+                        'Ann' => [annotate($f, __LINE__. ' : ParamDecl') ]  
                         };
                         $rinfo{'ParsedParDecl'}{'TypeTup'} = {
                             'Type' => $orig_decl->{'Type'}

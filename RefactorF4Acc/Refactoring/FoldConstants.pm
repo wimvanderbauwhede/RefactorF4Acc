@@ -103,7 +103,7 @@ sub fold_constants {
 
 			}
             if (exists $info->{'ParamDecl'} ) {
-                # carp Dumper $info->{'ParsedParDecl'} ;
+                carp Dumper $info->{'ParsedParDecl'} ;
                 my $var_name = $info->{'ParsedParDecl'}{'Pars'}{'Var'};
                 # croak $f,Dumper $info if $f eq 'sub1' and $var_name eq 'p1';
                 my $val_expr_str = $info->{'ParsedParDecl'}{'Pars'}{'Val'};
@@ -152,7 +152,7 @@ sub fold_constants {
     return ($stref,$new_annlines);
 } # END of fold_constants
 
-# This routine folds constants in declarations and statements but only based on parameters
+# This routine folds constants in declarations and statements but only based on parameters, not on iterators
 sub fold_constants_no_iters {
     my ($stref, $f) = @_;
     my $mod_or_sub = sub_func_incl_mod($f,$stref);
@@ -170,6 +170,7 @@ sub fold_constants_no_iters {
 
                 my $subset = in_nested_set( $Sf, 'Vars', $var_name );
                 my $decl = get_var_record_from_set($Sf->{$subset},$var_name);
+                
                 if (exists $decl->{'ArrayOrScalar'}
                 and $decl->{'ArrayOrScalar'} eq 'Array'
                 ) {
@@ -197,6 +198,22 @@ sub fold_constants_no_iters {
                     ];
                     $info->{'ParsedVarDecl'}{'Attributes'}{'Dim'}=$pv_dims;
                 }
+                if ($decl->{'Type'} eq 'character') {
+                    my $len_expr= $decl->{'Attr'};
+                    $len_expr=~s/len\s*=\s*//;
+                    my $expr_str = $len_expr;
+                    my ($ast,$str_,$error_,$has_funcs_)=parse_expression_no_context($expr_str);
+                    my ($const_ast, $retval_) = replace_consts_in_ast_no_iters($stref, $f, $ast, $info);
+                    my $const_expr_str = emit_expr_from_ast($const_ast);
+
+                    $const_expr_str=~s/\(\//[/g;
+                    $const_expr_str=~s/\/\)/]/g;
+
+                    my $const_len= eval( $const_expr_str );
+                    $info->{'ParsedVarDecl'}{'Attributes'}{'Len'}= "len=$const_len";
+
+                }
+                
 			}
             elsif (exists $info->{'ArgDecl'}) { # This is in case VarDecl is just the Name, FIXME!
                 my $var_name = $info->{'VarDecl'}{'Name'};
@@ -211,10 +228,10 @@ sub fold_constants_no_iters {
                 if (ref($info->{'ParamDecl'}{'Name'}) eq 'ARRAY') {
                     $val_expr_str = $info->{'ParamDecl'}{'Name'}[1];
                 }
-                # carp Dumper $info;
-                my $evaled_val = eval_expression_with_parameters($val_expr_str,$info, $stref, $f) ;
-                # croak "$f LINE $line => $evaled_val" if $line=~/cn4s/;
-                $info->{'ParsedParDecl'}{'Pars'}{'Val'} = $evaled_val;
+                if ($val_expr_str=~/^[a-z]/i) {
+                    my $evaled_val = eval_expression_with_parameters($val_expr_str,$info, $stref, $f) ;
+                    $info->{'ParsedParDecl'}{'Pars'}{'Val'} = $evaled_val;
+                }
 			}
 			if (exists $info->{'Assignment'} ) {
                 # We need the AST for LHS and RHS
