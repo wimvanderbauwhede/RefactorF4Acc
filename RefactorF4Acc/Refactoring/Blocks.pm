@@ -787,6 +787,7 @@ sub __replace_blocks_by_calls_to_new_subs { my ($Sf,$f,$Sblock,$block_rec,$sig,$
             my $info = $srcref->[$tindex][1];
             $info->{'SubroutineCall'} = { %{$sigrec} };
             $info->{'SubroutineCall'}{'ExpressionAST'} = [];
+            # croak;
             $info->{'SubroutineCall'}{'Args'}=dclone($sigrec->{'Args'});
             $info->{'LineID'} = $Sblock->{'Callers'}{$f}[0];
             $info->{'ExtractedSubroutine'}=1;

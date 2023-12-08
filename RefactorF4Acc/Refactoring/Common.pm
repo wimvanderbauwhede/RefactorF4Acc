@@ -699,7 +699,7 @@ sub _create_refactored_subroutine_call { # 321 lines
 	) { # If we have this, surely we can just use them?
 
 		my $args_ref = $stref->{'Subroutines'}{$name}{'RefactoredArgs'}{'List'};
-		$info->{'SubroutineCall'}{'Args'}{'List'} = $args_ref;
+		$info->{'SubroutineCall'}{'Args'}{'List'} = $args_ref; 
 		# croak Dumper($args_ref);
  	if (scalar @{ $args_ref } > 0 ) {
 		 say "INFO: Using 'RefactoredArgs' as call args for call to $name in $f" if $I;

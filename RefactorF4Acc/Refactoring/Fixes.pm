@@ -1190,8 +1190,8 @@ if (not exists $Config{'FIXES'}{'_declare_undeclared_variables'}) { return $stre
 		next if $expr_var=~/^\.\w+\./; # skip bools
 
 		if (not exists $state->{'DeclaredVars'}{$expr_var} ) {
-			# FIXME: this variable could be declared through Use or at module level!	
-			if (not __has_module_level_declaration($stref,$f,$expr_var)) {			
+			# FIXME: this variable could be declared through Use or at module level!
+			if (not __has_module_level_declaration($stref,$f,$expr_var)) {
 				$state->{'UndeclaredVars'}{$expr_var}='real'; # the default
 			}
 		}
@@ -1620,9 +1620,9 @@ sub remove_redundant_arguments_and_fix_intents { (my $stref, my $f)=@_;
 		# FIXME: this removes the following:
 		#  intent(in) :: state_ptr
 		# state = state_ptr
-		# select case (state) 
+		# select case (state)
 		# The problem is simply that this does not check if the arg is used in $f
-		# We need to do the check 
+		# We need to do the check
 		my $inout_args_to_change_to_out={};
 		my $in_args_to_keep={};
 		for my $in_arg (@in_args) {

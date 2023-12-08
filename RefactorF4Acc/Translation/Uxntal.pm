@@ -178,9 +178,10 @@ Instead of the nice but cumbersome approach we had until now, from now on it is 
 				$state->{'Pointers'}{$var}='';
 				$state->{'Parameters'}{$var}=1;
 		}
-		elsif (exists $info->{'SubroutineCall'} ) {
-			# croak Dumper $info;
+		# FIXME: this is because of the presence of an empty $info->{'SubroutineCall'} record.
+		elsif (exists $info->{'SubroutineCall'} and exists $info->{'SubroutineCall'}{'Name'}) {
 			my $fname =  $info->{'SubroutineCall'}{'Name'};
+			# croak $line.';'.Dumper( $info) unless defined $fname;
 			if (not exists $F95_intrinsic_functions{$fname} ) {
 				for my $arg_expr_str (@{$info->{'SubroutineCall'}{'Args'}{'List'}}) {
 					# say "<$fname $arg_expr_str>";
@@ -225,7 +226,7 @@ Instead of the nice but cumbersome approach we had until now, from now on it is 
 # --------------------------------------------------------------------------------------------
 	my $pass_translate_to_Uxntal = sub { (my $annline, my $state)=@_;
 		(my $line,my $info)=@{$annline};
-		say "LINE:<$line> ";#.Dumper($info);
+		say "$f LINE:<$line> ";#.Dumper($info);
 		my $c_line=$line;
 		(my $stref, my $f, my $pass_state)=@{$state};
         my $id = $info->{'LineID'};
@@ -318,7 +319,7 @@ Instead of the nice but cumbersome approach we had until now, from now on it is 
 			if (exists $info->{'PrintCall'}) {
 				$c_line = _emit_expression_Uxntal($info->{'IOCall'}{'Args'}{'AST'},$stref, $f, $info);
 			} else {
-				croak 'TODO: IOCall '.Dumper $info->{'IOCall'}{'Args'}{'AST'};
+				say 'TODO: IOCall '.Dumper( $info->{'IOCall'}{'Args'}{'AST'})."\nIOList ".Dumper($info->{'IOList'}{'AST'});
 			}
 		}
 		elsif (exists $info->{'If'} and not exists $info->{'IfThen'} ) {
@@ -596,6 +597,7 @@ sub _emit_var_decl_Uxntal { (my $stref,my $f,my $info,my $var)=@_;
 		# 	$val = '[]' . $val;
 		# }
 	} else {
+		# FIXME: Dim can still contain named constants
 		my $dim= $array  ? __C_array_size($decl->{'Dim'}) : 1;
 		my $ftype = $decl->{'Type'};
 		my $fkind = $decl->{'Attr'};
