@@ -38,7 +38,7 @@ sub parse_F95_var_decl {
 
 	print 'MATCHES:'.Dumper($matches),"\n"  if $VV;
 #    die unless @{$matches};
-#carp Dumper($matches);
+# carp Dumper($matches);
 	my $pt = getParseTree($matches);
 	print 'PARSE TREE:'.Dumper($pt),"\n" if $VV;
     # carp $str .' => <'.Dumper($pt).'>';
@@ -88,16 +88,25 @@ sub parse_F95_var_decl {
         }
     }
 
-	my $varlist = $pt->{Vars} ;
+	my $varlist = $pt->{'Vars'} ;
 	if (ref($varlist) ne 'ARRAY') {
 		$pt->{Vars} = [$varlist];
 	}
 
-    my $parlist = $pt->{'Pars'};#->[0]; #HACK
-#    say Dumper($parlist);
-    my $lhs =$parlist->{Lhs};
-    my $rhs =$parlist->{Rhs};
-     	$pt->{'Pars'} = {Var => $lhs, Val => $rhs};
+    my $parlist = $pt->{'Pars'};
+   if (ref($parlist) eq 'HASH') {
+		my $lhs =$parlist->{Lhs};
+		my $rhs =$parlist->{Rhs};
+		$pt->{'Pars'} = {'Var' => $lhs, 'Val' => $rhs};
+   } elsif (ref($parlist) eq 'ARRAY') {
+		# We change Pars to ParPairs, and that should then be taken apart in Preconditioning
+		for my $par_entry (@{$parlist}) {
+			my $lhs =$par_entry->{Lhs};
+			my $rhs =$par_entry->{Rhs};
+			push @{$pt->{'ParPairs'}} , {'Var' => $lhs, 'Val' => $rhs};
+		}
+		delete $pt->{'Pars'};
+   }
 #	if (ref($parlist) ne 'ARRAY') {
 #		$pt->{'Pars'} = [$parlist];
 #	}
@@ -105,18 +114,38 @@ sub parse_F95_var_decl {
 		$pt->{AccPragma} = {AccKeyword => 'ArgMode', AccVal => 'ReadWrite'}
 	}
 
-	if (exists  $pt->{VarsDims} && exists  $pt->{VarsDims}{'Dim'} ) {
-		if (ref($pt->{VarsDims}{'Dim'}) eq 'ARRAY' and  @{  $pt->{VarsDims}{'Dim'} } > 0 ) {
-
-			my @dims = map { [  map { ':' } @{ $_->{'Sep'} }] } @{$pt->{VarsDims}{Dim}};
-			$pt->{Attributes}{Dim}=\@dims;
-			$pt->{'Vars'}= $pt->{VarsDims}{Var};
-			delete  $pt->{VarsDims} ;
-		} else {
-			my @dims = ( [  map { ':' } @{ $pt->{VarsDims}{Dim}{Sep} } ] );
-			$pt->{Attributes}{Dim}=\@dims;
-			$pt->{'Vars'}= [$pt->{VarsDims}{Var}];
-			delete  $pt->{VarsDims} ;
+	if (exists  $pt->{VarsDims} ) {
+		if ( ref($pt->{VarsDims}) eq 'HASH' and exists $pt->{VarsDims}{'Dim'} ) {
+			if (ref($pt->{VarsDims}{'Dim'}) eq 'ARRAY' and  @{  $pt->{VarsDims}{'Dim'} } > 0 ) {
+				croak 'SHOULD BE OBSOLETE';
+				my @dims = map { [  map { ':' } @{ $_->{'Sep'} }] } @{$pt->{VarsDims}{Dim}};
+				$pt->{Attributes}{Dim}=\@dims;
+				$pt->{'Vars'}= $pt->{VarsDims}{Var};
+				delete  $pt->{VarsDims} ;
+			} else {
+				my @dims = ( [  map { ':' } @{ $pt->{VarsDims}{Dim}{Sep} } ] );
+				$pt->{Attributes}{Dim}=\@dims;
+				$pt->{'Vars'}= [$pt->{VarsDims}{Var}];
+				delete  $pt->{VarsDims} ;
+			}
+			
+		} elsif ( ref($pt->{VarsDims}) eq 'ARRAY') {
+			# We change Dim to Dims, and that should then be taken apart in Preconditioning
+			for my $var_dim_entry (@{$pt->{VarsDims}}) {
+				# if (ref($var_dim_entry->{'Dim'}{'Sep'}) eq 'ARRAY' and  @{  $var_dim_entry } > 0 ) {
+				# 	croak 'SHOULD BE OBSOLETE';
+				# 	my @dims = map { [  map { ':' } @{ $_->{'Sep'} }] } @{$pt->{VarsDims}{Dim}};
+				# 	push @{$pt->{Attributes}{Dims}},\@dims;
+				# 	$pt->{'Vars'}= $pt->{VarsDims}{Var};
+				# 	delete  $pt->{VarsDims} ;
+				# } else {
+					my @dims = ( [  map { ':' } @{ $var_dim_entry->{Dim}{Sep} } ] );
+					push @{$pt->{Attributes}{Dims}},\@dims;
+					push @{$pt->{'Vars'}}, $var_dim_entry->{Var};
+					delete  $pt->{VarsDims} ;
+				# }
+			}
+			
 		}
 	}
 
@@ -225,7 +254,27 @@ sub allocatable_parser {
     {'Allocatable' => symbol('allocatable')}
 }
 
+# Problem is that it seems to expect either/or
 sub varlist_parser {
+	sequence( [
+	symbol('::'),
+	sepByChar(',',
+	choice({'Pars' => &param_assignment }
+        #, {'VarsDims' =>sepByChar(',',  choice( regex('^[^,\)\(]+?(?:\([^,\)\(]+\))[^,\(\)]+'), regex('^[^,\)\(]+?(?:\([^,\)\(]+\))'),regex('^[^,\)]+') )   )}
+        , {'VarsDims' => 
+                sequence [
+                    {'Var' => mixedCaseWord},
+                    {'Dim' => parens(
+                            {'Sep' => sepBy(comma, symbol(':')) }
+                    )
+                }
+                ]
+#                choice(  regex('\w+\(:\)') , regex('\w+\(:,:\)'), regex('\w+\(:,:,:\)') )
+            }
+        ,{'Vars' => mixedCaseWord } )
+	 ) ])
+}
+sub varlist_parser_PREV {
 	sequence( [
 	symbol('::'),
 	choice({'Pars' => try(sepBy(comma,&param_assignment)) }

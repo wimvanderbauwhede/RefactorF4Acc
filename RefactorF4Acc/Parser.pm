@@ -3440,10 +3440,10 @@ sub _parse_f77_par_decl {
 	# This implicitly assumes we have (lhs1=rhs1, lhs2=rhs2, ...)
 	# But we can also have (lhs1=(rhs1a, rhs2b), lhs2=(rhs1a, rhs2b)...)
 	# So if we split on commas, we must verify that the chunk has an '=', else we need to glue it back
-	my @parliststr_chunks_to_eager = split(/\s*,\s*/,$parliststr);
+	my @parliststr_chunks_too_eager = split(/\s*,\s*/,$parliststr);
 	my @parliststr_chunks=();
 	my $i=0;
-	for my $parliststr_chunk ( @parliststr_chunks_to_eager ) {
+	for my $parliststr_chunk ( @parliststr_chunks_too_eager ) {
 		if ($parliststr_chunk=~/=/) {
 			push @parliststr_chunks, $parliststr_chunk;
 		} else {
@@ -3460,6 +3460,7 @@ sub _parse_f77_par_decl {
 		push @ast_chunks, $chunk_ast;
 	}
 	my $ast = scalar(@ast_chunks) == 1 ? $ast_chunks[0] : [27,@ast_chunks];
+
 	if ($ast->[0] == 9
 	and $ast->[2][0] == 0
 	and scalar @{$ast->[2][1]} == 3
@@ -3468,8 +3469,8 @@ sub _parse_f77_par_decl {
 	}
 	# This returns be a {($var,{Epxr => $exp, AST=>$ast})} Set + [$var] List
 	my $var_val_pairs = _get_var_val_pairs($ast);
-
 	my @param_names=@{ $var_val_pairs->{'List'} };
+# carp Dumper ($ast,$var_val_pairs) if $line=~/p1/;
 	$info->{'ParamDecl'}{'Names'}=\@param_names;
 	for my $var (@param_names) {
 		my $val = $var_val_pairs->{'Set'}{$var}{'Expr'};
@@ -3618,12 +3619,13 @@ sub _parse_f77_par_decl {
 
 
 		$Sf->{'LocalParameters'}{'Set'}{$var}=$param_decl;
+		
 		if (exists $info->{'ParsedParDecl'}) {
 			if (scalar @param_names==1) {
 				$info->{'ParsedParDecl'}{'Pars'}{'AST'} = $param_decl->{'AST'};
 			} else {
 				if (not exists $info->{'ParsedParDecl'}{'Pars'}{'AST'}) {
-					$info->{'ParsedParDecl'}{'Pars'}{'AST'}[0] = $param_decl->{'AST'};
+					$info->{'ParsedParDecl'}{'Pars'}{'AST'} = [$param_decl->{'AST'}];
 				} else {
 					push @{$info->{'ParsedParDecl'}{'Pars'}{'AST'}}, $param_decl->{'AST'};
 				}

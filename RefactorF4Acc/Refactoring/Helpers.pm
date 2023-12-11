@@ -643,6 +643,9 @@ sub emit_f95_var_decl {
       	$var = $var_decl_rec->{'Name'};
       }
      my $maybe_init_val = exists $var_decl_rec->{'InitialValue'} ? ' = '.$var_decl_rec->{'InitialValue'} : '';
+    #  if ($maybe_init_val) {
+    #     carp Dumper $var_decl_rec;
+    #  }
     my $dimstr = '';
     if ( ref($dim) eq 'ARRAY' and scalar @{$dim}>0) {
         my @dimpairs = map { $_->[0].':'.$_->[1] } @{ $dim };

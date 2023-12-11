@@ -139,7 +139,7 @@ sub add_module_decls {
 
 					say '=' x 80 if $V;
 				}
-				my $old_annlines                          = $stref->{'Modules'}{ $existing_module_name{$src} }{'AnnLines'};
+				my $old_annlines = $stref->{'Modules'}{ $existing_module_name{$src} }{'AnnLines'};
 				if (exists $stref->{'Modules'}{$existing_module_name{$src}}{'ExtractedSubroutine'}) {
 					my $module = $existing_module_name{$src};
 					my $sub = $stref->{'Modules'}{$existing_module_name{$src}}{'ExtractedSubroutine'};
@@ -174,6 +174,7 @@ sub add_module_decls {
 						( my $line, my $info ) = @{$annline};
 
 						if ( exists $info->{'VarDecl'} ) {
+							push @{$info->{'Ann'}} , annotate($existing_module_name{$src}, __LINE__. ' : old_annlines_with_refactored_vardecls');
 							my $ref_vardecl_line = emit_f95_var_decl( get_var_record_from_set( $stref->{'Modules'}{ $existing_module_name{$src} }{'Vars'}, $info->{'VarDecl'}{'Name'} ) );
 							[ $ref_vardecl_line, $info ];
 						} elsif ( exists $info->{'Use'} and $info->{'Use'}{'Inlineable'} == 1 ) {

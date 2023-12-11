@@ -215,6 +215,7 @@ sub refactor_COMMON_blocks_and_CONTAINed_subs {  # 218 lines Was _refactor_globa
 			$first_non_spec_stmt = 0;
 			say "EX-GLOBS for $f" if $V;
 			$info->{'ExGlobVarDeclHook'}='Before';
+			
 			$rlines = [
 				@{_create_extra_arg_and_var_decls( $stref, $f, $annline, $rlines )},
 			['! END new declarations',{'Comments'=>1}],
@@ -395,12 +396,11 @@ sub _create_extra_arg_and_var_decls { #272 lines
 			say "INFO VAR in $f: IODir for $var: " . $Sf->{'ExGlobArgs'}{'Set'}{$var}{'IODir'}
 			  if $I and not $Sf->{'Program'};
 			my $rdecl = dclone($Sf->{'ExGlobArgs'}{'Set'}{$var});
-			if (exists $rdecl->{'InitialValue'} ) { delete $rdecl->{'InitialValue'}}
+			if (not $Sf->{'Program'} and exists $rdecl->{'InitialValue'} ) { delete $rdecl->{'InitialValue'}}
 			(my $inherited_param_decls, $Sf) = __generate_inherited_param_decls($rdecl, $var, $stref, $f,[]);
             # carp "VAR $var in $f";
 			#  map { say 'INHERITED DECL:'. $_->[0] } @{$inherited_param_decls};
 			my $rline = emit_f95_var_decl($rdecl);
-			$rline .= ' ! HERE';
 			# croak $f.Dumper($rdecl).$rline if not $Sf->{'Program'};# if $var eq 'bx4d' and $f eq 'fm500';
 			# carp $rline if $var eq 'w4' and $f eq 'mult_chk';
 			my $info  = {};
@@ -431,63 +431,62 @@ sub _create_extra_arg_and_var_decls { #272 lines
 	}    # for
 
 	print "INFO: UndeclaredOrigArgs in $f\n" if $I;
-
 	my %unique_ex_impl = ();
 	if (scalar keys %{ $Sf->{'UndeclaredOrigArgs'}{'Set'} } > 0) {
 		my $_arg_idx=0;
-	for my $var ( @{ $Sf->{'UndeclaredOrigArgs'}{'List'} } ) {
+		for my $var ( @{ $Sf->{'UndeclaredOrigArgs'}{'List'} } ) {
 
-		if (not defined $var) {
-			# carp "Undefined arg in position $_arg_idx in UndeclaredOrigArgs for $f";
-			# croak Dumper $Sf->{'UndeclaredOrigArgs'}{'List'}, $Sf->{'DeclaredOrigArgs'}{'List'} ;
-			my $mvar =  $Sf->{'DeclaredOrigArgs'}{'List'}[$_arg_idx];
-			if (exists $Sf->{'DeclaredOrigArgs'}{'Set'}{$mvar} ) {
-				$var = $mvar;
-			} else {
-				$var = '';
+			if (not defined $var) {
+				# carp "Undefined arg in position $_arg_idx in UndeclaredOrigArgs for $f";
+				# croak Dumper $Sf->{'UndeclaredOrigArgs'}{'List'}, $Sf->{'DeclaredOrigArgs'}{'List'} ;
+				my $mvar =  $Sf->{'DeclaredOrigArgs'}{'List'}[$_arg_idx];
+				if (exists $Sf->{'DeclaredOrigArgs'}{'Set'}{$mvar} ) {
+					$var = $mvar;
+				} else {
+					$var = '';
+				}
 			}
-		}
-		if (    not exists $Sf->{'UsedGlobalVars'}{'Set'}{$var}
-			and not exists $Sf->{'CalledSubs'}{'Set'}{$var} )
-		{
-			say "INFO VAR: $var" if $I;
-			next if $var eq '*';
-			if (    exists $Sf->{'CalledSubs'}
-				and exists $Sf->{'CalledSubs'}{$var}
-				and not exists $Sf->{'UndeclaredOrigArgs'}{'Set'}{$var} )
+			if (    not exists $Sf->{'UsedGlobalVars'}{'Set'}{$var}
+				and not exists $Sf->{'CalledSubs'}{'Set'}{$var} )
 			{
-				next;
-			}
-			if ( exists $stref->{'ExternalSubroutines'}{$var}
-				and not exists $Sf->{'UndeclaredOrigArgs'}{'Set'}{$var} )
-			{
-				next;
-			}
-			if ( not exists $unique_ex_impl{$var} ) {
-				$unique_ex_impl{$var} = $var;
-				if (exists $Sf->{'UndeclaredOrigArgs'}{'Set'}{$var}) {
-					my $rdecl = $Sf->{'UndeclaredOrigArgs'}{'Set'}{$var};
+				say "INFO VAR: $var" if $I;
+				next if $var eq '*';
+				if (    exists $Sf->{'CalledSubs'}
+					and exists $Sf->{'CalledSubs'}{$var}
+					and not exists $Sf->{'UndeclaredOrigArgs'}{'Set'}{$var} )
+				{
+					next;
+				}
+				if ( exists $stref->{'ExternalSubroutines'}{$var}
+					and not exists $Sf->{'UndeclaredOrigArgs'}{'Set'}{$var} )
+				{
+					next;
+				}
+				if ( not exists $unique_ex_impl{$var} ) {
+					$unique_ex_impl{$var} = $var;
+					if (exists $Sf->{'UndeclaredOrigArgs'}{'Set'}{$var}) {
+						my $rdecl = $Sf->{'UndeclaredOrigArgs'}{'Set'}{$var};
 
-					my $external   = exists $rdecl->{'External'};
-					my $undeclared = exists $Sf->{'UndeclaredOrigArgs'}{'Set'}{$var};
-					if ( not $external
-						or ( $external and $undeclared ) )
-					{
-						my $rline = emit_f95_var_decl($rdecl);
-						my $info  = {};
-						$info->{'Ann'} = [ annotate( $f, __LINE__ . ' : EX-IMPLICIT'  ) ];
-						$info->{'LineID'}  = $nextLineID++;
-						$info->{'Ref'}     = 1;
-						$info->{'VarDecl'} = { 'Name' => $var };
-						$info->{'ArgDecl'} = 1;
-						$info->{'SpecificationStatement'} = 1;
-						push @{$rlines}, [ $rline, $info ];
+						my $external   = exists $rdecl->{'External'};
+						my $undeclared = exists $Sf->{'UndeclaredOrigArgs'}{'Set'}{$var};
+						if ( not $external
+							or ( $external and $undeclared ) )
+						{
+							my $rline = emit_f95_var_decl($rdecl);
+							my $info  = {};
+							$info->{'Ann'} = [ annotate( $f, __LINE__ . ' : EX-IMPLICIT'  ) ];
+							$info->{'LineID'}  = $nextLineID++;
+							$info->{'Ref'}     = 1;
+							$info->{'VarDecl'} = { 'Name' => $var };
+							$info->{'ArgDecl'} = 1;
+							$info->{'SpecificationStatement'} = 1;
+							push @{$rlines}, [ $rline, $info ];
+						}
 					}
 				}
 			}
-		}
-		++$_arg_idx;
-	}    # for
+			++$_arg_idx;
+		}    # for
 	} # if Set is not empty, to avoid iterating over a list full of undefs
 	print "INFO: ExInclLocalVars in $f\n" if $I;
 	for my $var ( @{ $Sf->{'ExInclLocalVars'}{'List'} } ) {
@@ -501,7 +500,7 @@ sub _create_extra_arg_and_var_decls { #272 lines
 		$info->{'VarDecl'} = { 'Name' => $var };                                #$rdecl;
 		$info->{'SpecificationStatement'} = 1;
 		push @{$rlines}, [ $rline, $info ];
-	}    # for
+	} # for
 
 	print "INFO: UndeclaredOrigLocalVars in $f\n" if $I;
 	for my $var ( @{ $Sf->{'UndeclaredOrigLocalVars'}{'List'} } ) {

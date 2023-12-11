@@ -917,6 +917,20 @@ sub __add_to_map {
 }
 
 # list to map
+# [..., {
+#     'Pars' => [
+#       {
+#         'Lhs' => 'test_var'
+#       },
+#       '\\=',
+#       {
+#         'Rhs' => '43'
+#       }
+#     ]
+#   }
+# ]
+
+
 # This is a map with a list of matches for every tag, so if the tags are not unique the matches are grouped.
 sub _l2m {
 	( my $hlist, my $hmap ) = @_;
@@ -935,11 +949,10 @@ sub _l2m {
 			for my $elt ( @{$hlist} ) {
 				#	- if what it contains is a single-elt hash,
 				if ( ref($elt) eq 'HASH' ) {
-					if ( scalar keys %{$elt} == 1 ) {
-	
-			 #first check the value: if it is also an array, call the function on it
+					if ( scalar keys %{$elt} == 1 ) {	 
+			 			#first check the value: if it is also an array, call the function on it
 						( my $k, my $v ) = each( %{$elt} );
-	
+						# carp $k, Dumper $v;
 						if ( ref($v) eq 'ARRAY' ) { 
 							my $mv = _l2m( $v, {} );
 							#add it to a new hash
@@ -961,9 +974,11 @@ sub _l2m {
 					for my $k ( keys %{$mv} ) {
 						$hmap=__add_to_map( $hmap, $k, $mv->{$k} );
 					}
-				} else {
-					return $elt;
-				}
+				} 
+				# else {
+				# 	$hmap=__add_to_map( $hmap, '_', $elt );
+				#  	# return $elt;
+				# }
 			}
 		}
 	} elsif ( ref($hlist) eq 'HASH' ) {

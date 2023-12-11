@@ -1009,8 +1009,10 @@ sub _update_argument_io_direction {
                 }
                 # Add INTENT to the generated declaration. I think we should do this elsewhere!
                 # $info->{'Intent'} = $decl->{'IODir'};
-                
-                my $rline = emit_f95_var_decl($decl);
+			    my $rdecl = dclone($decl);
+			    if (not $Sf->{'Program'} and exists $rdecl->{'InitialValue'} ) { delete $rdecl->{'InitialValue'}}
+
+                my $rline = emit_f95_var_decl($rdecl);
                 
                 # WV 2021-06-11 ad hoc, because I use it in the inliner
                 $info->{'ParsedVarDecl'}{'Attributes'}{'Intent'} = $decl->{'IODir'};

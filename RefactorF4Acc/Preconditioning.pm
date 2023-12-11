@@ -638,18 +638,17 @@ sub _split_multivar_decls {
         my $new_annlines = [];
         for my $annline (@{$annlines}) {
             (my $line, my $info) = @{$annline};
-
+            
             if (    exists $info->{'VarDecl'}
                 and exists $info->{'VarDecl'}{'Names'})
             {
                 my @nvars = @{$info->{'VarDecl'}{'Names'}};
                 push @{$info->{'Ann'}}, annotate($f, __LINE__);
-                for my $var (@{$info->{'VarDecl'}{'Names'}}) {
 
+                for my $var (@{$info->{'VarDecl'}{'Names'}}) {
                     my $rinfo_c = dclone($info);
                     $rinfo_c->{'StmtCount'} = {};
                     $rinfo_c->{'StmtCount'}{$var} = $info->{'StmtCount'}{$var};
-
                     my %rinfo = %{$rinfo_c};
                     
                     if (exists $rinfo{'ArgDecl'}) {
@@ -692,32 +691,34 @@ sub _split_multivar_decls {
                     my $rline = $line;
                     $Sf->{$subset}{'Set'}{$var}{'Name'} = $var;
                     if (scalar @{$info->{'VarDecl'}{'Names'}} > 1) {
+                        # What we do here is take the list of vars and only keep the var
+                        # We can's just split on ","
+                        
                         for my $nvar (@nvars) {
-                            
                             if ($nvar ne $var) {
-
                                 # FIXME: This should use \b not \W !!!
-                                if ($rline =~ /\s*,\s*$nvar\([^\(]+\)\W?/) {
+                                if ($rline =~ /\s*,\s*$nvar\([^\(]+\)\W?/) { # e.g. ,v(4)
                                     $rline =~ s/\s*,\s*$nvar\([^\(]+\)(\W?)/$1/;
                                 }
-                                elsif ($rline =~ /(\W)$nvar\([^\(]+\)\s*,\s*/) {
+                                elsif ($rline =~ /(\W)$nvar\([^\(]+\)\s*,\s*/) { # e.g. v(4), 
                                     $rline =~ s/(\W)$nvar\([^\(]+\)\s*,\s*/$1/;
                                 }
-                                elsif ($rline =~ /\s*,\s*$nvar\*\d+\W?/) {
+                                elsif ($rline =~ /\s*,\s*$nvar\*\d+\W?/) { # e.g. ,v*4
                                     $rline =~ s/\s*,\s*$nvar\*\d+(\W?)/$1/;
                                 }
-                                elsif ($rline =~ /(\W)$nvar\*\d+\s*,\s*/) {
+                                elsif ($rline =~ /(\W)$nvar\*\d+\s*,\s*/) { # e.g. v*4,
                                     $rline =~ s/(\W)$nvar\*\d+\s*,\s*/$1/;
                                 }
-                                elsif ($rline =~ /\W$nvar\s*,\s*/) {
+                                elsif ($rline =~ /\W$nvar\s*,\s*/) { # e.g. v,
                                     $rline =~ s/(\W)$nvar\s*,\s*/$1/;
                                 }
-                                elsif ($rline =~ /\s*,\s*$nvar\W?/) {
+                                elsif ($rline =~ /\s*,\s*$nvar\W?/) { # e.g. ,v
                                     $rline =~ s/\s*,\s*$nvar(\W?)/$1/;
                                 }
                             }
                         }
-                    }                    
+                    }          
+                    carp "VARS: $rline",Dumper $info;          
                     push @{$new_annlines}, [$rline, {%rinfo}];
                 }    # for each $var
                 
@@ -792,6 +793,7 @@ sub _split_multivar_decls {
                     # die if $f eq 'sub0' and $var eq 'sz';
                     # say "PLINE $line" if $f=~/test_loop/;
                     # say Dumper %rinfo;
+                    carp "PARAMS: $line",Dumper $info;
                     push @{$new_annlines}, [$line, {%rinfo}];
                 }
             }
