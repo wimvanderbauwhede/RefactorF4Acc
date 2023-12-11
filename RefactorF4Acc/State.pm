@@ -158,7 +158,10 @@ sub initialise_per_code_unit_tables {
 		# Var decls via a 'use' declaration
 		$Sf->{'UsedLocalVars'} = { 'Set' => {}, 'List' => [] };
 		$Sf->{'UsedGlobalVars'} = { 'Set' => {}, 'List' => [] };
-
+		$Sf->{'VarsFromContainer'} = {
+				'Set' => {},
+				'List' => []
+		};
 		# This is only for testing which vars are commons, nothing else.
 		$Sf->{'Commons'} = {};
 

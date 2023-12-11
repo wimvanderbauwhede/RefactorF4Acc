@@ -160,6 +160,7 @@ sub fold_constants_no_iters {
 
     my $pass_fold_constants = sub { (my $annline)=@_;
         (my $line,my $info)=@{$annline};
+        say "$f FOLD CONSTS ON LINE <$line>";
         # From $info, find the lines that contain expressions that might have constants to fold.
         # These would the same types of lines as in identify_array_accesses_in_exprs()
             if (exists $info->{'VarDecl'} and not exists $info->{'ParamDecl'}
@@ -170,7 +171,7 @@ sub fold_constants_no_iters {
 
                 my $subset = in_nested_set( $Sf, 'Vars', $var_name );
                 my $decl = get_var_record_from_set($Sf->{$subset},$var_name);
-                
+
                 if (exists $decl->{'ArrayOrScalar'}
                 and $decl->{'ArrayOrScalar'} eq 'Array'
                 ) {
@@ -186,7 +187,7 @@ sub fold_constants_no_iters {
 
                     my $const_dims= eval( $const_expr_str );
 
-# say "FOLDING $var_name in $f: $expr_str => $const_expr_str => ".Dumper($const_dims);
+# croak "FOLDING $var_name in $f: $expr_str => $const_expr_str => ".Dumper($const_dims);
                     croak $const_expr_str if not defined $const_dims;
                     $decl->{'ConstDim'} = $const_dims;
                     $Sf->{$subset}{$var_name}{'Set'}=$decl;
@@ -211,9 +212,7 @@ sub fold_constants_no_iters {
 
                     my $const_len= eval( $const_expr_str );
                     $info->{'ParsedVarDecl'}{'Attributes'}{'Len'}= "len=$const_len";
-
                 }
-                
 			}
             elsif (exists $info->{'ArgDecl'}) { # This is in case VarDecl is just the Name, FIXME!
                 my $var_name = $info->{'VarDecl'}{'Name'};

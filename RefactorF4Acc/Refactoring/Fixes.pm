@@ -1281,7 +1281,7 @@ sub __has_module_level_declaration { my ($stref,$f,$var)=@_;
 		my $mod_name = $stref->{'Subroutines'}{$f}{'InModule'};
 		# check module-level Var/Par declarations
 		my $nested_set = in_nested_set($stref->{'Modules'}{$mod_name}, 'Vars', $var);
-		if ($nested_set) {
+		if ($nested_set and $nested_set!~/Undeclared/) {
 			return ($mod_name,$nested_set);
 		} else {
 			# also check module-level Use declarations, recursively.
@@ -1299,7 +1299,7 @@ sub __check_for_decl_in_used_modules { my ($stref,$f,$current_mod_name,$var) = @
 	# if the decl is in the current module, return
 	# else go through the list of used modules
 	my $nested_set = in_nested_set($stref->{'Modules'}{$current_mod_name}, 'Vars', $var);
-	if ($nested_set) {
+	if ($nested_set and $nested_set!~/Undeclared/) {
 		return ($current_mod_name,$nested_set);
 	} elsif ( exists $stref->{'Modules'}{$current_mod_name}{'Uses'} ) {
 		# $Sf->{'Uses'}{$name} = $only_list;

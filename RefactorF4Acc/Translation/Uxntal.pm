@@ -35,7 +35,7 @@ use Exporter;
 
 @RefactorF4Acc::Translation::Uxntal::EXPORT_OK = qw(
     &add_to_C_build_sources
-    &translate_module_to_Uxntal
+    &translate_program_to_Uxntal
 	&translate_sub_to_Uxntal
 );
 
@@ -53,12 +53,19 @@ our @sigils = ('(', '&', '$', 'ADD', 'SUB', 'MUL', 'DIV', 'mod', 'pow', '=', '@'
               );
 
 
-# $ocl: 0 = C, 1 = CPU/GPU OpenCL, 2 = C for TyTraIR aka TyTraC, 3 = pipe-based OpenCL for FPGAs
-# 4 = translate_to_TyTraLlvmIR, 5 = translate_to_OpenCL_memory_reduction
-sub translate_module_to_Uxntal {  (my $stref, my $module_name) = @_;
+# WV2023-12-08 I think this has to be done fundamentally differently.
+# Maybe I should  fold_constants_no_iters on all modules and the main program first.
 
-	($stref,my $new_annlines) = fold_constants_no_iters($stref,$module_name);
-	# $stref = emit_AnnLines( $stref,$module_name,$new_annlines);
+sub translate_program_to_Uxntal {  (my $stref, my $program_name) = @_;
+# die $program_name;
+# croak Dumper( keys(%{$stref->{'Modules'}}),$stref->{'Program'},$stref->{'SourceContains'}{$stref->{'Program'}}{'List'});
+	($stref,my $new_annlines) = fold_constants_no_iters($stref,$program_name);
+	$stref->{'Subroutines'}{$program_name}{'RefactoredCode'} = $new_annlines;
+	for my $module_name (sort keys %{$stref->{'Modules'}} ) {
+		($stref,my $new_annlines) = fold_constants_no_iters($stref,$module_name);
+		$stref->{'Modules'}{$module_name}{'RefactoredCode'} = $new_annlines;
+	}
+	# $stref = emit_AnnLines( $stref,$program_name,$new_annlines);
 	# croak Dumper pp_annlines($stref->{'RefactoredCode'});
 	# croak Dumper pp_annlines($new_annlines,1);
 	$stref->{'TranslatedCode'}=[];
@@ -66,7 +73,7 @@ sub translate_module_to_Uxntal {  (my $stref, my $module_name) = @_;
 	_declare_undeclared_variables => 1,
 	# _remove_unused_variables => 1
 	};
-	$stref = pass_wrapper_subs_in_module($stref,$module_name,
+	$stref = pass_wrapper_subs_in_module($stref,$program_name,
 	   # module-specific passes.
        [
 		[\&translate_module_decls_to_Uxntal]
@@ -85,12 +92,12 @@ sub translate_module_to_Uxntal {  (my $stref, my $module_name) = @_;
        );
 
 	# $stref = _write_headers($stref,$ocl);
-	$stref = _emit_Uxntal_code($stref, $module_name);
+	$stref = _emit_Uxntal_code($stref, $program_name);
 	# This enables the postprocessing for custom passes
 	$stref->{'CustomPassPostProcessing'}=1;
     # This makes sure that no fortran is emitted by emit_all()
     $stref->{'SourceContains'}={};
-} # END of translate_module_to_Uxntal
+} # END of translate_program_to_Uxntal
 
 # TODO: This should include handling of 'use' declarations.
 # Unfortunately for those we will need to split the module level declarations from the subroutines.
@@ -581,7 +588,6 @@ sub _emit_var_decl_Uxntal { (my $stref,my $f,my $info,my $var)=@_;
 		elsif (exists $decl->{'AST'}) {
 			my $ast = $decl->{'AST'};
 			$val_str = _emit_expression_Uxntal($ast,$stref, $f, $info);
-			
 		} else {
 			croak "ParsedParDecl without AST, FIXME!";
 		}
@@ -598,6 +604,8 @@ sub _emit_var_decl_Uxntal { (my $stref,my $f,my $info,my $var)=@_;
 		# }
 	} else {
 		# FIXME: Dim can still contain named constants
+		# croak "$f ". Dumper( $decl). Dumper($stref->{$sub_or_module}{$f}{'Vars'}) if $decl->{'Name'}=~/funktalTokens/i;
+		croak "$f ". Dumper( $decl).Dumper($stref->{$sub_or_module}{$f}{'Vars'}) if $decl->{'Type'} eq 'real';
 		my $dim= $array  ? __C_array_size($decl->{'Dim'}) : 1;
 		my $ftype = $decl->{'Type'};
 		my $fkind = $decl->{'Attr'};
@@ -897,6 +905,7 @@ sub _emit_expression_Uxntal { my ($ast, $stref, $f, $info)=@_;
 						# If the variable in question is 'Out' or 'InOut' we should use the pointer
 
 					}
+
 					if ( in_nested_set($Sf,'Parameters',$exp)) {
 						# What is lacking here is a check in the container.
 						# That would be
@@ -904,7 +913,7 @@ sub _emit_expression_Uxntal { my ($ast, $stref, $f, $info)=@_;
 					}
 					elsif ( __has_module_level_declaration($stref,$f,$exp) ) {
 
-						croak Dumper __has_module_level_declaration($stref,$f,$exp);
+						croak $f.'_'.$exp.';'.Dumper( __has_module_level_declaration($stref,$f,$exp));
 					} else {
 						if ($ptr eq '') {
 							# return $exp;
@@ -1293,7 +1302,7 @@ sub add_to_C_build_sources {
 } # END of add_to_C_build_sources()
 
 sub __C_array_size { (my $dims) = @_;
-carp Dumper $dims;
+# carp Dumper $dims;
 	my $array_size=1;
 	for my $dim (@{$dims}) {
 		my $lb=$dim->[0];

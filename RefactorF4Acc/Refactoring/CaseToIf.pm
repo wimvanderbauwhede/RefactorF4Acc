@@ -52,7 +52,7 @@ sub replace_case_by_if { my ( $stref, $f, $annlines ) = @_;
 	# my $Sf = $stref->{'Subroutines'}{$f};
 	# $Sf->{'RefactoredCode'}=$annlines;
 
-	my $pass_replace_case_by_if= sub { (my $annline, my $state)=@_; 
+	my $pass_replace_case_by_if= sub { (my $annline, my $state)=@_;
 		(my $line,my $info)=@{$annline};
 		# say "LINE:<$line>";
 		my $c_line=$line;
@@ -60,14 +60,13 @@ sub replace_case_by_if { my ( $stref, $f, $annlines ) = @_;
         my $id = $info->{'LineId'};
 		# my $skip=0;
 		if (exists $info->{'CaseVar'}) {
-			push @{$pass_state->{'CaseStack'}}, dclone($info->{'CaseVar'}); 
+			push @{$pass_state->{'CaseStack'}}, dclone($info->{'CaseVar'});
 			delete $info->{'CaseVar'};
 			delete $info->{'Select'};
 			$info->{'Deleted'}=1;
 			# $skip=1;
 		}
 		elsif (exists $info->{'Case'}) {
-			
 			if ($pass_state->{'CaseElseIf'}) {
 				$info->{'ElseIf'} = 1;
 			} else {
@@ -75,10 +74,10 @@ sub replace_case_by_if { my ( $stref, $f, $annlines ) = @_;
 			}
 			$info->{'If'} = 1;
 			$info->{'IfThen'} = 1;
-			
+
 			delete $info->{'Case'};
 			my $select_expr_ast = $pass_state->{'CaseStack'}[-1];
-			
+
 			# The comma-separated expressions:
 			# Turn into ( $expr == $v )
 			# The nested pairs are b,e => (b <= v) and  (v <= e)
@@ -86,17 +85,17 @@ sub replace_case_by_if { my ( $stref, $f, $annlines ) = @_;
 			if (ref($case_expr_lst) ne 'ARRAY') {
 				$case_expr_lst = [$case_expr_lst];
 			}
-			$info->{'Cond'}{'AST'} =  __replace_seq_by_ors($select_expr_ast,$case_expr_lst);			
+			$info->{'Cond'}{'AST'} =  __replace_seq_by_ors($select_expr_ast,$case_expr_lst);
 			$info->{'Cond'}{'Expr'}  = emit_expr_from_ast($info->{'Cond'}{'AST'});
 			$info->{'CondVars'}{'Set'} = get_vars_from_expression($info->{'Cond'}{'AST'});
 			$info->{'CondVars'}{'List'} = [sort keys %{$info->{'CondVars'}{'Set'}}];
 			delete $info->{'CaseVals'};
 		}
-		elsif (exists $info->{'CaseDefault'}) { 
+		elsif (exists $info->{'CaseDefault'}) {
 			$info->{'Else'}=1;
 			delete $info->{'CaseDefault'};
 		}
-		elsif (exists $info->{'EndSelect'} ) { 
+		elsif (exists $info->{'EndSelect'} ) {
 			$info->{'EndIf'} = 1;
 			delete $info->{'EndSelect'};
 			$info->{'End'} = 'if';
@@ -106,7 +105,7 @@ sub replace_case_by_if { my ( $stref, $f, $annlines ) = @_;
 		return ([$annline],[$stref,$f,$pass_state]);
 	};
 
-	my $state = [$stref,$f, 
+	my $state = [$stref,$f,
 	# pass state
 	{
 		'CaseStack'=>[],'CaseElseIf' =>0
@@ -140,8 +139,8 @@ sub __replace_seq_by_ors { my ($x,$seq) = @_;
 } # END of __replace_range_by_inequalities
 
 sub __build_or_seq_rec { my @item_asts = @_;
-	if (scalar @item_asts == 1) { 
-		return $item_asts[0]} 
+	if (scalar @item_asts == 1) {
+		return $item_asts[0]}
 	elsif (scalar @item_asts == 2) {
 		return [23,@item_asts];
 	} else {

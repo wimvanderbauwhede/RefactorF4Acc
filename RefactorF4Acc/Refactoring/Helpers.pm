@@ -642,7 +642,7 @@ sub emit_f95_var_decl {
       } else {
       	$var = $var_decl_rec->{'Name'};
       }
-
+     my $maybe_init_val = exists $var_decl_rec->{'InitialValue'} ? ' = '.$var_decl_rec->{'InitialValue'} : '';
     my $dimstr = '';
     if ( ref($dim) eq 'ARRAY' and scalar @{$dim}>0) {
         my @dimpairs = map { $_->[0].':'.$_->[1] } @{ $dim };
@@ -718,7 +718,7 @@ sub emit_f95_var_decl {
                 $spaces
               . $type
               . join( ', ', @attrs ) . ' :: '
-              . $var
+              . $var . $maybe_init_val 
               . $trailing_comment;
             return $decl_line;
         } else {
@@ -729,7 +729,7 @@ sub emit_f95_var_decl {
             my $decl_line =
                 $spaces
               . join( ', ', ( $type, @attrs ) ) . ' :: '
-              . $var
+              . $var . $maybe_init_val
               . $trailing_comment;
               #say 'emit_f95_var_decl 2'.$decl_line ;
             return $decl_line;
@@ -1193,7 +1193,10 @@ sub emit_f95_parsed_var_decl { (my $pvd) =@_;
         my $vars = join(', ',@{  $pvd->{'Vars'} });
         my $line = join(', ', @attrs).' :: '.$vars;
         return $line;
-    } elsif (exists $pvd->{'Pars'} and defined $pvd->{'Pars'}) { croak Dumper $pvd;
+    } elsif (exists $pvd->{'Pars'} and defined $pvd->{'Pars'}) { 
+        my $par_val = $pvd->{'Pars'}{'Var'}.' = '.$pvd->{'Pars'}{'Val'};
+        my $line = join(', ', @attrs).' :: '.$par_val;
+        return $line;
     }
 }
 

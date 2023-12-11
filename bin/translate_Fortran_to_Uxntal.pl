@@ -54,6 +54,8 @@ chdir $kernels_dir;
 
 my @kernel_srcs = $module_src eq '' ?  glob("*$ext") : ( $module_src );
 
+# WV 2023-12-08 I think this is fundamentally not the right approach as we need the full codebase
+# available. What I think we need is something much closer to Main.pm, at least we need to run the inventory, and then the parser.
 if (@kernel_srcs) {
     if (-d $out_path) {
         system ('rm -f '.$out_path.'/*.tal');

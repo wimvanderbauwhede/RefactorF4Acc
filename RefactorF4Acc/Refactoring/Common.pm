@@ -105,7 +105,9 @@ sub refactor_COMMON_blocks_and_CONTAINed_subs {  # 218 lines Was _refactor_globa
 	# For the case of subroutines in modules that either have params or USE params via modules, create parameter decl lines
 	my @par_decl_lines_from_module = ();
 	my @mods = ();
+	# WV 2023-12-11 a subroutine can only be in a single module, but of course that module can use other modules.
 	if ( exists $Sf->{'InModules'} ) {
+		# This is for subroutines extracted from ACC marked regions of code
 		@mods = sort keys %{$Sf->{'InModules'}};
 	}
 	elsif ( exists $Sf->{'InModule'} ) {
@@ -274,7 +276,7 @@ sub refactor_COMMON_blocks_and_CONTAINed_subs {  # 218 lines Was _refactor_globa
 			my ($line, $info) = @{$annline};
 			if (    not exists $info->{'Signature'}
 			and not exists $info->{'VarDecl'}
-			and not exists $info->{'ImplicitNone'}
+			and not exists $info->{'`ImplicitNone`'}
 			and not exists $info->{'SpecificationStatement'}
 			and not exists $info->{'Comments'}
 			and not exists $info->{'Blank'}
@@ -392,12 +394,14 @@ sub _create_extra_arg_and_var_decls { #272 lines
 
 			say "INFO VAR in $f: IODir for $var: " . $Sf->{'ExGlobArgs'}{'Set'}{$var}{'IODir'}
 			  if $I and not $Sf->{'Program'};
-			my $rdecl = $Sf->{'ExGlobArgs'}{'Set'}{$var};
-			# croak Dumper($rdecl) if $var eq 'bx4d' and $f eq 'fm500';
+			my $rdecl = dclone($Sf->{'ExGlobArgs'}{'Set'}{$var});
+			if (exists $rdecl->{'InitialValue'} ) { delete $rdecl->{'InitialValue'}}
 			(my $inherited_param_decls, $Sf) = __generate_inherited_param_decls($rdecl, $var, $stref, $f,[]);
             # carp "VAR $var in $f";
 			#  map { say 'INHERITED DECL:'. $_->[0] } @{$inherited_param_decls};
 			my $rline = emit_f95_var_decl($rdecl);
+			$rline .= ' ! HERE';
+			# croak $f.Dumper($rdecl).$rline if not $Sf->{'Program'};# if $var eq 'bx4d' and $f eq 'fm500';
 			# carp $rline if $var eq 'w4' and $f eq 'mult_chk';
 			my $info  = {};
 			$info->{'Ann'}     = [ annotate( $f, __LINE__ . ' : EX-GLOB ' . $annline->[1]{'ExGlobVarDeclHook'} ) ]; #.' '.$rline
@@ -531,8 +535,6 @@ sub _create_extra_arg_and_var_decls { #272 lines
 			my $is_param = 0;
 			if (
 				in_nested_set( $Sf, 'Parameters', $var )
-
-				#    	exists $Sf->{'Parameters'}{'Set'}{$var} or exists $Sf->{'ParametersFromContainer'}{'Set'}{$var}
 			  )
 			{
 				$is_param = 1;

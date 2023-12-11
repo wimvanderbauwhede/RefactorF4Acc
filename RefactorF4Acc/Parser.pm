@@ -1256,12 +1256,22 @@ MODULE
 or $line=~/^character\s*\(\s*len\s*=\s*[\w\*]+\s*\)/
 				)
 				and $line !~ /\s+function\s+\w+/
-				and $line !~/^.+,.+::\s*.+\s*$/ # What we say here is that a declaration such as real(4) :: v(nx+1,ny) is treated as F77
+				and $line !~/^.+,.+::\s*.+\s*$/ # What we say here is that a declaration such as real(4) :: v(nx+1,ny) is treated as F77, but integer, parameter :: is F90
 				and $line !~/\!\$ACC/
 			  ) {
 				$type   = $1;
 				$varlst = $2;
-				( $Sf, $info ) = _parse_f77_var_decl( $Sf, $stref, $f,$indent, $line, $info, $type, $varlst );
+
+				if ($line=~/::/) {
+					( $Sf, $info ) = __parse_f95_decl( $stref, $f, $Sf, $indent, $line, $info);
+					if (exists $info->{'ParamDecl'}) {
+						$has_pars=1;
+						$Sf->{'HasParameters'}=1;
+					}
+					$info->{'HasVars'} = 1;
+				} else {
+					( $Sf, $info ) = _parse_f77_var_decl( $Sf, $stref, $f,$indent, $line, $info, $type, $varlst );
+				}
 				$info->{'SpecificationStatement'} = 1;
 				# carp __LINE__ . ": $f DECL ".Dumper($info) ;
 				push @{ $info->{'Ann'} }, annotate( $f, __LINE__ . " DECL" );
@@ -3165,7 +3175,7 @@ sub __parse_f95_decl {
     my $is_module = (exists $stref->{'Modules'}{$f}) ? 1 : 0;
 
 	my $pt = parse_F95_var_decl($line);
-# croak $line,Dumper $pt if $line=~/characters/i;
+# croak $line,Dumper $pt if $line=~/test_var/i;
 	# But this could be a parameter declaration, with an assignment ...
 	if ( $line =~ /,\s*parameter\s*.*?::\s*(\w+\s*=\s*.+?)\s*$/ ) {
 		# F95-style parameters
@@ -3238,6 +3248,7 @@ sub __parse_f95_decl {
 				$decl->{'ArrayOrScalar'} = 'Scalar';
 				$decl->{'Dim'}           = [];
 				$decl->{'MemSpace'}		 = $pragmas->{'MemSpace'};
+				# Pars is abused here as this works for both Vars and Pars
 				if (exists $pt->{'Pars'}) {
 					$decl->{'InitialValue'} = $pt->{'Pars'}{'Val'};
 				}
@@ -3628,6 +3639,8 @@ sub _parse_f77_par_decl {
 sub _parse_f77_var_decl {
 	( my $Sf, my $stref, my $f,my $indent,  my $line, my $info, my $type, my $varlst ) = @_;
     my $is_module = (exists $stref->{'Modules'}{$f}) ? 1 : 0;
+	my $pvd;
+
     # Half-baked F95/F77 declarations are threated as F77, so remove the :: here
     my $half_baked = ($line=~s/\:://);
 
@@ -3645,6 +3658,7 @@ sub _parse_f77_var_decl {
     }
 	( $pvars, $pvars_lst ) = __parse_F77_decl_expr( $line );
 
+croak Dumper( $pvars, $pvars_lst , $pvd); 
 	# my $memspace = 'Global';
 	my $pragmas={'MemSpace' => 'Global'};
 	if (exists $info->{'TrailingComment'} and $info->{'TrailingComment'} =~/\$(?:RF4A|ACC)\s+/) {

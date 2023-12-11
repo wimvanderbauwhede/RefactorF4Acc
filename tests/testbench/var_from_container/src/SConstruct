@@ -1,0 +1,13 @@
+import os
+
+FC=os.environ.get('FC')
+
+print( FC )
+fsources = ['Test.f90','test_var_from_container.f90']
+
+LDFLAGS= [] 
+FFLAGS  = ['-cpp', '-Wall'] #,'-ffree-form', '-ffree-line-length-0', '-fconvert=big-endian','-mcmodel=medium']
+
+envF=Environment(FORTRAN=FC,F90=FC,LINK=FC,LINKFLAGS=LDFLAGS,F90FLAGS=FFLAGS,F90PATH=['.'])
+
+envF.Program('test_var_from_container',fsources,LIBS=[],LIBPATH=['.'])
