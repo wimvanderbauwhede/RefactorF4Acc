@@ -345,7 +345,7 @@ sub _add_extra_assignments_in_block_data {
 				my $rdecl = $Sf->{'ExGlobArgs'}{'Set'}{$maybe_renamed_arg};
 				my $rline = emit_f95_var_decl($rdecl);
 				my $info  = {};
-				$info->{'Ann'}     = [ annotate( $f, __LINE__ . ' : EX-GLOB ' ) ];
+				push @{$info->{'Ann'}}, annotate( $f, __LINE__ . ' : EX-GLOB ' ) ;
 				$info->{'LineID'}  = 0;                                              #$nextLineID++;
 				$info->{'Ref'}     = 1;
 				$info->{'VarDecl'} = { 'Name' => $maybe_renamed_arg };               #$rdecl;
@@ -422,7 +422,7 @@ sub _add_implicit_none {
 				$r_info->{'LineID'}       = $prev_line_id - 1; # ad hoc!
 				$r_info->{'Indent'}       = $indent;
 				$r_info->{'ImplicitNone'} = 1;
-				$r_info->{'Ann'}          = [ annotate( $f, __LINE__ ) ];
+				push @{$r_info->{'Ann'}}, annotate( $f, __LINE__ );
 				push @{$rlines}, [ $indent . 'implicit none', $r_info ];
 			}
 		}
@@ -526,7 +526,7 @@ sub _group_local_param_decls_at_top { my ( $stref, $f ) = @_;
 					). ' in '.$f.' to top of code unit'
 					,{'Comments' => 1}],
 					];
-					$info->{'Ann'}       = [ annotate( $f, __LINE__ . ' :  _group_local_param_decls_at_top'  ) ];
+					push @{$info->{'Ann'}}, annotate( $f, __LINE__ . ' :  _group_local_param_decls_at_top'  );
 					push @{$state},[ $line , $info];
 		}
 

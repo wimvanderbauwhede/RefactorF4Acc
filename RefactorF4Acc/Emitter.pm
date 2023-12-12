@@ -56,7 +56,7 @@ sub emit_all {
 
     _init_emit_all($stref) unless $DUMMY;
 
-    for my $src ( keys %{ $stref->{'SourceContains'} } ) {
+    for my $src ( sort keys %{ $stref->{'SourceContains'} } ) {
         my %used_modules=();
         if (    exists $stref->{'SourceContains'}{$src}{'Path'}
             and exists $stref->{'SourceContains'}{$src}{'Path'}{'Ext'} )
@@ -65,7 +65,7 @@ sub emit_all {
             next;
         }
         print 'INFO: ', '-' x 80, "\n" if $I;
-        print "INFO: Emitter: refactored code for $src?\n" if $I;
+        print "INFO: Emitter: refactored code for $src\n" if $I;
 
         my ( $has_subdirs, $subdir_path ) = __get_src_subdirs($src);
 

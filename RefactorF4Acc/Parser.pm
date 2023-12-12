@@ -1269,12 +1269,13 @@ or $line=~/^character\s*\(\s*len\s*=\s*[\w\*]+\s*\)/
 						$Sf->{'HasParameters'}=1;
 					}
 					$info->{'HasVars'} = 1;
+					push @{ $info->{'Ann'} }, annotate( $f, __LINE__ . " F95 VarDecl" );
 				} else {
 					( $Sf, $info ) = _parse_f77_var_decl( $Sf, $stref, $f,$indent, $line, $info, $type, $varlst );
+					push @{ $info->{'Ann'} }, annotate( $f, __LINE__ . " F77 VarDecl" );
 				}
 				$info->{'SpecificationStatement'} = 1;
 				# carp __LINE__ . ": $f DECL ".Dumper($info) ;
-				push @{ $info->{'Ann'} }, annotate( $f, __LINE__ . " DECL" );
 				#croak if $line=~/__pipe\s\!\$ACC/;
 		}
 #== F95 declaration, no need for refactoring
@@ -3175,7 +3176,10 @@ sub __parse_f95_decl {
     my $is_module = (exists $stref->{'Modules'}{$f}) ? 1 : 0;
 
 	my $pt = parse_F95_var_decl($line);
-croak $line,Dumper $pt if $line=~/d1=1.1/i;
+	if (exists $pt->{'ParseError'}) {
+		die error( 'Parse error on F90 variable declaration on line '.$info->{'LineID'}.' in '. $Sf->{'Source'}.":\n\n\t$line\n\nProbably unsupported mixed F77/F90 syntax", 0, 'PARSE ERROR');
+	}
+# croak $line,Dumper $pt if $line=~/d1=1.1/i;
 	# But this could be a parameter declaration, with an assignment ...
 	if ( $line =~ /,\s*parameter\s*.*?::\s*(\w+\s*=\s*.+?)\s*$/ ) {
 		# F95-style parameters
@@ -3192,7 +3196,7 @@ croak $line,Dumper $pt if $line=~/d1=1.1/i;
 			$pt->{'Vars'} = [$pt->{'Pars'}{'Var'}];
 		}
 
-		if (    not exists $info->{'ParsedVarDecl'}
+		if (not exists $info->{'ParsedVarDecl'}
 			and not exists $info->{'VarDecl'} )
 		{
 			# Halos and Partitions pragma

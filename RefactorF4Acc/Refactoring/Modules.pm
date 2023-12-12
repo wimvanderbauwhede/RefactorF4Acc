@@ -2,7 +2,7 @@ package RefactorF4Acc::Refactoring::Modules;
 use v5.10;
 use RefactorF4Acc::Config;
 use RefactorF4Acc::Utils;
-use RefactorF4Acc::Refactoring::Helpers qw( get_annotated_sourcelines create_refactored_source splice_additional_lines_cond_inplace emit_f95_var_decl );
+use RefactorF4Acc::Refactoring::Helpers qw( get_annotated_sourcelines create_refactored_source splice_additional_lines_cond_inplace emit_f95_var_decl emit_f95_parsed_var_decl );
 
 #
 #   (c) 2010-2017 Wim Vanderbauwhede <wim@dcs.gla.ac.uk>
@@ -86,8 +86,8 @@ sub add_module_decls {
 					}
 					# If the called sub code is in the current source file
 					next if defined $cs_src and $cs_src eq $src;                                                # If the called sub code is in a module, as in that case there should already be a USE
-					next if 
-						defined $cs_src and 
+					next if
+						defined $cs_src and
 						$stref->{'SourceFiles'}{$cs_src}{'SourceType'} eq 'Modules'
 						and not exists $stref->{'Subroutines'}{$called_sub}{'InModules'}
 						;
@@ -172,8 +172,17 @@ sub add_module_decls {
 					map {
 						my $annline = $_;
 						( my $line, my $info ) = @{$annline};
-
-						if ( exists $info->{'VarDecl'} ) {
+						if ( exists $info->{'ParsedVarDecl'} ) {
+							push @{$info->{'Ann'}} , annotate($existing_module_name{$src}, __LINE__. ' : old_annlines_with_refactored_vardecls');
+							my $ref_vardecl_line = emit_f95_parsed_var_decl( $info->{'ParsedVarDecl'} );
+							[ $info->{'Indent'}. $ref_vardecl_line, $info ];
+						}
+						elsif ( exists $info->{'ParsedParDecl'} ) {
+							push @{$info->{'Ann'}} , annotate($existing_module_name{$src}, __LINE__. ' : old_annlines_with_refactored_vardecls');
+							my $ref_vardecl_line = emit_f95_parsed_var_decl( $info->{'ParsedParDecl'} );
+							[ $info->{'Indent'}. $ref_vardecl_line, $info ];
+						}
+						elsif ( exists $info->{'VarDecl'} ) {
 							push @{$info->{'Ann'}} , annotate($existing_module_name{$src}, __LINE__. ' : old_annlines_with_refactored_vardecls');
 							my $ref_vardecl_line = emit_f95_var_decl( get_var_record_from_set( $stref->{'Modules'}{ $existing_module_name{$src} }{'Vars'}, $info->{'VarDecl'}{'Name'} ) );
 							[ $ref_vardecl_line, $info ];

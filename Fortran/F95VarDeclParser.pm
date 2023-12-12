@@ -15,7 +15,7 @@ use Data::Dumper;
 $Data::Dumper::Indent = 0;
 $Data::Dumper::Terse = 1;
 
-our $VV=1;
+our $VV=0;
 use Exporter 'import';
 
 @Fortran::F95VarDeclParser::EXPORT    = qw(
@@ -35,13 +35,15 @@ sub parse_F95_var_decl {
 	(my $st, my $rest, my $matches) =$p->($str);
     print "\n" if $VV;
     print 'REST:'. "\n".Dumper($rest),"\n"  if $VV;
-
 	print 'MATCHES:'.Dumper($matches),"\n"  if $VV;
 #    die unless @{$matches};
 # carp Dumper($matches);
 	my $pt = getParseTree($matches);
 	print 'PARSE TREE:'.Dumper($pt),"\n" if $VV;
     # carp $str .' => <'.Dumper($pt).'>';
+	if ($rest ) {
+		$pt->{'ParseError'}=$rest;
+	}
     if(ref($pt) ne 'HASH') {
             die "Fortran::F95VarDeclParser::parse_F95_var_decl('$str'): Parse error\n";
     }
@@ -90,9 +92,9 @@ sub parse_F95_var_decl {
 
 	my $varlist = $pt->{'Vars'} ;
 	if (ref($varlist) ne 'ARRAY') {
-		$pt->{Vars} = [$varlist];
+		$pt->{'Vars'} = [$varlist];
 	}
-
+# carp Dumper $pt->{'Vars'};
     my $parlist = $pt->{'Pars'};
    if (ref($parlist) eq 'HASH') {
 		my $lhs =$parlist->{Lhs};
@@ -100,10 +102,14 @@ sub parse_F95_var_decl {
 		$pt->{'Pars'} = {'Var' => $lhs, 'Val' => $rhs};
    } elsif (ref($parlist) eq 'ARRAY') {
 		# We change Pars to ParPairs, and that should then be taken apart in Preconditioning
+		if (scalar @{$pt->{'Vars'}}>0 and not defined $pt->{'Vars'}[0] ) {
+			pop @{$pt->{'Vars'}};
+		};
 		for my $par_entry (@{$parlist}) {
 			my $lhs =$par_entry->{Lhs};
 			my $rhs =$par_entry->{Rhs};
 			push @{$pt->{'ParPairs'}} , {'Var' => $lhs, 'Val' => $rhs};
+			push @{$pt->{'Vars'}}, $lhs ;
 		}
 		delete $pt->{'Pars'};
    }

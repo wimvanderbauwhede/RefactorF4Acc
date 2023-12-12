@@ -95,7 +95,7 @@ sub refactor_COMMON_blocks_and_CONTAINed_subs {  # 218 lines Was _refactor_globa
 						'Ann'       => [ annotate( $f, __LINE__ ) ],
 						'SpecificationStatement' => 1,
 						'Ref' => 1
-						} ];
+					} ];
 				push @par_decl_lines_from_container, $par_decl_line;
 			}
 		}
@@ -265,7 +265,7 @@ sub refactor_COMMON_blocks_and_CONTAINed_subs {  # 218 lines Was _refactor_globa
 			$Sf->{'DeclaredOrigLocalVars'}{'Set'}{$cast_reshape_vardecl}=$rdecl;
 			my $rline = emit_f95_var_decl($rdecl);
 				my $info  = {};
-				$info->{'Ann'}       = [ annotate( $f, __LINE__ . ' : Cast/Reshape intermediate variable' ) ];
+				push @{$info->{'Ann'}}, annotate( $f, __LINE__ . ' : Cast/Reshape intermediate variable' );
 				$info->{'LineID'}    = $nextLineID++;
 				$info->{'Ref'}       = 1;
 				$info->{'VarDecl'} = { 'Name' => $cast_reshape_vardecl };
@@ -325,7 +325,7 @@ sub _create_extra_arg_and_var_decls { #272 lines
 				my $rdecl = $Sf->{'InheritedParameters'}{'Set'}{$par};
 				my $rline = emit_f95_var_decl($rdecl);
 				my $info  = {};
-				$info->{'Ann'}       = [ annotate( $f, __LINE__ . ' : INHERITED PARAM ' . $annline->[1]{'ExGlobVarDeclHook'} ) ];
+				push @{$info->{'Ann'}}, annotate( $f, __LINE__ . ' : INHERITED PARAM ' . $annline->[1]{'ExGlobVarDeclHook'} );
 				$info->{'LineID'}    = $nextLineID++;
 				$info->{'Ref'}       = 1;
 				$info->{'ParamDecl'} = { 'Name' => $par };
@@ -368,7 +368,7 @@ sub _create_extra_arg_and_var_decls { #272 lines
 						undef
 					]
   				};
-				$info->{'Ann'}       = [ annotate( $f, __LINE__ . ' : INCLUDED PARAM ' . $annline->[1]{'ExGlobVarDeclHook'} ) ];
+				push @{$info->{'Ann'}}, annotate( $f, __LINE__ . ' : INCLUDED PARAM ' . $annline->[1]{'ExGlobVarDeclHook'} );
 				$info->{'LineID'}    = $nextLineID++;
 				$info->{'Ref'}       = 1;
 				$info->{'ParamDecl'} = { 'Name' => $par };
@@ -404,7 +404,7 @@ sub _create_extra_arg_and_var_decls { #272 lines
 			# croak $f.Dumper($rdecl).$rline if not $Sf->{'Program'};# if $var eq 'bx4d' and $f eq 'fm500';
 			# carp $rline if $var eq 'w4' and $f eq 'mult_chk';
 			my $info  = {};
-			$info->{'Ann'}     = [ annotate( $f, __LINE__ . ' : EX-GLOB ' . $annline->[1]{'ExGlobVarDeclHook'} ) ]; #.' '.$rline
+			push @{$info->{'Ann'}}, annotate( $f, __LINE__ . ' : EX-GLOB ' . $annline->[1]{'ExGlobVarDeclHook'} ); #.' '.$rline
 			$info->{'LineID'}  = $nextLineID++;
 			$info->{'Ref'}     = 1;
 			$info->{'VarDecl'} = { 'Name' => $var };                                                                  #$rdecl;
@@ -422,7 +422,7 @@ sub _create_extra_arg_and_var_decls { #272 lines
 		my $rdecl = $Sf->{'ExInclArgs'}{'Set'}{$var};
 		my $rline = emit_f95_var_decl($rdecl);
 		my $info  = {};
-		$info->{'Ann'}     = [ annotate( $f, __LINE__ . ' : EX-INCL' ) ];
+		push @{$info->{'Ann'}}, annotate( $f, __LINE__ . ' : EX-INCL' );
 		$info->{'LineID'}  = $nextLineID++;
 		$info->{'Ref'}     = 1;
 		$info->{'VarDecl'} = { 'Name' => $var };                            #$rdecl;
@@ -474,7 +474,7 @@ sub _create_extra_arg_and_var_decls { #272 lines
 						{
 							my $rline = emit_f95_var_decl($rdecl);
 							my $info  = {};
-							$info->{'Ann'} = [ annotate( $f, __LINE__ . ' : EX-IMPLICIT'  ) ];
+							push @{$info->{'Ann'}}, annotate( $f, __LINE__ . ' : EX-IMPLICIT'  );
 							$info->{'LineID'}  = $nextLineID++;
 							$info->{'Ref'}     = 1;
 							$info->{'VarDecl'} = { 'Name' => $var };
@@ -494,7 +494,7 @@ sub _create_extra_arg_and_var_decls { #272 lines
 		my $rdecl = $Sf->{'ExInclLocalVars'}{'Set'}{$var};
 		my $rline = emit_f95_var_decl($rdecl);
 		my $info  = {};
-		$info->{'Ann'}     = [ annotate( $f, __LINE__ . ' : EX-INCL VAR' ) ];
+		push @{$info->{'Ann'}}, annotate( $f, __LINE__ . ' : EX-INCL VAR' );
 		$info->{'LineID'}  = $nextLineID++;
 		$info->{'Ref'}     = 1;
 		$info->{'VarDecl'} = { 'Name' => $var };                                #$rdecl;
@@ -582,7 +582,7 @@ sub _create_extra_arg_and_var_decls { #272 lines
 				# carp Dumper($stref->{'Subroutines'}{  $var});
 				my $rline = emit_f95_var_decl($rdecl);
 				my $info  = {};
-				$info->{'Ann'} = [ annotate( $f, __LINE__ . ' : EX-IMPLICIT VAR' ) ];
+				push @{$info->{'Ann'}}, annotate( $f, __LINE__ . ' : EX-IMPLICIT VAR' );
 				$info->{'LineID'}  = $nextLineID++;
 				$info->{'Ref'}     = 1;
 				$info->{'VarDecl'} = { 'Name' => $var };    #$rdecl;
@@ -602,7 +602,7 @@ sub _create_extra_arg_and_var_decls { #272 lines
 		my $rdecl = $Sf->{'UndeclaredCommonVars'}{'Set'}{$var};
 		my $rline = emit_f95_var_decl($rdecl);
 		my $info  = {};
-		$info->{'Ann'}     = [ annotate( $f, __LINE__ . ' : EX-IMPLICIT COMMON' ) ];
+		push @{$info->{'Ann'}}, annotate( $f, __LINE__ . ' : EX-IMPLICIT COMMON' );
 		$info->{'LineID'}  = $nextLineID++;
 		$info->{'Ref'}     = 1;
 		$info->{'VarDecl'} = { 'Name' => $var };                                       #$rdecl;
@@ -739,7 +739,7 @@ sub _create_refactored_subroutine_call { # 321 lines
 				}
 				$info->{'Ref'}++;
 			}
-			$info->{'Ann'} = [ annotate( $f, __LINE__ ) ];
+			push @{$info->{'Ann'}}, annotate( $f, __LINE__ );
 # TODO here we push the pre-and-post cast assignments
 # TODO note that this will work with reshapes too
 # TODO and similar for the other places where we generate call lines
@@ -844,7 +844,7 @@ sub _create_refactored_subroutine_call { # 321 lines
 					}
 					$info->{'Ref'}++;
 				}
-				$info->{'Ann'} = [ annotate( $f, __LINE__ ) ];
+				push @{$info->{'Ann'}}, annotate( $f, __LINE__ );
 
 				if ( @cast_reshape_results) {
 					for my $cast_reshape_result ( @cast_reshape_results) {
@@ -935,7 +935,7 @@ sub _create_refactored_subroutine_call { # 321 lines
 					}
 					$info->{'Ref'}++;
 				}
-				$info->{'Ann'} = [ annotate( $f, __LINE__ ) ];
+				push @{$info->{'Ann'}}, annotate( $f, __LINE__ );
 
 				if ( @cast_reshape_results) {
 					for my $cast_reshape_result ( @cast_reshape_results) {
@@ -982,9 +982,11 @@ sub __generate_inherited_param_decls { my ($rdecl, $var, $stref, $f, $inherited_
 				#croak Dumper(pp_annlines($Sf->{'AnnLines'}));
 				#croak Dumper($Sf);
 				my $par_decl = $rdecl->{'InheritedParams'}{'Set'}{$inh_par};
-				my $par_decl_line = [ '      ' . emit_f95_var_decl($par_decl), { 'ParamDecl' => $par_decl, 'Ref' => 1,
-				'Ann' => [annotate($f, __LINE__ . " : __generate_inherited_param_decls")]
-				} ];
+				my $par_decl_line = [ '      ' . emit_f95_var_decl($par_decl), 
+					{ 
+						'ParamDecl' => $par_decl, 'Ref' => 1,
+						'Ann' => [annotate($f, __LINE__ . " : __generate_inherited_param_decls")]
+					} ];
 				push @{$inherited_param_decls}, $par_decl_line;
 
 				$Sf->{'LocalParameters'}{'Set'}{$inh_par}=$par_decl;

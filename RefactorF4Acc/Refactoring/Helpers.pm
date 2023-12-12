@@ -1162,7 +1162,7 @@ sub stateless_pass_reverse {
 
 
 sub emit_f95_parsed_var_decl { (my $pvd) =@_;
-# carp 'PVD:',Dumper $pvd;
+
     my $type= $pvd->{'TypeTup'}{'Type'} . (exists $pvd->{'TypeTup'}{'Kind'} ?  '( '.$pvd->{'TypeTup'}{'Kind'}.')' : '');
 
     my  @attrs=($type);
@@ -1192,13 +1192,13 @@ sub emit_f95_parsed_var_decl { (my $pvd) =@_;
         my $init_pairs_str = join(', ',@init_pairs);
         my $line = join(', ', @attrs) . ' :: ' . $init_pairs_str;
         return $line;
+    } elsif (exists $pvd->{'Pars'} and defined $pvd->{'Pars'} and defined $pvd->{'Pars'}{'Var'}) { 
+        my $par_val = $pvd->{'Pars'}{'Var'}.' = '.$pvd->{'Pars'}{'Val'};
+        my $line = join(', ', @attrs).' :: '.$par_val;
+        return $line;
     } elsif (exists $pvd->{'Vars'} and defined $pvd->{'Vars'}) {
         my $vars = join(', ',@{  $pvd->{'Vars'} });
         my $line = join(', ', @attrs).' :: '.$vars;
-        return $line;
-    } elsif (exists $pvd->{'Pars'} and defined $pvd->{'Pars'}) { 
-        my $par_val = $pvd->{'Pars'}{'Var'}.' = '.$pvd->{'Pars'}{'Val'};
-        my $line = join(', ', @attrs).' :: '.$par_val;
         return $line;
     }
 }

@@ -89,23 +89,23 @@ sub context_free_refactorings {
              ) { 
                 $line = '! '.$line;
                 $info->{'Deleted'}=1;
-                $info->{'Ann'}=[ annotate($f, __LINE__ .' SAVE statement in Program' ) ];
+                push @{$info->{'Ann'}}, annotate($f, __LINE__ .' SAVE statement in Program' );
         	}
         }	
         elsif ( exists $info->{'Implicit'} ) { 
         	$line = '! '.$line;
         	$info->{'Deleted'}=1;
-        	$info->{'Ann'}=[ annotate($f, __LINE__ .' Original Implicit statement' ) ];
+        	push @{$info->{'Ann'}}, annotate($f, __LINE__ .' Original Implicit statement' );
         }	        
         elsif ( exists $info->{'Dimension'} and not exists $info->{'VarDecl'} ) {
         	$line = '! '.$line;
         	$info->{'Deleted'}=1;
-        	$info->{'Ann'}=[ annotate($f, __LINE__ .' Original Dimension statement' ) ];
+        	push @{$info->{'Ann'}}, annotate($f, __LINE__ .' Original Dimension statement' );
         }	
         elsif ( exists $info->{'Common'} ) {
         	$line = '! '.$line unless exists $Sf->{'BlockData'};
         	$info->{'Deleted'}=1;
-        	$info->{'Ann'}=[ annotate($f, __LINE__ .' Original Common statement' ) ];
+        	push @{$info->{'Ann'}}, annotate($f, __LINE__ .' Original Common statement' );
         }	
         
         elsif ( exists $info->{'External'} ) {
@@ -129,7 +129,7 @@ sub context_free_refactorings {
                     }
                 }
             # }
-        	$info->{'Ann'}=[ annotate($f, __LINE__ .' External statement' ) ];
+        	push @{$info->{'Ann'}}, annotate($f, __LINE__ .' External statement' );
         }	                
 		elsif ( exists $info->{'Data'} ) {
 			my @chunks=split(/data\s+/,$line);
@@ -248,7 +248,7 @@ sub context_free_refactorings {
 	                # Remove this line, because this param should have been declared above
 	                $line = '!! Original line VAR !! ' . $line;
 	                $info->{'Deleted'} = 1;
-	                $info->{'Ann'}=[ annotate($f, __LINE__ .' Removed VarDecl for Param '.$var ) ];
+	                push @{$info->{'Ann'}}, annotate($f, __LINE__ .' Removed VarDecl for Param '.$var );
 	            } 
             }
 
@@ -278,7 +278,7 @@ sub context_free_refactorings {
 	                # Remove this line, because this param should have been declared above
 	                $line = '!! Original line PAR:2 !! ' . $line;
 	                # $info->{'Deleted'} = 1;
-	                $info->{'Ann'}=[ annotate($f, __LINE__ .' Removed ParamDecl' ) ];
+	                push @{$info->{'Ann'}}, annotate($f, __LINE__ .' Removed ParamDecl' );
 	            } elsif (not exists $info->{'Ref'} or $info->{'Ref'} == 0 ){
 	                my $var_decl = get_var_record_from_set( $Sf->{'Vars'},$var);
 	                $line = emit_f95_var_decl($var_decl) ;                
@@ -364,7 +364,7 @@ sub context_free_refactorings {
                 ]
                 ; # Create parameter declarations before variable declarations            
             $line = '!! ' . $line;
-            $info->{'Ann'}=[ annotate($f, __LINE__ .' Original ParamDecl' ) ];
+            push @{$info->{'Ann'}}, annotate($f, __LINE__ .' Original ParamDecl' );
             $info->{'Deleted'} = 1;
         }
 

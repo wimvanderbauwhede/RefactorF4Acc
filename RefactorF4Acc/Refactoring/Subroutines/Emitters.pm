@@ -95,7 +95,7 @@ sub emit_subroutine_sig { #(my $stref, my $f,
 			}                                    
             $info->{'Ref'}++;
         }  	    
-	    $info->{'Ann'}=[annotate($name, __LINE__ ) ];
+	    push @{$info->{'Ann'}},annotate($name, __LINE__ ) ;
 
 		return ( $indent . $rline , $info );
 } # END of emit_subroutine_sig
@@ -152,7 +152,7 @@ sub emit_subroutine_call {
         }
         $info->{'Ref'}++;
     }
-    $info->{'Ann'} = [annotate($f, __LINE__)];
+    push @{$info->{'Ann'}},annotate($name, __LINE__ ) ;
     return ($indent . $maybe_label . $rline, $info);
 }    # END of emit_subroutine_call
 

@@ -1108,7 +1108,7 @@ sub error { (my $str, my $dbg, my $extra_info)=@_;
         'NONE' => 1
     );
     my $error_type = exists $type_errors{$extra_info} ? 'TYPE ERROR' : 'ERROR';
-    if ((not exists $Config{'IGNORE_ERRORS'} or $Config{'IGNORE_ERRORS'}==0) and $type_errors{$extra_info}) {        
+    if ((not exists $Config{'IGNORE_ERRORS'} or $Config{'IGNORE_ERRORS'}==0) and ($type_errors{$extra_info} or $extra_info=~/ERROR/i)) {        
         if (defined $dbg and $dbg>0) {
             croak("$error_type: $str");
         } else {

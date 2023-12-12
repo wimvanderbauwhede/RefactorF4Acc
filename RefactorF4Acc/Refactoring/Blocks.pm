@@ -791,7 +791,7 @@ sub __replace_blocks_by_calls_to_new_subs { my ($Sf,$f,$Sblock,$block_rec,$sig,$
             $info->{'SubroutineCall'}{'Args'}=dclone($sigrec->{'Args'});
             $info->{'LineID'} = $Sblock->{'Callers'}{$f}[0];
             $info->{'ExtractedSubroutine'}=1;
-            $info->{'Ann'}= [__FILE__.' '.__LINE__];
+            push @{$info->{'Ann'}}, annotate( $f, __LINE__ );
             $srcref->[$tindex]=[$line, $info];
         } elsif ( $tindex > $block_rec->{'BeginBlockIdx'}
             and $tindex <= $block_rec->{'EndBlockIdx'} )
