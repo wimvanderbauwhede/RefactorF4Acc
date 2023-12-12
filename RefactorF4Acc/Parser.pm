@@ -3179,7 +3179,7 @@ sub __parse_f95_decl {
 	if (exists $pt->{'ParseError'}) {
 		error( 'Parse error on F90 variable declaration on line '.$info->{'LineID'}.' in '. $Sf->{'Source'}.":\n\n\t$line\n\nProbably unsupported mixed F77/F90 syntax", 0, 'PARSE ERROR');
 	}
-# croak $line,Dumper $pt if $line=~/d1=1.1/i;
+
 	# But this could be a parameter declaration, with an assignment ...
 	if ( $line =~ /,\s*parameter\s*.*?::\s*(\w+\s*=\s*.+?)\s*$/ ) {
 		# F95-style parameters
@@ -3246,6 +3246,7 @@ sub __parse_f95_decl {
 			};
 			my $idx=0;
 			for my $tvar ( @{ $pt->{'Vars'} } ) { # corresponds to @{$pvars_lst} in F77
+			
 				my $decl = {};
 				$decl->{'Indent'}        = $indent;
 				$decl->{'Type'}          = $pt->{'TypeTup'}{'Type'};
@@ -3258,7 +3259,8 @@ sub __parse_f95_decl {
 				}
 				my $type =$decl->{'Type'};
 				if ( exists $pt->{'Attributes'} ) {
-					if ( exists $pt->{'Attributes'}{'Dim'} ) {
+					if ( exists $pt->{'Attributes'}{'Dim'} ) {	
+						
 						if ( $pt->{'Attributes'}{'Dim'}[0] ne '0' ) {
 							my @shape = ();
 							for my $range ( @{ $pt->{'Attributes'}{'Dim'} } ) {
@@ -3272,6 +3274,7 @@ sub __parse_f95_decl {
 							$decl->{'ArrayOrScalar'} = 'Array';
 						}
 					}
+					
 					if ( exists $pt->{'Attributes'}{'Allocatable'}) {
 						$decl->{'Allocatable'}='allocatable';
 

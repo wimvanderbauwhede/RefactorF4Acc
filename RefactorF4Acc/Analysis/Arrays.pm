@@ -38,7 +38,7 @@ dim_to_str
 
 sub calculate_array_size {
 	my ( $stref, $f, $dim ) = @_;
-	# warn Dumper $f, $dim;
+	
 	my @sz_strs = ();
 	for my $entry ( @{$dim} ) {
 		my $sz_str = '((' . $entry->[1] . ') - (' . $entry->[0] . ')+1)';

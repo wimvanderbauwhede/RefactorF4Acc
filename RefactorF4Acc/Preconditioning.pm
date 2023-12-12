@@ -879,7 +879,6 @@ sub __split_multivar_ParsedVarDecl { my ($line,$info,$stref,$f,$Sf,$nextLineID,$
             # say "SUBSET: $f $subset";
             $Sf->{$subset}{'Set'}{$var} = __parsedVarDecl_to_Decl($rinfo{'ParsedVarDecl'}, $Sf->{$subset}{'Set'}{$var});
             my $rline = emit_f95_parsed_var_decl($rinfo{'ParsedVarDecl'});
-            say "LINE: $rline";
             push @{$new_annlines}, [$rline, {%rinfo}];
         }
     }
@@ -920,7 +919,10 @@ sub __split_multivar_ParsedParDecl { my ($line,$info,$stref,$f,$Sf,$nextLineID,$
             my $rline = emit_f95_parsed_var_decl($rinfo{'ParsedParDecl'});
             push @{$new_annlines}, [$rline, {%rinfo}];
         }
-    } else {
+    } else { # Means there is only one decl on that line
+        my $par = $info->{'ParsedParDecl'}{'Pars'}{'Var'};
+        my $val = $info->{'ParsedParDecl'}{'Pars'}{'Val'};
+        $info->{'ParamDecl'} = {'Name' => [$par,$val]};
         push @{$new_annlines}, [$line, $info];
     }
 
@@ -959,10 +961,10 @@ sub __split_multivar_VarDecl { my ($line,$info,$stref,$f,$Sf,$nextLineID,$new_an
                 'AccKeyword' => 'ArgMode',
                 'AccVal' => 'ReadWrite'
             };
-            $rinfo{'ParsedVarDecl'}{'Pars'} = {
-            'Var' => undef,
-            'Val' => undef
-            };
+            # $rinfo{'ParsedVarDecl'}{'Pars'} = {
+            # 'Var' => undef,
+            # 'Val' => undef
+            # };
             $rinfo{'ParsedVarDecl'}{'TypeTup'} = {
                 'Type' => $orig_decl->{'Type'}
             };
@@ -1340,12 +1342,30 @@ sub _precondition_subroutine_with_includes { my ($stref, $f) = @_;
         for my $annline (@{$annlines}) {
             (my $line, my $info) = @{$annline};
             if (exists $info->{'VarDecl'} ) {
-                my $var_name = $info->{'VarDecl'}{'Name'};
-                $prior_declarations{$var_name}=1;
+                if (exists $info->{'VarDecl'}{'Names'}) { 
+                    if ( @{$info->{'VarDecl'}{'Names'}} > 1 ) {
+                        croak "TODO: FIRST SPLIT THIS LINE! $line";
+                    } else {
+                        my $var_name = $info->{'VarDecl'}{'Names'};
+                        $prior_declarations{$var_name}=1;
+                    }
+                } elsif (exists $info->{'VarDecl'}{'Name'}) {
+                    my $var_name = $info->{'VarDecl'}{'Name'};
+                    $prior_declarations{$var_name}=1;
+                }
             }
             elsif (exists $info->{'ParamDecl'} ) {
-                my $par_name = $info->{'ParamDecl'}{'Name'};
-                $prior_declarations{$par_name}=1;
+                if (exists $info->{'ParamDecl'}{'Names'}) { 
+                    if ( @{$info->{'ParamDecl'}{'Names'}} > 1 ) {
+                        croak "TODO: FIRST SPLIT THIS LINE! $line";
+                    } else {
+                        my $par_name = $info->{'ParamDecl'}{'Names'};
+                        $prior_declarations{$par_name}=1;
+                    }
+                } elsif (exists $info->{'ParamDecl'}{'Name'}) {
+                    my $par_name = $info->{'ParamDecl'}{'Name'};
+                    $prior_declarations{$par_name}=1;
+                }
             }
 
             elsif (exists $info->{'Include'} ) {
@@ -1433,7 +1453,15 @@ sub __parsedVarDecl_to_Decl { my ($pvd, $decl) = @_;
             : '('.$pvd->{'TypeTup'}{'Kind'}.')';
     }
     if (exists $pvd->{'Attributes'}{'Dim'} ) {
-        $mdecl->{'Dim'} = $pvd->{'Attributes'}{'Dim'};
+        my @shape = ();
+        for my $range ( @{ $pvd->{'Attributes'}{'Dim'} } ) {
+            if ( $range =~ /:/ ) {
+                push @shape, [ split( /:/, $range ) ];
+            } else {
+                push @shape, [ '1', $range ];
+            }
+        }
+        $mdecl->{'Dim'}           = \@shape;
     }
     if (exists $pvd->{'Attributes'}{'Parameter'} ) {
         $mdecl->{'Parameter'} = 'parameter';
@@ -1442,9 +1470,10 @@ sub __parsedVarDecl_to_Decl { my ($pvd, $decl) = @_;
         if (exists $pvd->{'Pars'}{'AST'}) {
             $mdecl->{'AST'} = $pvd->{'Pars'}{'AST'};
         }
-    } elsif (exists $pvd->{'Pars'}{'Val'}) {
+    } elsif (exists $pvd->{'Pars'} and exists $pvd->{'Pars'}{'Val'}) {
+        # carp Dumper $pvd->{'Pars'};
         $mdecl->{'InitialValue'} =$pvd->{'Pars'}{'Val'}
-    } elsif (exists  $mdecl->{'InitialValue'}) {
+    } elsif (exists $mdecl->{'InitialValue'}) {
         delete  $mdecl->{'InitialValue'}
     }
     $mdecl->{'FromParsedVarDecl'} = 1;

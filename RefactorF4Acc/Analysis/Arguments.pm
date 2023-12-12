@@ -409,7 +409,7 @@ sub analyse_var_decls_for_params {
 					next if $dim =~ /^\d+$/;
 					my @pars = split( /\W+/, $dim );
 					for my $par (@pars) {
-						say "FOUND2 PAR $par in var decl for $var in $f";
+						# say "FOUND2 PAR $par in var decl for $var in $f";
 						$found_pars{$par} = $var;
 					}
 				}

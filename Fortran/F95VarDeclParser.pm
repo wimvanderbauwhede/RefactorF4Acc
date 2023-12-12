@@ -71,10 +71,8 @@ sub parse_F95_var_decl {
 			my $evaled_dim_exprs=[];
 			for my $dim_expr (@{$pt->{'Attributes'}{'Dim'}}) {
 				if ($dim_expr=~/^\d+$/) {
-					push @{$evaled_dim_exprs},$dim_expr;
+					push @{$evaled_dim_exprs},'1:'.$dim_expr;
 				} elsif ($dim_expr=~/^(\d+):(\d+)$/) {
-					# This is wrong as we lose the start index
-					# push @{$evaled_dim_exprs},$2-$1+1;
 					push @{$evaled_dim_exprs},$1.':'.$2;
 				} elsif ($dim_expr=~/^\d[\d\+\-\*\/\%]+\d$/) {
 					push @{$evaled_dim_exprs},eval($dim_expr);
@@ -145,7 +143,7 @@ sub parse_F95_var_decl {
 				# 	$pt->{'Vars'}= $pt->{VarsDims}{Var};
 				# 	delete  $pt->{VarsDims} ;
 				# } else {
-					my $dims =  [  map { ':' } @{ $var_dim_entry->{Dim}{Sep} } ] ;
+					my $dims =  [  map { /:/ ? ':' : $_ } @{ $var_dim_entry->{Dim}{Sep} } ] ;
 					# push @{$pt->{Attributes}{Dims}},\@dims;
 					# push @{$pt->{'Vars'}}, $var_dim_entry->{Var};
 					# delete  $pt->{VarsDims} ;

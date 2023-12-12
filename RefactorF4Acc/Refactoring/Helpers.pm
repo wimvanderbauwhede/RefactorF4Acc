@@ -642,16 +642,20 @@ sub emit_f95_var_decl {
       } else {
       	$var = $var_decl_rec->{'Name'};
       }
+        # carp Dumper $var_decl_rec;
      my $maybe_init_val = exists $var_decl_rec->{'InitialValue'} ? ' = '.$var_decl_rec->{'InitialValue'} : '';
     #  if ($maybe_init_val) {
-        # carp Dumper $var_decl_rec;
     #  }
     # carp "DIM:".Dumper($dim);
     my $dimstr = '';
-    if ( ref($dim) eq 'ARRAY' and scalar @{$dim}>0 and not (scalar @{$dim}==1
-    and $dim->[0].'' eq '0')) {
-        my @dimpairs = map { $_->[0].':'.$_->[1] } @{ $dim };
-        $dimstr = 'dimension(' . join( ',', @dimpairs) . ')';
+    if ( ref($dim) eq 'ARRAY' and scalar @{$dim}>0 
+        and not (scalar @{$dim}==1 and $dim->[0].'' eq '0')) {
+        if ( ref($dim->[0]) eq 'ARRAY' ) {
+            my @dimpairs = map { $_->[0].':'.$_->[1] } @{ $dim };
+            $dimstr = 'dimension(' . join( ',', @dimpairs) . ')';
+        } else { # assuming it is alread a list of '$b:$e' strings
+                $dimstr = 'dimension(' . join( ',', @{$dim}) . ')';
+        }
     }
     my @attrs = ();
     if ($attr) {
@@ -1164,14 +1168,12 @@ sub stateless_pass_reverse {
 
 
 sub emit_f95_parsed_var_decl { (my $pvd) =@_;
- 
+    # Kind does not contain 'kind=' or 'len='
     my $type= $pvd->{'TypeTup'}{'Type'} . (exists $pvd->{'TypeTup'}{'Kind'} 
-        ? $pvd->{'TypeTup'}{'Kind'} =~/kind/
-            ?  '('.$pvd->{'TypeTup'}{'Kind'}.')' 
-            : '(kind='.$pvd->{'TypeTup'}{'Kind'}.')'
+        ? '(kind='.$pvd->{'TypeTup'}{'Kind'}.')'
         : '');
-# carp Dumper $pvd if $type=~/real.+8/;
     my @attrs=($type);
+    # Special case for character, needs 'len='
     if ($pvd->{'TypeTup'}{'Type'} eq 'character') { 
         $type = $pvd->{'TypeTup'}{'Type'};
         if (exists $pvd->{'Attributes'} and exists $pvd->{'Attributes'}{'Len'}) {

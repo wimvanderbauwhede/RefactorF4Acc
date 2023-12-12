@@ -685,6 +685,7 @@ sub _create_refactored_subroutine_call { # 321 lines
 
 			if ($subset) { # otherwise it means this is an expression, including array accesses, or a constant.
 				my $call_arg_decl = $stref->{'Subroutines'}{$f}{$subset}{'Set'}{$call_arg};
+				
 				# Just set $sig_arg to $call_arg as a start
 				my $sig_arg = $call_arg;
 				# Now see if there is an actual $sig_arg for which the entry in ArgMap
@@ -705,11 +706,13 @@ sub _create_refactored_subroutine_call { # 321 lines
 					$sig_arg_decl = $call_arg_decl;
 				}
 
-				my $cast_reshape_result = _maybe_cast_call_args($stref, $f, $name, $call_arg,$call_arg_decl,$sig_arg, $sig_arg_decl);
-				# say Dumper($cast_reshape_result)  if $name =~/mpi_reduce_double_precision/;
-				# croak Dumper($sig_arg_decl,$call_arg_decl)  if $name =~/mpi_reduce_double_precision/ and $call_arg eq 'data1';
-				$call_arg = $cast_reshape_result->{'CallArg'};
-				push @cast_reshape_results, $cast_reshape_result if $cast_reshape_result->{'Status'} == 2;
+				if ($call_arg_decl->{'Type'} ne 'character') { # we don't do this for character strings
+					my $cast_reshape_result = _maybe_cast_call_args($stref, $f, $name, $call_arg,$call_arg_decl,$sig_arg, $sig_arg_decl);
+					# say Dumper($cast_reshape_result)  if $name =~/mpi_reduce_double_precision/;
+					# croak Dumper($sig_arg_decl,$call_arg_decl)  if $name =~/mpi_reduce_double_precision/ and $call_arg eq 'data1';
+					$call_arg = $cast_reshape_result->{'CallArg'};
+					push @cast_reshape_results, $cast_reshape_result if $cast_reshape_result->{'Status'} == 2;
+				}
 			} # in subset
 		} # not a PlaceHolder, this is a HACK as it shouldn't be one anyway!
 
@@ -1404,13 +1407,17 @@ sub __out_check {
 # Dim :: [(Int,IntOrStar)]
 # IntOrStar = Int | '*'
 sub __is_assumed_array { my ($dims) = @_;
-for my $dim_comp (@{$dims}) {
-	my $upper_bound=$dim_comp->[1];
-	if ($upper_bound eq '*') {
-		return 1;
+	if (@{$dims}==1 and $dims->[0].'' ne '*') {
+		$dims = [[1,$dims->[0]]];
 	}
-}
-return 0;
+
+	for my $dim_comp (@{$dims}) {
+		my $upper_bound=$dim_comp->[1];
+		if ($upper_bound eq '*') {
+			return 1;
+		}
+	}
+	return 0;
 } # END of __is_assumed_array
 
 # I will at first assume the dimensions are the same, and if not I need to reshape

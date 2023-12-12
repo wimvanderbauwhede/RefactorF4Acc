@@ -335,12 +335,12 @@ sub context_free_refactorings {
                 my $var = $info->{'VarDecl'}{'Name'};                                               
                 $par_decl =  format_f95_par_decl( $stref, $f, $var ) ;
             }
-            elsif (exists $info->{'ParamDecl'}{'Name'} ) {                    		
+            elsif (exists $info->{'ParamDecl'}{'Name'} ) {                 		
                 my $var_val = $info->{'ParamDecl'}{'Name'};
                 ( my $var, my $val ) = @{$var_val};                
                 $par_decl =  format_f95_par_decl( $stref, $f, $var ) ;
             } elsif (exists $info->{'ParamDecl'}{'Names'} ) { 
-                croak 'PROBLEM: multiple parameter decls on a single line!';
+                croak 'PROBLEM: multiple parameter decls on a single line! '.Dumper($annline);
             }
                 # We must check for string placeholders in parameter decls!
             if ($par_decl->{'Name'}[1]=~/(__PH\d+__)/) {
