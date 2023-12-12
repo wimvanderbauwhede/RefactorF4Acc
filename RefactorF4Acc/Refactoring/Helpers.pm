@@ -1165,11 +1165,22 @@ sub stateless_pass_reverse {
 
 sub emit_f95_parsed_var_decl { (my $pvd) =@_;
  
-    my $type= $pvd->{'TypeTup'}{'Type'} . (exists $pvd->{'TypeTup'}{'Kind'} ?  '( '.$pvd->{'TypeTup'}{'Kind'}.')' : '');
-
-    my  @attrs=($type);
-    if ($type eq 'character') {
-        @attrs=($type.'('.$pvd->{'Attributes'}{'Len'}.')' );
+    my $type= $pvd->{'TypeTup'}{'Type'} . (exists $pvd->{'TypeTup'}{'Kind'} 
+        ? $pvd->{'TypeTup'}{'Kind'} =~/kind/
+            ?  '('.$pvd->{'TypeTup'}{'Kind'}.')' 
+            : '(kind='.$pvd->{'TypeTup'}{'Kind'}.')'
+        : '');
+# carp Dumper $pvd if $type=~/real.+8/;
+    my @attrs=($type);
+    if ($pvd->{'TypeTup'}{'Type'} eq 'character') { 
+        $type = $pvd->{'TypeTup'}{'Type'};
+        if (exists $pvd->{'Attributes'} and exists $pvd->{'Attributes'}{'Len'}) {
+            @attrs=($type.'('.$pvd->{'Attributes'}{'Len'}.')' );
+        } elsif (exists $pvd->{'TypeTup'}{'Kind'}) { 
+            @attrs=($type.'(len='.$pvd->{'TypeTup'}{'Kind'}.')' );
+        } else {
+            @attrs=($type);
+        }
     }
     if (exists $pvd->{'Attributes'}{'Allocatable'}) {
         push @attrs, 'allocatable';

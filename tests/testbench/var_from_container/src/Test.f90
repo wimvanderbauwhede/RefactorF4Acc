@@ -7,7 +7,8 @@ module Test
     integer :: w1=3, w2=5, w3, w4=55
     integer :: test_var=43
     integer ::  v1(4,5), v2=5, v3, v4(5)
-
+    character :: ccc
+    character(len=8) :: cstr
     contains
     subroutine var_from_container
         test_var = 42

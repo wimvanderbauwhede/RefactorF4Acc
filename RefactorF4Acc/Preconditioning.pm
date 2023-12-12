@@ -879,7 +879,7 @@ sub __split_multivar_ParsedVarDecl { my ($line,$info,$stref,$f,$Sf,$nextLineID,$
             # say "SUBSET: $f $subset";
             $Sf->{$subset}{'Set'}{$var} = __parsedVarDecl_to_Decl($rinfo{'ParsedVarDecl'}, $Sf->{$subset}{'Set'}{$var});
             my $rline = emit_f95_parsed_var_decl($rinfo{'ParsedVarDecl'});
-            # say "LINE: $rline";
+            say "LINE: $rline";
             push @{$new_annlines}, [$rline, {%rinfo}];
         }
     }
