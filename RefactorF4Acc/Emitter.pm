@@ -543,25 +543,22 @@ sub emit_AnnLines {
                 # carp Dumper $decl;
                 my $var_decl_str =
                   emit_f95_var_decl( $decl, $Config{'FOLD_CONSTANTS'});
-
                 $rline = $indent . $var_decl_str;
             } else {
                 if (exists $info->{'ParsedVarDecl'}{'Vars'}) {
-                my $var_decl_str =
-                emit_f95_parsed_var_decl( $info->{'ParsedVarDecl'} );
-                $rline = $indent . $var_decl_str;
+                    my $var_decl_str =
+                    emit_f95_parsed_var_decl( $info->{'ParsedVarDecl'} );
+                    $rline = $indent . $var_decl_str;
                 } elsif (exists $info->{'VarDecl'}) {
-                my $var_name = $info->{'VarDecl'}{'Name'};
-                my $subset = in_nested_set( $Sf, 'Vars', $var_name );
-                my $decl = get_var_record_from_set($Sf->{$subset},$var_name);
-                my $var_decl_str =
-                  emit_f95_var_decl( $decl, $Config{'FOLD_CONSTANTS'});
-                  $rline = $indent . $var_decl_str;
+                    my $var_name = $info->{'VarDecl'}{'Name'};
+                    my $subset = in_nested_set( $Sf, 'Vars', $var_name );
+                    my $decl = get_var_record_from_set($Sf->{$subset},$var_name);
+                    my $var_decl_str =
+                    emit_f95_var_decl( $decl, $Config{'FOLD_CONSTANTS'});
+                    $rline = $indent . $var_decl_str;
                 } else {
                     croak 'No decl info for '.$rline.' in '.$f;
                 }
-
-
             }
         }
         elsif ( exists $info->{'ParamDecl'} ) {

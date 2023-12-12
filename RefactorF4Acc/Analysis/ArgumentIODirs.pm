@@ -332,11 +332,14 @@ sub _analyse_src_for_iodirs {
                         next;
                     }
 
-                    # Skip the declarations
+                    # Skip the variable declarations
                     if (exists $info->{'VarDecl'}) {
                         next;
                     }
-
+                    # Skip the parameter declarations
+                    if (exists $info->{'ParamDecl'}) {
+                        next;
+                    }
                     # -----------------------------------------------------------------------------
                     if (exists $info->{'Do'}) {
                         if (exists $info->{'Do'}{'Iterator'}) {

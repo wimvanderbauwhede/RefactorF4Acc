@@ -3175,7 +3175,7 @@ sub __parse_f95_decl {
     my $is_module = (exists $stref->{'Modules'}{$f}) ? 1 : 0;
 
 	my $pt = parse_F95_var_decl($line);
-# croak $line,Dumper $pt if $line=~/test_var/i;
+croak $line,Dumper $pt if $line=~/d1=1.1/i;
 	# But this could be a parameter declaration, with an assignment ...
 	if ( $line =~ /,\s*parameter\s*.*?::\s*(\w+\s*=\s*.+?)\s*$/ ) {
 		# F95-style parameters
@@ -3660,7 +3660,7 @@ sub _parse_f77_var_decl {
     }
 	( $pvars, $pvars_lst ) = __parse_F77_decl_expr( $line );
 
-croak Dumper( $pvars, $pvars_lst , $pvd); 
+# croak Dumper( $pvars, $pvars_lst , $pvd); 
 	# my $memspace = 'Global';
 	my $pragmas={'MemSpace' => 'Global'};
 	if (exists $info->{'TrailingComment'} and $info->{'TrailingComment'} =~/\$(?:RF4A|ACC)\s+/) {

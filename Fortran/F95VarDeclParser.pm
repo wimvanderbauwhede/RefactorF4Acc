@@ -15,7 +15,7 @@ use Data::Dumper;
 $Data::Dumper::Indent = 0;
 $Data::Dumper::Terse = 1;
 
-our $VV=0;
+our $VV=1;
 use Exporter 'import';
 
 @Fortran::F95VarDeclParser::EXPORT    = qw(
@@ -128,7 +128,6 @@ sub parse_F95_var_decl {
 				$pt->{'Vars'}= [$pt->{VarsDims}{Var}];
 				delete  $pt->{VarsDims} ;
 			}
-			
 		} elsif ( ref($pt->{VarsDims}) eq 'ARRAY') {
 			# We change Dim to Dims, and that should then be taken apart in Preconditioning
 			for my $var_dim_entry (@{$pt->{VarsDims}}) {
@@ -140,12 +139,13 @@ sub parse_F95_var_decl {
 				# 	delete  $pt->{VarsDims} ;
 				# } else {
 					my @dims = ( [  map { ':' } @{ $var_dim_entry->{Dim}{Sep} } ] );
-					push @{$pt->{Attributes}{Dims}},\@dims;
-					push @{$pt->{'Vars'}}, $var_dim_entry->{Var};
-					delete  $pt->{VarsDims} ;
+					# push @{$pt->{Attributes}{Dims}},\@dims;
+					# push @{$pt->{'Vars'}}, $var_dim_entry->{Var};
+					# delete  $pt->{VarsDims} ;
+					$var_dim_entry->{Dim}=\@dims;
 				# }
+
 			}
-			
 		}
 	}
 
@@ -297,12 +297,14 @@ sub param_assignment {
     sequence( [
         {'Lhs' => mixedCaseWord },
         symbol('='),
-		{'Rhs' => choice(
-			regex('^[\w\s\*\+\-\/]+'),
-			regex('^[\-\.\dedq]+'),
-			regex('^(?:\(\/|\[).+?(?:\]|\/\))'), # Array constant
-			word #FIXME  weak !word,
-			) }
+		{'Rhs' => regex('^[^,]+')
+		# choice(
+		# 	regex('^[\w\s\*\+\-\/]+'),
+		# 	regex('^[\-\.\dedq]+'),
+		# 	regex('^(?:\(\/|\[).+?(?:\]|\/\))'), # Array constant
+		# 	word #FIXME  weak !word,
+		# 	) 
+			}
     ] )
 }
 sub openacc_pragma_parser { sequence [
