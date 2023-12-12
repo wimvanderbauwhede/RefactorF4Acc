@@ -3177,7 +3177,7 @@ sub __parse_f95_decl {
 
 	my $pt = parse_F95_var_decl($line);
 	if (exists $pt->{'ParseError'}) {
-		die error( 'Parse error on F90 variable declaration on line '.$info->{'LineID'}.' in '. $Sf->{'Source'}.":\n\n\t$line\n\nProbably unsupported mixed F77/F90 syntax", 0, 'PARSE ERROR');
+		error( 'Parse error on F90 variable declaration on line '.$info->{'LineID'}.' in '. $Sf->{'Source'}.":\n\n\t$line\n\nProbably unsupported mixed F77/F90 syntax", 0, 'PARSE ERROR');
 	}
 # croak $line,Dumper $pt if $line=~/d1=1.1/i;
 	# But this could be a parameter declaration, with an assignment ...

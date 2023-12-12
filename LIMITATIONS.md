@@ -106,7 +106,7 @@ There is still a considerable subset of code that rf4a can't handle correctly, a
 * Reshaping of arrays to refactor `EQUIVALENCE` is incomplete.
 * Constant folding is incomplete.
 * `ENTRY` handling is probably flaky.
-
+* Variable declarations combining array dimensions and initial assignments, e.g. real :: v(1024,16) = 0.1, are not supported.
 
 
 

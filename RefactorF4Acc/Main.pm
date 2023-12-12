@@ -256,7 +256,7 @@ sub main {
         say "--------------". ('-' x length($code_unit_name)) ;
         }
 	$stref = build_call_graph($code_unit_name, $stref);
-
+# croak;# Dumper $stref->{'Modules'}{'test'}{'AnnLines'};
     # 3. Analysis: Analyse the source
     my $stage=0;
     if ($V) {

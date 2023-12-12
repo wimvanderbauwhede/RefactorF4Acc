@@ -93,13 +93,14 @@ sub parse_F95_var_decl {
 	my $varlist = $pt->{'Vars'} ;
 	if (ref($varlist) ne 'ARRAY') {
 		$pt->{'Vars'} = [$varlist];
-	}
+	} 
 # carp Dumper $pt->{'Vars'};
     my $parlist = $pt->{'Pars'};
    if (ref($parlist) eq 'HASH') {
 		my $lhs =$parlist->{Lhs};
 		my $rhs =$parlist->{Rhs};
 		$pt->{'Pars'} = {'Var' => $lhs, 'Val' => $rhs};
+		push @{$pt->{Vars}},$lhs;
    } elsif (ref($parlist) eq 'ARRAY') {
 		# We change Pars to ParPairs, and that should then be taken apart in Preconditioning
 		if (scalar @{$pt->{'Vars'}}>0 and not defined $pt->{'Vars'}[0] ) {
@@ -122,18 +123,18 @@ sub parse_F95_var_decl {
 
 	if (exists  $pt->{VarsDims} ) {
 		if ( ref($pt->{VarsDims}) eq 'HASH' and exists $pt->{VarsDims}{'Dim'} ) {
-			if (ref($pt->{VarsDims}{'Dim'}) eq 'ARRAY' and  @{  $pt->{VarsDims}{'Dim'} } > 0 ) {
-				croak 'SHOULD BE OBSOLETE';
-				my @dims = map { [  map { ':' } @{ $_->{'Sep'} }] } @{$pt->{VarsDims}{Dim}};
-				$pt->{Attributes}{Dim}=\@dims;
-				$pt->{'Vars'}= $pt->{VarsDims}{Var};
-				delete  $pt->{VarsDims} ;
-			} else {
+			# if (ref($pt->{VarsDims}{'Dim'}) eq 'ARRAY' and  @{  $pt->{VarsDims}{'Dim'} } > 0 ) {
+			# 	croak 'SHOULD BE OBSOLETE';
+			# 	my @dims = map { [  map { ':' } @{ $_->{'Sep'} }] } @{$pt->{VarsDims}{Dim}};
+			# 	$pt->{Attributes}{Dim}=\@dims;
+			# 	$pt->{'Vars'}= $pt->{VarsDims}{Var};
+			# 	delete  $pt->{VarsDims} ;
+			# } else {
 				my @dims = ( [  map { ':' } @{ $pt->{VarsDims}{Dim}{Sep} } ] );
 				$pt->{Attributes}{Dim}=\@dims;
 				$pt->{'Vars'}= [$pt->{VarsDims}{Var}];
 				delete  $pt->{VarsDims} ;
-			}
+			# }
 		} elsif ( ref($pt->{VarsDims}) eq 'ARRAY') {
 			# We change Dim to Dims, and that should then be taken apart in Preconditioning
 			for my $var_dim_entry (@{$pt->{VarsDims}}) {
@@ -144,17 +145,21 @@ sub parse_F95_var_decl {
 				# 	$pt->{'Vars'}= $pt->{VarsDims}{Var};
 				# 	delete  $pt->{VarsDims} ;
 				# } else {
-					my @dims = ( [  map { ':' } @{ $var_dim_entry->{Dim}{Sep} } ] );
+					my $dims =  [  map { ':' } @{ $var_dim_entry->{Dim}{Sep} } ] ;
 					# push @{$pt->{Attributes}{Dims}},\@dims;
 					# push @{$pt->{'Vars'}}, $var_dim_entry->{Var};
 					# delete  $pt->{VarsDims} ;
-					$var_dim_entry->{Dim}=\@dims;
+					$var_dim_entry->{Dim}=$dims;
+					push @{$pt->{Vars}},$var_dim_entry->{Var}
 				# }
 
 			}
 		}
 	}
 
+	if (ref($pt->{'Vars'}) eq 'ARRAY') {
+		$pt->{'Vars'} = [grep {defined $_} @{$pt->{'Vars'}}];
+	}
     print "<<<".Dumper($pt),">>>\n" if $VV;
 
 	return $pt;
@@ -271,7 +276,8 @@ sub varlist_parser {
                 sequence [
                     {'Var' => mixedCaseWord},
                     {'Dim' => parens(
-                            {'Sep' => sepBy(comma, symbol(':')) }
+						{'Sep' => sepBy(comma, choice(symbol(':'),natural)) }
+                            # {'Sep' => sepBy(comma, symbol(':')) }
                     )
                 }
                 ]
@@ -289,7 +295,7 @@ sub varlist_parser_PREV {
                 sequence [
                     {'Var' => mixedCaseWord},
                     {'Dim' => parens(
-                            {'Sep' => sepBy(comma, symbol(':')) }
+                            {'Sep' => sepBy(comma, choice(symbol(':'),natural)) }
                     )
                 }
                 ]

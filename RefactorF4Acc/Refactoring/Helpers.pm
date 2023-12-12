@@ -644,10 +644,12 @@ sub emit_f95_var_decl {
       }
      my $maybe_init_val = exists $var_decl_rec->{'InitialValue'} ? ' = '.$var_decl_rec->{'InitialValue'} : '';
     #  if ($maybe_init_val) {
-    #     carp Dumper $var_decl_rec;
+        # carp Dumper $var_decl_rec;
     #  }
+    # carp "DIM:".Dumper($dim);
     my $dimstr = '';
-    if ( ref($dim) eq 'ARRAY' and scalar @{$dim}>0) {
+    if ( ref($dim) eq 'ARRAY' and scalar @{$dim}>0 and not (scalar @{$dim}==1
+    and $dim->[0].'' eq '0')) {
         my @dimpairs = map { $_->[0].':'.$_->[1] } @{ $dim };
         $dimstr = 'dimension(' . join( ',', @dimpairs) . ')';
     }
@@ -1162,7 +1164,7 @@ sub stateless_pass_reverse {
 
 
 sub emit_f95_parsed_var_decl { (my $pvd) =@_;
-
+ 
     my $type= $pvd->{'TypeTup'}{'Type'} . (exists $pvd->{'TypeTup'}{'Kind'} ?  '( '.$pvd->{'TypeTup'}{'Kind'}.')' : '');
 
     my  @attrs=($type);
@@ -1172,7 +1174,13 @@ sub emit_f95_parsed_var_decl { (my $pvd) =@_;
     if (exists $pvd->{'Attributes'}{'Allocatable'}) {
         push @attrs, 'allocatable';
     }
-    if (exists $pvd->{'Attributes'}{'Dim'} ) {
+    if (exists $pvd->{'Attributes'}{'Parameter'}) {
+        push @attrs, 'parameter';
+    }
+    if (exists $pvd->{'Attributes'}{'Dim'} 
+    and not (scalar @{$pvd->{'Attributes'}{'Dim'}}==1
+    and $pvd->{'Attributes'}{'Dim'}[0].'' eq '0')
+    ) {
         push @attrs,'dimension('.join(', ',  @{ $pvd->{'Attributes'}{'Dim'} }).')';
     }
     if (exists $pvd->{'Attributes'}{'Intent'} ) {

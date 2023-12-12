@@ -309,6 +309,7 @@ sub _create_extra_arg_and_var_decls { #272 lines
 	( my $stref, my $f, my $annline, my $rlines ) = @_;
 
 	my $Sf         = $stref->{'Subroutines'}{$f};
+	
 	my $nextLineID = scalar @{$rlines} + 1;
 	push @{$rlines}, ['! BEGIN new declarations',{'Comments'=>1}];
 
@@ -342,12 +343,24 @@ sub _create_extra_arg_and_var_decls { #272 lines
 		print "INFO: UsedParameters in $f\n" if $I;
 
 		for my $par ( @{ $Sf->{'UsedParameters'}{'List'} } ) {
+			# Skip any pars declared in a used module
+			my $skip=0;
+			if (exists $Sf->{'Uses'}) {
+				for my $mod (sort keys %{$Sf->{'Uses'}}) {
+					if ( in_nested_set( $stref->{'Modules'}{$mod},'Vars',$par ) ) {
+						$skip=1;
+						last;
+					}
+				}
+			}
+			next if $skip;
+
+
 			my $test_par = in_nested_set( $Sf, 'Parameters', $par );
 			if ( not $test_par or $test_par eq 'UsedParameters' ) {
 				say "INFO PAR in $f: $par " . Dumper( $Sf->{'UsedParameters'}{'Set'}{$par} )
 				  if $I;
 				my $rdecl = $Sf->{'UsedParameters'}{'Set'}{$par};
-				# carp Dumper $rdecl;
 				my $rline = emit_f95_var_decl($rdecl);
 				my $info  = {};
 				$info->{'ParsedParDecl'} = {
@@ -382,14 +395,23 @@ sub _create_extra_arg_and_var_decls { #272 lines
 	print "INFO: ExGlobArgs in $f\n" if $I;
 
 	for my $var ( @{ $Sf->{'ExGlobArgs'}{'List'} } ) {
+		# Skip any vars declared in a used module
+		my $skip=0;
+		if (exists $Sf->{'Uses'}) { 
+			for my $mod (sort keys %{$Sf->{'Uses'}}) {
+				if ( in_nested_set( $stref->{'Modules'}{$mod},'Vars',$var ) ) {
+					$skip=1;
+					last;
+				}
+			}
+		}
+		next if $skip;
 
 		# Need to check if these were not already declared
 		if (
 				not exists $Sf->{'DeclaredOrigLocalVars'}{'Set'}{$var}
 			and not exists $Sf->{'DeclaredOrigArgs'}{'Set'}{$var}
 			and not exists $Sf->{'DeclaredCommonVars'}{'Set'}{$var}
-			# and exists $Sf->{'RefactoredArgs'}{'Set'}{$var} # Because otherwise there is no point
-			#    	and not exists $Sf->{'UndeclaredCommonVars'}{'Set'}{$var}
 		  )
 		{
 
@@ -398,23 +420,20 @@ sub _create_extra_arg_and_var_decls { #272 lines
 			my $rdecl = dclone($Sf->{'ExGlobArgs'}{'Set'}{$var});
 			if (not $Sf->{'Program'} and exists $rdecl->{'InitialValue'} ) { delete $rdecl->{'InitialValue'}}
 			(my $inherited_param_decls, $Sf) = __generate_inherited_param_decls($rdecl, $var, $stref, $f,[]);
-            # carp "VAR $var in $f";
-			#  map { say 'INHERITED DECL:'. $_->[0] } @{$inherited_param_decls};
 			my $rline = emit_f95_var_decl($rdecl);
-			# croak $f.Dumper($rdecl).$rline if not $Sf->{'Program'};# if $var eq 'bx4d' and $f eq 'fm500';
-			# carp $rline if $var eq 'w4' and $f eq 'mult_chk';
 			my $info  = {};
-			push @{$info->{'Ann'}}, annotate( $f, __LINE__ . ' : EX-GLOB ' . $annline->[1]{'ExGlobVarDeclHook'} ); #.' '.$rline
+			push @{$info->{'Ann'}}, annotate( $f, __LINE__ . ' : EX-GLOB ' . $annline->[1]{'ExGlobVarDeclHook'} ); 
 			$info->{'LineID'}  = $nextLineID++;
 			$info->{'Ref'}     = 1;
-			$info->{'VarDecl'} = { 'Name' => $var };                                                                  #$rdecl;
+			$info->{'VarDecl'} = { 'Name' => $var };
 			$info->{'ArgDecl'} = 1;
 			$info->{'SpecificationStatement'} = 1;
 			@{$rlines}=(@{$rlines},@{$inherited_param_decls});
 			push @{$rlines}, [ $rline, $info ];
 
 		}
-	}    # for
+		
+	} # for
 
 	print "INFO: ExInclArgs in $f\n" if $I;
 	for my $var ( @{ $Sf->{'ExInclArgs'}{'List'} } ) {
