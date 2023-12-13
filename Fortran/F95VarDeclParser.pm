@@ -82,10 +82,11 @@ sub parse_F95_var_decl {
 			}
 			# say Dumper($pt->{'Attributes'}{'Dim'},$evaled_dim_exprs);
 			$pt->{'Attributes'}{'Dim'} = $evaled_dim_exprs;
-        } else {
-			# WV 2021-05-19 would it not be better to delete this field? FIXME!
-        	$pt->{'Attributes'}{'Dim'} = [0];
-        }
+        } 
+		# else {
+		# 	# WV 2021-05-19 would it not be better to delete this field? FIXME!
+        # 	$pt->{'Attributes'}{'Dim'} = [0];
+        # }
     }
 
 	my $varlist = $pt->{'Vars'} ;

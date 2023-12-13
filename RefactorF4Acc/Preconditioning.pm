@@ -7,7 +7,7 @@ use v5.10;
 use RefactorF4Acc::Config;
 use RefactorF4Acc::Utils;
 use RefactorF4Acc::Parser::Expressions qw( get_vars_from_expression parse_expression emit_expr_from_ast );
-use RefactorF4Acc::Refactoring::Helpers qw( splice_additional_lines_cond_inplace emit_f95_var_decl emit_f95_parsed_var_decl );
+use RefactorF4Acc::Refactoring::Helpers qw( splice_additional_lines_cond_inplace emit_f95_var_decl emit_f95_parsed_var_decl parsedVarDecl_to_Decl );
 # use RefactorF4Acc::Parser qw( parse_fortran_src );
 
 use vars qw( $VERSION );
@@ -643,7 +643,7 @@ sub _split_multivar_decls {
                 ($new_annlines,$nextLineID) = __split_multivar_ParsedParDecl($line,$info,$stref,$f,$Sf,$nextLineID,$new_annlines);
             }
             elsif (exists $info->{'ParsedVarDecl'}){
-                
+
                 ($new_annlines,$nextLineID) = __split_multivar_ParsedVarDecl($line,$info,$stref,$f,$Sf,$nextLineID,$new_annlines);
             }
             elsif ( exists $info->{'VarDecl'}
@@ -818,13 +818,13 @@ sub _split_multivar_decls {
 
 sub __split_multivar_ParsedVarDecl { my ($line,$info,$stref,$f,$Sf,$nextLineID,$new_annlines) = @_;
 # carp 'PVAR:'.Dumper $info->{'ParsedVarDecl'};
-    
+
     if (exists $info->{'ParsedVarDecl'}{'Vars'}) {
         my $idx=0;
         for my $var (@{$info->{'ParsedVarDecl'}{'Vars'}}) { #next unless defined $var;
             # say "VAR: $var";
             my $rinfo_c = dclone($info);
-            
+
             $rinfo_c->{'StmtCount'} = {};
             $rinfo_c->{'StmtCount'}{$var} = $info->{'StmtCount'}{$var};
             my %rinfo = %{$rinfo_c};
@@ -839,10 +839,10 @@ sub __split_multivar_ParsedVarDecl { my ($line,$info,$stref,$f,$Sf,$nextLineID,$
             if (exists $rinfo{'ParsedVarDecl'}{'ParPairs'}) {
                 delete $rinfo{'ParsedVarDecl'}{'ParPairs'}
             }
-            # carp Dumper $rinfo{'ParsedVarDecl'}; 
+            # carp Dumper $rinfo{'ParsedVarDecl'};
             if (exists $rinfo{'ParsedVarDecl'}{'Pars'} and  $rinfo{'ParsedVarDecl'}{'Pars'}{'Var'} ne $var) {
                  delete $rinfo{'ParsedVarDecl'}{'Pars'}
-            }            
+            }
             if (exists $rinfo{'ParsedVarDecl'}{'VarsDims'}) {
                 delete $rinfo{'ParsedVarDecl'}{'VarsDims'}
             }
@@ -850,9 +850,9 @@ sub __split_multivar_ParsedVarDecl { my ($line,$info,$stref,$f,$Sf,$nextLineID,$
                 if (not exists $rinfo{'ArgDecl'}{$var}) {
                     delete $rinfo{'ArgDecl'}
                 }
-            }        
+            }
             if (exists $info->{'ParsedVarDecl'}{'ParPairs'}) {
-                
+
                 for my $var_val (@{$info->{'ParsedVarDecl'}{'ParPairs'}}) {
                     my $tvar = $var_val->{'Var'};
                     my $val = $var_val->{'Val'};
@@ -876,8 +876,8 @@ sub __split_multivar_ParsedVarDecl { my ($line,$info,$stref,$f,$Sf,$nextLineID,$
                     }
                 }
             }
-            # say "SUBSET: $f $subset";
-            $Sf->{$subset}{'Set'}{$var} = __parsedVarDecl_to_Decl($rinfo{'ParsedVarDecl'}, $Sf->{$subset}{'Set'}{$var});
+            say "SUBSET: $f $subset $var";
+            $Sf->{$subset}{'Set'}{$var} = parsedVarDecl_to_Decl($rinfo{'ParsedVarDecl'}, $Sf->{$subset}{'Set'}{$var});
             my $rline = emit_f95_parsed_var_decl($rinfo{'ParsedVarDecl'});
             push @{$new_annlines}, [$rline, {%rinfo}];
         }
@@ -887,7 +887,7 @@ sub __split_multivar_ParsedVarDecl { my ($line,$info,$stref,$f,$Sf,$nextLineID,$
 } # END of __split_multivar_ParsedVarDecl
 
 sub __split_multivar_ParsedParDecl { my ($line,$info,$stref,$f,$Sf,$nextLineID,$new_annlines) = @_;
-    
+
     push @{$info->{'Ann'}}, annotate($f, __LINE__);
     if (exists $info->{'ParsedParDecl'}{'ParPairs'}) {
         my $idx=0;
@@ -911,11 +911,11 @@ sub __split_multivar_ParsedParDecl { my ($line,$info,$stref,$f,$Sf,$nextLineID,$
             $rinfo{'VarDecl'} = {'Name' => $var};
             $rinfo{'ParamDecl'} = {'Name' => $var};
             # $Sf->{$subset}{'Set'}{$var}{'Name'} = $var;
-            
+
             $rinfo{'ParsedParDecl'}{'Vars'} = [ $var ];
             $rinfo{'ParsedParDecl'}{'Pars'} = { 'Var' => $var, 'Val' =>$val, 'AST' => $ast };
             delete $rinfo{'ParsedParDecl'}{'ParPairs'};
-            $Sf->{$subset}{'Set'}{$var} = __parsedVarDecl_to_Decl($rinfo{'ParsedParDecl'}, $Sf->{$subset}{'Set'}{$var});
+            $Sf->{$subset}{'Set'}{$var} = parsedVarDecl_to_Decl($rinfo{'ParsedParDecl'}, $Sf->{$subset}{'Set'}{$var});
             my $rline = emit_f95_parsed_var_decl($rinfo{'ParsedParDecl'});
             push @{$new_annlines}, [$rline, {%rinfo}];
         }
@@ -930,7 +930,7 @@ sub __split_multivar_ParsedParDecl { my ($line,$info,$stref,$f,$Sf,$nextLineID,$
 } # END of __split_multivar_ParsedParDecl
 
 sub __split_multivar_VarDecl { my ($line,$info,$stref,$f,$Sf,$nextLineID,$new_annlines) = @_;
-    
+
     my @nvars = @{$info->{'VarDecl'}{'Names'}};
     push @{$info->{'Ann'}}, annotate($f, __LINE__);
 
@@ -1007,14 +1007,14 @@ sub __split_multivar_VarDecl { my ($line,$info,$stref,$f,$Sf,$nextLineID,$new_an
             }
         }
         # croak "VARS: $rline",Dumper $info;
-        $Sf->{$subset}{'Set'}{$var} = __parsedVarDecl_to_Decl($rinfo{'ParsedVarDecl'}, $Sf->{$subset}{'Set'}{$var});
+        $Sf->{$subset}{'Set'}{$var} = parsedVarDecl_to_Decl($rinfo{'ParsedVarDecl'}, $Sf->{$subset}{'Set'}{$var});
         push @{$new_annlines}, [$rline, {%rinfo}];
     }    # for each $var
     return ($new_annlines,$nextLineID);
 } # __split_multivar_VarDecl
 
 sub __split_multipar_ParamDecl { my ($line, $info, $stref, $f, $Sf,$nextLineID,$new_annlines) = @_;
-    
+
     my $nvars = [];
     if (exists $info->{'ParamDecl'}{'Names'}
     and scalar @{$info->{'ParamDecl'}{'Names'}}>0
@@ -1032,7 +1032,7 @@ sub __split_multipar_ParamDecl { my ($line, $info, $stref, $f, $Sf,$nextLineID,$
         my %rinfo = %{$rinfo_c};
         $rinfo{'ParamDecl'}{'Names'}=[$var];
         $rinfo{'ParamDecl'}{'Name'}=$var;
-        $rinfo{'VarDecl'} = {'Name' => $var}; # is this needed? 
+        $rinfo{'VarDecl'} = {'Name' => $var}; # is this needed?
         if (not exists $rinfo{'ParsedParDecl'} or not exists $rinfo{'ParsedParDecl'}{'Pars'}) {
             my $subset    = in_nested_set($Sf, 'Vars', $var);
             my $orig_decl = $Sf->{$subset}{'Set'}{$var};
@@ -1070,7 +1070,7 @@ sub __split_multipar_ParamDecl { my ($line, $info, $stref, $f, $Sf,$nextLineID,$
         # my $rline = emit_f95_var_decl($param_decl);
         my $rline = emit_f95_parsed_var_decl($rinfo{'ParsedParDecl'});
         ++$idx;
-        $Sf->{'LocalParameters'}{'Set'}{$var} = __parsedVarDecl_to_Decl($rinfo{'ParsedParDecl'}, $param_decl);
+        $Sf->{'LocalParameters'}{'Set'}{$var} = parsedVarDecl_to_Decl($rinfo{'ParsedParDecl'}, $param_decl);
         push @{$new_annlines}, [$rline, {%rinfo}];
     }
     return ($new_annlines,$nextLineID);
@@ -1105,7 +1105,7 @@ sub _split_multipar_decls_and_set_type {
                         my %rinfo = %{$info};
                         $rinfo{'LineID'}    = $nextLineID++;
                         $rinfo{'ParamDecl'} = {'Name'=>$var}; # WV20190729 New approach. I don't see why anything but the name is needed
-                        $rinfo{'VarDecl'} = {'Name' => $var}; # is this needed? 
+                        $rinfo{'VarDecl'} = {'Name' => $var}; # is this needed?
                         # my $val =  exists $param_decl->{'AST'} ? emit_expr_from_ast($param_decl->{'AST'}) : $param_decl->{'Val'};
                         # my $rline = $param_decl->{'Indent'}."parameter($var=$val)"; # F77 syntax, this should not be used anyway
                         my $param_decl = $Sf->{'LocalParameters'}{'Set'}{$var};
@@ -1342,7 +1342,7 @@ sub _precondition_subroutine_with_includes { my ($stref, $f) = @_;
         for my $annline (@{$annlines}) {
             (my $line, my $info) = @{$annline};
             if (exists $info->{'VarDecl'} ) {
-                if (exists $info->{'VarDecl'}{'Names'}) { 
+                if (exists $info->{'VarDecl'}{'Names'}) {
                     if ( @{$info->{'VarDecl'}{'Names'}} > 1 ) {
                         croak "TODO: FIRST SPLIT THIS LINE! $line";
                     } else {
@@ -1355,7 +1355,7 @@ sub _precondition_subroutine_with_includes { my ($stref, $f) = @_;
                 }
             }
             elsif (exists $info->{'ParamDecl'} ) {
-                if (exists $info->{'ParamDecl'}{'Names'}) { 
+                if (exists $info->{'ParamDecl'}{'Names'}) {
                     if ( @{$info->{'ParamDecl'}{'Names'}} > 1 ) {
                         croak "TODO: FIRST SPLIT THIS LINE! $line";
                     } else {
@@ -1435,50 +1435,5 @@ and scalar keys %{$Sinc->{'LocalParameters'}{'Set'}} >0
 return 1;
 } # END of include_is_not_selfcontained
 
-sub __parsedVarDecl_to_Decl { my ($pvd, $decl) = @_;
 
-    my $mdecl = dclone($decl);
-
-    $mdecl->{'Name'} = $pvd->{'Vars'}[0];
-
-
-    if (exists $mdecl->{'Names'} ){
-        delete $mdecl->{'Names'}
-    }
-
-    $mdecl->{'Type'} = $pvd->{'TypeTup'}{'Type'};
-    if ( exists $pvd->{'TypeTup'}{'Kind'}) {
-        $mdecl->{'Attr'} = $pvd->{'TypeTup'}{'Kind'}!~/kind/ 
-            ? '(kind='.$pvd->{'TypeTup'}{'Kind'}.')'
-            : '('.$pvd->{'TypeTup'}{'Kind'}.')';
-    }
-    if (exists $pvd->{'Attributes'}{'Dim'} ) {
-        my @shape = ();
-        for my $range ( @{ $pvd->{'Attributes'}{'Dim'} } ) {
-            if ( $range =~ /:/ ) {
-                push @shape, [ split( /:/, $range ) ];
-            } else {
-                push @shape, [ '1', $range ];
-            }
-        }
-        $mdecl->{'Dim'}           = \@shape;
-    }
-    if (exists $pvd->{'Attributes'}{'Parameter'} ) {
-        $mdecl->{'Parameter'} = 'parameter';
-        $mdecl->{'Var'} = $pvd->{'Pars'}{'Var'};
-        $mdecl->{'Val'} = $pvd->{'Pars'}{'Val'};
-        if (exists $pvd->{'Pars'}{'AST'}) {
-            $mdecl->{'AST'} = $pvd->{'Pars'}{'AST'};
-        }
-    } elsif (exists $pvd->{'Pars'} and exists $pvd->{'Pars'}{'Val'}) {
-        # carp Dumper $pvd->{'Pars'};
-        $mdecl->{'InitialValue'} =$pvd->{'Pars'}{'Val'}
-    } elsif (exists $mdecl->{'InitialValue'}) {
-        delete  $mdecl->{'InitialValue'}
-    }
-    $mdecl->{'FromParsedVarDecl'} = 1;
-# carp Dumper $mdecl if $mdecl->{'Name'} =~/v/;
-    return $mdecl;
-
-}
 1;

@@ -16,6 +16,7 @@ use warnings FATAL => qw(uninitialized);
 use strict;
 use Carp qw(croak carp confess longmess shortmess);
 use Data::Dumper;
+use Storable qw( dclone );
 #$Data::Dumper::Indent = 0;
 
 use Exporter;
@@ -47,6 +48,7 @@ use Exporter;
   &pass_wrapper_subs_in_module
   &update_arg_var_decl_sourcelines
   &substitute_placeholders
+  &parsedVarDecl_to_Decl
   %f95ops
 );
 
@@ -1426,6 +1428,72 @@ sub _substitute_placeholders_per_source { (my $stref,my $f) =@_;
 	return $stref
 } # END of _substitute_placeholders_per_source
 
+sub parsedVarDecl_to_Decl { my ($pvd, $decl) = @_;
 
+    my $mdecl = dclone($decl);
+    $mdecl->{'ArrayOrScalar'} = 'Scalar';
+    $mdecl->{'Name'} = $pvd->{'Vars'}[0];
+
+
+    if (exists $mdecl->{'Names'} ){
+        delete $mdecl->{'Names'}
+    }
+
+    $mdecl->{'Type'} = $pvd->{'TypeTup'}{'Type'};
+    if ( exists $pvd->{'TypeTup'}{'Kind'}) {
+        $mdecl->{'Attr'} = 
+            $mdecl->{'Type'} ne 'character'
+            ? '(kind='.$pvd->{'TypeTup'}{'Kind'}.')'
+            : '(len='.$pvd->{'TypeTup'}{'Kind'}.')';
+    }
+    if (exists $pvd->{'Attributes'}{'Dim'} ) {
+        my @shape = ();
+        for my $range ( @{ $pvd->{'Attributes'}{'Dim'} } ) {
+            if ( $range =~ /:/ ) {
+                push @shape, [ split( /:/, $range ) ];
+            } else {
+                push @shape, [ '1', $range ];
+            }
+        }
+        $mdecl->{'Dim'}           = \@shape;
+        if (scalar @shape>0) {
+            $mdecl->{'ArrayOrScalar'} = 'Array';
+        }
+    }
+    if (exists $pvd->{'Attributes'}{'Parameter'} ) {
+        $mdecl->{'Parameter'} = 'parameter';
+        $mdecl->{'Var'} = $pvd->{'Pars'}{'Var'};
+        $mdecl->{'Val'} = $pvd->{'Pars'}{'Val'};
+        if (exists $pvd->{'Pars'}{'AST'}) {
+            $mdecl->{'AST'} = $pvd->{'Pars'}{'AST'};
+        }
+    } elsif (exists $pvd->{'Pars'} and exists $pvd->{'Pars'}{'Val'}) {
+        # carp Dumper $pvd->{'Pars'};
+        $mdecl->{'InitialValue'} =$pvd->{'Pars'}{'Val'}
+    } elsif (exists $mdecl->{'InitialValue'}) {
+        delete  $mdecl->{'InitialValue'}
+    }
+    $mdecl->{'IODir'} = defined $pvd->{'Attributes'}{'Intent'} ? $pvd->{'Attributes'}{'Intent'} : 'Unknown';
+    if ( exists $pvd->{'Attributes'}{'Allocatable'}) {
+        $mdecl->{'Allocatable'}='allocatable';
+
+        my $alloc_dim = exists $pvd->{'Attributes'}{'Dim'}
+            ? $pvd->{'Attributes'}{'Dim'}[0]
+            : 0;
+        if ($alloc_dim==0) {
+            if ($pvd->{'TypeTup'}{'Kind'} eq ':'	) {
+                error("TODO: allocatable character string");
+            }
+        } else {
+        # So what we do is replace every value with this pair of empty strings.
+            my @dims = map { ['',''] } @{$alloc_dim};
+            $mdecl->{'Dim'}           = \@dims;
+        }
+    }
+    $mdecl->{'FromParsedVarDecl'} = 1;
+# carp Dumper $mdecl if $mdecl->{'Name'} =~/v/;
+    return $mdecl;
+
+} # END of parsedVarDecl_to_Decl
 
 1;
