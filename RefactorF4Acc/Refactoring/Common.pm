@@ -77,14 +77,14 @@ sub refactor_COMMON_blocks_and_CONTAINed_subs {  # 218 lines Was _refactor_globa
 	my @containers=();
 	if ( exists $Sf->{'Container'} ) {
 		@containers = ($Sf->{'Container'});
-	} elsif (exists $Sf->{'Containers'} ) { # This is for subroutines extracted from ACC marked regions of code
-		@containers = sort keys %{$Sf->{'Containers'}};
+	} elsif (exists $Sf->{'Container_Blocks'} ) { # This is for subroutines extracted from ACC marked regions of code
+		@containers = sort keys %{$Sf->{'Container_Blocks'}};
 	}
 	for my $container (@containers) {
 		if ( exists $stref->{'Subroutines'}{$container}{'Parameters'} ) {
-			my ($set,$list) = merge_subsets($stref->{'Modules'}{$container}{'Parameters'}{'Subsets'});    # Note this is a nested set
-			$Sf->{'ParametersFromContainer'}{'Set'}=$set;
-			$Sf->{'ParametersFromContainer'}{'List'}=$list;
+			# my ($set,$list) = merge_subsets($stref->{'Modules'}{$container}{'Parameters'}{'Subsets'});    # Note this is a nested set
+			# $Sf->{'ParametersFromContainer'}{'Set'}=$set;
+			# $Sf->{'ParametersFromContainer'}{'List'}=$list;
 			my $all_pars_in_container = get_vars_from_set( $stref->{'Subroutines'}{$container}{'Parameters'} );
 			for my $par ( keys %{$all_pars_in_container} ) {
 				my $par_decl      = $all_pars_in_container->{$par};
@@ -106,9 +106,9 @@ sub refactor_COMMON_blocks_and_CONTAINed_subs {  # 218 lines Was _refactor_globa
 	my @par_decl_lines_from_module = ();
 	my @mods = ();
 	# WV 2023-12-11 a subroutine can only be in a single module, but of course that module can use other modules.
-	if ( exists $Sf->{'InModules'} ) {
+	if ( exists $Sf->{'InModule_Blocks'} ) {
 		# This is for subroutines extracted from ACC marked regions of code
-		@mods = sort keys %{$Sf->{'InModules'}};
+		@mods = sort keys %{$Sf->{'InModule_Blocks'}};
 	}
 	elsif ( exists $Sf->{'InModule'} ) {
 		my $mod = $Sf->{'InModule'};
@@ -116,9 +116,9 @@ sub refactor_COMMON_blocks_and_CONTAINed_subs {  # 218 lines Was _refactor_globa
 	}
 	for my $mod (@mods) {
 		if ( exists $stref->{'Modules'}{$mod}{'Parameters'} ) {
-			my ($set,$list) = merge_subsets($stref->{'Modules'}{$mod}{'Parameters'}{'Subsets'});    # Note this is a nested set
-			$Sf->{'ParametersFromContainer'}{'Set'}=$set;
-			$Sf->{'ParametersFromContainer'}{'List'}=$list;
+			# my ($set,$list) = merge_subsets($stref->{'Modules'}{$mod}{'Parameters'}{'Subsets'});    # Note this is a nested set
+			# $Sf->{'ParametersFromContainer'}{'Set'}=$set;
+			# $Sf->{'ParametersFromContainer'}{'List'}=$list;
 			my $all_pars_in_module =
 			  get_vars_from_set( $stref->{'Modules'}{$mod}{'Parameters'} );
 			for my $par ( keys %{$all_pars_in_module} ) {
@@ -343,7 +343,7 @@ sub _create_extra_arg_and_var_decls { #272 lines
 		print "INFO: UsedParameters in $f\n" if $I;
 
 		for my $par ( @{ $Sf->{'UsedParameters'}{'List'} } ) {
-			# Skip any pars declared in a used module
+			# Skip any pars declared in a used module. It's either that or remove the module USE declaration. But that is more complex.
 			my $skip=0;
 			if (exists $Sf->{'Uses'}) {
 				for my $mod (sort keys %{$Sf->{'Uses'}}) {

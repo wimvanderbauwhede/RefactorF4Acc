@@ -3250,8 +3250,7 @@ sub __parse_f95_decl {
 			my $decls = __create_Decls_from_ParsedVarDecl($info,$init_decl);
 			for my $decl (@{$decls}) {
 				my $tvar = $decl->{'Name'} ;
-say "VAR $tvar DECL:".Dumper($decl);
-
+				
 				if ($decl->{'Dim'}) {
 					$decl=__get_params_from_dim($decl,$Sf);
 				}
@@ -5432,6 +5431,7 @@ sub __create_Decls_from_ParsedVarDecl { my ($info,$init_decl) = @_;
     if (exists $info->{'ParsedVarDecl'}{'Vars'}) {
 		my $pvd = dclone($info->{'ParsedVarDecl'});
         for my $var (@{$info->{'ParsedVarDecl'}{'Vars'}}) { #next unless defined $var;
+			$pvd->{'Vars'}=[$var];
             if (exists $pvd->{'ParPairs'}) {
                 delete $pvd->{'ParPairs'}
             }
@@ -5442,7 +5442,6 @@ sub __create_Decls_from_ParsedVarDecl { my ($info,$init_decl) = @_;
                 delete $pvd->{'VarsDims'}
             }
             if (exists $info->{'ParsedVarDecl'}{'ParPairs'}) {
-
                 for my $var_val (@{$info->{'ParsedVarDecl'}{'ParPairs'}}) {
                     my $tvar = $var_val->{'Var'};
                     my $val = $var_val->{'Val'};

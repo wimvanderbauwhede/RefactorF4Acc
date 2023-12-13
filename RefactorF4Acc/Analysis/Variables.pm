@@ -23,8 +23,9 @@ use Exporter;
 our @ISA = qw(Exporter);
 
 our @EXPORT_OK = qw(
-  analyse_variables
-  identify_vars_on_line
+  &analyse_variables
+  &identify_vars_on_line
+  &get_vars_pars_from_containers
 );
 
 # -----------------------------------------------------------------------------
@@ -36,6 +37,9 @@ our @EXPORT_OK = qw(
 #			IF in Vars for any Incl => ExInclLocalVars, LocalVars
 #				ELSE => UndeclaredOrigLocalVars, LocalVars
 # Then merge the Args and ExGlobArgs
+
+# WV 2023-12-13 This needs to handle variables from modules and containers as well.
+
 sub analyse_variables {
 	( my $stref, my $f, my $annline ) = @_;
 
@@ -480,5 +484,67 @@ sub identify_vars_on_line {
         }
 } # END of identify_vars_on_line
 
+## Here we populate VarsFromContainers and ParametersFromContainers, where "Container" is any enclosing unit.
 
+sub get_vars_pars_from_containers { my ($f, $stref) = @_;
+	my $sub_or_func_or_mod = sub_func_incl_mod( $f, $stref );
+	my $Sf = $stref->{$sub_or_func_or_mod}{$f};
+	$Sf->{'VarsFromContainer'}{'List'} = [];
+	$Sf->{'VarsFromContainer'}{'Set'} = {};
+	$Sf->{'ParametersFromContainer'}{'List'} = [];
+	$Sf->{'ParametersFromContainer'}{'Set'} = {};
+
+	# For the case of Contained subroutines
+	
+	my @containers=();
+	if ( exists $Sf->{'Container'} ) {
+		@containers = ($Sf->{'Container'});
+	} elsif (exists $Sf->{'Container_Blocks'} ) { # This is for subroutines extracted from ACC marked regions of code
+		@containers = sort keys %{$Sf->{'Container_Blocks'}};
+	}
+	for my $container (@containers) {
+		if ( exists $stref->{'Subroutines'}{$container}{'Parameters'} ) {
+			my ($pset,$plist) = merge_subsets($stref->{'Modules'}{$container}{'Parameters'}{'Subsets'}); # Note this is a nested set
+			$Sf->{'ParametersFromContainer'}{'Set'}= { %{$Sf->{'ParametersFromContainer'}{'Set'}},%{$pset}};
+			$Sf->{'ParametersFromContainer'}{'List'}= ordered_union($Sf->{'ParametersFromContainer'}{'List'},$plist);
+			my ($vpset,$vplist) = merge_subsets($stref->{'Modules'}{$container}{'Vars'}{'Subsets'}); 
+			my $vlist = ordered_difference($plist,$vplist);
+			my $vset = {};
+			for my $var (@{$vlist}) {
+				$vset->{$var} = $vset->{$var}
+			}
+			$Sf->{'VarsFromContainer'}{'Set'}= { %{$Sf->{'VarsFromContainer'}{'Set'}},%{$vset}};
+			$Sf->{'VarsFromContainer'}{'List'}= ordered_union($Sf->{'VarsFromContainer'}{'List'},$vlist);
+		}
+	}
+
+	# For the case of subroutines in modules that either have params or USE params via modules
+	
+	my @mods = ();
+	# WV 2023-12-11 a subroutine can only be in a single module, but of course that module can use other modules.
+	if ( exists $Sf->{'InModule_Blocks'} ) {
+		# This is for subroutines extracted from ACC marked regions of code
+		@mods = sort keys %{$Sf->{'InModule_Blocks'}};
+	}
+	elsif ( exists $Sf->{'InModule'} ) {
+		my $mod = $Sf->{'InModule'};
+		@mods = ($mod);
+	}
+	for my $mod (@mods) {
+		if ( exists $stref->{'Modules'}{$mod}{'Parameters'} ) {
+			my ($pset,$plist) = merge_subsets($stref->{'Modules'}{$mod}{'Parameters'}{'Subsets'}); # Note this is a nested set
+			$Sf->{'ParametersFromContainer'}{'Set'}= { %{$Sf->{'ParametersFromContainer'}{'Set'}},%{$pset}};
+			$Sf->{'ParametersFromContainer'}{'List'}= ordered_union($Sf->{'ParametersFromContainer'}{'List'},$plist);
+			my ($vset,$vlist) = merge_subsets($stref->{'Modules'}{$mod}{'Vars'}{'Subsets'});
+			$Sf->{'VarsFromContainer'}{'List'} = ordered_difference($plist,$vlist);
+			my $vset = {};
+			for my $var (@{$vlist}) {
+				$vset->{$var} = $vset->{$var}
+			}
+			$Sf->{'VarsFromContainer'}{'Set'}= { %{$Sf->{'VarsFromContainer'}{'Set'}},%{$vset}};
+			$Sf->{'VarsFromContainer'}{'List'}= ordered_union($Sf->{'VarsFromContainer'}{'List'},$vlist);
+		}
+	}
+	return $stref;
+}
 1;

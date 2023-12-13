@@ -256,10 +256,10 @@ sub __separate_into_blocks {
             if (exists $info->{'SubroutineCall'}) {
                 my $subname = $info->{'SubroutineCall'}{'Name'};
                 my $container = $stref->{'Subroutines'}{$subname}{'Container'};
-                $stref->{'Subroutines'}{$block}{'Containers'}{$container}=$subname;
+                $stref->{'Subroutines'}{$block}{'Container_Blocks'}{$container}=$subname;
                 if (exists $stref->{'Subroutines'}{$subname}{'InModule'}) {
                     my $mod =  $stref->{'Subroutines'}{$subname}{'InModule'};
-                    $stref->{'Subroutines'}{$block}{'InModules'}{$mod}=$subname;
+                    $stref->{'Subroutines'}{$block}{'InModule_Blocks'}{$mod}=$subname;
                 }
             }
             # Now we must make sure this new module inherits the USE statements from the modules of any called subs
