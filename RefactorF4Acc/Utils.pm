@@ -559,13 +559,18 @@ sub get_vars_from_set { (my $set)=@_;
 }
 # $stref->{'Modules'}{$mod}{'Parameters'}{'Subsets'}
 sub merge_subsets { my ($subsets) = @_;
-my $merged_set = {};
+    my $merged_set = {};
 
-for my $subset (sort keys %{$subsets}) {
-    $merged_set = {%{$merged_set}, %{$subsets->{$subset}{'Set'}}}
-}
-my $merged_list = [sort keys %{$merged_set}];
-return ($merged_set, $merged_list);
+    for my $subset (sort keys %{$subsets}) {
+        if (scalar keys %{$subsets->{$subset}} == 1 and exists $subsets->{$subset}{'Subsets'}) {
+            my ($merged_sset, $merged_slist) = merge_subsets($subsets->{$subset}{'Subsets'});
+            $merged_set = {%{$merged_set}, %{$merged_sset}}
+        } else {
+            $merged_set = {%{$merged_set}, %{$subsets->{$subset}{'Set'}}}
+        }
+    }
+    my $merged_list = [sort keys %{$merged_set}];
+    return ($merged_set, $merged_list);
 }
 
 # set is by name here

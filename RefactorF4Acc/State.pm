@@ -284,6 +284,8 @@ sub initialise_per_code_unit_tables {
 				}
 			};
 		}
+		$Sf->{'Uses'} ={};
+		$Sf->{'UsesTransitively'} ={};
 
 		$Sf->{'DoneInitTables'} = 1;
 	}
