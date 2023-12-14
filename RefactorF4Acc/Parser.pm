@@ -3250,7 +3250,7 @@ sub __parse_f95_decl {
 			my $decls = __create_Decls_from_ParsedVarDecl($info,$init_decl);
 			for my $decl (@{$decls}) {
 				my $tvar = $decl->{'Name'} ;
-say "VAR $tvar DECL:".Dumper($decl);
+# say "VAR $tvar DECL:".Dumper($decl);
 
 				if ($decl->{'Dim'}) {
 					$decl=__get_params_from_dim($decl,$Sf);

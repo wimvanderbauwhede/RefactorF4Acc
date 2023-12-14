@@ -196,7 +196,8 @@ sub analyse_variables {
 									my $var_rec = get_var_record_from_set( $stref->{'Modules'}{$inc}{'Vars'}, $mvar );
 									if (exists $var_rec->{'Parameter'} ) {
 										$grouped_messages->{'W'}{'PARAM_FROM_INC'}{$mvar} =  "WARNING: $mvar in $f is a PARAMETER from $inc!" if $WW;
-										$Sf->{'Uses'}{$inc}{'Only'}{$mvar} = 1;
+										# This is only used here, so redundant
+										# $Sf->{'Uses'}{$inc}{'Only'}{$mvar} = 1;
 
 									} else {
 #										say "$f VAR7 $mvar";
