@@ -4,8 +4,10 @@ what we need to do is
     - is the var defined at module level? We have 'Container', 'Container_Blocks' and 'ParametersFromContainer', which is only used in Refactoring::Common
     - What we don't seem to have is 'VarsFromContainer'; or yes, we have it in State, but it is not populated.
     - if not, does the module have Use statements? If so, these should be added to the Use statements of the subroutine.
-    - We have 'UsedParameters', 'UsedGlobalVars' and 'UsedLocalVars' for every subroutine. So it seems to me that in principle, we should not have this problem
-    - we also have $stref->{'UsedModules'}, which has all used modules, and $Sf->{'Uses'}, which has the modules used by that unit (but not via the container)
+    - e have 'UsedParameters', 'UsedGlobalVars' and 'UsedLocalVars' for every subroutine. So it seems to me that in principle, we should not have this problem
+    - we also have $stref->{'UsedModules'}, which has all used modules, but it's only populated in Modules::add_module_decls
+    - but we have $stref->{'dModules'}, which has all modules reached in the recdescent
+    and $Sf->{'Uses'}, which has the modules used by that unit (but not via the container)
     - So I guess I should add 'UsesViaContainer'
     - And I also need the transitive closure, so say 'UsesTransitively' 
 

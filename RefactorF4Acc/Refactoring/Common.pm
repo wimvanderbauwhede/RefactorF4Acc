@@ -595,18 +595,20 @@ sub _create_extra_arg_and_var_decls { #272 lines
 				if ( (my $subset = in_nested_set( $Sf, 'DeclaredOrigLocalVars', $var )) and $DBG ) {
 					croak $subset;
 				}
-
-				my $rdecl = $Sf->{'UndeclaredOrigLocalVars'}{'Set'}{$var};
-				$rdecl->{'Ann'} = "in $f (implicit declaration)";
-				# carp Dumper($stref->{'Subroutines'}{  $var});
-				my $rline = emit_f95_var_decl($rdecl);
-				my $info  = {};
-				push @{$info->{'Ann'}}, annotate( $f, __LINE__ . ' : EX-IMPLICIT VAR' );
-				$info->{'LineID'}  = $nextLineID++;
-				$info->{'Ref'}     = 1;
-				$info->{'VarDecl'} = { 'Name' => $var };    #$rdecl;
-				$info->{'SpecificationStatement'} = 1;
-				push @{$rlines}, [ $rline, $info ];
+				if (not exists $Sf->{'VarsFromContainer'}{'Set'}{$var}) {
+					# Because otherwise it means this var is declared elsewhere
+					my $rdecl = $Sf->{'UndeclaredOrigLocalVars'}{'Set'}{$var};
+					$rdecl->{'Ann'} = "in $f (implicit declaration)";
+					# carp Dumper($stref->{'Subroutines'}{  $var});
+					my $rline = emit_f95_var_decl($rdecl);
+					my $info  = {};
+					push @{$info->{'Ann'}}, annotate( $f, __LINE__ . ' : EX-IMPLICIT VAR' );
+					$info->{'LineID'}  = $nextLineID++;
+					$info->{'Ref'}     = 1;
+					$info->{'VarDecl'} = { 'Name' => $var };    #$rdecl;
+					$info->{'SpecificationStatement'} = 1;
+					push @{$rlines}, [ $rline, $info ];
+				}
 			} else {
 				say "INFO: $var is a reserved word" if $I;
 				# croak Dumper($Sf->{'MaskedIntrinsics'}{$var}) if $var eq 'len';

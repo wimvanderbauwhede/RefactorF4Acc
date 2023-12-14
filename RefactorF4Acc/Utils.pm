@@ -542,20 +542,13 @@ sub get_vars_from_set { (my $set)=@_;
     my $vars={};
      if (exists $set->{'Subsets'} ) {
         for my $subset (keys %{  $set->{'Subsets'} } ) {
-#        	say "  " x $indent,$subset;
-#$indent++;
-# carp $subset;
             my $vars_ref= get_vars_from_set($set->{'Subsets'}{$subset});
-#            $indent--;
-#if (defined $vars_ref) {
             $vars = { %{$vars}, %{$vars_ref} };
-#}
         }
     } elsif (exists $set->{'Set'}) {
-#    	say 'SET!';
         $vars = $set->{'Set'}  ;
     }
-        return $vars;
+    return $vars;
 }
 # $stref->{'Modules'}{$mod}{'Parameters'}{'Subsets'}
 sub merge_subsets { my ($subsets) = @_;

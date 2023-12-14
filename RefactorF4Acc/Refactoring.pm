@@ -50,6 +50,9 @@ sub refactor_all {
     if ($sub_or_func_or_mod eq 'Modules' and $is_source_file_path) {
        $code_unit_name = get_module_name_from_source($stref,$code_unit_name);
     }
+    for my $module_name (sort keys %{$stref->{'Modules'}}) {
+        $stref->{'Modules'}{$module_name}{'RefactoredCode'}=$stref->{'Modules'}{$module_name}{'AnnLines'};
+    }
 
     $stref = refactor_include_files($stref) unless $Config{'INLINE_INCLUDES'} == 1;
 
@@ -62,7 +65,6 @@ sub refactor_all {
     $stref = refactor_all_subroutines($stref);
 #    say "AFTER refactor_all_subroutines";
 
-#  croak Dumper pp_annlines($stref->{'Subroutines'}{'dyn_shapiro'}{'RefactoredCode'});
 
     # This can't go into refactor_all_subroutines() because it is recursive
     # Also, this is actually analysis
@@ -95,19 +97,13 @@ sub refactor_all {
 
 	# $stref = fold_constants_all($stref) ;
 	# $stref = refactor_dsm_all($stref) ;
-    # croak Dumper pp_annlines($stref->{'RefactoredCode'}{'./dyn_shapiro.f95'});
 
     # Custom refactoring, must be done before creating final modules
-    # croak;
+
+
     say "add_module_decls" if $V;
     $stref=add_module_decls($stref);
 
-    # croak Dumper pp_annlines($stref->{'Modules'}{'module_dyn_shapiro'}{'AnnLines'});
-    # croak Dumper pp_annlines($stref->{'RefactoredCode'}{'./dyn_shapiro.f95'});
-    # carp Dumper $stref->{'RefactoredCode'}{"./src2/main.f"};
-# croak Dumper pp_annlines($stref->{Subroutines}{main}{AnnLines});
-    # carp Dumper  pp_annlines($stref->{'RefactoredCode'}{'./boundp.f'});
-# croak Dumper pp_annlines($stref->{'Subroutines'}{'boundp2'}{'RefactoredCode'});
     return $stref;
 } # END of refactor_all()
 

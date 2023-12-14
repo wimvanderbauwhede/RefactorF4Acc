@@ -121,9 +121,18 @@ sub add_module_decls {
 			# And then I need to figure out how to adapt the USE declarations in other subroutines.
 			# Unless there is a way to re-export modules
 			my $only_one_sub_in_module = scalar  @{ $stref->{'Modules'}{ $existing_module_name{$src} }{'Contains'} } == 1 ? 1 : 0;
-			my $split_out_modules_per_subroutine= $only_one_sub_in_module ? 0 : 1;
+			# Also, as soon as there are variables at module level, I should give up.
+			# If there are constants, I guess I could replicate them
+			# But for now, I will simply give up
+			my $vars_set = get_vars_from_set($stref->{'Modules'}{ $existing_module_name{$src} }{'DeclaredCommonVars'});
+			my $vars_list = [sort keys %{$vars_set}];
+			my $pars_set = get_vars_from_set($stref->{'Modules'}{ $existing_module_name{$src} }{'LocalParameters'});
+			my $pars_list = [sort keys %{$pars_set}];
+			my $has_module_level_vars = ( @{$vars_list} or @{$pars_list}) ? 1 : 0;
+			my $split_out_modules_per_subroutine= ($only_one_sub_in_module or $has_module_level_vars) ? 0 : 1;
 			if ($Config{'ONE_SUB_PER_MODULE'}==1 and
-				$split_out_modules_per_subroutine==1 and $stref->{'Modules'}{  $existing_module_name{$src} }{'Inlineable'}==0) {
+				$split_out_modules_per_subroutine==1 and 
+				$stref->{'Modules'}{  $existing_module_name{$src} }{'Inlineable'}==0) { 
 				$stref = _split_module_per_subroutine( $stref,  \%existing_module_name, $src, \%no_modules );
 			} else {
 

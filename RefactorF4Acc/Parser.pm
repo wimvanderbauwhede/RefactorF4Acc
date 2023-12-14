@@ -746,7 +746,8 @@ MODULE
 					$info->{'Use'}{'Only'}=[];
 				}
 				$info->{'SpecificationStatement'} = 1;
-				$srcref->[$index] = [ $line, $info ];
+				$info->{'Indent'} = $indent;
+				$srcref->[$index] = [ $indent . $line, $info ];
 				next;
 #== CONTAINS
 			} elsif ( $line =~ /^contains/ ) {

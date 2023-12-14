@@ -122,12 +122,12 @@ sub analyse_all {
 		}
 		my $Sf = $stref->{'Subroutines'}{$f};
 		if (not exists $Sf->{'BlockData'} or $Sf->{'BlockData'} == 0 ) {
-			## Here we populate VarsFromContainers and ParametersFromContainers, where "Container" is any enclosing unit.
-			# We are not using those at the moment though.
-			$stref = get_vars_pars_from_containers($stref,$f);
 			## Here we populate UsesTransitively for every code unit.
 			# We are not using this at the moment but I think it is needed for proper constant folding.
 			$stref = populate_UsesTransitively( $stref,$f);
+			## Here we populate VarsFromContainers and ParametersFromContainers, where "Container" is any enclosing unit.
+			# We are not using those at the moment though.
+			$stref = get_vars_pars_from_containers($stref,$f);
 		}
 	}
 	# for my $module_name (sort keys %{$stref->{'Modules'}}) {

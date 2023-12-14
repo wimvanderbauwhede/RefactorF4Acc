@@ -488,8 +488,31 @@ sub identify_vars_on_line {
 } # END of identify_vars_on_line
 
 ## Here we populate VarsFromContainers and ParametersFromContainers, where "Container" is any enclosing unit.
-
 sub get_vars_pars_from_containers { my ($stref,$f) = @_;
+	my $sub_or_func_or_mod = sub_func_incl_mod( $f, $stref );
+	my $Sf = $stref->{$sub_or_func_or_mod}{$f};
+	$Sf->{'VarsFromContainer'}{'List'} = [];
+	$Sf->{'VarsFromContainer'}{'Set'} = {};
+	$Sf->{'ParametersFromContainer'}{'List'} = [];
+	$Sf->{'ParametersFromContainer'}{'Set'} = {};
+
+	# For the case of Contained subroutines
+	
+	my @used_modules = sort keys %{$Sf->{'UsesTransitively'}};
+
+	for my $module_name (@used_modules) {
+		my $pars = get_vars_from_set($stref->{'Modules'}{$module_name}{'Parameters'});
+		$Sf->{'ParametersFromContainer'}{'Set'} = { %{$Sf->{'ParametersFromContainer'}{'Set'} }, %{$pars} };
+		my $vars = get_vars_from_set($stref->{'Modules'}{$module_name}{'Vars'});
+		$Sf->{'VarsFromContainer'}{'Set'} = { %{$Sf->{'VarsFromContainer'}{'Set'} }, %{$vars} };
+
+	}
+	$Sf->{'ParametersFromContainer'}{'List'}= [sort keys %{$Sf->{'ParametersFromContainer'}{'Set'}}];
+	$Sf->{'VarsFromContainer'}{'List'}= [sort keys %{$Sf->{'VarsFromContainer'}{'Set'}}];
+	return $stref;
+}  # END of get_vars_pars_from_containers
+
+sub get_vars_pars_from_containers_BROKEN { my ($stref,$f) = @_;
 	my $sub_or_func_or_mod = sub_func_incl_mod( $f, $stref );
 	my $Sf = $stref->{$sub_or_func_or_mod}{$f};
 	$Sf->{'VarsFromContainer'}{'List'} = [];
@@ -548,8 +571,10 @@ sub get_vars_pars_from_containers { my ($stref,$f) = @_;
 			$Sf->{'VarsFromContainer'}{'List'}= ordered_union($Sf->{'VarsFromContainer'}{'List'},$vlist);
 		}
 	}
+
 	return $stref;
-}  # END of get_vars_pars_from_containers
+
+}  # END of get_vars_pars_from_containers_BROKEN
 
 sub populate_UsesTransitively { my ($stref,$f) = @_;
 	my $sub_incl_or_mod = sub_func_incl_mod($f, $stref);
@@ -569,9 +594,11 @@ sub populate_UsesTransitively { my ($stref,$f) = @_;
 		}
 		for my $module_name (@mods) {
 			$stref = _build_UsesTransitively_rec($stref,$module_name);
+			$Sf->{'UsesTransitively'} = { %{$Sf->{'UsesTransitively'}},%{$stref->{'Modules'}{$module_name}{'UsesTransitively'}} }
 		}
 	}
-	# carp "$sub_incl_or_mod $f: ".Dumper $Sf->{'UsesTransitively'};
+	# carp "$sub_incl_or_mod $f: ".Dumper $Sf->{'UsesTransitively'} ;
+	
 	return $stref;
 } # END of populate_UsesTransitively
 
