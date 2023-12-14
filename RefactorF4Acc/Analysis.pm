@@ -3,7 +3,7 @@ use v5.10;
 use RefactorF4Acc::Config;
 use RefactorF4Acc::Utils;
 use RefactorF4Acc::Analysis::Includes qw( find_root_for_includes lift_param_includes);
-use RefactorF4Acc::Analysis::Variables qw( analyse_variables );
+use RefactorF4Acc::Analysis::Variables qw( analyse_variables get_vars_pars_from_containers );
 use RefactorF4Acc::Analysis::Arguments qw(
 	determine_ExGlobArgs
 	find_argument_declarations
@@ -79,6 +79,11 @@ sub analyse_all {
 			$stref = analyse_variables( $stref, $f );
 		}
 	}
+
+	## Here we populate VarsFromContainers and ParametersFromContainers, where "Container" is any enclosing unit.
+	# We are not using those at the moment though.
+	$stref = get_vars_pars_from_containers($code_unit_name, $stref);
+
 	# In this stage, 'ExGlobArgs' is populated from CommonVars by looking at the common blocks that occur in the call chain
 	# Note that this does *not* cover common blocks in includes so hopefully ExGlobArgs will not be affected for the case with includes.
 	say "\t** EX-GLOB ARGS **" if $V;

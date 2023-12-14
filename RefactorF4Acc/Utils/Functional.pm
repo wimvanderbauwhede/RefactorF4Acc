@@ -100,6 +100,7 @@ sub union {
 
 # -----------------------------------------------------------------------------
 # This union is obtained by removing duplicates from @b. It is a bit slower but preserves the order
+# sets A and B are lists
 sub ordered_union {
     ( my $aref, my $bref ) = @_;
     croak("ordered_union(): both args must be defined!") if $DBG and not (defined $aref and defined $bref);   
@@ -119,7 +120,8 @@ sub ordered_union {
     }
 }    # END of ordered_union()
 # -----------------------------------------------------------------------------
-# This is the set of all members of $bref not in $aref, not the other way round
+# This is the set of all members of $bref not in $aref, not the other way round, so ordered_difference(A,B) = B - A
+# sets A and B are lists
 sub ordered_difference {
     ( my $aref, my $bref ) = @_;
     croak("ordered_difference()") if $DBG and not (defined $aref and defined $bref);   

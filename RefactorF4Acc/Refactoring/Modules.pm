@@ -89,7 +89,7 @@ sub add_module_decls {
 					next if
 						defined $cs_src and
 						$stref->{'SourceFiles'}{$cs_src}{'SourceType'} eq 'Modules'
-						and not exists $stref->{'Subroutines'}{$called_sub}{'InModules'}
+						and not exists $stref->{'Subroutines'}{$called_sub}{'InModule_Blocks'}
 						;
 
 					$stref->{'UsedModules'}{$src}{$cs_src} = $sub_or_func_or_mod if defined $cs_src;
