@@ -201,17 +201,12 @@ sub add_module_decls {
 					( my $line, my $info ) = @{$annline};
 					return exists $info->{'Contains'};
 					}, $old_annlines, $new_annlines, 0, 0, 1 );
-					$stref->{'RefactoredCode'}{$src} = $merged_annlines;
-					# croak Dumper pp_annlines($merged_annlines) if $existing_module_name{$src} eq 'module_dyn_shapiro';
+					$stref->{'RefactoredCodeForSource'}{$src} = $merged_annlines;
 				} else {
-					$stref->{'RefactoredCode'}{$src} = $old_annlines;
+					$stref->{'RefactoredCodeForSource'}{$src} = $old_annlines;
 				}
 
 			}
-			# say '#' x 80 ;
-			# 	say "NEW ANNLINES for $src, MODULE ".$existing_module_name{$src};
-			# 		show_annlines($stref->{'RefactoredCode'}{$src});
-			# 		say '#' x 80 ;
 
 		} else {
 
@@ -261,7 +256,7 @@ sub _split_module_per_subroutine {
 		}
 		push @wrapper_module_annlines,["end module $module_to_split",{ 'EndModule' => $module_to_split }];
 
-		$stref->{'RefactoredCode'}{$src}=\@wrapper_module_annlines;
+		$stref->{'RefactoredCodeForSource'}{$src}=\@wrapper_module_annlines;
 
 	return $stref;
 }    # END of _split_module_per_subroutine
@@ -413,7 +408,7 @@ sub _create_module_src { (my $stref, my $src, my $subname, my $no_modules ) = @_
 	my $EXT = $Config{EXT};
 	my $nsrc = $subname ne '' ? $Config{'SRCDIRS'}->[0]."/$subname$EXT" : $src;
 	if ( !$no_module ) {
-		$stref->{'RefactoredCode'}{$nsrc} = [ $mod_header, @mod_uses, $mod_contains, @refactored_source_lines, $mod_footer ];
+		$stref->{'RefactoredCodeForSource'}{$nsrc} = [ $mod_header, @mod_uses, $mod_contains, @refactored_source_lines, $mod_footer ];
 	} else {
 
 		if ($is_program) {
@@ -442,23 +437,17 @@ sub _create_module_src { (my $stref, my $src, my $subname, my $no_modules ) = @_
 					}
 				}
 			}
-			$stref->{'RefactoredCode'}{$src} = [ @prog_p1, @mod_uses, @prog_p2 ];
+			$stref->{'RefactoredCodeForSource'}{$src} = [ @prog_p1, @mod_uses, @prog_p2 ];
 
 		} else {
-			$stref->{'RefactoredCode'}{$src} = [@refactored_source_lines];
+			$stref->{'RefactoredCodeForSource'}{$src} = [@refactored_source_lines];
 		}
 	}
 	if ($subname ne '') {
-		# say "NEW SRC $nsrc ";die;
-#		show_annlines($stref->{'RefactoredCode'}{$nsrc});
 		 $stref->{'SourceContains'}{$nsrc} = {'List' =>[$subname]   };
 		$stref->{'BuildSources'}{'F'}{$nsrc}=1;
 	}
     }
-	# else {
-	# 	carp 'EMPTY?!';
-	# }
-    # carp Dumper $stref->{'RefactoredCode'}{"./src2/main.f"};
 	return $stref;
 }    # END of _create_module_src
 

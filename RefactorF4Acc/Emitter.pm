@@ -120,13 +120,11 @@ sub emit_all {
             say 'INFO: ' . ( '=' x 80 );
             say "INFO: Emitter: New source: $targetdir/$nsrc ($src)";
             say 'INFO: ' . ( '=' x 80 );
-            show_annlines( $stref->{'RefactoredCode'}{$src}, 0 );
+            show_annlines( $stref->{'RefactoredCodeForSource'}{$src}, 0 );
         }
         else {
             say "INFO: Emitter: New source: $targetdir/$nsrc ($src)" if ( $I or $DBG );
-            show_annlines( $stref->{'AnnLines'}{$src}, 0 );
-
-            my $mod_lines = $stref->{'RefactoredCode'}{$src};
+            my $mod_lines = $stref->{'RefactoredCodeForSource'}{$src};
 
             if ( exists $stref->{'SourceFiles'}{$src}{'AnnLines'} ) {
                 my @source_level_comments = grep { exists $_->[1]{'Comments'} }
@@ -135,7 +133,7 @@ sub emit_all {
                     $mod_lines = [ @source_level_comments, @{$mod_lines} ];
                 }
             }
-
+            say "! RefactoredCodeForSource $src:" if $SHOW;
             show_annlines( $mod_lines, 0 ) if $SHOW;
 
             open my $TGT, '>', "$targetdir/$nsrc"
