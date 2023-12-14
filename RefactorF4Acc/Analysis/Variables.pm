@@ -512,7 +512,7 @@ sub get_vars_pars_from_containers { my ($f, $stref) = @_;
 			my $vlist = ordered_difference($plist,$vplist);
 			my $vset = {};
 			for my $var (@{$vlist}) {
-				$vset->{$var} = $vset->{$var}
+				$vset->{$var} = $vpset->{$var}
 			}
 			$Sf->{'VarsFromContainer'}{'Set'}= { %{$Sf->{'VarsFromContainer'}{'Set'}},%{$vset}};
 			$Sf->{'VarsFromContainer'}{'List'}= ordered_union($Sf->{'VarsFromContainer'}{'List'},$vlist);
@@ -536,16 +536,34 @@ sub get_vars_pars_from_containers { my ($f, $stref) = @_;
 			my ($pset,$plist) = merge_subsets($stref->{'Modules'}{$mod}{'Parameters'}{'Subsets'}); # Note this is a nested set
 			$Sf->{'ParametersFromContainer'}{'Set'}= { %{$Sf->{'ParametersFromContainer'}{'Set'}},%{$pset}};
 			$Sf->{'ParametersFromContainer'}{'List'}= ordered_union($Sf->{'ParametersFromContainer'}{'List'},$plist);
-			my ($vset,$vlist) = merge_subsets($stref->{'Modules'}{$mod}{'Vars'}{'Subsets'});
-			$Sf->{'VarsFromContainer'}{'List'} = ordered_difference($plist,$vlist);
+			my ($vpset,$vplist) = merge_subsets($stref->{'Modules'}{$mod}{'Vars'}{'Subsets'});
+			my $vlist = ordered_difference($plist,$vplist);
 			my $vset = {};
 			for my $var (@{$vlist}) {
-				$vset->{$var} = $vset->{$var}
+				$vset->{$var} = $vpset->{$var}
 			}
 			$Sf->{'VarsFromContainer'}{'Set'}= { %{$Sf->{'VarsFromContainer'}{'Set'}},%{$vset}};
 			$Sf->{'VarsFromContainer'}{'List'}= ordered_union($Sf->{'VarsFromContainer'}{'List'},$vlist);
 		}
 	}
 	return $stref;
-}
+}  # END of get_vars_pars_from_containers
+
+# So, we are in $f, and we have $name. What we want is the transitive closure, so assuming we have all the Uses, we should do
+# We must do something similar for use via containers
+sub _build_UsesTransitively { my ($stref,$f) = @_;
+    my $sub_incl_or_mod = sub_func_incl_mod($f, $stref);
+    my $Sf = $stref->{$sub_incl_or_mod}{$f};
+    if (exists $Sf->{'Uses'} and scalar keys %{$Sf->{'Uses'}}>0) {
+        $Sf->{'UsesTransitively'} = {%{$Sf->{'Uses'}}};
+        for my $used_module (sort keys %{$Sf->{'Uses'}}) {
+            $stref = _build_UsesTransitively($stref,$used_module);
+            $Sf->{'UsesTransitively'} = {%{$Sf->{'UsesTransitively'}},%{$stref->{'Modules'}{$used_module}{'UsesTransitively'}} };
+        }
+    } else {
+        # This is a leaf node
+    }
+    return $stref;
+
+} # END of _build_UsesTransitively
 1;

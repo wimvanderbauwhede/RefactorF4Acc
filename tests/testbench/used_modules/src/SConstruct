@@ -1,0 +1,14 @@
+import os
+
+FC=os.environ.get('FC')
+
+print( FC )
+   
+fsources = [ 'Constants.f90', 'State.f90', 'Helper.f90', 'Main.f90', 'mainProgram.f90' ]
+
+LDFLAGS= [] 
+FFLAGS  = ['-cpp', '-Wall'] #,'-ffree-form', '-ffree-line-length-0', '-fconvert=big-endian','-mcmodel=medium']
+
+envF=Environment(FORTRAN=FC,F90=FC,LINK=FC,LINKFLAGS=LDFLAGS,F90FLAGS=FFLAGS,F90PATH=['.'])
+
+envF.Program('mainProgam',fsources,LIBS=[],LIBPATH=['.'])
