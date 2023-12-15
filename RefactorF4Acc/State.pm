@@ -237,8 +237,7 @@ sub initialise_per_code_unit_tables {
 						'LocalParameters'    => $Sf->{'LocalParameters'},
 						'IncludedParameters' => $Sf->{'IncludedParameters'},
 						'UsedParameters' => $Sf->{'UsedParameters'},
-						'ParametersFromContainer' =>
-						$Sf->{'ParametersFromContainer'}
+						'ParametersFromContainer' => $Sf->{'ParametersFromContainer'}
 					}
 				};
 			}

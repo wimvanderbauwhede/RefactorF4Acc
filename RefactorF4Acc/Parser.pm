@@ -3343,10 +3343,17 @@ sub __parse_f95_decl {
 							$Sf->{$subset}{'Set'}{$tvar} = $decl;
 						} else {
 							say "INFO: <$line>: $tvar does not have a record in Vars" if 1 or $I;
-							$subset = $is_module ? 'DeclaredCommonVars' : 'DeclaredOrigLocalVars';
-							if ($is_module) { $decl->{'CommonBlockName'} = $f; } # overload CommonBlockName with module name
+							$subset = $is_module ? 'DeclaredCommonVars' : 'DeclaredOrigLocalVars'; # For backward compatibility
+							if ($is_module) { 
+								$decl->{'CommonBlockName'} = $f;  # For backward compatibility
+								$decl->{'ModuleName'} = $f; 
+							} # overload CommonBlockName with module name
 							$Sf->{$subset}{'Set'}{$tvar}=$decl;
 							push @{$Sf->{$subset}{'List'}}, $tvar;
+							if ($is_module) {
+								$Sf->{'UsedGlobalVars'}{'Set'}{$tvar}=$decl;
+								push @{$Sf->{'UsedGlobalVars'}{'List'}}, $tvar;
+							}
 						}
 					}
 				}

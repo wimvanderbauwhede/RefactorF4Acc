@@ -41,7 +41,7 @@ our @EXPORT_OK = qw(
 # Then merge the Args and ExGlobArgs
 
 # WV 2023-12-13 This needs to handle variables from modules and containers as well.
-
+# I think I will create analyse_used_variables for this.
 sub analyse_variables {
 	( my $stref, my $f, my $annline ) = @_;
 
@@ -386,6 +386,80 @@ sub analyse_variables {
 	return $stref;
 }    # END of analyse_variables()
 
+# The purpose of this routine is to reduce VarsFromContainer and ParametersFromContainer to only those vars that are actually in the code unit
+sub analyse_used_variables {
+	( my $stref, my $f) = @_;
+
+	my $Sf = $stref->{'Subroutines'}{$f};
+
+	# local $DBG=1;
+	# local $V=1;
+	# local $I=1;
+	say "analyse_used_variables($f)" if $DBG;
+
+	my $__analyse_vars_on_line = sub {
+		( my $annline, my $state ) = @_;
+		( my $line,    my $info )  = @{$annline};
+# TODO: use the grouped labels Control, IO etc
+		if (   exists $info->{'Assignment'}
+			or exists $info->{'StatementFunction'}
+			or exists $info->{'SubroutineCall'}
+			or exists $info->{'If'} # Control
+			or exists $info->{'ElseIf'} # Control
+			or exists $info->{'Do'} # Control
+			or exists $info->{'Return'}# Control
+			or exists $info->{'WriteCall'}# IO
+			or exists $info->{'PrintCall'}# IO
+			or exists $info->{'ReadCall'}# IO
+			or exists $info->{'InquireCall'}# IO
+			or exists $info->{'OpenCall'}# IO
+			or exists $info->{'CloseCall'}# IO
+			or exists $info->{'RewindCall'}# IO
+			or exists $info->{'ParamDecl'}
+			or exists $info->{'Equivalence'}
+			or (exists $info->{'Data'} and ( exists $Sf->{'BlockData'} and $Sf->{'BlockData'} == 1 ))
+			) {
+			( my $stref, my $f, my $identified_vars ) = @{$state};
+
+			my $Sf     = $stref->{'Subroutines'}{$f};
+		    my $chunks_ref = identify_vars_on_line($annline);
+			my @chunks = @{ $chunks_ref };
+
+			# -------------------------------------------------------------------------------------------------------------------
+
+			for my $mvar (@chunks) {
+				# croak "<$mvar>".Dumper(@chunks).Dumper($annline) if $mvar eq 'kind';
+                next if exists $stref->{'Subroutines'}{$f}{'CalledSubs'}{'Set'}{$mvar};    # Means it's a function
+				next if $mvar =~ /^\d+(?:_[1248])?$/;
+				next if not defined $mvar or $mvar eq '';
+
+				if (
+					not exists $identified_vars->{$mvar} # mvar not yet identified
+				  ) {
+					$identified_vars->{$mvar}=1;
+				}
+			}
+			return ( [$annline], [ $stref, $f, $identified_vars ] );
+		}
+		else {
+			return ( [$annline], $state );
+		}
+	};
+
+	my $state = [ $stref, $f, {} ];
+	( $stref, $state ) = stateful_pass_inplace( $stref, $f, $__analyse_vars_on_line, $state, 'analyse_used_variables() ' . __LINE__ );
+
+	my $vars_in_code_unit = $state->[2];
+	# So now we simply delete any var that is not in this set
+	for my $used_var (@{$Sf->{'VarsFromContainer'}{'List'}}) {
+		if (not exists $vars_in_code_unit->{$used_var}) {
+			delete $Sf->{'VarsFromContainer'}{'Set'}{$used_var}
+		}
+	}
+	$Sf->{'VarsFromContainer'}{'List'} = [sort keys %{$Sf->{'VarsFromContainer'}{'Set'}}];
+	return $stref;
+}    # END of analyse_used_variables()
+
 sub identify_vars_on_line {
 		( my $annline ) = @_;
 		( my $line,    my $info )  = @{$annline};
@@ -491,7 +565,7 @@ sub identify_vars_on_line {
 sub get_vars_pars_from_containers { my ($stref,$f) = @_;
 	my $sub_or_func_or_mod = sub_func_incl_mod( $f, $stref );
 	my $Sf = $stref->{$sub_or_func_or_mod}{$f};
-	$Sf->{'VarsFromContainer'}{'List'} = [];
+	$Sf->{'VarsFromContainer'}{'List'} = []; 
 	$Sf->{'VarsFromContainer'}{'Set'} = {};
 	$Sf->{'ParametersFromContainer'}{'List'} = [];
 	$Sf->{'ParametersFromContainer'}{'Set'} = {};
@@ -501,9 +575,9 @@ sub get_vars_pars_from_containers { my ($stref,$f) = @_;
 	my @used_modules = sort keys %{$Sf->{'UsesTransitively'}};
 
 	for my $module_name (@used_modules) {
-		my $pars = get_vars_from_set($stref->{'Modules'}{$module_name}{'Parameters'});
+		my $pars = get_vars_from_set($stref->{'Modules'}{$module_name}{'LocalParameters'}); # Because Used and FromContainers should be captured through the rec descent
 		$Sf->{'ParametersFromContainer'}{'Set'} = { %{$Sf->{'ParametersFromContainer'}{'Set'} }, %{$pars} };
-		my $vars = get_vars_from_set($stref->{'Modules'}{$module_name}{'Vars'});
+		my $vars = get_vars_from_set($stref->{'Modules'}{$module_name}{'UsedGlobalVars'}); # Because this is all that matters
 		$Sf->{'VarsFromContainer'}{'Set'} = { %{$Sf->{'VarsFromContainer'}{'Set'} }, %{$vars} };
 
 	}
@@ -521,7 +595,7 @@ sub get_vars_pars_from_containers_BROKEN { my ($stref,$f) = @_;
 	$Sf->{'ParametersFromContainer'}{'Set'} = {};
 
 	# For the case of Contained subroutines
-	
+
 	my @containers=();
 	if ( exists $Sf->{'Container'} ) {
 		@containers = ($Sf->{'Container'});
@@ -545,7 +619,7 @@ sub get_vars_pars_from_containers_BROKEN { my ($stref,$f) = @_;
 	}
 
 	# For the case of subroutines in modules that either have params or USE params via modules
-	
+
 	my @mods = ();
 	# WV 2023-12-11 a subroutine can only be in a single module, but of course that module can use other modules.
 	if ( exists $Sf->{'InModule_Blocks'} ) {
@@ -583,7 +657,6 @@ sub populate_UsesTransitively { my ($stref,$f) = @_;
 	$stref = _build_UsesTransitively_rec($stref,$f);
 
 	if ($sub_incl_or_mod eq 'Subroutines') {
-		
 		my @mods = ();
 		if ( exists $Sf->{'InModule_Blocks'} ) {
 			@mods = sort keys %{$Sf->{'InModule_Blocks'}};
@@ -598,7 +671,6 @@ sub populate_UsesTransitively { my ($stref,$f) = @_;
 		}
 	}
 	# carp "$sub_incl_or_mod $f: ".Dumper $Sf->{'UsesTransitively'} ;
-	
 	return $stref;
 } # END of populate_UsesTransitively
 
@@ -607,7 +679,7 @@ sub populate_UsesTransitively { my ($stref,$f) = @_;
 sub _build_UsesTransitively_rec { my ($stref,$f) = @_;
     my $sub_incl_or_mod = sub_func_incl_mod($f, $stref);
     my $Sf = $stref->{$sub_incl_or_mod}{$f};
-	
+
     if (exists $Sf->{'Uses'} and scalar keys %{$Sf->{'Uses'}}>0) {
         $Sf->{'UsesTransitively'} = {%{$Sf->{'UsesTransitively'}},%{$Sf->{'Uses'}}};
         for my $used_module (sort keys %{$Sf->{'Uses'}}) {

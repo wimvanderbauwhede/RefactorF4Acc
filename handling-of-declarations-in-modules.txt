@@ -11,4 +11,6 @@ what we need to do is
     - So I guess I should add 'UsesViaContainer'
     - And I also need the transitive closure, so say 'UsesTransitively' 
 
-    
+In terms of refactoring, what we need is to detect that a variable used in a subroutine is declared in an enclosing or used module.
+
+The question is, given a variable in a subroutine, when should this become an argument?

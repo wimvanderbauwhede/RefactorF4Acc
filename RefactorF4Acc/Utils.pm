@@ -207,10 +207,13 @@ sub show_annlines {
         } else {
             print $annline->[0];
             if($with_info) {
-#             ? "\t<";#.join(';',keys %{ $annline->[1] }).'>' : '');
                 print "  ! <";
-                for my $k (keys %{ $annline->[1] }) {
-                    if ( not ref( $annline->[1]{$k} ) and defined $annline->[1]{$k} ) {
+                for my $k (sort keys %{ $annline->[1] }) {
+                    next if $k eq 'Indent';
+                    if ($k eq 'Ann') {
+                        print  $k.'=>'."\n\t! ".join("\n\t! ",@{$annline->[1]{$k}})."\n  !  ";
+                    }
+                    elsif ( not ref( $annline->[1]{$k} ) and defined $annline->[1]{$k} and $annline->[1]{$k} ne '') {
                         print  $k.'=>'.$annline->[1]{$k}.';';
                     }  else {
                         print "$k;"

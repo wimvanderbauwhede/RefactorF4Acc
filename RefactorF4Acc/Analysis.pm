@@ -81,6 +81,25 @@ sub analyse_all {
 	}
 
 
+	for my $f ( keys %{ $stref->{'Subroutines'} } ) {
+		next if $f eq '';
+		if (exists $stref->{'Entries'}{$f}) {
+			next;
+		}
+		my $Sf = $stref->{'Subroutines'}{$f};
+		if (not exists $Sf->{'BlockData'} or $Sf->{'BlockData'} == 0 ) {
+			## Here we populate UsesTransitively for every code unit.
+			# We are not using this at the moment but I think it is needed for proper constant folding.
+			$stref = populate_UsesTransitively( $stref,$f);
+			## Here we populate VarsFromContainers and ParametersFromContainers, where "Container" is any enclosing unit.
+			# We are not using those at the moment though.
+			$stref = get_vars_pars_from_containers($stref,$f);
+		}
+	}
+	# for my $module_name (sort keys %{$stref->{'Modules'}}) {
+	# 	my $Sf = $stref->{'Modules'}{$module_name};
+	# 	carp "$module_name: ".Dumper $Sf->{'UsesTransitively'};
+	# }
 	# In this stage, 'ExGlobArgs' is populated from CommonVars by looking at the common blocks that occur in the call chain
 	# Note that this does *not* cover common blocks in includes so hopefully ExGlobArgs will not be affected for the case with includes.
 	say "\t** EX-GLOB ARGS **" if $V;
@@ -115,25 +134,6 @@ sub analyse_all {
 		}
 	}
 
-	for my $f ( keys %{ $stref->{'Subroutines'} } ) {
-		next if $f eq '';
-		if (exists $stref->{'Entries'}{$f}) {
-			next;
-		}
-		my $Sf = $stref->{'Subroutines'}{$f};
-		if (not exists $Sf->{'BlockData'} or $Sf->{'BlockData'} == 0 ) {
-			## Here we populate UsesTransitively for every code unit.
-			# We are not using this at the moment but I think it is needed for proper constant folding.
-			$stref = populate_UsesTransitively( $stref,$f);
-			## Here we populate VarsFromContainers and ParametersFromContainers, where "Container" is any enclosing unit.
-			# We are not using those at the moment though.
-			$stref = get_vars_pars_from_containers($stref,$f);
-		}
-	}
-	# for my $module_name (sort keys %{$stref->{'Modules'}}) {
-	# 	my $Sf = $stref->{'Modules'}{$module_name};
-	# 	carp "$module_name: ".Dumper $Sf->{'UsesTransitively'};
-	# }
 
     for my $f ( keys %{ $stref->{'Subroutines'} } ) {
         next if $f eq '';

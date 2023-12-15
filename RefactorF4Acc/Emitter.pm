@@ -133,8 +133,8 @@ sub emit_all {
                     $mod_lines = [ @source_level_comments, @{$mod_lines} ];
                 }
             }
-            say "! RefactoredCodeForSource $src:" if $SHOW;
-            show_annlines( $mod_lines, 0 ) if $SHOW;
+            say "\n! RefactoredCodeForSource $src:" if $SHOW;
+            show_annlines( $mod_lines, $ANN ) if $SHOW;
 
             open my $TGT, '>', "$targetdir/$nsrc"
               or die $! . ": $targetdir/$nsrc";

@@ -503,7 +503,6 @@ sub determine_ExGlobArgs {
 	}
 	pop  @{ $stref->{'CallStack'} };
 
-
 	return $stref;
 }    # determine_ExGlobArgs()
 
@@ -542,7 +541,7 @@ sub __determine_exglobargs_core { ( my $stref, my $f ) = @_;
 		my $decl = $common_decls_current->{$var};
 
 		my $common_block_name = $decl->{'CommonBlockName'};
-		if (exists	$common_decls_callers->{$var}{$common_block_name} ) {
+		if (exists $common_decls_callers->{$var}{$common_block_name} ) {
 #			say Dumper( $common_decls_callers->{$var}{$common_block_name} );
 			if (not $is_block_data) {
 				$Sf->{'ExGlobArgs'}{'Set'}{$var}=$decl;
@@ -561,23 +560,25 @@ sub __determine_exglobargs_core { ( my $stref, my $f ) = @_;
 	return $stref;
 } # END of __determine_exglobargs_core()
 
-# This returns a hash $varname => $common_block_name
+# This returns a hash $varname => $decl
 sub __get_common_decls { ( my $stref, my $f ) = @_;
 	my $sub_or_func_or_mod = sub_func_incl_mod( $f, $stref );
 	my $Sf = $stref->{$sub_or_func_or_mod}{$f};
-	carp 'WV 2023-12-15 This does not include CommonVars in Containers or Used modules';
+	# carp 'WV 2023-12-15 This does not include CommonVars in Containers or Used modules';
 	my $common_decls = get_vars_from_set($Sf->{'CommonVars'});
-
+	my $used_global_decls = get_vars_from_set($Sf->{'VarsFromContainer'});
+	$common_decls = {%{$common_decls},%{$used_global_decls}};
 	return $common_decls;
 } # END of __get_common_decls()
 
-# This returns a hash $varname => $common_block_name
-sub __get_exglobarg_decls { ( my $stref, my $f ) = @_;
-	my $sub_or_func_or_mod = sub_func_incl_mod( $f, $stref );
-	my $Sf = $stref->{$sub_or_func_or_mod}{$f};
-	my $exglobarg_decls = get_vars_from_set($Sf->{'ExGlobArgs'});
-	return $exglobarg_decls;
-} # END of __get_exglobarg_decls()
+# UNUSED!
+# # This returns a hash $varname => $decl
+# sub __get_exglobarg_decls { ( my $stref, my $f ) = @_;
+# 	my $sub_or_func_or_mod = sub_func_incl_mod( $f, $stref );
+# 	my $Sf = $stref->{$sub_or_func_or_mod}{$f};
+# 	my $exglobarg_decls = get_vars_from_set($Sf->{'ExGlobArgs'});
+# 	return $exglobarg_decls;
+# } # END of __get_exglobarg_decls()
 
 
 1;
