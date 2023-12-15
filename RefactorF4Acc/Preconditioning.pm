@@ -876,8 +876,10 @@ sub __split_multivar_ParsedVarDecl { my ($line,$info,$stref,$f,$Sf,$nextLineID,$
                     }
                 }
             }
-            
-            $Sf->{$subset}{'Set'}{$var} = parsedVarDecl_to_Decl($rinfo{'ParsedVarDecl'}, $Sf->{$subset}{'Set'}{$var});
+            # say "SUBSET <$subset> for VAR <$var> in $f";
+            # say 'DECL:'.Dumper()
+            my $init_decl = $subset ne '' ? $Sf->{$subset}{'Set'}{$var} : { 'Name' => $var};
+            $Sf->{$subset}{'Set'}{$var} = parsedVarDecl_to_Decl($rinfo{'ParsedVarDecl'}, $init_decl);
             my $rline = emit_f95_parsed_var_decl($rinfo{'ParsedVarDecl'});
             push @{$new_annlines}, [$rline, {%rinfo}];
         }

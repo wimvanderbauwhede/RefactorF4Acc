@@ -23,7 +23,7 @@ use Exporter;
 @RefactorF4Acc::Refactoring::ContextFree::ISA = qw(Exporter);
 
 @RefactorF4Acc::Refactoring::ContextFree::EXPORT_OK = qw(
-  &context_free_refactorings  
+  &context_free_refactorings
 );
 
 #* BeginDo: just remove the label
@@ -42,14 +42,14 @@ use Exporter;
 sub context_free_refactorings {
     ( my $stref, my $f ) = @_;
     print "CONTEXT-FREE REFACTORINGS for $f CODE\n" if $V ;
-    
+
     my $die_if_one         = ($DBG and $f eq 'BOOM')? 1 : 0;
     my @extra_lines        = ();
     my $sub_or_func_or_inc = sub_func_incl_mod( $f, $stref );
     my $Sf                 = $stref->{$sub_or_func_or_inc}{$f};
-  
-    if ($DBG and 
-        $Sf->{'Status'} != $PARSED 
+
+    if ($DBG and
+        $Sf->{'Status'} != $PARSED
         and  $Sf->{'Status'}!= $UNUSED
     ) {
         croak "USED BUT NOT PARSED: $f\n" . caller() . "\n" ;
@@ -74,8 +74,8 @@ sub context_free_refactorings {
             # Also, maybe a -C flag to suppress comments might be good.
             if ( exists $info->{'OrigComments'}  ) { # I should distinguish between original comments and new comments.
             # Also, maybe a -C flag to suppress comments might be good.
-                push @{ $Sf->{'RefactoredCode'} }, [ $line, $info ];   
-            }        
+                push @{ $Sf->{'RefactoredCode'} }, [ $line, $info ];
+            }
             next;
         }
         if ( not exists $info->{'Inlined'} ) {
@@ -85,29 +85,29 @@ sub context_free_refactorings {
         }
         if ( exists $info->{'Save'} ) {
         	if ( $Config{'NO_SAVE'} == 1 or
-                exists  $Sf->{'Program'} and $Sf->{'Program'} == 1             
-             ) { 
+                exists  $Sf->{'Program'} and $Sf->{'Program'} == 1
+             ) {
                 $line = '! '.$line;
                 $info->{'Deleted'}=1;
                 push @{$info->{'Ann'}}, annotate($f, __LINE__ .' SAVE statement in Program' );
         	}
-        }	
-        elsif ( exists $info->{'Implicit'} ) { 
+        }
+        elsif ( exists $info->{'Implicit'} ) {
         	$line = '! '.$line;
         	$info->{'Deleted'}=1;
         	push @{$info->{'Ann'}}, annotate($f, __LINE__ .' Original Implicit statement' );
-        }	        
+        }
         elsif ( exists $info->{'Dimension'} and not exists $info->{'VarDecl'} ) {
         	$line = '! '.$line;
         	$info->{'Deleted'}=1;
         	push @{$info->{'Ann'}}, annotate($f, __LINE__ .' Original Dimension statement' );
-        }	
+        }
         elsif ( exists $info->{'Common'} ) {
         	$line = '! '.$line unless exists $Sf->{'BlockData'};
         	$info->{'Deleted'}=1;
         	push @{$info->{'Ann'}}, annotate($f, __LINE__ .' Original Common statement' );
-        }	
-        
+        }
+
         elsif ( exists $info->{'External'} ) {
             # Add the type if it is still Unknown
             # if ( exists $Sf->{'ExternalFunctions'} ) {
@@ -125,12 +125,12 @@ sub context_free_refactorings {
                         #  $Sf->{'DeclaredOrigLocalVars'}{'Set'}{$ext_f}{'TRACK'}=1;
                         #  my $test_decl = get_var_record_from_set( $Sf->{'Vars'},$ext_f);
                         #  $test_decl->{'TRACK'}=1;
-                        
+
                     }
                 }
             # }
         	push @{$info->{'Ann'}}, annotate($f, __LINE__ .' External statement' );
-        }	                
+        }
 		elsif ( exists $info->{'Data'} ) {
 			my @chunks=split(/data\s+/,$line);
 			croak if $DBG and  scalar @chunks > 2;
@@ -139,7 +139,7 @@ sub context_free_refactorings {
 			$str=~s/\// \/ /g;
 			$line = $chunks[0].'data '.$str;
 		}
-			
+
         elsif ( exists $info->{'Goto'} ) {
             $line =~ s/\bgo\sto\b/goto/;
             $info->{'Ref'}++;
@@ -149,8 +149,8 @@ sub context_free_refactorings {
         elsif ( exists $info->{'BeginDo'} ) {
         	my $label = $info->{'BeginDo'}{'Label'};
         	# This should have an extra check
-        	
-        	if ($Sf->{'DoLabelTarget'}{$label} eq 'Continue' or $Sf->{'DoLabelTarget'}{$label} eq 'EndDo')  {         	
+
+        	if ($Sf->{'DoLabelTarget'}{$label} eq 'Continue' or $Sf->{'DoLabelTarget'}{$label} eq 'EndDo')  {
             	$line =~ s/do\s+\d+\s+/do /;
             	$info->{'Ref'}++;
         	}
@@ -167,7 +167,7 @@ sub context_free_refactorings {
             }
             my $count = $info->{'EndDo'}{'Count'};
             if ( exists $info->{'Continue'} ) {
-            	
+
                 if ( $is_goto_target == 0 ) {
                 	my $label='';
                 	if (exists $info->{'EndDo'}{'Label'}) {
@@ -175,7 +175,7 @@ sub context_free_refactorings {
                 	} elsif (exists $info->{'Continue'}{'Label'}) {
                 		$label = $info->{'Continue'}{'Label'}
                 	}
-	                	if ($label ne '' and exists  $Sf->{'ReferencedLabels'}{$label}) {                		
+	                	if ($label ne '' and exists  $Sf->{'ReferencedLabels'}{$label}) {
                     	$line = $info->{'Indent'}. $label.    ' end do'; # END DO can't be a label target I think
 					} else {
                     	$line = $info->{'Indent'}.' end do';
@@ -216,15 +216,15 @@ sub context_free_refactorings {
         }
 
         if ($Config{'ALLOW_SPACES_IN_NUMBERS'}==1  ) { # I make the assumption that there must be 3 digits after a space
-        
+
             while ($line=~/\d\s+\d\d\d+/) {
                 $line =~s/(\d)\s+(\d)/$1$2/;
             }
             # croak $line if $line=~/100\s*000/;
         }
 
-        
-        if ( exists $info->{'PlaceHolders'} ) { 
+
+        if ( exists $info->{'PlaceHolders'} ) {
 # Here we put the strings back in place of the placeholders
 			while ($line =~ /(__PH\d+__)/) {
 				my $ph=$1;
@@ -239,41 +239,46 @@ sub context_free_refactorings {
 # ------------------------------------------------------------------------------
 
         if ( exists $info->{'VarDecl'} ) {
-            
+
         	my $var =  $info->{'VarDecl'}{'Name'};
-            
+
             if (not exists $info->{'ParamDecl'}) {
-                if ( in_nested_set($Sf, 'Parameters', $var) ) { 
+                if ( in_nested_set($Sf, 'Parameters', $var) ) {
                     # croak "$f: $line" . Dumper $info if $var =~/alpha/;
 	                # Remove this line, because this param should have been declared above
 	                $line = '!! Original line VAR !! ' . $line;
 	                $info->{'Deleted'} = 1;
 	                push @{$info->{'Ann'}}, annotate($f, __LINE__ .' Removed VarDecl for Param '.$var );
-	            } 
+	            }
             }
 
 			my $stmt_count = $info->{'StmtCount'}{$var};
 			if (not defined $stmt_count) {$stmt_count=1; };
             if (exists  $info->{'ParsedVarDecl'} ) {
 
-                my $pvd = $info->{'ParsedVarDecl'}; 
+                my $pvd = $info->{'ParsedVarDecl'};
                 if (scalar @{ $info->{'ParsedVarDecl'}{'Vars'} } == 1) {
-                    my $var_decl = get_var_record_from_set( $Sf->{'Vars'},$var);
-                    # carp "HERE ParsedVarDecl $f $line", Dumper $var_decl if $line=~/ff318/;
+                    if (in_nested_set($Sf,'Vars',$var) ) {
+                        my $var_decl = get_var_record_from_set( $Sf->{'Vars'},$var);
 
-                    $line = emit_f95_var_decl($var_decl);
-                    if (exists $info->{'Dimension'}) {
-                    	push @{$info->{'Ann'}}, annotate($f, __LINE__ .': Dimension, '.($stmt_count == 1 ? '' : 'SKIP'));
+                        $line = emit_f95_var_decl($var_decl);
+                        if (exists $info->{'Dimension'}) {
+                            push @{$info->{'Ann'}}, annotate($f, __LINE__ .': Dimension, '.($stmt_count == 1 ? '' : 'SKIP'));
+                        } else {
+                            add_ann_to_info($info,$f,__LINE__);
+                        }
                     } else {
-                        add_ann_to_info($info,$f,__LINE__);
+                        carp "VAR $var in $f is not in Vars, WHY?";
+                        $line = emit_f95_parsed_var_decl($pvd);
+                        push @{$info->{'Ann'}}, annotate($f, __LINE__ .': ParsedVarDecl, '.($stmt_count == 1 ? '' : 'SKIP'));
                     }
                 } else {
-                    $line = emit_f95_parsed_var_decl($pvd);                    
-                    push @{$info->{'Ann'}}, annotate($f, __LINE__ .': ParsedVarDecl, '.($stmt_count == 1 ? '' : 'SKIP'));                    
-                }                
-                
-            } else { 
-	            if ( in_nested_set($Sf, 'Parameters', $var) ) { 
+                    $line = emit_f95_parsed_var_decl($pvd);
+                    push @{$info->{'Ann'}}, annotate($f, __LINE__ .': ParsedVarDecl, '.($stmt_count == 1 ? '' : 'SKIP'));
+                }
+
+            } else {
+	            if ( in_nested_set($Sf, 'Parameters', $var) ) {
                     # WV 2021-06-08 Although we come here, the action is not done and not reported in Ann ???
 	                # Remove this line, because this param should have been declared above
 	                $line = '!! Original line PAR:2 !! ' . $line;
@@ -281,18 +286,18 @@ sub context_free_refactorings {
 	                push @{$info->{'Ann'}}, annotate($f, __LINE__ .' Removed ParamDecl' );
 	            } elsif (not exists $info->{'Ref'} or $info->{'Ref'} == 0 ){
 	                my $var_decl = get_var_record_from_set( $Sf->{'Vars'},$var);
-	                $line = emit_f95_var_decl($var_decl) ;                
+	                $line = emit_f95_var_decl($var_decl) ;
 	                delete $info->{'ExGlobArgDecls'};
-	                $info->{'Ref'} = 1 unless exists $info->{'Inlined'};                 
+	                $info->{'Ref'} = 1 unless exists $info->{'Inlined'};
 	                push @{$info->{'Ann'}}, annotate($f, __LINE__ .': Ref==0, '.$stmt_count );
 	            } else {
                     if ($DBG){
 	                    croak $f.' : BOOM! ' . 'context_free_refactoring '. __LINE__ ."; ".$line.'    '.Dumper($info)."\n" .
                         Dumper(pp_annlines($Sf->{'AnnLines'})); # if $DBG
                     }
-	            }                        
+	            }
             }
-            
+
             if ($stmt_count != 1) {
             	$line = "! DUP $stmt_count $line";
                 $info->{'Deleted'} = 1;
@@ -301,7 +306,7 @@ sub context_free_refactorings {
             		$line = "! $line ! DUP DIM !";
                     $info->{'Deleted'} = 1;
             	}
-            }  
+            }
         }
 # ------------------------------------------------------------------------------
 # END of section refactoring variable and parameter declarations
@@ -318,28 +323,28 @@ sub context_free_refactorings {
                 $line =~ s/\.\s*(eq|ne|gt|lt|le|ge)\s*\./ $f95ops{$1} /;
             }
             $info->{'Ref'}++;
-        } 
-        
+        }
+
 # ------------------------------------------------------------------------------
 # This section refactors parameter declarations, this is what generates the parameters in LES params_common
 # Problem is that in flexpart, these parameters have already been declared before the variable declarations
 # ------------------------------------------------------------------------------
-        elsif ( exists $info->{'ParamDecl'} ) {    
+        elsif ( exists $info->{'ParamDecl'} ) {
             # so this is a parameter declaration "pur sang"
             # WV 20130709: why should I remove this?
             my $par_decl = $info->{'ParamDecl'} ;
             my $parsed_par_decl = $info->{'ParsedParDecl'};
-            
-            my $info_ref = $info->{'Ref'} // 0;         
-            if (exists $info->{'VarDecl'}{'Name'} ) {             		
-                my $var = $info->{'VarDecl'}{'Name'};                                               
+
+            my $info_ref = $info->{'Ref'} // 0;
+            if (exists $info->{'VarDecl'}{'Name'} ) {
+                my $var = $info->{'VarDecl'}{'Name'};
                 $par_decl =  format_f95_par_decl( $stref, $f, $var ) ;
             }
-            elsif (exists $info->{'ParamDecl'}{'Name'} ) {                 		
+            elsif (exists $info->{'ParamDecl'}{'Name'} ) {
                 my $var_val = $info->{'ParamDecl'}{'Name'};
-                ( my $var, my $val ) = @{$var_val};                
+                ( my $var, my $val ) = @{$var_val};
                 $par_decl =  format_f95_par_decl( $stref, $f, $var ) ;
-            } elsif (exists $info->{'ParamDecl'}{'Names'} ) { 
+            } elsif (exists $info->{'ParamDecl'}{'Names'} ) {
                 croak 'PROBLEM: multiple parameter decls on a single line! '.Dumper($annline);
             }
                 # We must check for string placeholders in parameter decls!
@@ -359,10 +364,10 @@ sub context_free_refactorings {
                     'Ref'       => $info_ref + 1,
                     'LineID'    => $nextLineID++,
                     'SpecificationStatement' => 1,
-                    'Ann' => [annotate($f, __LINE__. ' : ParamDecl') ]                        
+                    'Ann' => [annotate($f, __LINE__. ' : ParamDecl') ]
                 }
                 ]
-                ; # Create parameter declarations before variable declarations            
+                ; # Create parameter declarations before variable declarations
             $line = '!! ' . $line;
             push @{$info->{'Ann'}}, annotate($f, __LINE__ .' Original ParamDecl' );
             $info->{'Deleted'} = 1;
@@ -374,27 +379,27 @@ sub context_free_refactorings {
 # Subroutine call
         elsif ( exists $info->{'SubroutineCall'} ) {
             $info->{'Ref'}++;
-        } elsif ( exists $info->{'Include'} ) { 
-            
+        } elsif ( exists $info->{'Include'} ) {
+
         	# I don't think we can have statement labels in front of includes
             my $inc  = $info->{'Include'}{'Name'};
             my $tinc = $inc;
             $tinc =~ s/\./_/g;
-            if ( not exists $stref->{'IncludeFiles'}{$inc}{'ExtPath'} ) { # FIXME: this is because 'InclType' => 'External' gets overwritten by 'Parameter' 
-            
+            if ( not exists $stref->{'IncludeFiles'}{$inc}{'ExtPath'} ) { # FIXME: this is because 'InclType' => 'External' gets overwritten by 'Parameter'
+
             	if (exists $Sf->{'Includes'}{$inc}{'Only'} and scalar keys %{ $Sf->{'Includes'}{$inc}{'Only'} }>0) {
-                    push @{$stref->{'IncludeFiles'}{$inc}{'UsedBy'}}, $f; 
+                    push @{$stref->{'IncludeFiles'}{$inc}{'UsedBy'}}, $f;
             		my @used_params = keys %{ $Sf->{'Includes'}{$inc}{'Only'} };
                 	$line = "      use $tinc". ($Config{'NO_ONLY'} ?  '!' : '') .', only : '.join(', ', @used_params) ;
                   	push @{ $info->{'Ann'} }, annotate($f, __LINE__. ' Include' );
-                  	
+
             	} elsif (exists $stref->{'IncludeFiles'}{$inc}{'ParamInclude'}) {
             		my $param_include=$stref->{'IncludeFiles'}{$inc}{'ParamInclude'};
-            		
-                    push @{$stref->{'IncludeFiles'}{$param_include}{'UsedBy'}}, $f; 
+
+                    push @{$stref->{'IncludeFiles'}{$param_include}{'UsedBy'}}, $f;
             		my $tinc = $param_include;
-            		$tinc =~ s/\./_/g;            		
-            		if (exists $Sf->{'Includes'}{$param_include}{'Only'} and scalar keys %{ $Sf->{'Includes'}{$param_include}{'Only'} }>0) {            		            	
+            		$tinc =~ s/\./_/g;
+            		if (exists $Sf->{'Includes'}{$param_include}{'Only'} and scalar keys %{ $Sf->{'Includes'}{$param_include}{'Only'} }>0) {
             			my @used_params = keys %{ $Sf->{'Includes'}{$param_include}{'Only'} };
                 		$line = "      use $tinc". ($Config{'NO_ONLY'} ?  '!' : '') .", only : ".join(', ', @used_params);
                         $info->{'Use'} = {'Name' => $tinc, 'Only' => [@used_params]};
@@ -402,30 +407,30 @@ sub context_free_refactorings {
                         # carp "$f: $param_include";
 					} else {
                 		$line = "!!      use $tinc ! ONLY LIST EMPTY";
-                  		push @{ $info->{'Ann'} }, annotate($f, __LINE__ . ' no pars used'); #croak 'SKIP USE PARAM';            		            		  		
+                  		push @{ $info->{'Ann'} }, annotate($f, __LINE__ . ' no pars used'); #croak 'SKIP USE PARAM';
             		}
 				} elsif (exists $stref->{'IncludeFiles'}{$tinc}{'InclType'}
 					and $stref->{'IncludeFiles'}{$tinc}{'InclType'} eq 'Parameter'
 				) {
-					# This is a factored-out parameter module. 
+					# This is a factored-out parameter module.
 					# No 'Only' , FIXME!
                 	$line = "      use $tinc ! context_free_refactorings 409";
-                  	push @{ $info->{'Ann'} }, annotate($f, __LINE__ . ' no pars used'); #croak 'SKIP USE PARAM';									            		  	
-            	} else {            		
+                  	push @{ $info->{'Ann'} }, annotate($f, __LINE__ . ' no pars used'); #croak 'SKIP USE PARAM';
+            	} else {
             		# No 'Only' or 'Only' list is empty, SKIP
                 	$line = "!      use $tinc ! ONLY LIST EMPTY";
                   	push @{ $info->{'Ann'} }, annotate($f, __LINE__ . ' no pars used'); #croak 'SKIP USE PARAM';
-                  	$info->{'Deleted'}=1;            		
+                  	$info->{'Deleted'}=1;
             	}
                 if (not exists $info->{'Use'}) {
-                    $info->{'Use'}{'Name'}=$tinc; 
-                    $info->{'Use'}{'Only'}=[]; 
+                    $info->{'Use'}{'Name'}=$tinc;
+                    $info->{'Use'}{'Only'}=[];
                     $info->{'Use'}{'Inlineable'}=1;
-                } 
+                }
                 #carp 'FIXME: USE/ONLY!';
             } else {
 #            	say 'WARNING: EXTERNAL INCLUDES ARE COMMENTED OUT!' if $W;
-                $line =                
+                $line =
                   "      include '$inc'"; # FIXME
                   push @{ $info->{'Ann'} }, annotate($f, __LINE__ . ' External ');
             }
@@ -438,7 +443,7 @@ sub context_free_refactorings {
             push @include_use_stack, [ $line, $info ];    # if $line ne '';
             next;
         } # exists $info->{'Include'} )
-        push @{ $Sf->{'RefactoredCode'} }, [ $line, $info ];   
+        push @{ $Sf->{'RefactoredCode'} }, [ $line, $info ];
         if (@extra_lines) {
             for my $extra_line (@extra_lines) {
                 push @{ $Sf->{'RefactoredCode'} }, $extra_line;
@@ -449,13 +454,13 @@ sub context_free_refactorings {
 
     # now splice the include stack just below the signature
     if (@include_use_stack) {
-    	
+
         my $offset = 0;
         if ( exists $stref->{'IncludeFiles'}{$f} ) {
             $Sf->{'RefactoredCode'} =
               [ @include_use_stack, @{ $Sf->{'RefactoredCode'} } ];
         } else {
-        	
+
             # 1. Look for the signature
             for my $tmpannline ( @{ $Sf->{'RefactoredCode'} } ) {
                 if ( exists $tmpannline->[1]{'Signature'} ) {
@@ -473,7 +478,7 @@ sub context_free_refactorings {
                     $firstline, @include_use_stack, @{ $Sf->{'RefactoredCode'} }
                 );
                 $Sf->{'RefactoredCode'} = [@new];
-                
+
             } else {
                 my @part1 = ();
                 for ( 0 .. $offset ) {
@@ -486,9 +491,9 @@ sub context_free_refactorings {
             }
         }
     }
-        
+
     my $has_vardecl=0;
-    my $has_pars = 0;    
+    my $has_pars = 0;
     my $has_includes=0;
     my $has_implicit_none = 0;
     for my $annline ( @{$Sf->{'RefactoredCode'}} ) {
@@ -497,7 +502,7 @@ sub context_free_refactorings {
               "Undefined source code line for $f in context_free_refactorings()" . Dumper($annlines) ;
         }
         ( my $line, my $info ) = @{$annline};
-        
+
         if ( exists $info->{'Deleted'} or exists $info->{'Comments'} or exists $info->{'Blank'}  ) {
             next;
         }
@@ -518,13 +523,13 @@ sub context_free_refactorings {
             $Sf->{'ExGlobVarDeclHook'}=1;
             $has_vardecl=1;
             last;
-        }        
-    }    
-    
+        }
+    }
+
     if ($has_vardecl==0 and $has_implicit_none==0) {
         my $parlinecount=$has_pars;
         my $incllinecount=$has_includes;
-        
+
         for my $annline ( @{$Sf->{'RefactoredCode'}} ) {
 #        	say Dumper($annline);
             if ( $DBG and not defined $annline or not defined $annline->[0] ) {
@@ -532,7 +537,7 @@ sub context_free_refactorings {
                   "Undefined source code line for $f in context_free_refactorings()";
             }
             ( my $line, my $info ) = @{$annline};
-            
+
             if ( exists $info->{'Deleted'} or exists $info->{'Comments'} or exists $info->{'Blank'}  ) {
                 next;
             }
@@ -542,21 +547,21 @@ sub context_free_refactorings {
                     $Sf->{'ExGlobVarDeclHook'}=1;
                     last;
                 }
-                
+
             } elsif ($has_includes) {
                 if (exists $info->{'Include'} and --$incllinecount == 0) {
                     $info->{'ExGlobVarDeclHook'}='AFTER LAST Include';
                     $Sf->{'ExGlobVarDeclHook'}=1;
                     last;
                 }
-                
+
             } elsif (exists $info->{'Signature'}) {
                 $info->{'ExGlobVarDeclHook'}='Signature';
                 $Sf->{'ExGlobVarDeclHook'}=1;
-                
+
                 last;
-            }        
-        }      
+            }
+        }
     }
     if ($die_if_one) { croak Dumper( $Sf->{'RefactoredCode'} ); }
     return $stref;

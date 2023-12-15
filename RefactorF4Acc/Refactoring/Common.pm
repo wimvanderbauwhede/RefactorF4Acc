@@ -72,7 +72,7 @@ sub refactor_COMMON_blocks_and_CONTAINed_subs {  # 218 lines Was _refactor_globa
 		# return ($stref,$annlines); # This is wrong because this routine does more
 	}
 
-# WV 2023-12-15: The par_decl_lines_from_container and par_decl_lines_from_module should I think be replaced by the ParametersFromContainer approach
+	# WV 2023-12-15: The par_decl_lines_from_container and par_decl_lines_from_module should I think be replaced by the ParametersFromContainer approach
 	my @par_decl_lines_from_container = ();
 	# carp "$f: ".Dumper($Sf->{'ParametersFromContainer'});
 	for my $par ( @{$Sf->{'ParametersFromContainer'}{'List'}} ) {
@@ -87,73 +87,6 @@ sub refactor_COMMON_blocks_and_CONTAINed_subs {  # 218 lines Was _refactor_globa
 			} ];
 		push @par_decl_lines_from_container, $par_decl_line;
 	}
-=pod OFF
-	# For the case of Contained subroutines, create parameter decl lines
-	my @par_decl_lines_from_container = ();
-	my @containers=();
-	if ( exists $Sf->{'Container'} ) {
-		@containers = ($Sf->{'Container'});
-	} elsif (exists $Sf->{'Container_Blocks'} ) { # This is for subroutines extracted from ACC marked regions of code
-		@containers = sort keys %{$Sf->{'Container_Blocks'}};
-	}
-	for my $container (@containers) {
-		if ( exists $stref->{'Subroutines'}{$container}{'Parameters'} ) {
-			# my ($set,$list) = merge_subsets($stref->{'Modules'}{$container}{'Parameters'}{'Subsets'});    # Note this is a nested set
-			# $Sf->{'ParametersFromContainer'}{'Set'}=$set;
-			# $Sf->{'ParametersFromContainer'}{'List'}=$list;
-			my $all_pars_in_container = get_vars_from_set( $stref->{'Subroutines'}{$container}{'Parameters'} );
-			for my $par ( keys %{$all_pars_in_container} ) {
-				my $par_decl      = $all_pars_in_container->{$par};
-				my $par_decl_line = [
-					'      ' . emit_f95_var_decl($par_decl),
-					{
-						'ParamDecl' => $par_decl,
-						'Ann'       => [ annotate( $f, __LINE__ ) ],
-						'SpecificationStatement' => 1,
-						'Ref' => 1
-					} ];
-				push @par_decl_lines_from_container, $par_decl_line;
-			}
-		}
-	}
-
-
-	# For the case of subroutines in modules that either have params or USE params via modules, create parameter decl lines
-	my @par_decl_lines_from_module = ();
-	my @mods = ();
-	# WV 2023-12-11 a subroutine can only be in a single module, but of course that module can use other modules.
-	if ( exists $Sf->{'InModule_Blocks'} ) {
-		# This is for subroutines extracted from ACC marked regions of code
-		@mods = sort keys %{$Sf->{'InModule_Blocks'}};
-	}
-	elsif ( exists $Sf->{'InModule'} ) {
-		my $mod = $Sf->{'InModule'};
-		@mods = ($mod);
-	}
-	for my $mod (@mods) {
-		if ( exists $stref->{'Modules'}{$mod}{'Parameters'} ) {
-			# my ($set,$list) = merge_subsets($stref->{'Modules'}{$mod}{'Parameters'}{'Subsets'});    # Note this is a nested set
-			# $Sf->{'ParametersFromContainer'}{'Set'}=$set;
-			# $Sf->{'ParametersFromContainer'}{'List'}=$list;
-			my $all_pars_in_module =
-			  get_vars_from_set( $stref->{'Modules'}{$mod}{'Parameters'} );
-			for my $par ( keys %{$all_pars_in_module} ) { 
-				my $par_decl      = $all_pars_in_module->{$par};
-				my $par_decl_line = [
-					'      ' . emit_f95_var_decl($par_decl),
-					{
-						'ParamDecl' => $par_decl,
-						'Ref'       => 1,
-						'Ann'       => [ annotate( $f, __LINE__ ) ],
-						'SpecificationStatement' => 1
-					}
-				];
-				push @par_decl_lines_from_module, $par_decl_line;
-			}
-			# croak Dumper $Sf->{'Parameters'}
-		}
-	}
-=cut
 
 	print "REFACTORING GLOBALS in $f\n" if $V;
 	my $rlines = [];

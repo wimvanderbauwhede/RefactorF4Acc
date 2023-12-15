@@ -689,7 +689,10 @@ sub populate_UsesTransitively { my ($stref,$f) = @_;
 sub _build_UsesTransitively_rec { my ($stref,$f) = @_;
     my $sub_incl_or_mod = sub_func_incl_mod($f, $stref);
     my $Sf = $stref->{$sub_incl_or_mod}{$f};
-
+	if (not exists $Sf->{'UsesTransitively'}) {
+		croak "$sub_incl_or_mod $f:".Dumper( $Sf);
+	}
+	# say "$sub_incl_or_mod $f".$Sf->{'UsesTransitively'};
     if (exists $Sf->{'Uses'} and scalar keys %{$Sf->{'Uses'}}>0) {
         $Sf->{'UsesTransitively'} = {%{$Sf->{'UsesTransitively'}},%{$Sf->{'Uses'}}};
         for my $used_module (sort keys %{$Sf->{'Uses'}}) {

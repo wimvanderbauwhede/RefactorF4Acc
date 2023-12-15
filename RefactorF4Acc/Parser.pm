@@ -2899,7 +2899,12 @@ sub __parse_sub_func_prog_decls {
 			or scalar  @{ $Sf->{'DeclaredOrigArgs'}{'List'} } == 0
 		) {
 		$Sf->{'UndeclaredOrigArgs'}{'List'}  = [@args];
-		$Sf->{'UndeclaredOrigArgs'}{'Set'} = { map { $_ => 'UndeclaredOrigArgs: ' .$_.' @ '. __PACKAGE__ . ' ' . __LINE__ } @args };   # UGH!
+		$Sf->{'UndeclaredOrigArgs'}{'Set'} = { map { $_ => {
+			'Name' => $_,
+			'Ann' => 'UndeclaredOrigArgs: ' .$_.' @ '. __PACKAGE__ . ' ' . __LINE__ ,
+			'Indent' => $info->{'Indent'},
+		}
+		} @args };   # UGH!
 		}
 		$Sf->{'OrigArgs'}{'List'} = [@args];
 		#		$Sf->{'OrigArgs'}{'Set'} = { map { $_ => 1 } @args };
@@ -3251,7 +3256,7 @@ sub __parse_f95_decl {
 			my $decls = __create_Decls_from_ParsedVarDecl($info,$init_decl);
 			for my $decl (@{$decls}) {
 				my $tvar = $decl->{'Name'} ;
-# say "VAR $tvar DECL:".Dumper($decl);
+ 
 
 				if ($decl->{'Dim'}) {
 					$decl=__get_params_from_dim($decl,$Sf);
@@ -3342,7 +3347,7 @@ sub __parse_f95_decl {
 #							carp "LINE $line: $tvar in subset $subset of Vars";
 							$Sf->{$subset}{'Set'}{$tvar} = $decl;
 						} else {
-							say "INFO: <$line>: $tvar does not have a record in Vars" if 1 or $I;
+							say "INFO: <$line>: $tvar does not have a record in Vars" if $I;
 							$subset = $is_module ? 'DeclaredCommonVars' : 'DeclaredOrigLocalVars'; # For backward compatibility
 							if ($is_module) { 
 								$decl->{'CommonBlockName'} = $f;  # For backward compatibility
@@ -3357,6 +3362,8 @@ sub __parse_f95_decl {
 						}
 					}
 				}
+# croak "CODE UNIT $f VAR $tvar DECL:".Dumper($decl).'SET:'.in_nested_set($Sf,'Vars',$tvar) if $tvar =~/tokenLabel/i and $f=~/reconstructTypeNameExpr/i;
+
 			} # for $decl
 =pod approach_before_2023-12-13
 			my $idx=0;

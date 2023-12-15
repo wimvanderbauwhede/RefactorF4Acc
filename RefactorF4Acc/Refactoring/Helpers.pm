@@ -1429,7 +1429,7 @@ sub _substitute_placeholders_per_source { (my $stref,my $f) =@_;
 } # END of _substitute_placeholders_per_source
 
 sub parsedVarDecl_to_Decl { my ($pvd, $decl) = @_;
-
+# carp 'parsedVarDecl_to_Decl: '.Dumper( $decl);
     my $mdecl = dclone($decl);
     $mdecl->{'ArrayOrScalar'} = 'Scalar';
     $mdecl->{'Name'} = $pvd->{'Vars'}[0];
