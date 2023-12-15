@@ -25,6 +25,7 @@ our @ISA = qw(Exporter);
 
 our @EXPORT_OK = qw(
   &analyse_variables
+  &analyse_used_variables
   &identify_vars_on_line
   &get_vars_pars_from_containers
   &populate_UsesTransitively
@@ -457,6 +458,13 @@ sub analyse_used_variables {
 		}
 	}
 	$Sf->{'VarsFromContainer'}{'List'} = [sort keys %{$Sf->{'VarsFromContainer'}{'Set'}}];
+
+	for my $used_var (@{$Sf->{'ParametersFromContainer'}{'List'}}) {
+		if (not exists $vars_in_code_unit->{$used_var}) {
+			delete $Sf->{'ParametersFromContainer'}{'Set'}{$used_var}
+		}
+	}
+	$Sf->{'ParametersFromContainer'}{'List'} = [sort keys %{$Sf->{'ParametersFromContainer'}{'Set'}}];
 	return $stref;
 }    # END of analyse_used_variables()
 

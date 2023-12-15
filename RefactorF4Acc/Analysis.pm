@@ -3,7 +3,7 @@ use v5.10;
 use RefactorF4Acc::Config;
 use RefactorF4Acc::Utils;
 use RefactorF4Acc::Analysis::Includes qw( find_root_for_includes lift_param_includes);
-use RefactorF4Acc::Analysis::Variables qw( analyse_variables get_vars_pars_from_containers populate_UsesTransitively );
+use RefactorF4Acc::Analysis::Variables qw( analyse_variables analyse_used_variables get_vars_pars_from_containers populate_UsesTransitively );
 use RefactorF4Acc::Analysis::Arguments qw(
 	determine_ExGlobArgs
 	find_argument_declarations
@@ -94,6 +94,7 @@ sub analyse_all {
 			## Here we populate VarsFromContainers and ParametersFromContainers, where "Container" is any enclosing unit.
 			# We are not using those at the moment though.
 			$stref = get_vars_pars_from_containers($stref,$f);
+			$stref = analyse_used_variables($stref,$f);
 		}
 	}
 	# for my $module_name (sort keys %{$stref->{'Modules'}}) {
