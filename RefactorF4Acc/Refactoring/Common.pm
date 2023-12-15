@@ -72,6 +72,22 @@ sub refactor_COMMON_blocks_and_CONTAINed_subs {  # 218 lines Was _refactor_globa
 		# return ($stref,$annlines); # This is wrong because this routine does more
 	}
 
+# WV 2023-12-15: The par_decl_lines_from_container and par_decl_lines_from_module should I think be replaced by the ParametersFromContainer approach
+	my @par_decl_lines_from_container = ();
+	# carp "$f: ".Dumper($Sf->{'ParametersFromContainer'});
+	for my $par ( @{$Sf->{'ParametersFromContainer'}{'List'}} ) {
+		my $par_decl      = $Sf->{'ParametersFromContainer'}{'Set'}{$par};
+		my $par_decl_line = [
+			'      ' . emit_f95_var_decl($par_decl),
+			{
+				'ParamDecl' => $par_decl,
+				'Ann'       => [ annotate( $f, __LINE__ ) ],
+				'SpecificationStatement' => 1,
+				'Ref' => 1
+			} ];
+		push @par_decl_lines_from_container, $par_decl_line;
+	}
+=pod OFF
 	# For the case of Contained subroutines, create parameter decl lines
 	my @par_decl_lines_from_container = ();
 	my @containers=();
@@ -121,7 +137,7 @@ sub refactor_COMMON_blocks_and_CONTAINed_subs {  # 218 lines Was _refactor_globa
 			# $Sf->{'ParametersFromContainer'}{'List'}=$list;
 			my $all_pars_in_module =
 			  get_vars_from_set( $stref->{'Modules'}{$mod}{'Parameters'} );
-			for my $par ( keys %{$all_pars_in_module} ) {
+			for my $par ( keys %{$all_pars_in_module} ) { 
 				my $par_decl      = $all_pars_in_module->{$par};
 				my $par_decl_line = [
 					'      ' . emit_f95_var_decl($par_decl),
@@ -137,7 +153,7 @@ sub refactor_COMMON_blocks_and_CONTAINed_subs {  # 218 lines Was _refactor_globa
 			# croak Dumper $Sf->{'Parameters'}
 		}
 	}
-
+=cut
 
 	print "REFACTORING GLOBALS in $f\n" if $V;
 	my $rlines = [];
@@ -165,7 +181,7 @@ sub refactor_COMMON_blocks_and_CONTAINed_subs {  # 218 lines Was _refactor_globa
 
 			# create_refactored_subroutine_signature() emits the new signature using RefactoredArgs as the args
 			$rlines = create_refactored_subroutine_signature( $stref, $f, $annline, $rlines );
-			$rlines = [ @{$rlines}, @par_decl_lines_from_container, @par_decl_lines_from_module ];
+			$rlines = [ @{$rlines}, @par_decl_lines_from_container];#, @par_decl_lines_from_module ];
 			$skip   = 1;
 		}
 		# There should be no need to do this: all /common/ blocks should have been removed anyway!

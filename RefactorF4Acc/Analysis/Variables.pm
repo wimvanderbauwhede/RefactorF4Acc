@@ -429,7 +429,6 @@ sub analyse_used_variables {
 			# -------------------------------------------------------------------------------------------------------------------
 
 			for my $mvar (@chunks) {
-				# croak "<$mvar>".Dumper(@chunks).Dumper($annline) if $mvar eq 'kind';
                 next if exists $stref->{'Subroutines'}{$f}{'CalledSubs'}{'Set'}{$mvar};    # Means it's a function
 				next if $mvar =~ /^\d+(?:_[1248])?$/;
 				next if not defined $mvar or $mvar eq '';
@@ -469,27 +468,27 @@ sub analyse_used_variables {
 }    # END of analyse_used_variables()
 
 sub identify_vars_on_line {
-		( my $annline ) = @_;
-		( my $line,    my $info )  = @{$annline};
+	( my $annline ) = @_;
+	( my $line,    my $info )  = @{$annline};
 
-		if (   exists $info->{'Assignment'}
-			or exists $info->{'StatementFunction'}
-			or exists $info->{'SubroutineCall'}
-			or exists $info->{'If'} # Control
-			or exists $info->{'ElseIf'} # Control
-			or exists $info->{'Do'} # Control
-			or exists $info->{'Return'} # Control
-			or exists $info->{'WriteCall'}# IO
-			or exists $info->{'PrintCall'}# IO
-			or exists $info->{'ReadCall'}# IO
-			or exists $info->{'InquireCall'}# IO
-			or exists $info->{'OpenCall'}# IO
-			or exists $info->{'CloseCall'}# IO
-			or exists $info->{'RewindCall'}# IO
-			or exists $info->{'ParamDecl'}
-			or exists $info->{'Data'}
-			or exists $info->{'Equivalence'}
-			) {
+	if (   exists $info->{'Assignment'}
+		or exists $info->{'StatementFunction'}
+		or exists $info->{'SubroutineCall'}
+		or exists $info->{'If'} # Control
+		or exists $info->{'ElseIf'} # Control
+		or exists $info->{'Do'} # Control
+		or exists $info->{'Return'} # Control
+		or exists $info->{'WriteCall'}# IO
+		or exists $info->{'PrintCall'}# IO
+		or exists $info->{'ReadCall'}# IO
+		or exists $info->{'InquireCall'}# IO
+		or exists $info->{'OpenCall'}# IO
+		or exists $info->{'CloseCall'}# IO
+		or exists $info->{'RewindCall'}# IO
+		or exists $info->{'ParamDecl'}
+		or exists $info->{'Data'}
+		or exists $info->{'Equivalence'}
+		) {
 
 			my @chunks = ();
 			if ( exists $info->{'If'} or exists $info->{'ElseIf'} ) {
@@ -502,8 +501,11 @@ sub identify_vars_on_line {
 				or exists $info->{'RewindCall'}
 				or exists $info->{'Return'}
 				) {
-					# croak Dumper $info if $line=~/read/;
+
 				@chunks = ( @chunks, @{ $info->{'Vars'}{'Written'}{'List'} }, @{ $info->{'Vars'}{'Read'}{'List'} } );
+				if (exists $info->{'CallAttrs'}) {
+					@chunks = ( @chunks,@{$info->{'CallAttrs'}{'List'}} );
+				}
 				if (exists $info->{'ImpliedDoVars'}) {
 				    @chunks = ( @chunks, @{ $info->{'ImpliedDoVars'}{'List'} } );
 				}
@@ -562,11 +564,11 @@ sub identify_vars_on_line {
 					push @chunks, $mvar;
 				}
 # croak $line if $line=~/iachar/;
-			}
-            return [@chunks];
-		} else {
-            return [];
-        }
+		}
+		return [@chunks];
+	} else {
+		return [];
+	}
 } # END of identify_vars_on_line
 
 ## Here we populate VarsFromContainers and ParametersFromContainers, where "Container" is any enclosing unit.
@@ -694,7 +696,6 @@ sub _build_UsesTransitively_rec { my ($stref,$f) = @_;
             $stref = _build_UsesTransitively_rec($stref,$used_module);
             $Sf->{'UsesTransitively'} = {%{$Sf->{'UsesTransitively'}},%{$stref->{'Modules'}{$used_module}{'UsesTransitively'}} };
         }
-		
     } else {
         # This is a leaf node
     }

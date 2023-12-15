@@ -4286,7 +4286,6 @@ sub _parse_read_write_print {
     $info->{'IOCall'}{'Args'}{'AST'}=$attrs_ast;
     $info->{'IOList'}{'AST'}=$exprs_ast;
 
-    #    $info->{'CallAttrs'} = { 'Set' => $attrs_ast, 'List' => [ sort keys %{ $attrs_ast } ] };
     my $impl_do_vars_list = [ sort keys %{ $impl_do_pairs } ];
 
     # We must identify any parameters or vars in the start_loop and
