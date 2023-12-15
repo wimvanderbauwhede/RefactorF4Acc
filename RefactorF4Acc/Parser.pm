@@ -738,6 +738,7 @@ MODULE
 
 				my $module = $1;
 				$info->{'Use'}{'Name'} = $module;
+				$info->{'Indent'} = $indent;
 				if ($line =~ /only\s*:\s*([\w\s\,]+)/) {
 					my $only_list_str = $1;
 					my @only_list = split(/\s*,\s*/,$only_list_str);
@@ -746,7 +747,6 @@ MODULE
 					$info->{'Use'}{'Only'}=[];
 				}
 				$info->{'SpecificationStatement'} = 1;
-				$info->{'Indent'} = $indent;
 				$srcref->[$index] = [ $indent . $line, $info ];
 				next;
 #== CONTAINS
@@ -3251,7 +3251,8 @@ sub __parse_f95_decl {
 			my $decls = __create_Decls_from_ParsedVarDecl($info,$init_decl);
 			for my $decl (@{$decls}) {
 				my $tvar = $decl->{'Name'} ;
-				
+# say "VAR $tvar DECL:".Dumper($decl);
+
 				if ($decl->{'Dim'}) {
 					$decl=__get_params_from_dim($decl,$Sf);
 				}
@@ -3341,7 +3342,7 @@ sub __parse_f95_decl {
 #							carp "LINE $line: $tvar in subset $subset of Vars";
 							$Sf->{$subset}{'Set'}{$tvar} = $decl;
 						} else {
-							say "INFO: <$line>: $tvar does not have a record in Vars" if $I;
+							say "INFO: <$line>: $tvar does not have a record in Vars" if 1 or $I;
 							$subset = $is_module ? 'DeclaredCommonVars' : 'DeclaredOrigLocalVars';
 							if ($is_module) { $decl->{'CommonBlockName'} = $f; } # overload CommonBlockName with module name
 							$Sf->{$subset}{'Set'}{$tvar}=$decl;
@@ -5432,7 +5433,6 @@ sub __create_Decls_from_ParsedVarDecl { my ($info,$init_decl) = @_;
     if (exists $info->{'ParsedVarDecl'}{'Vars'}) {
 		my $pvd = dclone($info->{'ParsedVarDecl'});
         for my $var (@{$info->{'ParsedVarDecl'}{'Vars'}}) { #next unless defined $var;
-			$pvd->{'Vars'}=[$var];
             if (exists $pvd->{'ParPairs'}) {
                 delete $pvd->{'ParPairs'}
             }
@@ -5443,6 +5443,7 @@ sub __create_Decls_from_ParsedVarDecl { my ($info,$init_decl) = @_;
                 delete $pvd->{'VarsDims'}
             }
             if (exists $info->{'ParsedVarDecl'}{'ParPairs'}) {
+
                 for my $var_val (@{$info->{'ParsedVarDecl'}{'ParPairs'}}) {
                     my $tvar = $var_val->{'Var'};
                     my $val = $var_val->{'Val'};

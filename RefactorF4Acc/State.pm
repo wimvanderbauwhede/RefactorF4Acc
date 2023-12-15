@@ -158,6 +158,7 @@ sub initialise_per_code_unit_tables {
 		# Var decls via a 'use' declaration
 		$Sf->{'UsedLocalVars'} = { 'Set' => {}, 'List' => [] };
 		$Sf->{'UsedGlobalVars'} = { 'Set' => {}, 'List' => [] };
+		# Same actualy, but this includes access via a container
 		$Sf->{'VarsFromContainer'} = {
 				'Set' => {},
 				'List' => []
@@ -196,11 +197,11 @@ sub initialise_per_code_unit_tables {
 #			};
 
 			$Sf->{'RenamedInheritedExGlobs'}  = { 'List' => [], 'Set' => {}};
-
+			# I think this should include args that where module globals
 			$Sf->{'ExGlobArgs'} = {
 				'Set' => {}, 'List' => []
 			};
-
+			# Declarations for arguments in include files
 			$Sf->{'ExInclArgs'}         = { 'Set' => {}, 'List' => [] };
 			$Sf->{'DeclaredOrigArgs'}   = { 'Set' => {}, 'List' => [] };
 			$Sf->{'UndeclaredOrigArgs'} = { 'Set' => {}, 'List' => [] };

@@ -595,8 +595,9 @@ sub _create_extra_arg_and_var_decls { #272 lines
 				if ( (my $subset = in_nested_set( $Sf, 'DeclaredOrigLocalVars', $var )) and $DBG ) {
 					croak $subset;
 				}
-				if (not exists $Sf->{'VarsFromContainer'}{'Set'}{$var}) {
+				# if (not exists $Sf->{'VarsFromContainer'}{'Set'}{$var}) {
 					# Because otherwise it means this var is declared elsewhere
+					# But so then it should be in ExGlobArgs
 					my $rdecl = $Sf->{'UndeclaredOrigLocalVars'}{'Set'}{$var};
 					$rdecl->{'Ann'} = "in $f (implicit declaration)";
 					# carp Dumper($stref->{'Subroutines'}{  $var});
@@ -608,7 +609,7 @@ sub _create_extra_arg_and_var_decls { #272 lines
 					$info->{'VarDecl'} = { 'Name' => $var };    #$rdecl;
 					$info->{'SpecificationStatement'} = 1;
 					push @{$rlines}, [ $rline, $info ];
-				}
+				# }
 			} else {
 				say "INFO: $var is a reserved word" if $I;
 				# croak Dumper($Sf->{'MaskedIntrinsics'}{$var}) if $var eq 'len';

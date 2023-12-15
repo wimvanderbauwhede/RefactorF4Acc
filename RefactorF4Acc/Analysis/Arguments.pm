@@ -35,7 +35,9 @@ our @EXPORT_OK = qw(
 	analyse_var_decls_for_params
 );
 
-# -----------------------------------------------------------------------------
+## -----------------------------------------------------------------------------
+## This module works on ExGlobArgs, it does not populate them
+
 # If the sub has arguments but they were not declared, see if we can find the declarations in include files, otherwise use implicit rules
 # This is like _analyse_variables but for arguments
 sub find_argument_declarations {
@@ -563,7 +565,9 @@ sub __determine_exglobargs_core { ( my $stref, my $f ) = @_;
 sub __get_common_decls { ( my $stref, my $f ) = @_;
 	my $sub_or_func_or_mod = sub_func_incl_mod( $f, $stref );
 	my $Sf = $stref->{$sub_or_func_or_mod}{$f};
+	carp 'WV 2023-12-15 This does not include CommonVars in Containers or Used modules';
 	my $common_decls = get_vars_from_set($Sf->{'CommonVars'});
+
 	return $common_decls;
 } # END of __get_common_decls()
 

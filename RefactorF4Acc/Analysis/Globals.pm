@@ -30,10 +30,10 @@ use Exporter;
 );
 
 ## -----------------------------------------------------------------------------
-
+## This module performs operations on ExGlobArgs after it has been created, mainly merging and renaming
 
 # Here we start from the top, descend to the leaves, get the Globals in the leaves, and add them to the Globals of the caller.
-# And of course we need to update ExGlobVarDecls
+# And of course we need to update ExGlobArgs
 # This should be done before we create RefactoredArgs!
 
 # This is lift_globals without the merge part
@@ -87,7 +87,7 @@ sub identify_inherited_exglobs_to_rename {
 
 # So we go through all ExGlobArgs and we rename every exglob from RenamedInheritedExGLobs
 sub rename_inherited_exglobs  {
-		  (my $stref, my $f) = @_;
+	(my $stref, my $f) = @_;
 #    local $V=1;
 
 if ($Config{RENAME_EXT} ne '') {
