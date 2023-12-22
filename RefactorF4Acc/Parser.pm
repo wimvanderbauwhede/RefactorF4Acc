@@ -3192,6 +3192,7 @@ sub __parse_f95_decl {
 		$info->{'ParsedParDecl'} = $pt;
 		my $parliststr = $1;
 		( $Sf, $info ) = _parse_f77_par_decl(  $Sf, $stref, $f, $indent,  $line, $info, $parliststr , $pt);
+		# croak $line,Dumper $info if $line=~/IdentifierLabel/;
 	} else {
 		# F95 VarDecl, continued
 		if (not defined $pt->{'Vars'}[0] and exists $pt->{'Pars'} and defined $pt->{'Pars'}{'Var'}) {
@@ -3533,7 +3534,7 @@ sub __parse_f95_decl {
 =cut
 		}
 	}
-	croak Dumper $Sf if (not exists $Sf->{'Source'} or not defined $Sf->{'Source'});
+	# croak Dumper $Sf if (not exists $Sf->{'Source'} or not defined $Sf->{'Source'});
 	push @{ $info->{'Ann'} }, annotate( $Sf->{'Source'}, __LINE__ );
 	return ( $Sf, $info );
 
@@ -3550,6 +3551,7 @@ sub _parse_f77_par_decl {
 	my $typed=0;
 	my $attr = '';
 	if (defined( $pt)) {
+		$info->{'ParsedParDecl'}=$pt;
 		if( exists( $pt->{'TypeTup'})) {
 			$type = $pt->{'TypeTup'}{'Type'};
 			$attr = exists $pt->{'TypeTup'}{'Kind'} ? '(kind='.$pt->{'TypeTup'}{'Kind'}.')' : '(kind=4)';

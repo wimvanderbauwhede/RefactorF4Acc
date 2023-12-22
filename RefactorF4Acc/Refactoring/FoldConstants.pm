@@ -200,18 +200,20 @@ sub fold_constants_no_iters {
                     $info->{'ParsedVarDecl'}{'Attributes'}{'Dim'}=$pv_dims;
                 }
                 if ($decl->{'Type'} eq 'character') {
-                    my $len_expr= $decl->{'Attr'};
-                    $len_expr=~s/len\s*=\s*//;
-                    my $expr_str = $len_expr;
-                    my ($ast,$str_,$error_,$has_funcs_)=parse_expression_no_context($expr_str);
-                    my ($const_ast, $retval_) = replace_consts_in_ast_no_iters($stref, $f, $ast, $info);
-                    my $const_expr_str = emit_expr_from_ast($const_ast);
+                    if ($decl->{'Attr'}) {
+                        my $len_expr= $decl->{'Attr'}; 
+                        $len_expr=~s/len\s*=\s*//;
+                        my $expr_str = $len_expr;
+                        my ($ast,$str_,$error_,$has_funcs_)=parse_expression_no_context($expr_str);
+                        my ($const_ast, $retval_) = replace_consts_in_ast_no_iters($stref, $f, $ast, $info);
+                        my $const_expr_str = emit_expr_from_ast($const_ast);
 
-                    $const_expr_str=~s/\(\//[/g;
-                    $const_expr_str=~s/\/\)/]/g;
+                        $const_expr_str=~s/\(\//[/g;
+                        $const_expr_str=~s/\/\)/]/g;
 
-                    my $const_len= eval( $const_expr_str );
-                    $info->{'ParsedVarDecl'}{'Attributes'}{'Len'}= "len=$const_len";
+                        my $const_len= eval( $const_expr_str );
+                        $info->{'ParsedVarDecl'}{'Attributes'}{'Len'}= "len=$const_len";
+                    }
                 }
 			}
             elsif (exists $info->{'ArgDecl'}) { # This is in case VarDecl is just the Name, FIXME!
@@ -220,6 +222,7 @@ sub fold_constants_no_iters {
                 my $decl = get_var_record_from_set($Sf->{$subset},$var_name);
             }
             if (exists $info->{'ParamDecl'} ) {
+                carp Dumper( $info->{'ParamDecl'},$info);
 
                 my $var_name = $info->{'ParsedParDecl'}{'Pars'}{'Var'};
                 my $val_expr_str = $info->{'ParsedParDecl'}{'Pars'}{'Val'};

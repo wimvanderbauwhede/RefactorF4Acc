@@ -79,6 +79,8 @@ sub create_refactored_source {
 
        ( my $line , my $info ) = @{ $annline};
 
+       push @{$info->{'Ann'}}, annotate("create_refactored_source($f)", __LINE__ );
+
         if ( not exists $info->{'Comments'} and ( exists $info->{'InBlock'} or not exists $info->{'Deleted'} ) ) {
             print $line, "\n" if $DBG;
 				if (not exists $info->{'ReadCall'} and not exists $info->{'WriteCall'} and not exists $info->{'PrintCall'} ) {

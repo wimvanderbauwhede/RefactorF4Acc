@@ -131,8 +131,8 @@ sub add_module_decls {
 			my $has_module_level_vars = ( @{$vars_list} or @{$pars_list}) ? 1 : 0;
 			my $split_out_modules_per_subroutine= ($only_one_sub_in_module or $has_module_level_vars) ? 0 : 1;
 			if ($Config{'ONE_SUB_PER_MODULE'}==1 and
-				$split_out_modules_per_subroutine==1 and 
-				$stref->{'Modules'}{  $existing_module_name{$src} }{'Inlineable'}==0) { 
+				$split_out_modules_per_subroutine==1 and
+				$stref->{'Modules'}{  $existing_module_name{$src} }{'Inlineable'}==0) {
 				$stref = _split_module_per_subroutine( $stref,  \%existing_module_name, $src, \%no_modules );
 			} else {
 
@@ -142,7 +142,8 @@ sub add_module_decls {
 					say '=' x 80 if $V;
 					say 'SUB: ' . $sub if $V;
 
-					$stref = _create_module_src(  $stref, $src, $sub, \%no_modules ) unless $only_one_sub_in_module;
+					# FIXME: this generates modules per sub even for subs already in modules
+					# $stref = _create_module_src(  $stref, $src, $sub, \%no_modules ) unless $only_one_sub_in_module;
 
 					$new_annlines = [ @{$new_annlines}, ['',{}],@{ $stref->{'Subroutines'}{$sub}{'RefactoredCode'} } ];
 
@@ -256,7 +257,13 @@ sub _split_module_per_subroutine {
 		# Now we have to create the wrapper module source which replaces the original module source
 		my @wrapper_module_annlines=( ["module $module_to_split",{'Module' => $module_to_split }]);
 		for my $sub (@subs) {
-			push @wrapper_module_annlines,[ "     use singleton_module_$sub ! _split_module_per_subroutine", {'Use' =>{'Name' => "module_$sub", 'Inlineable' => 0 } } ];
+			push @wrapper_module_annlines,
+			[ "     use singleton_module_$sub ! _split_module_per_subroutine",
+			{
+				'Use' =>{'Name' => "module_$sub",
+				'Inlineable' => 0 },
+				'Ann' => [annotate( "_split_module_per_subroutine($existing_module_name,$sub)", __LINE__ )]
+			} ];
 		}
 		for my $sub (@subs) {
 			push @wrapper_module_annlines,["     interface $sub",{'Interface'=> $sub }];
@@ -290,8 +297,11 @@ sub _create_module_src { (my $stref, my $src, my $subname, my $no_modules ) = @_
 	$mod_name =~ s/[\.\/\-]/_/g;
 
 	$mod_name = "singleton_module_$mod_name";
-	my $mod_header = [ "module $mod_name\n",       { 'Ref' => 1 } ];
-	my $mod_footer = [ "\nend module $mod_name\n", { 'Ref' => 1 } ];
+	my $mod_header = [ "module $mod_name\n",       {
+		'Ref' => 1 ,
+		'Ann' => [ annotate("_create_module_src($subname)", __LINE__)]
+		} ];
+	my $mod_footer = [ "\nend module $mod_name\n", { 'Ref' => 1, 'Ann' => [ annotate("_create_module_src($subname)", __LINE__)] } ];
 
 	my @mod_uses = ();
 	for my $mod_src ( keys %{ $stref->{'UsedModules'}{$src} } ) {
@@ -310,10 +320,10 @@ sub _create_module_src { (my $stref, my $src, my $subname, my $no_modules ) = @_
 		my $use_mod_line = "      use $used_mod_name ! _create_module_src";
 
 		# NOT OK: must check if the sub is actually used!
-		push @mod_uses, [ $use_mod_line, { 'Ref' => 1, 'Ann' => [ annotate( '', __LINE__ ) ] } ];
+		push @mod_uses, [ $use_mod_line, { 'Ref' => 1, 'Ann' => [ annotate( "_create_module_src($subname)", __LINE__ ) ] } ];
 	}
 
-	my $mod_contains            = [ "contains\n", { 'Ref' => 1 } ];
+	my $mod_contains            = [ "contains\n", { 'Ref' => 1 , 'Ann' => [ annotate("_create_module_src($subname)", __LINE__)] }];
 	my @refactored_source_lines = ();
 	my $refactored_sources      = {};
 
@@ -406,10 +416,9 @@ sub _create_module_src { (my $stref, my $src, my $subname, my $no_modules ) = @_
 				}
 				@refactored_source_lines = ( @refactored_source_lines, @{$annlines} );
 			}
-			# croak Dumper(@refactored_source_lines) if $src=~/navier/;
 		}
 	}
-# carp $skip_because_empty;
+
     if (!$skip_because_empty) {
 
 	# Step 2
@@ -417,6 +426,7 @@ sub _create_module_src { (my $stref, my $src, my $subname, my $no_modules ) = @_
 	my $EXT = $Config{EXT};
 	my $nsrc = $subname ne '' ? $Config{'SRCDIRS'}->[0]."/$subname$EXT" : $src;
 	if ( !$no_module ) {
+		# warn 'FIXME: these should only generated if they are not already in a module!';
 		$stref->{'RefactoredCodeForSource'}{$nsrc} = [ $mod_header, @mod_uses, $mod_contains, @refactored_source_lines, $mod_footer ];
 	} else {
 
