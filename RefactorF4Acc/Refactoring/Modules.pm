@@ -143,6 +143,7 @@ sub add_module_decls {
 					say 'SUB: ' . $sub if $V;
 
 					# FIXME: this generates modules per sub even for subs already in modules
+					# WV2023-12-23 commented out as I think it is redundant
 					# $stref = _create_module_src(  $stref, $src, $sub, \%no_modules ) unless $only_one_sub_in_module;
 
 					$new_annlines = [ @{$new_annlines}, ['',{}],@{ $stref->{'Subroutines'}{$sub}{'RefactoredCode'} } ];

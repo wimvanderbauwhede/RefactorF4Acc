@@ -29,6 +29,7 @@ use RefactorF4Acc::Analysis::Arrays qw(
   get_array_rank
 );
 use RefactorF4Acc::Refactoring::Casts qw( cast_call_argument );
+use Fortran::F95VarDeclParser qw( parse_F95_var_decl );
 
 use vars qw( $VERSION );
 $VERSION = "5.1.0";
@@ -77,15 +78,18 @@ sub refactor_COMMON_blocks_and_CONTAINed_subs {  # 218 lines Was _refactor_globa
 	# carp "$f: ".Dumper($Sf->{'ParametersFromContainer'});
 	for my $par ( @{$Sf->{'ParametersFromContainer'}{'List'}} ) {
 		my $par_decl      = $Sf->{'ParametersFromContainer'}{'Set'}{$par};
-		my $par_decl_line = [
-			'      ' . emit_f95_var_decl($par_decl),
+		my $par_decl_line = emit_f95_var_decl($par_decl);
+		my $pt = parse_F95_var_decl($par_decl_line);
+		my $par_decl_annline = [
+			'      ' . $par_decl_line,
 			{
 				'ParamDecl' => $par_decl,
+				'ParsedParDecl' => $pt,
 				'Ann'       => [ annotate( $f, __LINE__ ) ],
 				'SpecificationStatement' => 1,
 				'Ref' => 1
 			} ];
-		push @par_decl_lines_from_container, $par_decl_line;
+		push @par_decl_lines_from_container, $par_decl_annline;
 	}
 
 	print "REFACTORING GLOBALS in $f\n" if $V;
@@ -164,7 +168,7 @@ sub refactor_COMMON_blocks_and_CONTAINed_subs {  # 218 lines Was _refactor_globa
 			$first_non_spec_stmt = 0;
 			say "EX-GLOBS for $f" if $V;
 			$info->{'ExGlobVarDeclHook'}='Before';
-			
+
 			$rlines = [
 				@{_create_extra_arg_and_var_decls( $stref, $f, $annline, $rlines )},
 			['! END new declarations',{'Comments'=>1}],
