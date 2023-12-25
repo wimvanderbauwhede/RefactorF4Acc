@@ -163,6 +163,7 @@ sub fold_constants_no_iters {
         say "$f FOLD CONSTS ON LINE <$line>";
         # From $info, find the lines that contain expressions that might have constants to fold.
         # These would the same types of lines as in identify_array_accesses_in_exprs()
+        
             if (exists $info->{'VarDecl'} and not exists $info->{'ParamDecl'}
             #  and is_array_decl($info)
              ) {
@@ -186,8 +187,9 @@ sub fold_constants_no_iters {
                     $const_expr_str=~s/\/\)/]/g;
 
                     my $const_dims= eval( $const_expr_str );
-
-# croak "FOLDING $var_name in $f: $expr_str => $const_expr_str => ".Dumper($const_dims);
+                    my $sub_or_func = sub_func_incl_mod($f,$stref);
+# croak "$sub_or_func $f",Dumper $stref->{$sub_or_func}{$f}{'Vars'} if $const_expr_str=~/funktalMaxNTokens/;
+# croak "FOLDING $var_name in $f: $expr_str => $const_expr_str => ".Dumper($const_dims) if $const_expr_str=~/funktalMaxNTokens/;
                     croak $const_expr_str if not defined $const_dims;
                     $decl->{'ConstDim'} = $const_dims;
                     $Sf->{$subset}{$var_name}{'Set'}=$decl;
@@ -199,7 +201,7 @@ sub fold_constants_no_iters {
                     ];
                     $info->{'ParsedVarDecl'}{'Attributes'}{'Dim'}=$pv_dims;
                 }
-                if ($decl->{'Type'} eq 'character') {
+                if ($decl->{'Type'} eq 'character') { 
                     if ($decl->{'Attr'}) {
                         my $len_expr= $decl->{'Attr'}; 
                         $len_expr=~s/len\s*=\s*//;
@@ -234,9 +236,18 @@ sub fold_constants_no_iters {
                 if (ref($info->{'ParamDecl'}{'Name'}) eq 'ARRAY') {
                     $val_expr_str = $info->{'ParamDecl'}{'Name'}[1];
                 }
-                if ($val_expr_str=~/^[a-z]/i) {
+                if ($val_expr_str=~/^([a-z]\w+)/i
+                    and  not exists $F95_intrinsics{$1}
+                ) {
                     my $evaled_val = eval_expression_with_parameters($val_expr_str,$info, $stref, $f) ;
                     $info->{'ParsedParDecl'}{'Pars'}{'Val'} = $evaled_val;
+                }
+                elsif ($val_expr_str=~/^([a-z]\w+)\s*\(/i
+                    and exists $F95_intrinsics{$1}
+                ) {
+                    # my $evaled_val = eval_expression_with_parameters($val_expr_str,$info, $stref, $f) ;
+                    croak "TODO: F95_intrinsics: $f $line $val_expr_str";
+                    # $info->{'ParsedParDecl'}{'Pars'}{'Val'} = $evaled_val;
                 }
 			}
 			if (exists $info->{'Assignment'} ) {

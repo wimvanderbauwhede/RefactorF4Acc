@@ -457,13 +457,13 @@ sub analyse_used_variables {
 		}
 	}
 	$Sf->{'VarsFromContainer'}{'List'} = [sort keys %{$Sf->{'VarsFromContainer'}{'Set'}}];
-
-	for my $used_var (@{$Sf->{'ParametersFromContainer'}{'List'}}) {
-		if (not exists $vars_in_code_unit->{$used_var}) {
-			delete $Sf->{'ParametersFromContainer'}{'Set'}{$used_var}
-		}
-	}
-	$Sf->{'ParametersFromContainer'}{'List'} = [sort keys %{$Sf->{'ParametersFromContainer'}{'Set'}}];
+# WV 2023-12-23 this is too aggressive
+	# for my $used_var (@{$Sf->{'ParametersFromContainer'}{'List'}}) {
+	# 	if (not exists $vars_in_code_unit->{$used_var}) {
+	# 		delete $Sf->{'ParametersFromContainer'}{'Set'}{$used_var}
+	# 	}
+	# }
+	# $Sf->{'ParametersFromContainer'}{'List'} = [sort keys %{$Sf->{'ParametersFromContainer'}{'Set'}}];
 	return $stref;
 }    # END of analyse_used_variables()
 
@@ -572,8 +572,10 @@ sub identify_vars_on_line {
 } # END of identify_vars_on_line
 
 ## Here we populate VarsFromContainers and ParametersFromContainers, where "Container" is any enclosing unit.
-sub get_vars_pars_from_containers { my ($stref,$f) = @_;
+## Requires populate_UsesTransitively to be run first
+sub get_vars_pars_from_containers { my ($stref,$f) = @_; 
 	my $sub_or_func_or_mod = sub_func_incl_mod( $f, $stref );
+
 	my $Sf = $stref->{$sub_or_func_or_mod}{$f};
 	$Sf->{'VarsFromContainer'}{'List'} = []; 
 	$Sf->{'VarsFromContainer'}{'Set'} = {};
@@ -581,11 +583,18 @@ sub get_vars_pars_from_containers { my ($stref,$f) = @_;
 	$Sf->{'ParametersFromContainer'}{'Set'} = {};
 
 	# For the case of Contained subroutines
-	
+	 
 	my @used_modules = sort keys %{$Sf->{'UsesTransitively'}};
+	# # Looks like I forgot to add the enclosing module 
+	# if (exists $Sf->{'InModule'}){
+	# 	$Sf->{'UsesTransitively'}{$Sf->{'InModule'}} = [];
+	# 	@used_modules = (@used_modules,$Sf->{'InModule'});
+	# }
+# if ( $f eq 'clearFunktalTokens') {croak "$f :".Dumper(@used_modules,$Sf->{'InModule'})}
 
 	for my $module_name (@used_modules) {
 		my $pars = get_vars_from_set($stref->{'Modules'}{$module_name}{'LocalParameters'}); # Because Used and FromContainers should be captured through the rec descent
+		# if (exists $pars->{'funktalMaxNTokens'} and $f eq 'clearFunktalTokens') {croak "$module_name $f"}
 		$Sf->{'ParametersFromContainer'}{'Set'} = { %{$Sf->{'ParametersFromContainer'}{'Set'} }, %{$pars} };
 		my $vars = get_vars_from_set($stref->{'Modules'}{$module_name}{'UsedGlobalVars'}); # Because this is all that matters
 		$Sf->{'VarsFromContainer'}{'Set'} = { %{$Sf->{'VarsFromContainer'}{'Set'} }, %{$vars} };
@@ -593,72 +602,9 @@ sub get_vars_pars_from_containers { my ($stref,$f) = @_;
 	}
 	$Sf->{'ParametersFromContainer'}{'List'}= [sort keys %{$Sf->{'ParametersFromContainer'}{'Set'}}];
 	$Sf->{'VarsFromContainer'}{'List'}= [sort keys %{$Sf->{'VarsFromContainer'}{'Set'}}];
+	# croak "$sub_or_func_or_mod $f: ".Dumper $Sf->{'ParametersFromContainer'} if $f eq 'clearFunktalTokens';
 	return $stref;
 }  # END of get_vars_pars_from_containers
-
-sub get_vars_pars_from_containers_BROKEN { my ($stref,$f) = @_;
-	my $sub_or_func_or_mod = sub_func_incl_mod( $f, $stref );
-	my $Sf = $stref->{$sub_or_func_or_mod}{$f};
-	$Sf->{'VarsFromContainer'}{'List'} = [];
-	$Sf->{'VarsFromContainer'}{'Set'} = {};
-	$Sf->{'ParametersFromContainer'}{'List'} = [];
-	$Sf->{'ParametersFromContainer'}{'Set'} = {};
-
-	# For the case of Contained subroutines
-
-	my @containers=();
-	if ( exists $Sf->{'Container'} ) {
-		@containers = ($Sf->{'Container'});
-	} elsif (exists $Sf->{'Container_Blocks'} ) { # This is for subroutines extracted from ACC marked regions of code
-		@containers = sort keys %{$Sf->{'Container_Blocks'}};
-	}
-	for my $container (@containers) {
-		if ( exists $stref->{'Subroutines'}{$container}{'Parameters'} ) {
-			my ($pset,$plist) = merge_subsets($stref->{'Modules'}{$container}{'Parameters'}{'Subsets'}); # Note this is a nested set
-			$Sf->{'ParametersFromContainer'}{'Set'}= { %{$Sf->{'ParametersFromContainer'}{'Set'}},%{$pset}};
-			$Sf->{'ParametersFromContainer'}{'List'}= ordered_union($Sf->{'ParametersFromContainer'}{'List'},$plist);
-			my ($vpset,$vplist) = merge_subsets($stref->{'Modules'}{$container}{'Vars'}{'Subsets'}); 
-			my $vlist = ordered_difference($plist,$vplist);
-			my $vset = {};
-			for my $var (@{$vlist}) {
-				$vset->{$var} = $vpset->{$var}
-			}
-			$Sf->{'VarsFromContainer'}{'Set'}= { %{$Sf->{'VarsFromContainer'}{'Set'}},%{$vset}};
-			$Sf->{'VarsFromContainer'}{'List'}= ordered_union($Sf->{'VarsFromContainer'}{'List'},$vlist);
-		}
-	}
-
-	# For the case of subroutines in modules that either have params or USE params via modules
-
-	my @mods = ();
-	# WV 2023-12-11 a subroutine can only be in a single module, but of course that module can use other modules.
-	if ( exists $Sf->{'InModule_Blocks'} ) {
-		# This is for subroutines extracted from ACC marked regions of code
-		@mods = sort keys %{$Sf->{'InModule_Blocks'}};
-	}
-	elsif ( exists $Sf->{'InModule'} ) {
-		my $mod = $Sf->{'InModule'};
-		@mods = ($mod);
-	}
-	for my $mod (@mods) {
-		if ( exists $stref->{'Modules'}{$mod}{'Parameters'} ) {
-			my ($pset,$plist) = merge_subsets($stref->{'Modules'}{$mod}{'Parameters'}{'Subsets'}); # Note this is a nested set
-			$Sf->{'ParametersFromContainer'}{'Set'}= { %{$Sf->{'ParametersFromContainer'}{'Set'}},%{$pset}};
-			$Sf->{'ParametersFromContainer'}{'List'}= ordered_union($Sf->{'ParametersFromContainer'}{'List'},$plist);
-			my ($vpset,$vplist) = merge_subsets($stref->{'Modules'}{$mod}{'Vars'}{'Subsets'});
-			my $vlist = ordered_difference($plist,$vplist);
-			my $vset = {};
-			for my $var (@{$vlist}) {
-				$vset->{$var} = $vpset->{$var}
-			}
-			$Sf->{'VarsFromContainer'}{'Set'}= { %{$Sf->{'VarsFromContainer'}{'Set'}},%{$vset}};
-			$Sf->{'VarsFromContainer'}{'List'}= ordered_union($Sf->{'VarsFromContainer'}{'List'},$vlist);
-		}
-	}
-
-	return $stref;
-
-}  # END of get_vars_pars_from_containers_BROKEN
 
 sub populate_UsesTransitively { my ($stref,$f) = @_;
 	my $sub_incl_or_mod = sub_func_incl_mod($f, $stref);
@@ -667,11 +613,12 @@ sub populate_UsesTransitively { my ($stref,$f) = @_;
 	$stref = _build_UsesTransitively_rec($stref,$f);
 
 	if ($sub_incl_or_mod eq 'Subroutines') {
+	# croak "populate_UsesTransitively($f)" if $f eq 'clearFunktalTokens';
 		my @mods = ();
 		if ( exists $Sf->{'InModule_Blocks'} ) {
 			@mods = sort keys %{$Sf->{'InModule_Blocks'}};
 		}
-		elsif ( exists $Sf->{'InModule'} ) {
+		elsif ( exists $Sf->{'InModule'} ) { 
 			my $mod = $Sf->{'InModule'};
 			@mods = ($mod);
 		}
@@ -680,7 +627,7 @@ sub populate_UsesTransitively { my ($stref,$f) = @_;
 			$Sf->{'UsesTransitively'} = { %{$Sf->{'UsesTransitively'}},%{$stref->{'Modules'}{$module_name}{'UsesTransitively'}} }
 		}
 	}
-	# carp "$sub_incl_or_mod $f: ".Dumper $Sf->{'UsesTransitively'} ;
+	# croak "$sub_incl_or_mod $f: ".Dumper $Sf->{'UsesTransitively'} if $f eq 'clearFunktalTokens';
 	return $stref;
 } # END of populate_UsesTransitively
 
@@ -700,7 +647,10 @@ sub _build_UsesTransitively_rec { my ($stref,$f) = @_;
             $Sf->{'UsesTransitively'} = {%{$Sf->{'UsesTransitively'}},%{$stref->{'Modules'}{$used_module}{'UsesTransitively'}} };
         }
     } else {
-        # This is a leaf node
+        # This is a leaf node; but it can still be a sub in a module!
+		if (exists $Sf->{'InModule'}) {
+			$Sf->{'UsesTransitively'}{$Sf->{'InModule'}}=[];
+		}
     }
     return $stref;
 

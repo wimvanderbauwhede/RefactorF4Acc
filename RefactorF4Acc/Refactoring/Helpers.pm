@@ -1236,6 +1236,7 @@ sub emit_f95_parsed_par_decl { (my $pvd) =@_;
         push @attrs,join(', ',grep { !ref($_) } values %{$pvd->{'Attributes'}});
         # carp Dumper($pvd->{'Attributes'}) ;
     }
+    carp Dumper($pvd);
     my $par_val = $pvd->{'Pars'}{'Var'}.' = '.$pvd->{'Pars'}{'Val'};
     my $line = join(', ', @attrs).' :: '.$par_val;
     return $line;

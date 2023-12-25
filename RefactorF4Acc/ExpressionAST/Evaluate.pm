@@ -166,11 +166,12 @@ sub replace_consts_in_ast_no_iters { my ($stref, $f, $ast, $state)=@_;
 		  				$ast = parse_expression($val, {},$stref,$f);
 #carp Dumper $ast;
 		  				return ($ast,1);
-					# } elsif (in_nested_set($stref->{'Subroutines'}{$f},'Args',$mvar)) {
-					# 	carp "ARG $mvar";
+					# } elsif ( exists $stref->{$sub_or_func}{$f}{'ParametersFromContainer'}{'Set'}{$mvar}) {
+					# croak  "PAR FROM CONTAINER $mvar";
 					# 		my $maybe_evaled_ast = _try_to_eval_arg($stref, $f, $mvar);
 					# 	return ($maybe_evaled_ast,1);
 					} else {
+# croak "$f",Dumper $stref->{$sub_or_func}{$f}{'Vars'} if $mvar eq 'funktalMaxNTokens';
 						# carp "AST: ".Dumper($ast);
 						return ($ast,1);
 					}

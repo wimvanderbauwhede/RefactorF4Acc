@@ -99,6 +99,8 @@ sub analyse_all {
 			}
 		}
 	}
+
+	# croak Dumper $stref->{'Subroutines'}{'clearFunktalTokens'}{'ParametersFromContainer'};
 	# for my $module_name (sort keys %{$stref->{'Modules'}}) {
 	# 	my $Sf = $stref->{'Modules'}{$module_name};
 	# 	carp "$module_name: ".Dumper $Sf->{'UsesTransitively'};
