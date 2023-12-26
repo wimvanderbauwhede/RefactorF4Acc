@@ -58,7 +58,7 @@ sub parse_F95_var_decl {
 
 		$pt->{TypeTup} = { each %{$typetup->[0]}, Kind => 4};
 	} elsif (exists $pt->{TypeTup}{Kind}) {
-		$pt->{TypeTup}{Kind}*=1 unless ($pt->{TypeTup}{Kind} eq '*' or $pt->{TypeTup}{Kind} eq ':' );
+		$pt->{TypeTup}{Kind}*=1 unless ($pt->{TypeTup}{Kind} =~/\W/ or $pt->{TypeTup}{Kind} eq ':' );
 	}
 #	print "parse_F95_var_decl:".Dumper($pt);
     if ((exists $pt->{'Attributes'}) && (ref($pt->{'Attributes'}) eq 'HASH')) {
@@ -217,7 +217,9 @@ sub type_parser {
 						sequence [
 							choice( symbol('kind'), symbol('len') ), # integer(kind=4)
 							symbol('='),
-                            {'Kind' => choice(natural, char('*'), char(':'))} # character(len=*)
+                            {'Kind' => 
+							choice(natural, char('*'), char(':'),regex('^[^,\)]+'))
+							} # character(len=*)
 						]
 					)  ))
             )

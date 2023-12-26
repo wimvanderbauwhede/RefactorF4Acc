@@ -1,5 +1,6 @@
 package RefactorF4Acc::Utils;
 use v5.10;
+use POSIX;
 use RefactorF4Acc::Config;
 #
 #   (c) 2010-2017 Wim Vanderbauwhede <wim@dcs.gla.ac.uk>
@@ -14,7 +15,6 @@ use warnings FATAL => qw(uninitialized);
 use strict;
 use Carp;
 use Data::Dumper;
-
 use Exporter;
 
 @RefactorF4Acc::Utils::ISA = qw(Exporter);
@@ -24,6 +24,7 @@ use Exporter;
     %F95_function_like_reserved_words
     %F95_intrinsics
     %F95_intrinsic_functions
+    %F95_intrinsic_functions_for_eval
     %F95_assoc_intrinsic_functions
     %F95_other_intrinsics
     %F95_types
@@ -1088,6 +1089,71 @@ our %F95_types = map { $_=>1 } @F95_types_list;
 
 our %F95_intrinsics = (%F95_intrinsic_functions,%F95_other_intrinsics);
 
+our %F95_intrinsic_functions_for_eval = (
+    # Numeric Functions
+    'abs' => sub {abs($_[0])},
+    'aimag' => sub { die "TODO: aimag is NOT IMPLEMENTED\n" },
+    'aint' => sub {int($_[0])},
+    'anint' => sub {int($_[0])},
+    'ceiling' => sub { POSIX::ceil($_[0])},
+    'cmplx' => sub { die "TODO: cmplx is NOT IMPLEMENTED\n" },
+    'conjg' => sub { die "TODO: conjg is NOT IMPLEMENTED\n" },
+    'dble' => sub {$_[0]}, # dummy
+    'dim' => sub { $_[0] - $_[1] > 0 ? $_[0] - $_[1] : 0; },
+    'dprod' => sub { die "TODO: dprod is NOT IMPLEMENTED\n" },
+    'exponent' => sub { die "TODO: exponent is NOT IMPLEMENTED\n" },
+    'floor' => sub { POSIX::floor($_[0])},
+    'fraction' => sub { die "TODO: fraction is NOT IMPLEMENTED\n" },
+    'int' => sub {$_[0]}, # dummy
+    'max' => sub { $_[0] > $_[1] ? $_[0] : $_[1] },
+    'min' => sub { $_[0] < $_[1] ? $_[0] : $_[1] },
+    'mod' => sub { $_[0] % $_[1] },
+    'modulo' => sub { $_[0] % $_[1] },
+    'nearest' => sub { die "TODO: nearest is NOT IMPLEMENTED\n" },
+    'nint' => sub { die "TODO: nint is NOT IMPLEMENTED\n" },
+    'real' => sub {$_[0]}, # dummy
+    'rrspacing' => sub { die "TODO: rrspacing is NOT IMPLEMENTED\n" },
+    'scale' => sub { die "TODO: scale is NOT IMPLEMENTED\n" },
+    'set_exponent' => sub { die "TODO: set_exponent is NOT IMPLEMENTED\n" },
+    'sign' => sub { die "TODO: sign is NOT IMPLEMENTED\n" },
+    'spacing' => sub { die "TODO: spacing is NOT IMPLEMENTED\n" },
+
+    # Character Functions
+    'achar'=> sub {chr($_[0])},
+    'adjustl' => sub { die "TODO: adjustl is NOT IMPLEMENTED\n" },
+    'adjustr' => sub { die "TODO: adjustr is NOT IMPLEMENTED\n" },
+    'char'=> sub {chr($_[0])}, # dubious
+    'iachar'=> sub {ord($_[0])},
+    'ichar'=> sub {ord($_[0])}, # dubious
+    'index' => sub {index($_[0],$_[1])},
+    'len' => sub {length($_[0])}, 
+    'len_trim' => sub {my $tstr = $_[0];$tstr=~s/\s+$//;length($tstr)},
+    'lge'  => sub { ($_[0] eq $_[1]) or ($_[0] gt $_[1]) },
+    'lgt'  => sub { $_[0] gt $_[1] },
+    'lle'  => sub { ($_[0] eq $_[1]) or ($_[0] lt $_[1]) },
+    'llt'  => sub { $_[0] lt $_[1] },
+    'repeat' => sub { die "TODO: repeat is NOT IMPLEMENTED\n" },
+    'scan' => sub { die "TODO: scan is NOT IMPLEMENTED\n" },
+    'trim' => sub {$_[0]=~s/\s+$//;return $_[0]},
+    'verify' => sub { die "TODO: verify is NOT IMPLEMENTED\n" },
+    # Mathematical Functions
+    'acos'=> sub { atan2( sqrt(1 - $_[0] * $_[0]), $_[0] ) },
+    'asin' => sub { atan2($_[0], sqrt(1 - $_[0] * $_[0])) },
+    'atan' => sub { atan2($_[0],1) },
+    'atan2' => sub { atan2($_[0],$_[1]) },
+    'cos' => sub { cos($_[0])},
+    'cosh' => sub { die "TODO: cosh is NOT IMPLEMENTED\n" },
+    'exp' => sub { exp($_[0])},
+    'log' => sub { log($_[0])},
+    'log10' => sub { log($_[0])/log(10)},
+    'sin' => sub { sin($_[0])},
+    'sinh' => sub { die "TODO: sinh is NOT IMPLEMENTED\n" },
+    'sqrt' => sub { sqrt($_[0])},
+    'tan' => sub { sin($_[0])/cos($_[0])},
+    'tanh' => sub { die "TODO: tanh is NOT IMPLEMENTED\n" },
+);
+
+
 sub warning { my ($msg, $lev) = @_;
     if (not defined $lev) {$lev=0};
     return if ($WARNING_LEVEL==0 or $WARNING_LEVEL<$lev);
@@ -1109,8 +1175,8 @@ sub error { (my $str, my $dbg, my $extra_info)=@_;
         'NONE' => 1
     );
     my $error_type = exists $type_errors{$extra_info} ? 'TYPE ERROR' : 'ERROR';
-    if ((not exists $Config{'IGNORE_ERRORS'} or $Config{'IGNORE_ERRORS'}==0) and ($type_errors{$extra_info} or $extra_info=~/ERROR/i)) {        
-        if (defined $dbg and $dbg>0) {
+    if ((not exists $Config{'IGNORE_ERRORS'} or $Config{'IGNORE_ERRORS'}==0) and ($type_errors{$extra_info} or $extra_info=~/ERROR/i)) {
+        if (defined $dbg and $dbg>0 or $DBG) {
             croak("$error_type: $str");
         } else {
             die "$error_type: $str\n";

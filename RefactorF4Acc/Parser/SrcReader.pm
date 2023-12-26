@@ -1335,6 +1335,16 @@ sub _removeCont {
         my $nline = '';
         my $i     = 0;
         my %phs   = ();
+
+        while ($tline =~ /[zZ](\'[A-Fa-f0-9]+?\')/) {
+          my $hex = '0x'.$1;
+          $tline =~ s/[zZ](\'.+?\')/$hex/;
+        }
+        while ($tline =~ /[zZ](\"[A-Fa-f0-9]+?\")/) {
+          my $hex = '0x'.$1;
+          $tline =~ s/[zZ](\".+?\")/$hex/;
+        }
+
         while ( $tline =~ /(\'.+?\')/ ) {
             $phs{"__PH${i}__"} = $1;
             $tline =~ s/(\'.+?\')/__PH${i}__/;
@@ -1410,6 +1420,14 @@ sub _procLine {
         my $nline = '';
         my $i     = 0;
         my %phs   = ();
+        while ($tline =~ /[zZ](\'.+?\')/) {
+          my $hex = '0x'.$1;
+          $tline =~ s/[zZ](\'.+?\')/$hex/;
+        }
+        while ($tline =~ /[zZ](\".+?\")/) {
+          my $hex = '0x'.$1;
+          $tline =~ s/[zZ](\".+?\")/$hex/;
+        }
         while ( $tline =~ /(\'.+?\')/ ) {
             $phs{"__PH${i}__"} = $1;
             $tline =~ s/(\'.+?\')/__PH${i}__/;
@@ -1560,7 +1578,19 @@ sub _procLine {
         else {
             # replace string constants by placeholders
             my $phs_ref = {};
+
+            my $tline=$line;
+            while ($tline =~ /[zZ](\'.+?\')/) {
+              my $hex = '0x'.$1;
+              $tline =~ s/[zZ](\'.+?\')/$hex/;
+            }
+            while ($tline =~ /[zZ](\".+?\")/) {
+              my $hex = '0x'.$1;
+              $tline =~ s/[zZ](\".+?\")/$hex/;
+            }
+            $line = $tline;
             my $ct      = 0;
+
             while ( $line =~ /(\'.*?\')/ ) {
                 my $strconst = $1;
                 my $ph       = '__PH' . $ct . '__';
