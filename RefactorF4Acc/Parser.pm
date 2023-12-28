@@ -3662,7 +3662,7 @@ sub _parse_f77_par_decl {
 					# say "FOUND PARAM IN: $params_set in $f";
 				}
 				if (not defined $mpar_rec) {
-					error( "Parameter $mpar is not declared in $f");croak;
+					error( "Parameter $mpar is not declared in $f");
 				}
 				my $mtype=$mpar_rec->{'Type'};
 				my $mattr=$mpar_rec->{'Attr'};

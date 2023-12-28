@@ -15,7 +15,7 @@ use Data::Dumper;
 $Data::Dumper::Indent = 0;
 $Data::Dumper::Terse = 1;
 
-our $VV=0;
+our $VV=1;
 use Exporter 'import';
 
 @Fortran::F95VarDeclParser::EXPORT    = qw(
@@ -58,6 +58,9 @@ sub parse_F95_var_decl {
 
 		$pt->{TypeTup} = { each %{$typetup->[0]}, Kind => 4};
 	} elsif (exists $pt->{TypeTup}{Kind}) {
+		if (ref($pt->{TypeTup}{Kind}) eq 'ARRAY') {
+			 $pt->{TypeTup}{Kind} = $pt->{TypeTup}{Kind}[0];
+		}
 		$pt->{TypeTup}{Kind}*=1 unless ($pt->{TypeTup}{Kind} =~/\W/ or $pt->{TypeTup}{Kind} eq ':' );
 	}
 #	print "parse_F95_var_decl:".Dumper($pt);
@@ -205,7 +208,8 @@ sub f95_var_decl_parser_ORIG {
 sub attribute_parser {
     choice(&dim_parser, &intent_parser, &parameter_parser, &allocatable_parser, &volatile_parser)
 }
-
+# The kind or len can in principle be an expression. 
+# Which means it could contain parens, in which case this will break.
 sub type_parser {
 		sequence [
         {'Type' =>	sequence( [{'Main' => word},maybe( {'Opt'=>word} ) ])  },
@@ -218,7 +222,10 @@ sub type_parser {
 							choice( symbol('kind'), symbol('len') ), # integer(kind=4)
 							symbol('='),
                             {'Kind' => 
-							choice(natural, char('*'), char(':'),regex('^[^,\)]+'))
+							choice(natural, char('*'), char(':'),
+							&comma_sep_expr_list
+							# ,regex('^[^,\)]+')
+							)
 							} # character(len=*)
 						]
 					)  ))
@@ -310,7 +317,7 @@ sub param_assignment {
     sequence( [
         {'Lhs' => mixedCaseWord },
         symbol('='),
-		{'Rhs' => regex('^[^,]+')
+		{'Rhs' => regex('^[^,]+') # This is OK
 		# choice(
 		# 	regex('^[\w\s\*\+\-\/]+'),
 		# 	regex('^[\-\.\dedq]+'),
