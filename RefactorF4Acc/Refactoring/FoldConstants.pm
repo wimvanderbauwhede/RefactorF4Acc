@@ -242,12 +242,17 @@ sub fold_constants_no_iters {
                     my $evaled_val = eval_expression_with_parameters($val_expr_str,$info, $stref, $f) ;
                     $info->{'ParsedParDecl'}{'Pars'}{'Val'} = $evaled_val;
                 }
-                elsif ($val_expr_str=~/^([a-z]\w+)\s*\(/i
-                    and exists $F95_intrinsics{$1}
+                elsif ($info->{'ParamDecl'}{'AST'}[0] ==1 and
+                        exists $F95_intrinsics{$info->{'ParamDecl'}{'AST'}[1]}
+                    # $val_expr_str=~/^([a-z]\w+)\s*\(/i
+                    # and exists $F95_intrinsics{$1}
                 ) {
                     # my $evaled_val = eval_expression_with_parameters($val_expr_str,$info, $stref, $f) ;
-                    croak "TODO: F95_intrinsics: $f $line $val_expr_str";
-                    # $info->{'ParsedParDecl'}{'Pars'}{'Val'} = $evaled_val;
+                    # TODO: this only works if the args are constant literals. Need to eval the args.
+                    my $evaled_val = eval_intrinsic($val_expr_str);
+                    # croak "TODO: F95_intrinsics: $f $line $val_expr_str";
+                    # croak Dumper $info; 
+                    $info->{'ParsedParDecl'}{'Pars'}{'Val'} = $evaled_val;
                 }
 			}
 			if (exists $info->{'Assignment'} ) {
@@ -371,3 +376,21 @@ sub fold_constants_in_decls {
 
     return $stref;
 } # END of fold_constants_in_decls
+
+sub eval_intrinsic { my ($val_expr_str) = @_;
+    my $intr = $val_expr_str;
+    $intr=~s/\s*\(.+$//;
+    my $intr_args_str = $val_expr_str;
+    $intr_args_str =~s/\s*\)\s*$//;
+    $intr_args_str =~s/$intr\s*\(\s*//;
+    my @intr_args = split(/\s*,\s*/,$intr_args_str);
+    for my $intr_arg (@intr_args) {
+        if ($intr_arg=~/^[a-z_]/) {
+            error("TODO: evaluating intrinsics only works with numerical literals");
+        }
+    }
+    my $intr_calc = $F95_intrinsic_functions_for_eval{$intr};
+    my $res = $intr_calc->(@intr_args);
+    # croak Dumper($intr,@intr_args,$res);
+    return $res;
+} # END of eval_intrinsic

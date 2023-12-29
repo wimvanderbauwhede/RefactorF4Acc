@@ -6,6 +6,7 @@ module Constants
     integer(kind=(maxSize*2+2)*4), parameter :: testExpr
     integer(kind=1), parameter :: testHex = Z"2A"
     real, parameter :: secret = 5.57188
+    character, parameter :: NL = achar(10)
 
 end module Constants
 

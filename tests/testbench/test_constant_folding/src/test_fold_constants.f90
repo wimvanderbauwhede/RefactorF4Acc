@@ -7,5 +7,5 @@ program test_fold_constants
         tokens(ii)=ii*int(secret,2)
         characters(ii:ii) = achar(ii)
     end do
-    print *, testHex
+    print *, testHex, NL
 end program test_fold_constants
