@@ -190,16 +190,21 @@ sub fold_constants_no_iters {
                     my $sub_or_func = sub_func_incl_mod($f,$stref);
 # croak "$sub_or_func $f",Dumper $stref->{$sub_or_func}{$f}{'Vars'} if $const_expr_str=~/funktalMaxNTokens/;
 # croak "FOLDING $var_name in $f: $expr_str => $const_expr_str => ".Dumper($const_dims) if $const_expr_str=~/funktalMaxNTokens/;
-                    croak $const_expr_str if not defined $const_dims;
-                    $decl->{'ConstDim'} = $const_dims;
-                    $Sf->{$subset}{$var_name}{'Set'}=$decl;
-                    # say "$f SUBSET: $subset => $var_name";
-                    $Sf->{$subset}{'Set'}{$var_name} = $decl;
-                    my $pv_dims = [
-                        map {  $_->[0].':'.$_->[1] }
-                        @{$const_dims}
-                    ];
-                    $info->{'ParsedVarDecl'}{'Attributes'}{'Dim'}=$pv_dims;
+                    # croak $const_expr_str if not defined $const_dims;
+                    if ( defined $const_dims) {
+                        $decl->{'ConstDim'} = $const_dims;
+
+                        $Sf->{$subset}{$var_name}{'Set'}=$decl;
+                        # say "$f SUBSET: $subset => $var_name";
+                        $Sf->{$subset}{'Set'}{$var_name} = $decl;
+                        my $pv_dims = [
+                            map {  $_->[0].':'.$_->[1] }
+                            @{$const_dims}
+                        ];
+                        $info->{'ParsedVarDecl'}{'Attributes'}{'Dim'}=$pv_dims;
+                    } else {
+                        warning("Could not eval $expr_str in fold_constants_no_iters($f)");
+                    }
                 }
                 if ($decl->{'Type'} eq 'character') { 
                     if ($decl->{'Attr'}) {
@@ -228,8 +233,9 @@ sub fold_constants_no_iters {
                 my $decl = get_var_record_from_set($Sf->{$subset},$var_name);
             }
             if (exists $info->{'ParamDecl'} ) {
-                # carp Dumper( $info->{'ParamDecl'},$info);
-
+                # carp Dumper( $info);
+                my $ast = exists $info->{'ParamDecl'}{'AST'} ? $info->{'ParamDecl'}{'AST'}
+                : exists $info->{'ParsedParDecl'}{'Pars'}{'AST'} ? $info->{'ParsedParDecl'}{'Pars'}{'AST'} : [];
                 my $var_name = $info->{'ParsedParDecl'}{'Pars'}{'Var'};
                 my $val_expr_str = $info->{'ParsedParDecl'}{'Pars'}{'Val'};
                 # WV 2021-06-16 FIXME: somehow $info->{'ParsedParDecl'}{'Pars'}{'Val'} only has the integer part of the value!
@@ -242,8 +248,8 @@ sub fold_constants_no_iters {
                     my $evaled_val = eval_expression_with_parameters($val_expr_str,$info, $stref, $f) ;
                     $info->{'ParsedParDecl'}{'Pars'}{'Val'} = $evaled_val;
                 }
-                elsif ($info->{'ParamDecl'}{'AST'}[0] ==1 and
-                        exists $F95_intrinsics{$info->{'ParamDecl'}{'AST'}[1]}
+                elsif ($ast->[0] ==1 and
+                        exists $F95_intrinsics{$ast->[1]}
                     # $val_expr_str=~/^([a-z]\w+)\s*\(/i
                     # and exists $F95_intrinsics{$1}
                 ) {

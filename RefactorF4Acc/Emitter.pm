@@ -653,8 +653,13 @@ sub emit_AnnLines {
 #== BACKSPACE, ENDFILE statements
         }
         elsif ( exists $info->{'IO'} ) {
+            
             my $io_call   = $info->{'IO'};
+            if ($io_call eq 'open') {
+                croak 'FIXME: Use same $info format as other IO calls!';
+            }
             my $attrs_ast = $info->{'IOCall'}{'Args'}{'AST'};
+            carp 'MISSING ARGS AST:'.Dumper( $info) if not defined  $attrs_ast;
             if ($attrs_ast->[0] == 1) {
                 $attrs_ast=$attrs_ast->[2];
             }

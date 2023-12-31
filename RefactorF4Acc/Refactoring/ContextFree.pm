@@ -268,7 +268,7 @@ sub context_free_refactorings {
                             add_ann_to_info($info,$f,__LINE__);
                         }
                     } else {
-                        carp "VAR $var in $f is not in Vars, WHY?";
+                        say "INFO: VAR $var on LINE $line in $f is unused" if $I;
                         $line = emit_f95_parsed_var_decl($pvd);
                         push @{$info->{'Ann'}}, annotate($f, __LINE__ .': ParsedVarDecl, '.($stmt_count == 1 ? '' : 'SKIP'));
                     }

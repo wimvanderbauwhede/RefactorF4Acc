@@ -1337,11 +1337,23 @@ sub _removeCont {
         my %phs   = ();
 
         while ($tline =~ /[zZ]\'([A-Fa-f0-9]+?)\'/) {
-          my $hex = '0x'.$1;
+          my $hex = hex($1);
+          if ($hex<256) {
+            $hex.='_1';
+          }
+          elsif ($hex<256*256) {
+            $hex.='_2';
+          }
           $tline =~ s/[zZ](\'.+?\')/$hex/;
         }
         while ($tline =~ /[zZ]\"([A-Fa-f0-9]+?)\"/) {
-          my $hex = '0x'.$1;
+          my $hex = hex($1);
+          if ($hex<256) {
+            $hex.='_1';
+          }
+          elsif ($hex<256*256) {
+            $hex.='_2';
+          }
           $tline =~ s/[zZ](\".+?\")/$hex/;
         }
 
@@ -1420,14 +1432,27 @@ sub _procLine {
         my $nline = '';
         my $i     = 0;
         my %phs   = ();
-        while ($tline =~ /[zZ](\'.+?\')/) {
-          my $hex = '0x'.$1;
+        while ($tline =~ /[zZ]\'([A-Fa-f0-9]+?)\'/) {
+          my $hex = hex($1);
+          if ($hex<256) {
+            $hex.='_1';
+          }
+          elsif ($hex<256*256) {
+            $hex.='_2';
+          }
           $tline =~ s/[zZ](\'.+?\')/$hex/;
         }
-        while ($tline =~ /[zZ](\".+?\")/) {
-          my $hex = '0x'.$1;
+        while ($tline =~ /[zZ]\"([A-Fa-f0-9]+?)\"/) {
+          my $hex = hex($1);
+          if ($hex<256) {
+            $hex.='_1';
+          }
+          elsif ($hex<256*256) {
+            $hex.='_2';
+          }
           $tline =~ s/[zZ](\".+?\")/$hex/;
         }
+
         while ( $tline =~ /(\'.+?\')/ ) {
             $phs{"__PH${i}__"} = $1;
             $tline =~ s/(\'.+?\')/__PH${i}__/;
