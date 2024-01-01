@@ -650,36 +650,36 @@ sub emit_AnnLines {
             }
         } elsif ( exists $info->{'EndIf'} ) {
             $rline = $indent . 'end if';
-#== BACKSPACE, ENDFILE statements
         }
+#== BACKSPACE, ENDFILE statements
         elsif ( exists $info->{'IO'} ) {
-            
             my $io_call   = $info->{'IO'};
             if ($io_call eq 'open') {
-                croak 'FIXME: Use same $info format as other IO calls!';
-            }
-            my $attrs_ast = $info->{'IOCall'}{'Args'}{'AST'};
-            carp 'MISSING ARGS AST:'.Dumper( $info) if not defined  $attrs_ast;
-            if ($attrs_ast->[0] == 1) {
-                $attrs_ast=$attrs_ast->[2];
-            }
-            # croak Dumper $attrs_ast;
-            my $attrs_str = emit_expr_from_ast($attrs_ast);
+                croak "TODO: emit OPEN call: ",Dumper($info);
+                $rline = _emit_open_call($info);
+            } else {
+                my $attrs_ast = $info->{'IOCall'}{'Args'}{'AST'};
+                croak 'MISSING ARGS AST:'.Dumper( $info) if not defined  $attrs_ast;
+                if ($attrs_ast->[0] == 1) {
+                    $attrs_ast=$attrs_ast->[2];
+                }
+                # croak Dumper $attrs_ast;
+                my $attrs_str = emit_expr_from_ast($attrs_ast);
 
-            my $exprs_ast = $info->{'IOList'}{'AST'};
-            # carp Dumper $attrs_ast, $exprs_ast;
-            my $exprs_str = emit_expr_from_ast($exprs_ast);
-            if ( $exprs_str ne '' ) {
-                $exprs_str .= ', ';
+                my $exprs_ast = $info->{'IOList'}{'AST'};
+                # carp Dumper $attrs_ast, $exprs_ast;
+                my $exprs_str = emit_expr_from_ast($exprs_ast);
+                if ( $exprs_str ne '' ) {
+                    $exprs_str .= ', ';
+                }
+                $rline =
+                    $indent
+                . $maybe_cond
+                . $io_call . ' '
+                . $attrs_str
+                . $exprs_str ;
+                #   . ')';
             }
-            $rline =
-                $indent
-              . $maybe_cond
-              . $io_call . ' '
-              . $attrs_str
-              . $exprs_str ;
-            #   . ')';
-
 #== RETURN, STOP and PAUSE statements
         }
         elsif ( exists $info->{'Return'} ) {
@@ -774,4 +774,52 @@ sub emit_AnnLines {
 
 } # END of emit_AnnLines
 
+# OPEN( KEYWORD1=value1, KEYWORD2=value2, … )
 
+# [UNIT=] u
+# FILE = fin or NAME = fin : a character expression (Read from) or *
+# ACCESS = acc: character expression APPEND | DIRECT | SEQUENTIAL ; Read from 
+# BLANK = blnk : a character expression, Read from
+# ERR = s : Label
+# FORM = fm : a character expression, 'FORMATTED' | 'UNFORMATTED' | 'PRINT' ; Read from
+# IOSTAT = ios : an integer variable, Written to
+# RECL = rl or  RECORDSIZE = rl
+# STATUS = sta or TYPE = sta : a character expression, 'OLD' | 'NEW' | 'UNKNOWN' | 'SCRATCH' ; Read from
+# FILEOPT = fopt : a character expression, Read from
+# READONLY
+# ACTION = act : READ | WRITE | READWRITE
+#
+# open(unit=src,file=fn,iostat=stat,action='read', status='old', recl=1, access='direct',form='unformatted')
+
+#@ Vars
+#@     List => []
+#@     Set => {}
+#@ IOCall
+#@		Args
+#@			List => []
+#@			Set => {}
+#@		AST
+#@			Filename
+#@				Var :: String
+#@				Expr :: String
+#@				ExprVar :: String
+#@				Star :: String
+#@			UnitVar :: String
+#@			UnitConst :: Integer
+#@			IOStat :: String
+#@			AttrVal :: [Placeholder]
+# AST is not the usual expression AST, instead it's a map:
+# UnitConst => natural | UnitVar => word
+# FileName =>
+#       ExprVar => word, Expr => &opaque_expr_parser
+#     | Var => word
+#     | Star => '*'
+#     | Expr => regex('^[^\,]+')
+# IOStat => word
+# Recl => regex('[\w\d\-\*\+]+') # natural, word
+# AttrVal => &string, word
+
+sub _emit_open_call{ my ($info) = @_;
+    my $rline='';
+    return $rline;
+}

@@ -882,7 +882,7 @@ MODULE
 							'Dimension' => 1,
 							'SpecificationStatement' =>1
 							});
-						
+
 						$Sf->{'DeclCount'}{$varname}{'Dimension'}=1;
 
 						$info->{'StmtCount'}{$varname} = scalar keys %{$Sf->{'DeclCount'}{$varname}};
@@ -1002,7 +1002,7 @@ MODULE
 								die "ERROR: dimension of $var speficied both in declaration and COMMON\n";
 							}
 							$decl=__get_params_from_dim($decl,$Sf);
-							
+
 							$Sf->{'DeclaredCommonVars'}{'Set'}{$var} = exists $Sf->{'Program'} ? $decl : dclone($decl);
 							$Sf->{'DeclaredCommonVars'}{'Set'}{$var}{'CommonBlockName'} = $common_block_name;
 							if (not exists $Sf->{'Program'} ) {
@@ -1049,7 +1049,7 @@ MODULE
 #== FORMAT
 		elsif ( $line =~/^format/) {
 			$info->{'Format'}=1;
-			$info->{'IOCall'}{'Args'} = { 'Set' => {}, 'List' => [ ] };
+			$info->{'IOCall'}{'Args'} = { 'Set' => {}, 'List' => [ ] , 'AST' => []};
 			$prev_stmt_was_spec=0;
 			$info->{'NonSpecificationStatement'} = 1;
 		}
@@ -1093,7 +1093,7 @@ MODULE
 			$chunks[1]=~s/\s+//g;
 			$line=join('/',@chunks);
 			say "DATA declaration $line" if $V;
-			
+
 			$info = _parse_data_declaration($line,$info, $stref, $f);
 		}
 		elsif  ($line=~/^data\b/ and $line=~/=/ and $line=~/\/\s*$/ ) {
@@ -1107,7 +1107,7 @@ MODULE
 			$info->{'NonSpecificationStatement'} = 1;
 			# $info->{'SpecificationStatement'} = 1;
 			$info->{'Data'} = 1;
-			$info->{'HasVars'} = 1;			
+			$info->{'HasVars'} = 1;
 			say "DATA declaration with IMPLIED DO at $line" if $V;
 			$info = _parse_data_declaration($line,$info, $stref, $f);
 			# croak Dumper $info if $line=~/IXVI/i;
@@ -1116,7 +1116,7 @@ MODULE
 		elsif ($line=~/^(intrinsic|external)(?:\s*\:\:|\s)?\s*([\w,\s]+)/) {
 			my $qualifier = $1;
 			my $external_procs_str = $2;
-			
+
 			$external_procs_str=~s/\s//g;
 			my @external_procs = split(/\s*,\s*/,$external_procs_str);
 
@@ -1125,16 +1125,16 @@ MODULE
 			$Sf->{ucfirst($qualifier)}={ map {$_=>1} @external_procs };
 			say "INFO: ".uc($qualifier)." is ignored" if $qualifier ne 'external' and $DBG;
 			# if ($qualifier ne 'intrinsic' and $qualifier ne 'external') {
-			# 	$info->{'HasVars'} = 1; 
+			# 	$info->{'HasVars'} = 1;
 			# }
-			
+
 			if ($qualifier eq 'external') {
 				for my $external_proc (@external_procs) {
 
 					if (exists $stref->{'Subroutines'}{$external_proc} and exists $stref->{'Subroutines'}{$external_proc}{'Function'}) {
-						
+
 						$Sf->{'ExternalFunctions'}{$external_proc}=1;
-						$info->{'HasVars'} = 1; 
+						$info->{'HasVars'} = 1;
 						if (not exists $Sf->{'DeclaredOrigLocalVars'}{'Set'}{$external_proc}) {
 							$Sf->{'DeclaredOrigLocalVars'}{'Set'}{$external_proc} = {
 								'ArrayOrScalar' => 'Scalar',
@@ -1311,7 +1311,7 @@ or $line=~/^character\s*\(\s*len\s*=\s*[\w\*]+\s*\)/
 # Otherwise it is impossible to distinguish from an array assignment
 # An alternative way would be to check if this statement comes immediately after another SpecificationStatement
 			elsif (
-				($prev_stmt_was_spec 
+				($prev_stmt_was_spec
 				or $prev_stmt_was_data
 				or $prev_stmt_was_stmt_function) and
 			 $line =~ /([a-z]\w*)\s*\(\s*([a-z]\w*)[,\w]*\)\s*=\s*.*\2\W/
@@ -1647,17 +1647,36 @@ END IF
 =cut
 
 #==    READ, WRITE, and PRINT statements
-#@ CallAttrs
-#@     List => [...]
-#@     Set =>
+#@    IOCall
+#@      Args
+#@          Set => {},
+#@          List => [ ]
+#@          AST = $attrs_ast
+#@    IOList
+#@          AST = $exprs_ast
+#@    ImpliedDoVars
+#@      Set => $impl_do_pairs,
+#@      List => $impl_do_vars_list
+#@    ImpliedDoRangeVars
+#@      Set => \%impl_do_range_vars,
+#@      List => [sort keys %impl_do_range_vars]
+
+#@    CallAttrs
+#@      Set => $attrs_vars
 #@         Type => $type
-#@ CallArgs
-#@     List => []
-#@     Set => {}
-#@ ExprVars =>
-#@     List => []
-#@     Set => {}
-#@ ImpliedDoVars => $call_args
+#@      List => [ sort keys %{ $attrs_vars } ]
+#@    ExprVars
+#@      Set => $exprs_vars
+#@      List => [ sort keys %{ $exprs_vars }]
+
+#@    Vars
+#@          Written
+#@              List => []
+#@              Set => {}
+#@    Vars
+#@          Read
+#@              List => []
+#@              Set => {}
 			if (
 				$mline !~ /^(?:read|accept|inquire|write|type|print)\s*=/  and
 				$mline =~ /^(read|accept|inquire|write|type|print)(?:\s*\(|\s+)/
@@ -1671,13 +1690,49 @@ END IF
 				$info->{'NonSpecificationStatement'} = 1;
 			}
 #== OPEN,
+# OPEN( KEYWORD1=value1, KEYWORD2=value2, … )
+
+# [UNIT=] u
+# FILE = fin or NAME = fin : a character expression (Read from) or *
+# ACCESS = acc: character expression, Read from
+# BLANK = blnk : a character expression, Read from
+# ERR = s : Label
+# FORM = fm : a character expression, Read from
+# IOSTAT = ios : an integer variable, Written to
+# RECL = rl or  RECORDSIZE = rl
+# STATUS = sta or TYPE = sta : a character expression, Read from
+# FILEOPT = fopt : a character expression, Read from
+# READONLY
+# ACTION = act : READ | WRITE | READWRITE
 #== REWIND,
 #== CLOSE statements
-#@ FileName =>
-#@     Var => $var
 #@ Vars
 #@     List => []
 #@     Set => {}
+#@ IOCall
+#@		Args
+#@			List => []
+#@			Set => {}
+#@		AST
+#@			Filename
+#@				Var :: String
+#@				Expr :: String
+#@				ExprVar :: String
+#@				Star :: String
+#@			UnitVar :: String
+#@			UnitConst :: Integer
+#@			IOStat :: String
+#@			AttrVal :: [Placeholder]
+# AST is not the usual expression AST, instead it's a map:
+# UnitConst => natural | UnitVar => word
+# FileName =>
+#       ExprVar => word, Expr => &opaque_expr_parser
+#     | Var => word
+#     | Star => '*'
+#     | Expr => regex('^[^\,]+')
+# IOStat => word
+# Recl => regex('[\w\d\-\*\+]+') # natural, word
+# AttrVal => &string, word
 			elsif ( $mline =~ /^(open|close|rewind)\s*\(/
 			or  $mline =~ /^(rewind)\s+\w+/
 			) {
@@ -1694,7 +1749,7 @@ END IF
 					if ( exists $ast->{'FileName'} ) {
 						if ( exists $ast->{'FileName'}{'Var'} and $ast->{'FileName'}{'Var'} !~ /__PH/ ) {
 							$info->{'FileNameVar'} =
-							  $ast->{'FileName'}{'Var'}; # TODO: in principle almost any other field could be a var
+							  $ast->{'FileName'}{'Var'}; # 	TODO: in principle almost any other field could be a var
 							$info->{'Vars'}{'Set'}
 							  { $ast->{'FileName'}{'Var'} } = 1;
 						} elsif ( exists $ast->{'FileName'}{'Expr'} ) {
@@ -1751,7 +1806,7 @@ END IF
 				my $keyword = $1;
 				$info->{ ucfirst($keyword) } = 1;
 				$info->{'IO'}=$keyword;
-				$info->{'IOCall'}{'Args'} = { 'Set' => {}, 'List' => [ ] };
+				$info->{'IOCall'}{'Args'} = { 'Set' => {}, 'List' => [ ], 'AST' => [] };
 				warn uc($keyword)." is ignored!" if $DBG;
 				warning(uc($keyword)." is ignored",3);
 				$info->{'NonSpecificationStatement'} = 1;
@@ -1904,7 +1959,7 @@ END IF
 			}
 			if (not exists $info->{'StatementFunction'}) {
 				$prev_stmt_was_stmt_function=0;
-			}			
+			}
 		}    # Loop over lines
 		# We sort the indices from high to low so that the insertions are at the correct index
 		for my $idx (sort {$b <=> $a} keys %extra_lines) {
@@ -3257,7 +3312,7 @@ sub __parse_f95_decl {
 			my $decls = __create_Decls_from_ParsedVarDecl($info,$init_decl);
 			for my $decl (@{$decls}) {
 				my $tvar = $decl->{'Name'} ;
- 
+
 
 				if ($decl->{'Dim'}) {
 					$decl=__get_params_from_dim($decl,$Sf);
@@ -3350,9 +3405,9 @@ sub __parse_f95_decl {
 						} else {
 							say "INFO: <$line>: $tvar does not have a record in Vars" if $I;
 							$subset = $is_module ? 'DeclaredCommonVars' : 'DeclaredOrigLocalVars'; # For backward compatibility
-							if ($is_module) { 
+							if ($is_module) {
 								$decl->{'CommonBlockName'} = $f;  # For backward compatibility
-								$decl->{'ModuleName'} = $f; 
+								$decl->{'ModuleName'} = $f;
 							} # overload CommonBlockName with module name
 							$Sf->{$subset}{'Set'}{$tvar}=$decl;
 							push @{$Sf->{$subset}{'List'}}, $tvar;
@@ -3369,7 +3424,7 @@ sub __parse_f95_decl {
 =pod approach_before_2023-12-13
 			my $idx=0;
 			for my $tvar ( @{ $pt->{'Vars'} } ) { # corresponds to @{$pvars_lst} in F77
-			
+
 				my $decl = {};
 				$decl->{'Indent'}        = $indent;
 				$decl->{'Type'}          = $pt->{'TypeTup'}{'Type'};
@@ -3382,8 +3437,8 @@ sub __parse_f95_decl {
 				}
 				my $type =$decl->{'Type'};
 				if ( exists $pt->{'Attributes'} ) {
-					if ( exists $pt->{'Attributes'}{'Dim'} ) {	
-						
+					if ( exists $pt->{'Attributes'}{'Dim'} ) {
+
 						if ( $pt->{'Attributes'}{'Dim'}[0] ne '0' ) {
 							my @shape = ();
 							for my $range ( @{ $pt->{'Attributes'}{'Dim'} } ) {
@@ -3769,7 +3824,7 @@ sub _parse_f77_var_decl {
     }
 	( $pvars, $pvars_lst ) = __parse_F77_decl_expr( $line );
 
-# croak Dumper( $pvars, $pvars_lst , $pvd); 
+# croak Dumper( $pvars, $pvars_lst , $pvd);
 	# my $memspace = 'Global';
 	my $pragmas={'MemSpace' => 'Global'};
 	if (exists $info->{'TrailingComment'} and $info->{'TrailingComment'} =~/\$(?:RF4A|ACC)\s+/) {
@@ -3873,9 +3928,9 @@ sub _parse_f77_var_decl {
 			'Implicit' => 0,
 			'MemSpace' => $pragmas->{'MemSpace'}
 		};
-		
+
 		$decl = __get_params_from_len($decl,$Sf);
-		
+
 		if ($decl->{'ArrayOrScalar'} eq 'Array' ) {
 			if (exists $pragmas->{'Halos'}) {
 	#                	say "SUB $f VAR $tvar HALOS: ".Dumper($halos);
@@ -4178,13 +4233,13 @@ OPEN( KEYWORD1=value1, KEYWORD2=value2, … )
 
 [UNIT=] u
 FILE = fin or NAME = fin : a character expression (Read from) or *
-ACCESS = acc: character expression, Read from
-BLANK = blnk : a character expression ,Read from
+ACCESS = acc: character expression APPEND | DIRECT | SEQUENTIAL ; Read from 
+BLANK = blnk : a character expression, Read from
 ERR = s : Label
-FORM = fm : a character expression, Read from
+FORM = fm : a character expression, 'FORMATTED' | 'UNFORMATTED' | 'PRINT' ; Read from
 IOSTAT = ios : an integer variable, Written to
 RECL = rl or  RECORDSIZE = rl
-STATUS = sta or TYPE = sta : a character expression, Read from
+STATUS = sta or TYPE = sta : a character expression, 'OLD' | 'NEW' | 'UNKNOWN' | 'SCRATCH' ; Read from
 FILEOPT = fopt : a character expression, Read from
 READONLY
 ACTION = act : READ | WRITE | READWRITE
@@ -4226,9 +4281,9 @@ s Error specifier: Label
 
 We have 3 different cases:
 
-1. operation (arglist) : READ, WRITE, INQUIRE, OPEN, CLOSE,  REWIND => $attrs_ast
-2. operation (arglist) iolist : READ, WRITE => $attrs_ast, $exprs_ast
-3. operation comma_sep_list : READ, PRINT, ACCEPT, REWIND => $attr_ast
+Case 1: operation (arglist) : READ, WRITE, INQUIRE, OPEN, CLOSE,  REWIND => $attrs_ast
+Case 2: operation (arglist) iolist : READ, WRITE => $attrs_ast, $exprs_ast
+Case 3: operation comma_sep_list : READ, PRINT, ACCEPT, REWIND => $attr_ast
 
 =cut
 
@@ -4241,6 +4296,8 @@ sub _parse_read_write_print {
     my $Sf          = $stref->{$sub_or_func}{$f};
     my $tline=$line;
     #    For READ and WRITE we can have this stupid non-standard syntax:
+	# An alternate to the UNIT=u, REC=rn form is as follows: ♦ (nonstandard feature)
+	# READ( u 'rn … ) iolist
     if (exists $info->{'ReadCall'} or exists $info->{'WriteCall'} ) {
         my $has_a_single_quote = ($tline =~ tr/\'//) % 2;
         if ($has_a_single_quote) {
@@ -4248,7 +4305,7 @@ sub _parse_read_write_print {
         }
     }
     if (not (exists $info->{'PrintCall'} or exists $info->{'AcceptCall'}) ) {
-    	# Normalise by removing UNIT, NML and FMT
+    	# Normalise by removing UNIT, NML and FMT keywords as they are optional
 		# That leaves IOSTAT, REC and SIZE for READ
     	$tline=~s/(unit|nml|fmt)\s*=\s*//gi;
     }
@@ -4287,10 +4344,6 @@ sub _parse_read_write_print {
     # This is not good enough because implied do is (v(i),i=i_start,i_stop)
     # So what I should so is say: if we have ',' and elt 1 is '=' then also consider elt 2
     my $impl_do_pairs = $case<2 ? {} : find_implied_do_in_ast($exprs_ast,{});
-#    say "LINE:$tline";
-#    say Dumper($exprs_ast);
-#    say "ATTR PAIRS: ".Dumper($attr_pairs);
-#    say "IMPLIED DO PAIRS: ".Dumper($impl_do_pairs);
     $info->{'IOCall'}{'Args'} = { 'Set' => {}, 'List' => [ ] };
     $info->{'IOCall'}{'Args'}{'AST'}=$attrs_ast;
     $info->{'IOList'}{'AST'}=$exprs_ast;
@@ -5383,7 +5436,7 @@ sub _get_var_val_pairs { my ($ast) = @_;
 
 sub __get_params_from_len { my ($decl, $Sf)=@_;
 	my $len=$decl->{'Attr'};
-	$len=~s/len\s*=\s*//;	
+	$len=~s/len\s*=\s*//;
 	my @mpars = split(/\W+/, $len);
 	for my $mpar (@mpars) {
 		if (defined $mpar and in_nested_set($Sf,'Parameters',$mpar) ) {

@@ -2,9 +2,9 @@ package Fortran::ConstructParser;
 use warnings;
 use strict;
 use v5.10;
-# 
+#
 #   (c) 2010-2017 Wim Vanderbauwhede <wim@dcs.gla.ac.uk>
-#   
+#
 
 our $VERSION = '0.01';
 
@@ -64,23 +64,36 @@ sub parse_Fortran_if_construct {
     return $pt;
 }
 
-sub fortran_IO_call_parser {
 
-sequence( 
-[ 
+
+# UnitConst => natural | UnitVar => word
+# FileName =>
+#     ExprVar => word
+#     Expr => &opaque_expr_parser 
+#     | Var => word 
+#     | Star => symbol('*')
+#     | Expr => regex('^[^\,]+')
+# IOStat => word 
+# Recl => regex('[\w\d\-\*\+]+') # natural, word
+# AttrVal => &string, word
+
+sub fortran_IO_call_parser { # misnomer, does only OPEN
+
+sequence(
+[
 	whiteSpace,
     symbol('open'),
     parens(
         sepByChar( ',',
                 choice(
                 sequence( [
-                    symbol( 'unit'), &eqs,  choice({'UnitConst' => natural },{'UnitVar' => word}) 
+                    symbol( 'unit'), &eqs,  choice({'UnitConst' => natural },{'UnitVar' => word})
                 ] ),
                 sequence( [
                     choice(
                         symbol( 'file'), symbol( 'name')
                     ), &eqs,
-                    {'FileName' => 
+                    {'FileName' =>
                     choice(
                     sequence( [ {'ExprVar'=> word}, {'Expr' => &opaque_expr_parser } ] ),
                     	{'Var' => word }, # This will pass on vars but break on arrays
@@ -99,7 +112,7 @@ sequence(
                         charExpr( 'zero'), charExpr( 'null')
                     )
                 ] ),
-                sequence( [                
+                sequence( [
                     symbol( 'err' ),&eqs, {'Err' => natural}
                 ] ),
                 sequence( [
@@ -118,7 +131,7 @@ sequence(
                 sequence( [
                     choice(
                         symbol( 'status'), symbol( 'type')
-                    ),&eqs, 
+                    ),&eqs,
                     choice(
                         charExpr( 'old'), charExpr( 'new'), charExpr( 'unknown'), charExpr( 'scratch')
                     )
@@ -140,7 +153,7 @@ sequence(
                     ) }
                 ] ) ,
 				{ 'UnitConst' => natural},
-                {'UnitVar' => word},                
+                {'UnitVar' => word},
             )
         )
     )
@@ -148,24 +161,24 @@ sequence(
 
 }
 
-# Match anything but if the open and close parens are not paired, check for closing paren and remove if there is one. 
+# Match anything but if the open and close parens are not paired, check for closing paren and remove if there is one.
 sub opaque_expr_parser {
 	    sub {	(my $str)= @_;
-        my $p =  regex('^[^\,]+'); 			 			
+        my $p =  regex('^[^\,]+');
  		(my $status, my $str2, my $matches) = $p->($str);
         if ($status) {
         	 my $open_paren_counter = () = $matches=~/(\()/g;
         	 my $close_paren_counter = () = $matches=~/(\))/g;
-        	 if  ( $close_paren_counter > $open_paren_counter ) { # parens not matched 
+        	 if  ( $close_paren_counter > $open_paren_counter ) { # parens not matched
         	if ($matches=~/\)$/) {
         		$matches=~s/\)$//;
         		$str2.=')';
         	}
         	 }
             return ($status, $str2, $matches);
-        } 
+        }
         return (0, $str, []);
-    };	
+    };
 }
 
 sub eqs {
@@ -183,13 +196,13 @@ sub string { (my $str)=@_;
 
 sub fortran_do_construct_parser {
 	sequence( [
-	maybe(sequence([{ConstructName => word},semi])), 
+	maybe(sequence([{ConstructName => word},semi])),
 	 symbol( 'do'),
 	 {Index => word},
 	 &eqs,
 	  {Init => &var_or_num},
-	  comma, 
-	  {Limit => &var_or_num}, 
+	  comma,
+	  {Limit => &var_or_num},
 	  maybe( sequence( [ comma,{ Step => &var_or_num } ] ))
 	  ]);
 }
@@ -208,7 +221,7 @@ sub var_or_num {
 #END IF [construct-name]
 sub fortran_if_construct_parser {
 	sequence( [
-	maybe(choice(symbol('else'),sequence([{ConstructName => word},semi]))), 
+	maybe(choice(symbol('else'),sequence([{ConstructName => word},semi]))),
 	 symbol( 'if'),
 	 parens(
 	 {LogicalExpression => &logical_expression}
@@ -231,7 +244,7 @@ sub comb_logical_expression {
 			),
 			choice(parens(&logical_expression),&logical_expression)
 		]
-	
+
 	);
 }
 sub logical_expression {
@@ -251,8 +264,8 @@ sub logical_expression {
 				symbol('<'),
 				symbol('<='),
 				symbol('>'),
-				symbol('>='),			
-			), 
+				symbol('>='),
+			),
 			maybe(symbol('.not.')),
 			&var_or_num
 		]
