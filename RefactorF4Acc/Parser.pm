@@ -1740,7 +1740,7 @@ END IF
 				$info->{ ucfirst($keyword) . 'Call' } = 1;
 				$info->{'IO'}=$keyword;
                 $info->{'HasVars'} = 1;
-				if ( $keyword eq 'open' ) {
+				if ( $keyword eq 'open' or $keyword eq 'close') {
 					$mline=~s/\s+$//;
 					my $ast = parse_Fortran_open_call($mline);
 					$info->{'AST'} = $ast;

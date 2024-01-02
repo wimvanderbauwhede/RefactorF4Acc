@@ -160,7 +160,7 @@ sub fold_constants_no_iters {
 
     my $pass_fold_constants = sub { (my $annline)=@_;
         (my $line,my $info)=@{$annline};
-        say "$f FOLD CONSTS ON LINE <$line>";
+        # say "$f FOLD CONSTS ON LINE <$line>";
         # From $info, find the lines that contain expressions that might have constants to fold.
         # These would the same types of lines as in identify_array_accesses_in_exprs()
         

@@ -418,7 +418,8 @@ sub emit_AnnLines {
         }
         my $maybe_cond = '';
         my $block_info='';
-        if (exists $info->{'Block'}) {
+        if (exists $info->{'Block'} and scalar keys %{$info->{'Block'}}>0) {
+            # carp Dumper $info;
             my $block_id = join(':',@{get_block_id($info->{'Block'},[])});
             for my $k (sort keys %{$info->{'Block'}}) {
                 next if $k eq 'InBlock';
@@ -568,36 +569,7 @@ sub emit_AnnLines {
             $rline = $indent . $par_decl_str;
         }
 #== WHILE
-        elsif ( exists $info->{'While'} ) {
-            my $ast         = $info->{'Do'}{'ExpressionsAST'};
-            my $do_expr_str = emit_expr_from_ast($ast);
-            $rline = $indent . 'do while (' . $do_expr_str . ')';
-        }
-#== DO
-        elsif ( exists $info->{'Do'} ) {
-
-            # 'Iterator' => $iter,
-            # 'Label'    => $label,
-            # 'Range'    => {
-            # 	'Expressions' => [ $range_start, $range_stop, $range_step ],
-            # 	'Vars'        => $mvars
-            # },
-            # carp 'DO LINE:'.$line.' =>'. Dumper $info->{'Do'};
-            my $iter = $info->{'Do'}{'Iterator'};
-            my $label =
-                exists $info->{'Do'}{'Label'}
-              ? $info->{'Do'}{'Label'} eq 'LABEL_NOT_DEFINED'
-                  ? ''
-                  : ' ' . $info->{'Do'}{'Label'} . ', '
-              : '';
-            if ( $info->{'Do'}{'Range'}{'Expressions'}[-1] == 1 ) {
-                pop @{ $info->{'Do'}{'Range'}{'Expressions'} };
-            }
-            my $do_expr_str =
-              join( ', ', @{ $info->{'Do'}{'Range'}{'Expressions'} } );
-            $rline =
-              $indent . 'do' . $label . ' ' . $iter . ' = ' . $do_expr_str;
-
+        elsif ( exists $info->{'While'} or (exists $info->{'Do'} and exists $info->{'Do'}{'While'})) {
             # 	'While' =>1,
             # 	'Iterator' => '',
             # 	'Label'    => $label,
@@ -607,6 +579,33 @@ sub emit_AnnLines {
             # 		},
             # 	'LineID' => $info->{'LineID'}
             # };
+            my $ast         = $info->{'Do'}{'ExpressionsAST'};
+            my $do_expr_str = emit_expr_from_ast($ast);
+            $rline = $indent . 'do while (' . $do_expr_str . ')';
+        }
+#== DO
+        elsif ( exists $info->{'Do'} ) {
+            # 'Iterator' => $iter,
+            # 'Label'    => $label,
+            # 'Range'    => {
+            # 	'Expressions' => [ $range_start, $range_stop, $range_step ],
+            # 	'Vars'        => $mvars
+            # },
+# carp $line . Dumper $info;
+            my $iter = $info->{'Do'}{'Iterator'};
+            my $label =
+                exists $info->{'Do'}{'Label'}
+            ? $info->{'Do'}{'Label'} eq 'LABEL_NOT_DEFINED'
+                ? ''
+                : ' ' . $info->{'Do'}{'Label'} . ', '
+            : '';
+            if ( $info->{'Do'}{'Range'}{'Expressions'}[-1] == 1 ) {
+                pop @{ $info->{'Do'}{'Range'}{'Expressions'} };
+            }
+            my $do_expr_str =
+            join( ', ', @{ $info->{'Do'}{'Range'}{'Expressions'} } );
+            $rline =
+            $indent . 'do' . $label . ' ' . $iter . ' = ' . $do_expr_str;
 
         }
 #== SELECT/CASE
@@ -652,10 +651,14 @@ sub emit_AnnLines {
             $rline = $indent . 'end if';
         }
 #== BACKSPACE, ENDFILE statements
+# TODO
+#== OPEN, CLOSE statements
         elsif ( exists $info->{'IO'} ) {
             my $io_call   = $info->{'IO'};
-            if ($io_call eq 'open') {
-                croak "TODO: emit OPEN call: ",Dumper($info);
+            if ( $io_call eq 'rewind' ) {
+                error("TODO: IMPLEMENT REWIND");
+            } elsif ($io_call eq 'open' or $io_call eq 'close' ) {
+                # croak "TODO: emit OPEN call: ",Dumper($info);
                 $rline = _emit_open_call($info);
             } else {
                 my $attrs_ast = $info->{'IOCall'}{'Args'}{'AST'};
@@ -778,7 +781,7 @@ sub emit_AnnLines {
 
 # [UNIT=] u
 # FILE = fin or NAME = fin : a character expression (Read from) or *
-# ACCESS = acc: character expression APPEND | DIRECT | SEQUENTIAL ; Read from 
+# ACCESS = acc: character expression APPEND | DIRECT | SEQUENTIAL ; Read from
 # BLANK = blnk : a character expression, Read from
 # ERR = s : Label
 # FORM = fm : a character expression, 'FORMATTED' | 'UNFORMATTED' | 'PRINT' ; Read from
@@ -820,6 +823,71 @@ sub emit_AnnLines {
 # AttrVal => &string, word
 
 sub _emit_open_call{ my ($info) = @_;
-    my $rline='';
+    my @rline_chunks=();
+
+    my $rline_chunk= 'unit=' ;
+    my $unit = exists $info->{'AST'}{'UnitVar'} ? $info->{'AST'}{'UnitVar'} :
+    exists $info->{'AST'}{'UnitConst'} ? $info->{'AST'}{'UnitConst'} : croak Dumper $info;
+    $rline_chunk.=$unit;
+    push @rline_chunks, $rline_chunk;
+
+    for my $k ('Expr','Var','Star') {
+        if (exists $info->{'AST'}{'FileName'}{$k}) {
+            my $fname = $info->{'AST'}{'FileName'}{$k};
+            push @rline_chunks, 'file='.$fname;
+            last;
+        }
+    }
+
+    if (exists $info->{'AST'}{'IOStat'}) {
+        push @rline_chunks,'iostat='.$info->{'AST'}{'IOStat'};
+    }
+    if (exists $info->{'AST'}{'Recl'}) {
+        push @rline_chunks,'recl='.$info->{'AST'}{'Recl'};
+    }
+# ACCESS = acc: character expression APPEND | DIRECT | SEQUENTIAL ; Read from
+# FORM = fm : a character expression, 'FORMATTED' | 'UNFORMATTED' | 'PRINT' ; Read from
+# STATUS = sta or TYPE = sta : a character expression, 'OLD' | 'NEW' | 'UNKNOWN' | 'SCRATCH' ; Read from
+# ACTION = act : READ | WRITE | READWRITE
+# FILEOPT = fopt : a character expression, Read from
+
+# BLANK = blnk : a character expression, Read from
+# ERR = s : Label
+# READONLY
+    if ( exists $info->{'AST'}{'AttrVal'} and ref($info->{'AST'}{'AttrVal'}) eq 'ARRAY') {
+        for my $val (@{ $info->{'AST'}{'AttrVal'} } ) {
+            my $tval = $val;
+            if ($val=~/__PH\d+__/) {
+                $tval = $info->{'PlaceHolders'}{$val};
+            }
+
+            if ($tval =~/APPEND | DIRECT | SEQUENTIAL/i) {
+                push @rline_chunks,"access=$tval";
+            }
+            elsif ($tval=~/FORMATTED|UNFORMATTED|PRINT/) {
+                push @rline_chunks,"form=$tval";
+            }
+            elsif ($tval=~/OLD|NEW|UNKNOWN|SCRATCH|KEEP|DELETE/) {
+                push @rline_chunks,"status=$tval";
+            }
+            elsif ($tval=~/READ|WRITE|READWRITE/) {
+                push @rline_chunks,"action=$tval";
+            }
+            elsif ($tval=~/NOPAD|BUFFER|EOF/) {
+                push @rline_chunks,"fileopt=$tval";
+            }
+            elsif ($tval=~/ZERO|NULL/) {
+                push @rline_chunks,"blank=$tval";
+            }
+            elsif ($tval=~/^\d+$/) {
+                push @rline_chunks,"err=$tval";
+            }
+            else {
+                push @rline_chunks,$tval;
+            }
+        }
+    }
+    my $rline = $info->{'Indent'} . $info->{'IO'}. '('.join(',',@rline_chunks).')';
+
     return $rline;
 }

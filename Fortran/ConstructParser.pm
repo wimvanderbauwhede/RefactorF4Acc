@@ -82,7 +82,7 @@ sub fortran_IO_call_parser { # misnomer, does only OPEN
 sequence(
 [
 	whiteSpace,
-    symbol('open'),
+    choice(symbol('open'),symbol('close')),
     parens(
         sepByChar( ',',
                 choice(
