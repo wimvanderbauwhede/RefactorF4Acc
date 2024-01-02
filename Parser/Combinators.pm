@@ -982,9 +982,9 @@ sub _l2m {
 			}
 		}
 	} elsif ( ref($hlist) eq 'HASH' ) {
-		say Dumper($hlist);
+#say Dumper($hlist);
 		for my $k ( keys %{$hlist} ) {
-			say $k;
+#			say $k;
 			$hmap=__add_to_map( $hmap, $k, $hlist->{$k} );
 		}
 	} else {

@@ -204,7 +204,7 @@ sub main {
     } else {
 	   $stref = parse_fortran_src( $code_unit_name, $stref, 0 );
     }
-croak;
+
     # say "\n MAIN \n";
     # map {say $_} @{pp_annlines($stref->{'Subroutines'}{'test_loop_nature'}{'AnnLines'},1)};
                 # croak Dumper $stref->{Subroutines}{shapiro_map_24}{DeclaredOrigArgs}{List};
