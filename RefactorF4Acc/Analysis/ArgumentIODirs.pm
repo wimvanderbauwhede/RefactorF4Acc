@@ -65,10 +65,10 @@ sub determine_argument_io_direction_rec {
             }
             next if exists $stref->{'ExternalSubroutines'}{$calledsub};    # Don't descend into external subs
             if (exists $subs{$calledsub}) {
-                warning("CALL LOOP for $calledsub in $f. This does not conform to the ANSI X3.9-1978 standard, proceed at your peril!",1);
-                warning('<'.join(', ', @{ $stref->{'CallStack'} }).'>',2);
-				# say "WARNING: CALL LOOP for $calledsub in $f. This does not conform to the ANSI X3.9-1978 standard, proceed at your peril!" if $W;
-				# say join(', ', @{ $stref->{'CallStack'} }) if $WW;
+                if (not exists $stref->{'Subroutines'}{$calledsub}{'Recursive'}) {
+                    warning("CALL LOOP for $calledsub in $f. This does not conform to the ANSI X3.9-1978 standard, proceed at your peril!",1);
+                    warning('<'.join(', ', @{ $stref->{'CallStack'} }).'>',2);
+                }
 				next;
 			}
             $stref->{Counter}++ if $V;
@@ -512,8 +512,8 @@ sub _analyse_src_for_iodirs {
                                             $args->{$var}{'IODir'} = 'InOut';
                                         }    # if it's already InOut or Out, stays like it is.
                                     }
-                                    else {                                        
-                                        warning("Intent for call arg $var in call to $name in $f is unknown");
+                                    else {
+                                        warning("Intent for call arg $var in call to $name in $f is unknown",2);
                                         # carp Dumper $iodirs_from_call;
                                         # carp "ARG $var RefactoredArgs => ".Dumper $stref->{Subroutines}{$f}{RefactoredArgs}{Set}{$var};
                                         # croak "ARG $var DeclaredOrigArgs => ".Dumper $stref->{Subroutines}{$f}{DeclaredOrigArgs}{Set}{$var};

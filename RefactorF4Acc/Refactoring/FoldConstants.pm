@@ -163,7 +163,7 @@ sub fold_constants_no_iters {
         # say "$f FOLD CONSTS ON LINE <$line>";
         # From $info, find the lines that contain expressions that might have constants to fold.
         # These would the same types of lines as in identify_array_accesses_in_exprs()
-        
+
             if (exists $info->{'VarDecl'} and not exists $info->{'ParamDecl'}
             #  and is_array_decl($info)
              ) {
@@ -203,7 +203,7 @@ sub fold_constants_no_iters {
                         ];
                         $info->{'ParsedVarDecl'}{'Attributes'}{'Dim'}=$pv_dims;
                     } else {
-                        warning("Could not eval $expr_str in fold_constants_no_iters($f)");
+                        warning("Could not constant-fold DIMENSION in \n$line\nin $f");
                     }
                 }
                 if ($decl->{'Type'} eq 'character') { 
