@@ -156,25 +156,32 @@ sub initialise_per_code_unit_tables {
 			};
 		}
 		# Var decls via a 'use' declaration
-		$Sf->{'UsedLocalVars'} = { 'Set' => {}, 'List' => [] };
+		$Sf->{'UsedLocalVars'} = { 'Set' => {}, 'List' => [] }; # I don't think this actually exists
 		$Sf->{'UsedGlobalVars'} = { 'Set' => {}, 'List' => [] };
 		# Same actualy, but this includes access via a container
-		$Sf->{'VarsFromContainer'} = {
-				'Set' => {},
-				'List' => []
-		};
+		$Sf->{'VarsFromContainer'} = { 'Set' => {}, 'List' => [] };
 		# This is only for testing which vars are commons, nothing else.
 		$Sf->{'Commons'} = {};
 
 # FIXME At the moment we assume automatically that CommonVars become ExGlobArgs
 # WV20170607 I now also assume that any var declared in a USEd module is a global, so will become ExGlobArg
+# WV20240103 I want to change this so that module variables are entirely separate from COMMON variables
+# WV20240103 To do this right, I should also separate non-module containers from module containers
 		$Sf->{'DeclaredCommonVars'}   = { 'Set' => {}, 'List' => [] };
 		$Sf->{'UndeclaredCommonVars'} = { 'Set' => {}, 'List' => [] };
 
 		$Sf->{'CommonVars'}           = {
 			'Subsets' => {
-				'DeclaredCommonVars'   => $Sf->{'DeclaredCommonVars'}, # I overload this to contain UsedGlobalVars
+				'DeclaredCommonVars'   => $Sf->{'DeclaredCommonVars'}, # I overload this to contain UsedGlobalVars. FIXME!
 				'UndeclaredCommonVars' => $Sf->{'UndeclaredCommonVars'},
+			}
+		};
+
+		$Sf->{'ModuleGlobalVars'}   = { 'Set' => {}, 'List' => [] };
+		$Sf->{'ModuleVars'}           = {
+			'Subsets' => {
+				'ModuleGlobalVars'   => $Sf->{'ModuleGlobalVars'}, # I overload this to contain UsedGlobalVars
+				'UsedGlobalVars' => $Sf->{'UsedGlobalVars'},
 			}
 		};
 

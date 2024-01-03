@@ -65,14 +65,13 @@ our $usage = "
 
 our @unit_tests= (1,2,3,4,5,6,7,8);
 our @test_descs =qw(
-find_subroutines_functions_and_includes
-parse_fortran_src
-refactor_marked_blocks_into_subroutines
-build_call_graph
-analyse_all
-refactor_all
-
-emit_all
+    find_subroutines_functions_and_includes
+    parse_fortran_src
+    refactor_marked_blocks_into_subroutines
+    build_call_graph
+    analyse_all
+    refactor_all
+    emit_all
 );
 
 
