@@ -193,9 +193,7 @@ sub fold_constants_no_iters {
                     # croak $const_expr_str if not defined $const_dims;
                     if ( defined $const_dims) {
                         $decl->{'ConstDim'} = $const_dims;
-
                         $Sf->{$subset}{$var_name}{'Set'}=$decl;
-                        # say "$f SUBSET: $subset => $var_name";
                         $Sf->{$subset}{'Set'}{$var_name} = $decl;
                         my $pv_dims = [
                             map {  $_->[0].':'.$_->[1] }
@@ -203,7 +201,7 @@ sub fold_constants_no_iters {
                         ];
                         $info->{'ParsedVarDecl'}{'Attributes'}{'Dim'}=$pv_dims;
                     } else {
-                        warning("Could not constant-fold DIMENSION in \n$line\nin $f");
+                        warning("Could not constant-fold DIMENSION on line\n$line\nin subroutine $f");
                     }
                 }
                 if ($decl->{'Type'} eq 'character') { 

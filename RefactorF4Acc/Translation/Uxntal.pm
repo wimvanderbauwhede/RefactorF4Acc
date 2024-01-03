@@ -15,8 +15,9 @@ use RefactorF4Acc::Refactoring::FoldConstants qw( fold_constants_no_iters )	;
 # use RefactorF4Acc::Parser::Expressions qw( @sigils );
 use RefactorF4Acc::Translation::LlvmToTyTraIR qw( generate_llvm_ir_for_TyTra );
 use RefactorF4Acc::Emitter qw( emit_AnnLines );
+
 #
-#   (c) 2010-2017 Wim Vanderbauwhede <wim@dcs.gla.ac.uk>
+#   (c) 2010-2024 Wim Vanderbauwhede <wim@dcs.gla.ac.uk>
 #
 
 use vars qw( $VERSION );
@@ -70,13 +71,13 @@ sub translate_program_to_Uxntal {  (my $stref, my $program_name) = @_;
 	# croak Dumper pp_annlines($new_annlines,1);
 	$stref->{'TranslatedCode'}=[];
 	$Config{'FIXES'}={
-	_declare_undeclared_variables => 1,
+		_declare_undeclared_variables => 1,
 	# _remove_unused_variables => 1
 	};
 	$stref = pass_wrapper_subs_in_module($stref,$program_name,
 	   # module-specific passes.
        [
-		[\&translate_module_decls_to_Uxntal]
+			[\&translate_module_decls_to_Uxntal]
         #    [\&_emit_OpenCL_pipe_declarations]
        ],
        # subroutine-specific passes
@@ -85,8 +86,9 @@ sub translate_program_to_Uxntal {  (my $stref, my $program_name) = @_;
 			  \&determine_argument_io_direction_rec,
 			  \&update_arg_var_decl_sourcelines,
 			  \&_declare_undeclared_variables,
-			  \&replace_case_by_if]
-			  ,#,\&_remove_unused_variables],
+			  \&replace_case_by_if
+		  ],
+			#,\&_remove_unused_variables],
 		  [\&translate_sub_to_Uxntal]
        ]
        );
@@ -563,8 +565,6 @@ sub _emit_arg_decl_Uxntal { (my $stref,my $f,my $arg, my $name)=@_;
 	my $c_arg_decl = '@'.$name.'_'.$arg.' $'.$uxntal_size;
 	return ($stref,$c_arg_decl);
 }
-
-
 
 sub _emit_var_decl_Uxntal { (my $stref,my $f,my $info,my $var)=@_;
 	my $sub_or_module = sub_func_incl_mod( $f, $stref );
