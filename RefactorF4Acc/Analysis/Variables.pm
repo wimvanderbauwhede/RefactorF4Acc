@@ -110,9 +110,6 @@ sub analyse_variables {
 				# So is it actually not simply a case of saying,
 				# if it's in not Vars OR
 				# it is in Vars  but the decl is 1 ?
-				#say "$f LINE: $line " if $mvar eq 'ivcn01';
-#				 die $in_vars_subset if $mvar eq 'rvcn01';
-#				say "$f VAR1 $mvar: ",exists $identified_vars->{$mvar} ? 1 : 0, $in_vars_subset;
 				if (
 					not exists $identified_vars->{$mvar} # mvar not yet identified
 					and (
@@ -120,8 +117,6 @@ sub analyse_variables {
 						or ( $in_vars_subset and ref($Sf->{$in_vars_subset}{'Set'}{$mvar}) ne 'HASH' )
 						)
 				  ) {
-
-#				  	say "$f VAR2 $mvar" ;
 					my $in_incl = 0;
 					if ( not exists $Sf->{'Commons'}{$mvar} ) {
 						for my $inc ( sort keys %{ $Sf->{'Includes'} } ) {
@@ -196,23 +191,17 @@ sub analyse_variables {
 							if ( in_nested_set( $stref->{'Modules'}{$inc}, 'Vars', $mvar )
 								or exists $stref->{'Modules'}{$inc}{'Commons'}{$mvar} )
 							{
-#								say "$f VAR8 $mvar";
 								$in_incl = 1;
 
 								if (not exists $stref->{'Modules'}{$inc}{'ExtPath'} ) {
 									my $var_rec = get_var_record_from_set( $stref->{'Modules'}{$inc}{'Vars'}, $mvar );
 									if (exists $var_rec->{'Parameter'} ) {
 										$grouped_messages->{'W'}{'PARAM_FROM_INC'}{$mvar} =  "WARNING: $mvar in $f is a PARAMETER from $inc!" if $WW;
-										# This is only used here, so redundant
-										# $Sf->{'Uses'}{$inc}{'Only'}{$mvar} = 1;
-
 									} else {
-#										say "$f VAR7 $mvar";
 											print "FOUND COMMON $mvar in INC $inc in $line\n" if $DBG;
 											my $decl;
 											my $subset_for_mvar = in_nested_set( $stref->{'Modules'}{$inc}, 'Vars', $mvar );
-											say "Found $mvar in $subset_for_mvar "
-											  if $DBG;
+											say "Found $mvar in $subset_for_mvar " if $DBG;
 											if ( $subset_for_mvar ne '' ) {
 												my $var_rec = get_var_record_from_set( $stref->{'Modules'}{$inc}{'Vars'}, $mvar );
 												if ( not defined $var_rec ) {
@@ -457,7 +446,7 @@ sub analyse_used_variables {
 		}
 	}
 	$Sf->{'VarsFromContainer'}{'List'} = [sort keys %{$Sf->{'VarsFromContainer'}{'Set'}}];
-# WV 2023-12-23 this is too aggressive
+	# WV 2023-12-23 this is too aggressive
 	# for my $used_var (@{$Sf->{'ParametersFromContainer'}{'List'}}) {
 	# 	if (not exists $vars_in_code_unit->{$used_var}) {
 	# 		delete $Sf->{'ParametersFromContainer'}{'Set'}{$used_var}

@@ -551,15 +551,11 @@ sub __merge_include_into_subroutine {
     my @n_inc_annlines_ann = map {
         $_->[1]{'Inlined'} = 1;
         $_;
-        # [
-        #     $_->[0],
-        #     { %{$_->[1]}, 'Inlined' => 1 }
-        # ]
     } @n_inc_annlines;
     my $merged_annlines =
       splice_additional_lines_cond_inplace($stref, $f, $insert_cond_subref, $old_annlines, \@n_inc_annlines_ann, 0, 1, 1);
     $Sf->{'AnnLines'} = $merged_annlines;
-# croak Dumper(pp_annlines($stref->{'Subroutines'}{$f}{'AnnLines'})) if $f eq 'mpi_reduce_real';
+
 # For variables, we only need to update the leaf sets
 # For include files the order does not really matter because there are no arguments. Also I could recover the ordering in a final separate pass
 #
@@ -650,86 +646,6 @@ sub _split_multivar_decls {
                 and exists $info->{'VarDecl'}{'Names'})
             {
                 ($new_annlines,$nextLineID) = __split_multivar_VarDecl($line,$info,$stref,$f,$Sf,$nextLineID,$new_annlines);
-                # my @nvars = @{$info->{'VarDecl'}{'Names'}};
-                # push @{$info->{'Ann'}}, annotate($f, __LINE__);
-
-                # for my $var (@{$info->{'VarDecl'}{'Names'}}) {
-                #     my $rinfo_c = dclone($info);
-                #     $rinfo_c->{'StmtCount'} = {};
-                #     $rinfo_c->{'StmtCount'}{$var} = $info->{'StmtCount'}{$var};
-                #     my %rinfo = %{$rinfo_c};
-
-                #     if (exists $rinfo{'ArgDecl'}) {
-                #         if (not exists $rinfo{'ArgDecl'}{$var}) {
-                #             delete $rinfo{'ArgDecl'}
-                #         }
-                #     }
-                #     $rinfo{'LineID'} = $nextLineID++;
-                #     my $subset    = in_nested_set($Sf, 'Vars', $var);
-
-                #     $rinfo{'VarDecl'} = {'Name' => $var};
-                #     # This is because we use the ParsedVarDecl field in custom passes so the F77 and F95 decls both need it.
-                #     if (not exists $rinfo{'ParsedVarDecl'} or not exists $rinfo{'ParsedVarDecl'}{'Vars'}) {
-                #         my $orig_decl = $Sf->{$subset}{'Set'}{$var};
-                #         # croak Dumper $orig_decl if $var eq 'characters';
-                #         $rinfo{'ParsedVarDecl'}{'Ann'} = [annotate($f, __LINE__. ' : ParsedVarDecl') ];
-                #         $rinfo{'ParsedVarDecl'}{'Vars'} =[$var] ;
-                #         if ($orig_decl->{'Type'} eq 'character') {
-                #         $rinfo{'ParsedVarDecl'}{'Attributes'}{'Len'} = $orig_decl->{'Attr'};
-                #         }
-                #         $rinfo{'ParsedVarDecl'}{'Pragmas'} = {
-                #             'AccKeyword' => 'ArgMode',
-                #             'AccVal' => 'ReadWrite'
-                #         };
-                #         $rinfo{'ParsedVarDecl'}{'Pars'} = {
-                #         'Var' => undef,
-                #         'Val' => undef
-                #         };
-                #         $rinfo{'ParsedVarDecl'}{'TypeTup'} = {
-                #             'Type' => $orig_decl->{'Type'}
-                #         };
-
-                #         # $rinfo{'ParsedVarDecl'}{'Decl'} =$orig_decl ;
-                #         if (exists $orig_decl->{'Dim'} and scalar @{$orig_decl->{'Dim'}} >0) {
-                #             $rinfo{'ParsedVarDecl'}{'Attributes'}{'Dim'}=[map { $_->[0].':'.$_->[1]  } @{$orig_decl->{'Dim'}}];
-                #         }
-                #     } else {
-                #         $rinfo{'ParsedVarDecl'}{'Vars'} =[$var] ;
-                #     }
-                #     my $rline = $line;
-                #     $Sf->{$subset}{'Set'}{$var}{'Name'} = $var;
-                #     if (scalar @{$info->{'VarDecl'}{'Names'}} > 1) {
-                #         # What we do here is take the list of vars and only keep the var
-                #         # We can's just split on ","
-
-                #         for my $nvar (@nvars) {
-                #             if ($nvar ne $var) {
-                #                 # FIXME: This should use \b not \W !!!
-                #                 if ($rline =~ /\s*,\s*$nvar\([^\(]+\)\W?/) { # e.g. ,v(4)
-                #                     $rline =~ s/\s*,\s*$nvar\([^\(]+\)(\W?)/$1/;
-                #                 }
-                #                 elsif ($rline =~ /(\W)$nvar\([^\(]+\)\s*,\s*/) { # e.g. v(4),
-                #                     $rline =~ s/(\W)$nvar\([^\(]+\)\s*,\s*/$1/;
-                #                 }
-                #                 elsif ($rline =~ /\s*,\s*$nvar\*\d+\W?/) { # e.g. ,v*4
-                #                     $rline =~ s/\s*,\s*$nvar\*\d+(\W?)/$1/;
-                #                 }
-                #                 elsif ($rline =~ /(\W)$nvar\*\d+\s*,\s*/) { # e.g. v*4,
-                #                     $rline =~ s/(\W)$nvar\*\d+\s*,\s*/$1/;
-                #                 }
-                #                 elsif ($rline =~ /\W$nvar\s*,\s*/) { # e.g. v,
-                #                     $rline =~ s/(\W)$nvar\s*,\s*/$1/;
-                #                 }
-                #                 elsif ($rline =~ /\s*,\s*$nvar\W?/) { # e.g. ,v
-                #                     $rline =~ s/\s*,\s*$nvar(\W?)/$1/;
-                #                 }
-                #             }
-                #         }
-                #     }
-                #     # croak "VARS: $rline",Dumper $info;
-                #     push @{$new_annlines}, [$rline, {%rinfo}];
-                # }    # for each $var
-
             }
             elsif ( exists $info->{'External'} ) {
                 if ( scalar keys %{ $info->{'External'}} > 1) {
@@ -748,63 +664,6 @@ sub _split_multivar_decls {
             # and not exists $info->{'ParsedParDecl'}
             ) {
                 ($new_annlines,$nextLineID) = __split_multivar_ParamDecl($line,$info,$stref,$f,$Sf,$nextLineID,$new_annlines);
-                # my $nvars = [];
-                # if (exists $info->{'ParamDecl'}{'Names'}
-                # and scalar @{$info->{'ParamDecl'}{'Names'}}>0
-                # ) {
-                #     $nvars = $info->{'ParamDecl'}{'Names'};
-                # } elsif (exists $info->{'ParamDecl'}{'Name'}) {
-                #     $nvars = [$info->{'ParamDecl'}{'Name'}[0]];
-                # }
-                # # say  Dumper $nvars;
-                # push @{$info->{'Ann'}}, annotate($f, __LINE__);
-                # my $idx=0;
-                # for my $var (@{$nvars}) {
-                #     my $rinfo_c = dclone($info);
-                #     my %rinfo = %{$rinfo_c};
-                #     $rinfo{'ParamDecl'}{'Names'}=[$var];
-                #     if (not exists $rinfo{'ParsedParDecl'} or not exists $rinfo{'ParsedParDecl'}{'Pars'}) {
-                #         my $subset    = in_nested_set($Sf, 'Vars', $var);
-                #         my $orig_decl = $Sf->{$subset}{'Set'}{$var};
-                #         # croak Dumper $orig_decl;
-                #         my $val=$orig_decl->{'Val'};
-                #         $rinfo{'ParsedParDecl'}{'Vars'} = [] ;
-                #         $rinfo{'ParsedParDecl'}{'Pragmas'} = {
-                #             'AccKeyword' => 'ArgMode',
-                #             'AccVal' => 'ReadWrite'
-                #         };
-                #         $rinfo{'ParsedParDecl'}{'Pars'} = {
-                #         'Var' => $var,
-                #         'Val' => $val,
-                #         'Ann' => [annotate($f, __LINE__. ' : ParamDecl') ]
-                #         };
-                #         $rinfo{'ParsedParDecl'}{'TypeTup'} = {
-                #             'Type' => $orig_decl->{'Type'}
-                #         };
-
-                #         $rinfo{'ParsedParDecl'}{'Attributes'}{'Parameter'}='parameter';
-                #     }  else {
-                #         # say Dumper $rinfo{'ParsedParDecl'}{'Pars'};
-                #         my $val = ref($rinfo{'ParsedParDecl'}{'Pars'}{'Val'}) eq 'ARRAY'
-                #         ? $rinfo{'ParsedParDecl'}{'Pars'}{'Val'}[$idx]
-                #         :  $rinfo{'ParsedParDecl'}{'Pars'}{'Val'};
-                #         # WV20230901 This is hacky because if $val would be an array, this would not work. FIXME!
-                #         my $ast = ref($rinfo{'ParsedParDecl'}{'Pars'}{'Val'}) eq 'ARRAY' ? $rinfo{'ParsedParDecl'}{'Pars'}{'AST'}[$idx] : $rinfo{'ParsedParDecl'}{'Pars'}{'AST'};
-                #         $rinfo{'ParsedParDecl'}{'Pars'} = {
-                #         'Var' => $var,
-                #         'Val' => $val,
-                #         'AST' => $ast
-                #         };
-
-                #     }
-                #     ++$idx;
-                #     # say Dumper %rinfo;
-                #     # die if $f eq 'sub0' and $var eq 'sz';
-                #     # say "PLINE $line" if $f=~/test_loop/;
-                #     # say Dumper %rinfo;
-                #     croak "PARAMS: $line",Dumper $info;
-                #     push @{$new_annlines}, [$line, {%rinfo}];
-                # }
             }
             else {
                 push @{$new_annlines}, $annline;

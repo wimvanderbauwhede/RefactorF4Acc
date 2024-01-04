@@ -325,6 +325,7 @@ our $config_menu= [
         ['NEWSRCPATH','Relative path to the refactored Fortran source code','refactored-src'],
         ['STRICT_COMMONS_CHECKS','Return ERROR if COMMON blocks are not type-safe? 0/1', '1'],
         ['STRICT_EQUIVALENCE_CHECKS','Return ERROR if EQUIVALENCE statements are not type-safe? 0/1', '1'],
+        ['REFACTOR_MODULE_VARS','Convert module-level variables into subroutine arguments? 0/1', '0'],
         ['IGNORE_ERRORS','Ignore errors and continue code generation? 0/1','0'],
         ['CONFIG:ADVANCED', 'Advanced configuration? y/n','n'],
     ]],

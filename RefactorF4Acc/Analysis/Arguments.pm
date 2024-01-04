@@ -484,16 +484,11 @@ sub determine_ExGlobArgs {
 			$stref = determine_ExGlobArgs( $calledsub, $stref );
 			# This would be fine if the called sub has no overlap with the original sub
 			# The problem is that sometimes we have the same name variable with a different type in the called sub and the caller
-			# $Sf->{'ExGlobArgs'}{'Set'} = { %{ $Sf->{'ExGlobArgs'}{'Set'} }, %{ $stref->{'Subroutines'}{$calledsub}{'ExGlobArgs'}{'Set'} } };
 			for my $called_var (sort keys %{ $stref->{'Subroutines'}{$calledsub}{'ExGlobArgs'}{'Set'} } )  {
 				if (not exists $Sf->{'ExGlobArgs'}{'Set'}{$called_var}) {
 					$Sf->{'ExGlobArgs'}{'Set'}{$called_var} = $stref->{'Subroutines'}{$calledsub}{'ExGlobArgs'}{'Set'}{$called_var};
 				}
-				# else {
-				# 	carp "$called_var from $calledsub already defined in $f";
-				# }
 			}
-
 			$stref->{Counter}-- if $V;
 		}
 		say "\t" x $c, "--------" if $V;
@@ -566,21 +561,14 @@ sub __determine_exglobargs_core { ( my $stref, my $f ) = @_;
 sub __get_common_decls { ( my $stref, my $f ) = @_;
 	my $sub_or_func_or_mod = sub_func_incl_mod( $f, $stref );
 	my $Sf = $stref->{$sub_or_func_or_mod}{$f};
-	# carp 'WV 2023-12-15 This does not include CommonVars in Containers or Used modules';
+	# WV 2023-12-15 This does not include CommonVars in Containers or Used modules
 	my $common_decls = get_vars_from_set($Sf->{'CommonVars'});
-	my $used_global_decls = get_vars_from_set($Sf->{'VarsFromContainer'});
-	$common_decls = {%{$common_decls},%{$used_global_decls}};
+	# So lets add VarsFromContainer. This has all the transitively used vars as well
+	if ($Config{'REFACTOR_MODULE_VARS'}==1) {
+		my $global_decls_from_container = get_vars_from_set($Sf->{'VarsFromContainer'});
+		$common_decls = {%{$common_decls},%{$global_decls_from_container}};
+	}
 	return $common_decls;
 } # END of __get_common_decls()
-
-# UNUSED!
-# # This returns a hash $varname => $decl
-# sub __get_exglobarg_decls { ( my $stref, my $f ) = @_;
-# 	my $sub_or_func_or_mod = sub_func_incl_mod( $f, $stref );
-# 	my $Sf = $stref->{$sub_or_func_or_mod}{$f};
-# 	my $exglobarg_decls = get_vars_from_set($Sf->{'ExGlobArgs'});
-# 	return $exglobarg_decls;
-# } # END of __get_exglobarg_decls()
-
 
 1;

@@ -14,7 +14,7 @@ use RefactorF4Acc::Analysis::Arguments qw(
 	identify_external_proc_args
 	analyse_var_decls_for_params
 	);
-use RefactorF4Acc::Analysis::Globals qw( identify_inherited_exglobs_to_rename lift_globals rename_inherited_exglobs );
+use RefactorF4Acc::Analysis::Globals qw( rename_exglobs_if_required );
 #use RefactorF4Acc::Analysis::LoopDetect qw( outer_loop_end_detect );
 use RefactorF4Acc::Refactoring::Helpers qw( get_f95_var_decl );
 use RefactorF4Acc::Refactoring::BlockData qw( add_BLOCK_DATA_call_after_last_VarDecl );
@@ -139,7 +139,6 @@ sub analyse_all {
 		}
 	}
 
-
     for my $f ( keys %{ $stref->{'Subroutines'} } ) {
         next if $f eq '';
         if (exists $stref->{'Entries'}{$f}) {
@@ -155,18 +154,13 @@ sub analyse_all {
 		if (exists $stref->{'Entries'}{$f}) {
 			next;
 		}
-
 		$stref = resolve_conflicts_with_params( $stref, $f );
 	}
 	return $stref if $stage == 4;
 
-	# The next three routines work on ExGlobArgs and RenamedInheritedExGLobs
-	if ($sub_or_func_or_mod eq 'Subroutines') {
-		$stref = identify_inherited_exglobs_to_rename( $stref, $code_unit_name );
-		# Although this seems duplication, it is actually required!
-		$stref = lift_globals( $stref, $code_unit_name );
-		$stref = rename_inherited_exglobs( $stref, $code_unit_name );
-	}
+	# This routine works on ExGlobArgs and RenamedInheritedExGLobs
+	# The main purpose is to rename ex-globs with conflicting names
+	$stref = rename_exglobs_if_required($stref, $code_unit_name,$sub_or_func_or_mod);
 	return $stref if $stage == 5;
 
 # croak Dumper keys % {$stref->{'Subroutines'}};

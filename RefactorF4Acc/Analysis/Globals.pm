@@ -24,28 +24,37 @@ use Exporter;
 @RefactorF4Acc::Analysis::Globals::ISA = qw(Exporter);
 
 @RefactorF4Acc::Analysis::Globals::EXPORT_OK = qw(
-    &identify_inherited_exglobs_to_rename
-    &lift_globals
-    &rename_inherited_exglobs
+    &rename_exglobs_if_required
 );
 
 ## -----------------------------------------------------------------------------
-## This module performs operations on ExGlobArgs after it has been created, mainly merging and renaming
+## This subroutine performs operations on ExGlobArgs after it has been created, mainly merging and renaming
+sub rename_exglobs_if_required { my ($stref, $code_unit_name,$sub_or_func_or_mod) = @_;
+	# The next three routines work on ExGlobArgs and RenamedInheritedExGLobs
+	# The main purpose is to rename ex-globs with conflicting names
+	if ($sub_or_func_or_mod eq 'Subroutines') {
+		$stref = _identify_inherited_exglobs_to_rename( $stref, $code_unit_name );
+		# Although this seems duplication, it is actually required!
+		$stref = _lift_globals( $stref, $code_unit_name );
+		$stref = _rename_inherited_exglobs( $stref, $code_unit_name );
+	}
+	return $stref;
+} # END of rename_exglobs_if_required
 
 # Here we start from the top, descend to the leaves, get the Globals in the leaves, and add them to the Globals of the caller.
 # And of course we need to update ExGlobArgs
 # This should be done before we create RefactoredArgs!
 
-# This is lift_globals without the merge part
+# This is _lift_globals without the merge part
 # RenamedInheritedExGlobs, ExGlobArgs
-sub identify_inherited_exglobs_to_rename {
+sub _identify_inherited_exglobs_to_rename {
 	  (my $stref, my $f) = @_;
 #    local $V=1;
  	push @{ $stref->{'CallStack'} }, $f;
     my %subs = map {$_=>1} @{ $stref->{'CallStack'} };
 
     my $ext = $Config{RENAME_EXT};
-    say '=' x 80, "\nENTER lift_globals( $f )" if $V;
+    say '=' x 80, "\nENTER _lift_globals( $f )" if $V;
     if (exists $stref->{'Subroutines'}{$f} ) {
     	my $Sf = $stref->{'Subroutines'}{$f};
     	if ( exists $Sf->{'CalledSubs'}{'List'}
@@ -53,7 +62,7 @@ sub identify_inherited_exglobs_to_rename {
 	    {
 	        for my $csub ( @{ $Sf->{'CalledSubs'}{'List'} }) {
 				if (exists $subs{$csub}) {
-				# say "WARNING: identify_inherited_exglobs_to_rename: LOOP for $csub: ".join(', ', @{ $stref->{'CallStack'} }) if $W;
+				# say "WARNING: _identify_inherited_exglobs_to_rename: LOOP for $csub: ".join(', ', @{ $stref->{'CallStack'} }) if $W;
 				if (not exists $stref->{'Subroutines'}{$csub}{'Recursive'}) {
 					warning( "CALL LOOP for $csub in $f. This does not conform to the ANSI X3.9-1978 standard, proceed at your peril!" ,1);
 					warning( '<'.join(', ', @{ $stref->{'CallStack'} }).'>', 2);
@@ -62,7 +71,7 @@ sub identify_inherited_exglobs_to_rename {
 				next;
 				}
 	       		say "CALL TO  $csub from $f" if $V;
-	            $stref = identify_inherited_exglobs_to_rename($stref, $csub );
+	            $stref = _identify_inherited_exglobs_to_rename($stref, $csub );
 	            say "RETURN TO $f from CALL to $csub" if $V;
 	            my $Scsub = $stref->{'Subroutines'}{$csub};
 	            # If $f and $csub both have globals, merge them, otherwise inherit them
@@ -86,17 +95,17 @@ sub identify_inherited_exglobs_to_rename {
     }
     pop  @{ $stref->{'CallStack'} };
     return $stref;
-} #  END of identify_inherited_exglobs_to_rename()
+} #  END of _identify_inherited_exglobs_to_rename()
 
 # So we go through all ExGlobArgs and we rename every exglob from RenamedInheritedExGLobs
-sub rename_inherited_exglobs  {
+sub _rename_inherited_exglobs  {
 	(my $stref, my $f) = @_;
 #    local $V=1;
 
 if ($Config{RENAME_EXT} ne '') {
     my $ext = $Config{RENAME_EXT};
 
-    say '=' x 80, "\nENTER lift_globals( $f )" if $V;
+    say '=' x 80, "\nENTER _lift_globals( $f )" if $V;
 
  	push @{ $stref->{'CallStack'} }, $f;
     my %subs = map {$_=>1} @{ $stref->{'CallStack'} };
@@ -149,7 +158,7 @@ if ($Config{RENAME_EXT} ne '') {
 					next;
 				}
 	       		say "CALL TO  $csub from $f" if $V;
-	            $stref = rename_inherited_exglobs($stref, $csub );
+	            $stref = _rename_inherited_exglobs($stref, $csub );
 	            say "RETURN TO $f from CALL to $csub" if $V;
 
 	        }
@@ -162,21 +171,21 @@ if ($Config{RENAME_EXT} ne '') {
 }
     return $stref;
 
-} #  END of rename_inherited_exglobs
+} #  END of _rename_inherited_exglobs
 
 
 # The renaming detection should be done in identify_inherited_exglobs_to_rename()
 # What this routine does is:
 #
 
-sub lift_globals {
+sub _lift_globals {
     (my $stref, my $f) = @_;
     # local $V= 0;
  	push @{ $stref->{'CallStack'} }, $f;
     my %subs = map {$_=>1} @{ $stref->{'CallStack'} };
 
 #    my $ext = '_GLOB' ;
-    say '=' x 80, "\nENTER lift_globals( $f )" if $V;
+    say '=' x 80, "\nENTER _lift_globals( $f )" if $V;
     if (exists $stref->{'Subroutines'}{$f} ) {
     	my $Sf = $stref->{'Subroutines'}{$f};
     	if ( exists $Sf->{'CalledSubs'}{'List'}
@@ -200,7 +209,7 @@ sub lift_globals {
 	       			$csub = $stref->{'Entries'}{$csub};
 	       		}
 	       		# This is recursive descent but we do nothing in the leaf node, it's just a way to get to them
-	            $stref = lift_globals($stref, $csub );
+	            $stref = _lift_globals($stref, $csub );
 	            say "RETURN TO $f from CALL to $csub" if $V;
 	            my $Scsub = $stref->{'Subroutines'}{$csub};
 # ------------------
@@ -219,19 +228,12 @@ sub lift_globals {
 	                }
 	                if ( exists $Sf->{'ExGlobArgs'}{'Set'} ) {
 	                	# Merge
-	            	#    $Sf->{'ExGlobArgs'}{'Set'} = { %{ $Sf->{'ExGlobArgs'}{'Set'} }, %{ dclone( $Scsub->{'ExGlobArgs'}{'Set'} ) } };
-
 						for my $called_var (sort keys %{ $Scsub->{'ExGlobArgs'}{'Set'} } )  {
 							if (not exists $Sf->{'ExGlobArgs'}{'Set'}{$called_var}) {
 								# say "Merging $called_var from $csub into $f";
 								$Sf->{'ExGlobArgs'}{'Set'}{$called_var} = dclone($Scsub->{'ExGlobArgs'}{'Set'}{$called_var});
 							}
-
-							# else {
-							# 	carp "$called_var from $calledsub already defined in $f";
-							# }
 						}
-
 	                } else {
 	                	# Inherit
 	                    $Sf->{'ExGlobArgs'}{'Set'} = dclone( $Scsub->{'ExGlobArgs'}{'Set'} );
@@ -278,7 +280,7 @@ sub lift_globals {
     pop  @{ $stref->{'CallStack'} };
     return $stref;
 
-} # END of lift_globals()
+} # END of _lift_globals()
 
 
 sub _get_all_inherited_parameters { (my $Sf,my $pars, my $all_inherited_parameters)=@_;
