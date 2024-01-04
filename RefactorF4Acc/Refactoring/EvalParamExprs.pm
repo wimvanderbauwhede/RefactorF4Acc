@@ -42,7 +42,7 @@ use Exporter;
 );
 
 sub eval_param_expressions_all { my ($stref) = @_;
-	die "eval_param_expressions_all() is BROKEN for module parameters, only works for local parameters. Needs a complete rework. Set EVAL_PARAM_EXPRS=1 in rf4a config file.\n";
+	die "eval_param_expressions_all() is BROKEN for module parameters, only works for local parameters. Needs a complete rework. Comment this and set EVAL_PARAM_EXPRS=1 in rf4a config file to use it.\n";
 	# So I should do this for all modules as well
 	# One way is to check if a subroutine 
     for my $f ( keys %{ $stref->{'Subroutines'} } ) {
@@ -58,9 +58,9 @@ sub eval_param_expressions_all { my ($stref) = @_;
 # We use stateful_pass_inplace to get the parameter declarations
 # Then for each of these we print the value of the parameter
 # we collect these values and update the annlines
-# I could updated the decl in LocalParameters but I would do that using a new field EvaledVal
+# I could update the decl in LocalParameters but I would do that using a new field EvaledVal
 # Then I can change the emitter to use this field if it exists
-# Then I used another  stateful pass to update the annlines
+# Then I used another stateful pass to update the annlines
 sub _eval_param_expressions { my ($stref, $f) = @_;
 
     my $pass_get_param_decls = sub  {

@@ -11,7 +11,7 @@ use RefactorF4Acc::Refactoring::Fixes qw(
 	__has_module_level_declaration
 	);
 use RefactorF4Acc::Refactoring::CaseToIf qw( replace_case_by_if )	;
-use RefactorF4Acc::Refactoring::FoldConstants qw( fold_constants_no_iters )	;
+use RefactorF4Acc::Refactoring::FoldConstants qw( fold_constants_all fold_constants_no_iters )	;
 # use RefactorF4Acc::Parser::Expressions qw( @sigils );
 use RefactorF4Acc::Translation::LlvmToTyTraIR qw( generate_llvm_ir_for_TyTra );
 use RefactorF4Acc::Emitter qw( emit_AnnLines );
@@ -56,18 +56,22 @@ our @sigils = ('(', '&', '$', 'ADD', 'SUB', 'MUL', 'DIV', 'mod', 'pow', '=', '@'
 
 # WV2023-12-08 I think this has to be done fundamentally differently.
 # Maybe I should  fold_constants_no_iters on all modules and the main program first.
+# Essentially, this should be like the constant folding step in Refactoring.
 
 sub translate_program_to_Uxntal {  (my $stref, my $program_name) = @_;
 # die $program_name;
 # croak Dumper( keys(%{$stref->{'Modules'}}),$stref->{'Program'},$stref->{'SourceContains'}{$stref->{'Program'}}{'List'});
-	($stref,my $new_annlines) = fold_constants_no_iters($stref,$program_name);
-	$stref->{'Subroutines'}{$program_name}{'RefactoredCode'} = $new_annlines;
-	for my $module_name (sort keys %{$stref->{'Modules'}} ) {
-		($stref,my $new_annlines) = fold_constants_no_iters($stref,$module_name);
-		$stref->{'Modules'}{$module_name}{'RefactoredCode'} = $new_annlines;
-	}
-	# $stref = emit_AnnLines( $stref,$program_name,$new_annlines);
-	# croak Dumper pp_annlines($stref->{'RefactoredCode'});
+	$stref = fold_constants_all($stref) ;
+	# ($stref,my $new_annlines) = fold_constants_no_iters($stref,$program_name);
+	# $stref->{'Subroutines'}{$program_name}{'RefactoredCode'} = $new_annlines;
+	# for my $module_name (sort keys %{$stref->{'Modules'}} ) {
+	# 	($stref,my $new_annlines) = fold_constants_no_iters($stref,$module_name);
+	# 	$stref->{'Modules'}{$module_name}{'RefactoredCode'} = $new_annlines;
+	# }
+	my $new_annlines = $stref->{'Subroutines'}{$program_name}{'RefactoredCode'};
+	$stref = emit_AnnLines( $stref,$program_name,$new_annlines);
+	$new_annlines = $stref->{'Subroutines'}{$program_name}{'RefactoredCode'};
+	croak Dumper pp_annlines();
 	# croak Dumper pp_annlines($new_annlines,1);
 	$stref->{'TranslatedCode'}=[];
 	$Config{'FIXES'}={

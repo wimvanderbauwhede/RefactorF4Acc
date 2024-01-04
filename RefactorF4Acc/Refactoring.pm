@@ -46,7 +46,6 @@ use Exporter;
 sub refactor_all {
 	( my $stref, my $code_unit_name, my $is_source_file_path) = @_;
 
-# croak Dumper $stref->{'Subroutines'}{'clearFunktalTokens'}{'Vars'};
 	my $sub_or_func_or_mod = sub_func_incl_mod( $code_unit_name, $stref );
     if ($sub_or_func_or_mod eq 'Modules' and $is_source_file_path) {
        $code_unit_name = get_module_name_from_source($stref,$code_unit_name);
@@ -60,17 +59,14 @@ sub refactor_all {
 # All this does at the moment is context-free refactoring, which is done in Refactoring::Subroutines as well
     $stref = refactor_called_functions($stref); # Context-free only
 
- 	# say "BEFORE refactor_all_subroutines";
     # Refactor the source, but don't split long lines and keep annotations
     $stref = refactor_all_subroutines($stref);
-#    say "AFTER refactor_all_subroutines";
 
 
     # This can't go into refactor_all_subroutines() because it is recursive
     # Also, this is actually analysis
     # And this is only for Subroutines of course, not for Modules
 	# The reason it is only called here is because we need to run this on the subroutines with refactored arguments.
-
 
     if ($sub_or_func_or_mod eq 'Subroutines') {
     	$stref = determine_argument_io_direction_rec( $stref,$code_unit_name );
@@ -80,6 +76,8 @@ sub refactor_all {
     # So at this point we know everything there is to know about the argument declarations, we can now update them
     say "remove_vars_masking_functions" if $V;
     $stref = remove_vars_masking_functions($stref);
+
+    # This is broken, should not be used
 	if ( $Config{'EVAL_PARAM_EXPRS'}) {
     	say "eval_param_expressions_all" if $V;
 		$stref = eval_param_expressions_all($stref);
@@ -91,15 +89,13 @@ sub refactor_all {
     # Inlining
     $stref = inline_subroutines($stref) ;
 
-	# Test array access and constant folding here
+	# Test array access here
 
 	# $stref = analyse_loop_nature_all($stref) ;
 
-	# $stref = fold_constants_all($stref) ;
 	# $stref = refactor_dsm_all($stref) ;
 
-    # Custom refactoring, must be done before creating final modules
-
+    # Creating final modules
 
     say "add_module_decls" if $V;
     $stref=add_module_decls($stref);

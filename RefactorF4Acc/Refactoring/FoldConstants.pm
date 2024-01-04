@@ -329,7 +329,7 @@ sub fold_constants_all {
 		next if $Sf->{'Status'} == $FROM_BLOCK;
         #   map {say 'TEST'.$_} @{pp_annlines($Sf->{'RefactoredCode'})} if $f=~/test_loop/;
 
-		my $new_annlines = fold_constants_no_iters( $stref, $f );
+		($stref, my $new_annlines) = fold_constants_no_iters( $stref, $f );
 
         # warn $f;
         $Sf->{'RefactoredCode'}=$new_annlines;
