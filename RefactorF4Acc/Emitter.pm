@@ -599,9 +599,9 @@ sub emit_AnnLines {
                 ? ''
                 : ' ' . $info->{'Do'}{'Label'} . ', '
             : '';
-            if ( $info->{'Do'}{'Range'}{'Expressions'}[-1] == 1 ) {
-                pop @{ $info->{'Do'}{'Range'}{'Expressions'} };
-            }
+            # if ( $info->{'Do'}{'Range'}{'Expressions'}[-1] == 1 ) {
+            #     pop @{ $info->{'Do'}{'Range'}{'Expressions'} };
+            # }
             my $do_expr_str =
             join( ', ', @{ $info->{'Do'}{'Range'}{'Expressions'} } );
             $rline =
@@ -756,6 +756,9 @@ sub emit_AnnLines {
         # } else {
         # say $rline;
 #say Dumper([ $rline.$block_info, $info ]);
+
+        $rline = __substitute_PlaceHolders($rline,$info);
+
         return ([
             [ $rline.$block_info, $info ]
         ], $used_modules);
@@ -769,9 +772,9 @@ sub emit_AnnLines {
 
     # if ($f=~/test_loop/) {
     # map { say $_} @{ pp_annlines( $new_annlines ) };
-
     # die;
     # }
+    # say "LEAVE emit_AnnLines: $code_unit $f";
     $Sf->{'RefactoredCode'}=$new_annlines;
     return $stref;
 
@@ -891,3 +894,17 @@ sub _emit_open_call{ my ($info) = @_;
 
     return $rline;
 }
+
+sub __substitute_PlaceHolders { my ($expr_str,$info) = @_;
+	if ($expr_str=~/__PH/ and exists $info->{'PlaceHolders'}) {
+		# croak $expr_str.Dumper($info->{'PlaceHolders'})
+		while ($expr_str =~ /(__PH\d+__)/) {
+			my $ph=$1;
+			my $ph_str = $info->{'PlaceHolders'}{$ph};
+			$ph_str=~s/[\'\"]$/\"/;
+			$ph_str=~s/^[\']/\"/;
+			$expr_str=~s/$ph/$ph_str/;
+		}
+	}
+	return $expr_str;
+} # END of __substitute_PlaceHolders

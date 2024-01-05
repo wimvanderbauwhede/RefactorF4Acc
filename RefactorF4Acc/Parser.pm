@@ -1460,7 +1460,8 @@ or $line=~/^character\s*\(\s*len\s*=\s*[\w\*]+\s*\)/
 						'Label'    => $label,
 						'Range'    => {
 							'Expressions' => [ $range_start, $range_stop, $range_step ],
-							'Vars'        => $mvars
+							'Vars'        => $mvars,
+							'Ann' => annotate($f, "DO $range_start, $range_stop, $range_step")
 						},
 						'LineID' => $info->{'LineID'}
 					};

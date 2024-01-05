@@ -65,7 +65,7 @@ if (@kernel_srcs) {
         say "MODULE SRC: $kernel_src" if $V;
         # if ($kernel_sub_name and $kernel_sub_name ne '') {
             my $rf4a_cfg = create_rf4a_cfg($kernel_src,$kernel_sub_name, $kernel_module_name);
-            die("refactorF4acc.pl $DBG $VV -P $uxn_target -c $rf4a_cfg $kernel_module_name");
+            # die("refactorF4acc.pl $DBG $VV -P $uxn_target -c $rf4a_cfg $kernel_module_name");
             system("refactorF4acc.pl $DBG $VV -P $uxn_target -c $rf4a_cfg $kernel_module_name");
         # }
     }

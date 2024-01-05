@@ -62,16 +62,17 @@ sub translate_program_to_Uxntal {  (my $stref, my $program_name) = @_;
 # die $program_name;
 # croak Dumper( keys(%{$stref->{'Modules'}}),$stref->{'Program'},$stref->{'SourceContains'}{$stref->{'Program'}}{'List'});
 	$stref = fold_constants_all($stref) ;
+
 	# ($stref,my $new_annlines) = fold_constants_no_iters($stref,$program_name);
 	# $stref->{'Subroutines'}{$program_name}{'RefactoredCode'} = $new_annlines;
 	# for my $module_name (sort keys %{$stref->{'Modules'}} ) {
 	# 	($stref,my $new_annlines) = fold_constants_no_iters($stref,$module_name);
 	# 	$stref->{'Modules'}{$module_name}{'RefactoredCode'} = $new_annlines;
 	# }
+	# croak Dumper $stref->{'Subroutines'}{$program_name}{'RefactoredCode'};
 	my $new_annlines = $stref->{'Subroutines'}{$program_name}{'RefactoredCode'};
-	$stref = emit_AnnLines( $stref,$program_name,$new_annlines);
-	$new_annlines = $stref->{'Subroutines'}{$program_name}{'RefactoredCode'};
-	croak Dumper pp_annlines();
+	# say $program_name;
+	# croak Dumper pp_annlines($new_annlines);
 	# croak Dumper pp_annlines($new_annlines,1);
 	$stref->{'TranslatedCode'}=[];
 	$Config{'FIXES'}={
@@ -294,6 +295,7 @@ Instead of the nice but cumbersome approach we had until now, from now on it is 
 			# $pass_state->{'DoIter'} = $f.'_'.$info->{'Do'}{'Iterator'};
 			# $pass_state->{'DoStep'} = $info->{'Do'}{'Range'}{'Expressions'}[2];
 			# id, iterator, step; loop upper bound is on the wst
+			carp Dumper $info->{'Do'};
 			push @{$pass_state->{'DoStack'}}, [$id,$f.'_'.$info->{'Do'}{'Iterator'},$info->{'Do'}{'Range'}{'Expressions'}[2],'Do'];
 				$c_line =
 				$info->{'Do'}{'Range'}{'Expressions'}[1] . ' ' . $info->{'Do'}{'Range'}{'Expressions'}[0] . "\n" .
@@ -379,7 +381,7 @@ Instead of the nice but cumbersome approach we had until now, from now on it is 
 			) {
 				my $do_tup = pop @{$pass_state->{'DoStack'}};
 				if ($do_tup->[-1] eq 'Do') {
-					# croak Dumper $do_tup;
+					croak Dumper $f,$annline,$do_tup;
 					my ($do_id, $do_iter, $do_step) = @{$do_tup};
 					my $inc = $do_step == 1 ? 'INC2' : toHex($do_step,2).' ADD2';
             		$c_line = "DUP2 ;$do_iter LDA2 $inc NEQ2 ".',&loop_'.$f.'_'.$do_id.' JCN';
@@ -629,7 +631,8 @@ sub _emit_var_decl_Uxntal { (my $stref,my $f,my $info,my $var)=@_;
 	}
 } # END of _emit_var_decl_Uxntal
 
-sub __substitute_PlaceHolders { my ($expr_str,$info) = @_;
+# Emits constant strings with only a leading double quote
+sub __substitute_PlaceHolders_Uxntal { my ($expr_str,$info) = @_;
 	if ($expr_str=~/__PH/ and exists $info->{'PlaceHolders'}) {
 		# croak $expr_str.Dumper($info->{'PlaceHolders'})
 		while ($expr_str =~ /(__PH\d+__)/) {
@@ -665,7 +668,7 @@ sub _emit_assignment_Uxntal { (my $stref, my $f, my $info, my $pass_state)=@_;
 		my $lc_macro=lc($macro);
 		$rhs_stripped=~s/\b$lc_macro\b/$macro/g;
 	}
-	$rhs_stripped=__substitute_PlaceHolders($rhs_stripped,$info);
+	$rhs_stripped=__substitute_PlaceHolders_Uxntal($rhs_stripped,$info);
 
 	# my $rline = $info->{'Indent'}.$lhs.' = '.$rhs_stripped;
 	$lhs =~s/LDA$/STA/;
@@ -791,41 +794,49 @@ sub _emit_expression_Uxntal { my ($ast, $stref, $f, $info)=@_;
 								return ';'.$f.'_'.$name.' LDA2';
 							} else {
 								my $decl = get_var_record_from_set($stref->{'Subroutines'}{$f}{'Vars'},$name);
-								my $dims =  $decl->{'Dim'};
-								my $maybe_amp = $has_slices ? '&' : '';
-								my $ndims = scalar @{$dims};
+								if ($decl->{'ArrayOrScalar'} eq 'Array') {
+									my $dims =  $decl->{'Dim'};
+									my $maybe_amp = $has_slices ? '&' : '';
+									my $ndims = scalar @{$dims};
 
-								my @ranges=();
-								my @lower_bounds=();
-								for my $boundspair (@{$dims}) {
-									(my $lb, my $hb)=@{$boundspair };
-									push @ranges, "(($hb - $lb )+1)";
-									push @lower_bounds, $lb;
-								}
-								if ($ndims==1) {
-									return ';'.$f.'_'.$name.' '.$args_lst[0].' ADD2 LDA2'
-								} elsif ($ndims==0 and $decl->{'Type'} eq 'character') {
-									# die "No support for strings yet\n" . 
-									# Dumper($info).';'.
-									# Dumper($decl).';'.
-									# croak Dumper($ast);
-									# fl(1:2)
-									my $strn=$ast->[1];
-									my $cb = _emit_expression_Uxntal($ast->[2][1], $stref, $f,$info);
-									my $ce = _emit_expression_Uxntal($ast->[2][2], $stref, $f,$info);
-									my $id=$info->{'LineID'};
-									my $len = $decl->{'Attr'};$len=~s/len=//;
-									return genSubstr($strn, $cb,$ce, $len, $id);
-									# I think I should have a streq function and maybe a substr function
-									# we should be able to use a range-fold for this
-									# <chars> ;fl <cb> <ce> streq 
-
-
-
-
-								} else {
-									die "No support for multidimensional ($ndims) arrays yet\n" . Dumper($ast);
-									# return $maybe_amp.$name.'[F'.$ndims.'D2C('.join(',',@ranges[0.. ($ndims-2)]).' , '.join(',',@lower_bounds). ' , '.join(',',@args_lst).')]';
+									my @ranges=();
+									my @lower_bounds=();
+									for my $boundspair (@{$dims}) {
+										(my $lb, my $hb)=@{$boundspair };
+										push @ranges, "(($hb - $lb )+1)";
+										push @lower_bounds, $lb;
+									}
+									if ($ndims==1) {
+										return ';'.$f.'_'.$name.' '.$args_lst[0].' ADD2 LDA2'
+									} elsif ($ndims==0 and $decl->{'Type'} eq 'character') {
+										# die "No support for strings yet\n" . 
+										# Dumper($info).';'.
+										# Dumper($decl).';'.
+										# croak Dumper($ast);
+										# fl(1:2)
+										my $strn=$ast->[1];
+										my $cb = _emit_expression_Uxntal($ast->[2][1], $stref, $f,$info);
+										my $ce = _emit_expression_Uxntal($ast->[2][2], $stref, $f,$info);
+										my $id=$info->{'LineID'};
+										my $len = $decl->{'Attr'};$len=~s/len=//;
+										return genSubstr($strn, $cb,$ce, $len, $id);
+										# I think I should have a streq function and maybe a substr function
+										# we should be able to use a range-fold for this
+										# <chars> ;fl <cb> <ce> streq 
+									} else {
+										die "No support for multidimensional ($ndims) arrays yet\n" . Dumper($ast);
+										# return $maybe_amp.$name.'[F'.$ndims.'D2C('.join(',',@ranges[0.. ($ndims-2)]).' , '.join(',',@lower_bounds). ' , '.join(',',@args_lst).')]';
+									}
+								} elsif ( $decl->{'Type'} eq 'character') {
+									# Although the AST says '10', decls says it's a scalar
+										my $strn=$ast->[1];
+										my $cb = _emit_expression_Uxntal($ast->[2][1], $stref, $f,$info);
+										my $ce = _emit_expression_Uxntal($ast->[2][2], $stref, $f,$info);
+										my $id=$info->{'LineID'};
+										my $len = $decl->{'Attr'};$len=~s/len=//;
+										return genSubstr($strn, $cb,$ce, $len, $id);
+								} else { # Although the AST says '10', decls says it's a scalar
+									# croak Dumper $ast,$decl;
 								}
 							}
 						} else { # A subroutine access.
@@ -871,7 +882,7 @@ sub _emit_expression_Uxntal { my ($ast, $stref, $f, $info)=@_;
                 my $v = (ref($exp) eq 'ARRAY') ? _emit_expression_Uxntal($exp, $stref, $f,$info) : $exp;
                 return "[ $v ]"; # FIXME
             } elsif ($opcode==2 or $opcode>28) {# eq '$' or constants
-				$exp = __substitute_PlaceHolders($exp,$info) if $opcode == 33;
+				$exp = __substitute_PlaceHolders_Uxntal($exp,$info) if $opcode == 33;
 				if ($opcode == 34) {
 					die 'ERROR: Fortran LABEL as arg is not supported, sorry!'."\n"; #  "*$exp" : $exp;   # Fortran LABEL, does not exist in C
 				}

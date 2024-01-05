@@ -268,11 +268,12 @@ sub analyseAllVarAccesses { my ($stref, $f, $io_write_subroutines, $annlines) = 
                     (my $range_start, my $range_stop, my $range_step) = @{ $info->{'Do'}{'Range'}{'Expressions'} };
                     my $range_start_evaled = eval_expression_with_parameters($range_start,$info,$stref,$f);
                     my $range_stop_evaled = eval_expression_with_parameters($range_stop,$info,$stref,$f);
+                    my $range_step_evaled = eval_expression_with_parameters($range_step,$info,$stref,$f);
     #                say "RANGE: [ $range_start_evaled , $range_stop_evaled ]"; 
                     my $loop_iter = $info->{'Do'}{'Iterator'};
-                    
+
                     #  croak Dumper $info if $loop_iter eq 'l';
-                    my $loop_range_exprs = [ $range_start_evaled , $range_stop_evaled ];#[$range_start,$range_stop]; # FIXME Maybe we don't need this. But if we do, we should probably eval() it
+                    my $loop_range_exprs = [ $range_start_evaled , $range_stop_evaled, $range_step_evaled ];#[$range_start,$range_stop]; # FIXME Maybe we don't need this. But if we do, we should probably eval() it
                     my $loop_id = $info->{'LineID'};
                     push @{ $state->{'VarAccessAnalysis'}{'LoopNests'}{'List'} },[$loop_id, $loop_iter , {'Range' => $loop_range_exprs}];
                     # $block_id = __mkLoopId( $state->{'VarAccessAnalysis'}{'LoopNests'}{'List'} );

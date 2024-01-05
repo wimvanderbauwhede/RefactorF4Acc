@@ -279,8 +279,11 @@ sub fold_constants_no_iters {
                 $info->{'Cond'}{'AST'} = $const_fold_cond_expr_ast;
             }
             elsif ( exists $info->{'Do'} ) { #  the expressions for the loop bounds have been folded:
+            if (not exists $info->{'Do'}{'While'}) {
                 my $iter =  $info->{'Do'}{'Iterator'};
                 my $const_range_exprs = [];
+
+                if (scalar @{ $info->{'Do'}{'Range'}{'Expressions'} } !=3) { croak Dumper $info;}
                 for my $range_expr_str (@{$info->{'Do'}{'Range'}{'Expressions'}}) {
                      if( $range_expr_str =~ /^[\+\-\d]+$/) {
                          push @{$const_range_exprs}, $range_expr_str*1;
@@ -297,6 +300,9 @@ sub fold_constants_no_iters {
                 }
                 $info->{'Do'}{'Range'}{'Expressions'} = $const_range_exprs;
                 $info->{'Do'}{'Range'}{'Vars'} = []; # FIXME! Only works if all vars have been replaced!
+            }  else {
+                carp "TODO: FOLD CONSTANTS IN WHILE: $line";
+            }
             }
             elsif ( exists $info->{'PrintCall'} ) {
                 my $print_args_ast = $info->{'IOCall'}{'Args'}{'AST'};
