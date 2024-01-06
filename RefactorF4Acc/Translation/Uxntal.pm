@@ -187,8 +187,8 @@ Instead of the nice but cumbersome approach we had until now, from now on it is 
 			}
 		}
 		elsif ( exists $info->{'ParamDecl'} ) {
-			croak "SHOULD NOT HAPPEN";
-				my $var = $info->{'VarDecl'}{'Name'};
+			# croak "SHOULD NOT HAPPEN: $f: ".Dumper($annline);
+				my $var = $info->{'ParamDecl'}{'Var'};
 				$state->{'Pointers'}{$var}='';
 				$state->{'Parameters'}{$var}=1;
 		}
@@ -264,7 +264,8 @@ Instead of the nice but cumbersome approach we had until now, from now on it is 
 				}
 		}
 		elsif ( exists $info->{'ParamDecl'} ) {
-			my $var = $info->{'VarDecl'}{'Name'};
+			# carp Dumper $info;
+			my $var = $info->{'ParamDecl'}{'Var'};
 
 				$c_line = _emit_var_decl_Uxntal($stref,$f,$info,$var);
 		}
@@ -381,7 +382,7 @@ Instead of the nice but cumbersome approach we had until now, from now on it is 
 			) {
 				my $do_tup = pop @{$pass_state->{'DoStack'}};
 				if ($do_tup->[-1] eq 'Do') {
-					croak Dumper $f,$annline,$do_tup;
+					# croak Dumper $f,$annline,$do_tup;
 					my ($do_id, $do_iter, $do_step) = @{$do_tup};
 					my $inc = $do_step == 1 ? 'INC2' : toHex($do_step,2).' ADD2';
             		$c_line = "DUP2 ;$do_iter LDA2 $inc NEQ2 ".',&loop_'.$f.'_'.$do_id.' JCN';
@@ -611,7 +612,8 @@ sub _emit_var_decl_Uxntal { (my $stref,my $f,my $info,my $var)=@_;
 	} else {
 		# FIXME: Dim can still contain named constants
 		# croak "$f ". Dumper( $decl). Dumper($stref->{$sub_or_module}{$f}{'Vars'}) if $decl->{'Name'}=~/funktalTokens/i;
-		croak "$f ". Dumper( $decl).Dumper($stref->{$sub_or_module}{$f}{'Vars'}) if $decl->{'Type'} eq 'real';
+		#.Dumper($stref->{$sub_or_module}{$f}{'Vars'})
+		croak "$f ". Dumper( $decl) if $decl->{'Type'} eq 'real';
 		my $dim= $array  ? __C_array_size($decl->{'Dim'}) : 1;
 		my $ftype = $decl->{'Type'};
 		my $fkind = $decl->{'Attr'};
@@ -1317,7 +1319,7 @@ sub add_to_C_build_sources {
 } # END of add_to_C_build_sources()
 
 sub __C_array_size { (my $dims) = @_;
-# carp Dumper $dims;
+carp Dumper $dims;
 	my $array_size=1;
 	for my $dim (@{$dims}) {
 		my $lb=$dim->[0];

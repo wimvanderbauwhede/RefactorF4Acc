@@ -3254,10 +3254,10 @@ sub __parse_f95_decl {
 		if (not defined $pt->{'Vars'}[0] and exists $pt->{'Pars'} and defined $pt->{'Pars'}{'Var'}) {
 			$pt->{'Vars'} = [$pt->{'Pars'}{'Var'}];
 		}
-
 		if (not exists $info->{'ParsedVarDecl'}
 			and not exists $info->{'VarDecl'} )
 		{
+
 			# Halos and Partitions pragma
 			# $decl->{'Halos'} = [[ilh,ihh],[jlh,jhh],[klh,khh]];
 			# $decl->{'Partitions'} = [NX,NY,NZ];
@@ -3313,7 +3313,6 @@ sub __parse_f95_decl {
 			my $decls = __create_Decls_from_ParsedVarDecl($info,$init_decl);
 			for my $decl (@{$decls}) {
 				my $tvar = $decl->{'Name'} ;
-
 
 				if ($decl->{'Dim'}) {
 					$decl=__get_params_from_dim($decl,$Sf);
@@ -5519,6 +5518,7 @@ sub __create_Decls_from_ParsedVarDecl { my ($info,$init_decl) = @_;
                     if ($tvar eq $var) {
                         $pvd->{'Pars'} = { 'Var' => $var, 'Val' =>$val };
                         delete $pvd->{'ParPairs'};
+						next;
                     }
                 }
             }
@@ -5532,6 +5532,8 @@ sub __create_Decls_from_ParsedVarDecl { my ($info,$init_decl) = @_;
                     }
                 }
             }
+			$pvd->{'Vars'}=[$var];
+
             push @{$decls} , parsedVarDecl_to_Decl($pvd, $init_decl);
         }
     }

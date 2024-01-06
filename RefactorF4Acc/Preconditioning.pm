@@ -677,7 +677,7 @@ sub _split_multivar_decls {
 
 sub __split_multivar_ParsedVarDecl { my ($line,$info,$stref,$f,$Sf,$nextLineID,$new_annlines) = @_;
 # carp 'PVAR:'.Dumper $info->{'ParsedVarDecl'};
-
+# croak Dumper $info if $line=~/stringConstIdx/;
     if (exists $info->{'ParsedVarDecl'}{'Vars'}) {
         my $idx=0;
         for my $var (@{$info->{'ParsedVarDecl'}{'Vars'}}) { #next unless defined $var;
@@ -691,7 +691,7 @@ sub __split_multivar_ParsedVarDecl { my ($line,$info,$stref,$f,$Sf,$nextLineID,$
             $rinfo{'LineID'} = $nextLineID++;
             my $subset    = in_nested_set($Sf, 'Vars', $var);
             $rinfo{'VarDecl'} = {'Name' => $var};
-            # carp Dumper($subset ,  $Sf->{$subset}{'Set'}{$var});
+
             # $Sf->{$subset}{'Set'}{$var}{'Name'} = $var;
 
             $rinfo{'ParsedVarDecl'}{'Vars'} = [ $var ];
@@ -739,6 +739,7 @@ sub __split_multivar_ParsedVarDecl { my ($line,$info,$stref,$f,$Sf,$nextLineID,$
             # say 'DECL:'.Dumper()
             my $init_decl = $subset ne '' ? $Sf->{$subset}{'Set'}{$var} : { 'Name' => $var};
             $Sf->{$subset}{'Set'}{$var} = parsedVarDecl_to_Decl($rinfo{'ParsedVarDecl'}, $init_decl);
+
             my $rline = emit_f95_parsed_var_decl($rinfo{'ParsedVarDecl'});
             push @{$new_annlines}, [$rline, {%rinfo}];
         }
@@ -783,7 +784,23 @@ sub __split_multivar_ParsedParDecl { my ($line,$info,$stref,$f,$Sf,$nextLineID,$
     } else { # Means there is only one decl on that line
         my $par = $info->{'ParsedParDecl'}{'Pars'}{'Var'};
         my $val = $info->{'ParsedParDecl'}{'Pars'}{'Val'};
-        $info->{'ParamDecl'} = {'Name' => [$par,$val]};
+        $info->{'ParamDecl'} = {
+            'Name' => [$par,$val],
+            'Var' => $par,
+            'Val' => $val
+            };
+#@ ParamDecl =>
+#@        Indent    => $indent
+#@        Type      => $type
+#@        Attr      => $attr
+#@        Dim       => []
+#@        Parameter => 'parameter'
+#@		  InheritedParams => $inherited_params
+#@        Names     => [@var_vals]
+#@        Status    => 0
+#@        Var    => $var
+#@        Val    => $val
+#@        AST    => $ast        
         push @{$new_annlines}, [$line, $info];
     }
 
