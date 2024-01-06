@@ -160,7 +160,7 @@ sub fold_constants_no_iters {
 
     my $pass_fold_constants = sub { (my $annline)=@_;
         (my $line,my $info)=@{$annline};
-        # say "$f FOLD CONSTS ON LINE <$line>";
+        say "$f FOLD CONSTS ON LINE <$line>";croak Dumper $info if $line=~/\s*[\(:]\s*funktalMaxNTokens/i;
         # From $info, find the lines that contain expressions that might have constants to fold.
         # These would the same types of lines as in identify_array_accesses_in_exprs()
 
@@ -178,7 +178,7 @@ sub fold_constants_no_iters {
                 ) {
 
                     my $expr_str = '['.join(',',map {'['.$_->[0].','.$_->[1].']'} @{$decl->{'Dim'}}).']';
-
+croak if $expr_str=~/funktalMaxNTokens/;
                     my ($ast,$str_,$error_,$has_funcs_)=parse_expression_no_context($expr_str);
                     my ($const_ast, $retval_) = replace_consts_in_ast_no_iters($stref, $f, $ast, $info);
                     my $const_expr_str = emit_expr_from_ast($const_ast);
@@ -319,7 +319,7 @@ sub fold_constants_no_iters {
 
 sub fold_constants_all {
 	( my $stref ) = @_;
-
+croak "This is not `all`, modules should be included too!";
 	for my $f ( sort keys %{ $stref->{'Subroutines'} } ) {
 		next if ( $f eq '' or $f eq 'UNKNOWN_SRC' or not defined $f );
 		# next if exists $stref->{'Entries'}{$f};
