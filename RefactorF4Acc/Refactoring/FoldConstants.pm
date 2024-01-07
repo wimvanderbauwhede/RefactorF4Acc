@@ -319,7 +319,15 @@ croak if $expr_str=~/funktalMaxNTokens/;
 
 sub fold_constants_all {
 	( my $stref ) = @_;
-croak "This is not `all`, modules should be included too!";
+    # Modules should be included too
+	for my $module_name (sort keys %{$stref->{'Modules'}} ) {
+        next if ( $module_name eq '' or $module_name eq 'UNKNOWN_SRC' or not defined $module_name );
+
+		my $Mmn = $stref->{'module_name'}{$module_name};
+        carp "STATUS for $module_name: ".$Mmn->{'Status'};
+		($stref,my $new_annlines) = fold_constants_no_iters($stref,$module_name);
+		$stref->{'Modules'}{$module_name}{'RefactoredCode'} = $new_annlines;
+	}
 	for my $f ( sort keys %{ $stref->{'Subroutines'} } ) {
 		next if ( $f eq '' or $f eq 'UNKNOWN_SRC' or not defined $f );
 		# next if exists $stref->{'Entries'}{$f};
@@ -333,15 +341,13 @@ croak "This is not `all`, modules should be included too!";
 		next if $Sf->{'Status'} == $UNREAD;
 		next if $Sf->{'Status'} == $READ;
 		next if $Sf->{'Status'} == $FROM_BLOCK;
-        #   map {say 'TEST'.$_} @{pp_annlines($Sf->{'RefactoredCode'})} if $f=~/test_loop/;
 
 		($stref, my $new_annlines) = fold_constants_no_iters( $stref, $f );
 
-        # warn $f;
         $Sf->{'RefactoredCode'}=$new_annlines;
-        # say "fold_constants_all($f) NEW AnnLines";
-        $stref = emit_AnnLines($stref,$f,$new_annlines) ;
-        # croak Dumper $Sf->{'RefactoredCode'} ;
+
+        # $stref = emit_AnnLines($stref,$f,$new_annlines) ;
+
 	}
 
 	return $stref;
