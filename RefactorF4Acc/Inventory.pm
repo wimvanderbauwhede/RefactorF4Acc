@@ -678,7 +678,7 @@ sub _process_src {
         } # loop over lines;
 
         close $SRC;
-#        if ($mod_name =~/module_bondFG/) { die $mod_name.':'.Dumper($stref->{'Modules'}{$mod_name}) };
+    #    if ($mod_name =~/FunktalConstants/i) { die $mod_name.':'.Dumper($stref->{'Modules'}{$mod_name}) };
 
         return $stref;
 

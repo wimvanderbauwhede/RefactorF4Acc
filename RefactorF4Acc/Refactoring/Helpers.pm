@@ -338,6 +338,7 @@ sub get_f95_var_decl {
     my $nvar   = $var;
     my $array_or_scalar = 'Unknown';
 
+
     my $subset = in_nested_set($Sf, 'Vars', $var); # Should tell us exactly where we are
 
     if ($subset ne '' and exists $Sf->{$subset}{'Set'}{$var} and ref($Sf->{$subset}{'Set'}{$var}) eq 'HASH') {

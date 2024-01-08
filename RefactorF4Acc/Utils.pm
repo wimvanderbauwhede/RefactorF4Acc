@@ -593,12 +593,16 @@ sub remove_var_decl_from_set { (my $Sf, my $set, my $var)=@_;
 
 # Returns undef if the var rec is not there
 sub get_var_record_from_set { (my $set, my $var)=@_;
-croak if not defined $var;
+    croak if not defined $var;
     my %vars=();
      if (exists $set->{'Subsets'} ) {
         for my $subset (keys %{  $set->{'Subsets'} } ) {
             my $vars_ref= get_vars_from_set($set->{'Subsets'}{$subset});
-            %vars = ( %vars, %{$vars_ref} );
+            if (exists $vars_ref->{$var}) {
+            say "get_var_record_from_set: SUBSET $subset for $var: ".Dumper($vars_ref->{$var}) ;
+            # %vars = ( %vars, %{$vars_ref} );
+            %vars =  %{$vars_ref} ;
+            }
         }
     } elsif (exists $set->{'Set'}) {
 

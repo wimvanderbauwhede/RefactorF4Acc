@@ -63,6 +63,7 @@ sub translate_program_to_Uxntal {  (my $stref, my $program_name) = @_;
 # croak Dumper( keys(%{$stref->{'Modules'}}),$stref->{'Program'},$stref->{'SourceContains'}{$stref->{'Program'}}{'List'});
 	$stref = fold_constants_all($stref) ;
 
+
 	# ($stref,my $new_annlines) = fold_constants_no_iters($stref,$program_name);
 	# $stref->{'Subroutines'}{$program_name}{'RefactoredCode'} = $new_annlines;
 	# for my $module_name (sort keys %{$stref->{'Modules'}} ) {
@@ -76,7 +77,7 @@ sub translate_program_to_Uxntal {  (my $stref, my $program_name) = @_;
 	# croak Dumper pp_annlines($new_annlines,1);
 	$stref->{'TranslatedCode'}=[];
 	$Config{'FIXES'}={
-		_declare_undeclared_variables => 1,
+		# _declare_undeclared_variables => 1,
 	# _remove_unused_variables => 1
 	};
 	$stref = pass_wrapper_subs_in_module($stref,$program_name,
@@ -575,13 +576,16 @@ sub _emit_arg_decl_Uxntal { (my $stref,my $f,my $arg, my $name)=@_;
 
 sub _emit_var_decl_Uxntal { (my $stref,my $f,my $info,my $var)=@_;
 	my $sub_or_module = sub_func_incl_mod( $f, $stref );
+	my $Sf = $stref->{$sub_or_module}{$f};
+	say "_emit_var_decl_Uxntal: VAR $var in $f ";
 	my $decl =  get_var_record_from_set($stref->{$sub_or_module}{$f}{'Vars'},$var);
+	croak Dumper( $decl,$stref->{'Subroutines'}{'tokeniseFunktal'}{'ExGlobArgs'}{'Set'}{'funktalStringConstsIdx'}) if ($f eq 'tokeniseFunktal' and $var eq 'funktalStringConstsIdx');
 	my $array = (exists $decl->{'ArrayOrScalar'} and $decl->{'ArrayOrScalar'} eq 'Array') ? 1 : 0;
-	# say $decl->{"ParsedVarDecl"};
+
 	my $const = '';
 	my $val='';
-	
-	if (defined $decl->{'Parameter'}) { 
+
+	if (defined $decl->{'Parameter'}) {
 		$val = $decl->{'Val'};
 		my $val_str = $val;
 		if ($val=~/[\'\"'](.+?)[\'\"]/) {
@@ -591,7 +595,7 @@ sub _emit_var_decl_Uxntal { (my $stref,my $f,my $info,my $var)=@_;
 			my $sz=2;
 			if ($val=~s/_([1248])$//) { $sz=$1}
 			$val_str = toHex($val,$sz);
-		} 
+		}
 		elsif (exists $decl->{'AST'}) {
 			my $ast = $decl->{'AST'};
 			$val_str = _emit_expression_Uxntal($ast,$stref, $f, $info);
@@ -613,7 +617,9 @@ sub _emit_var_decl_Uxntal { (my $stref,my $f,my $info,my $var)=@_;
 		# FIXME: Dim can still contain named constants
 		# croak "$f ". Dumper( $decl). Dumper($stref->{$sub_or_module}{$f}{'Vars'}) if $decl->{'Name'}=~/funktalTokens/i;
 		#.Dumper($stref->{$sub_or_module}{$f}{'Vars'})
-		croak "$f ". Dumper( $decl) if $decl->{'Type'} eq 'real';
+		my $subset = in_nested_set( $Sf, 'Vars', $var );
+		# croak "$subset $f ". Dumper( $decl) if $decl->{'Type'} eq 'real';
+		# croak "$subset $f ". Dumper( $decl) if Dumper($decl->{'Dim'}) =~/funktalMaxNTokens/;
 		my $dim= $array  ? __C_array_size($decl->{'Dim'}) : 1;
 		my $ftype = $decl->{'Type'};
 		my $fkind = $decl->{'Attr'};
@@ -676,7 +682,7 @@ sub _emit_assignment_Uxntal { (my $stref, my $f, my $info, my $pass_state)=@_;
 	$lhs =~s/LDA$/STA/;
 	$lhs =~s/LDA2$/STA2/;
 	my $rline = "\n( Assignment  )\n" . $info->{'Indent'}.$rhs_stripped . ' '. $lhs;
-	if (exists $info->{'If'}) { 
+	if (exists $info->{'If'}) {
 		# croak 'TODO: If without Then', Dumper($info);
 		my $branch_id = $info->{'LineID'};
 		# $pass_state->{'IfBranchId'} = $id;
@@ -685,7 +691,7 @@ sub _emit_assignment_Uxntal { (my $stref, my $f, my $info, my $pass_state)=@_;
 		# $pass_state->{'IfId'}=$id;
 		my $cond_expr_ast=$info->{'Cond'}{'AST'};
 		my $cond_expr = _emit_expression_Uxntal($cond_expr_ast,$stref,$f,$info);
-	# What we have is e.g. 
+	# What we have is e.g.
 	# if (fl(1:2) == __PH0__) VV = .true.
 	# What we need is
 	# NOT <cond> <label_end> JCN
@@ -811,7 +817,7 @@ sub _emit_expression_Uxntal { my ($ast, $stref, $f, $info)=@_;
 									if ($ndims==1) {
 										return ';'.$f.'_'.$name.' '.$args_lst[0].' ADD2 LDA2'
 									} elsif ($ndims==0 and $decl->{'Type'} eq 'character') {
-										# die "No support for strings yet\n" . 
+										# die "No support for strings yet\n" .
 										# Dumper($info).';'.
 										# Dumper($decl).';'.
 										# croak Dumper($ast);
@@ -824,7 +830,7 @@ sub _emit_expression_Uxntal { my ($ast, $stref, $f, $info)=@_;
 										return genSubstr($strn, $cb,$ce, $len, $id);
 										# I think I should have a streq function and maybe a substr function
 										# we should be able to use a range-fold for this
-										# <chars> ;fl <cb> <ce> streq 
+										# <chars> ;fl <cb> <ce> streq
 									} else {
 										die "No support for multidimensional ($ndims) arrays yet\n" . Dumper($ast);
 										# return $maybe_amp.$name.'[F'.$ndims.'D2C('.join(',',@ranges[0.. ($ndims-2)]).' , '.join(',',@lower_bounds). ' , '.join(',',@args_lst).')]';

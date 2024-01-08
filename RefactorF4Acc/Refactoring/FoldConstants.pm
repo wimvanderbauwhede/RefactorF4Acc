@@ -160,7 +160,7 @@ sub fold_constants_no_iters {
 
     my $pass_fold_constants = sub { (my $annline)=@_;
         (my $line,my $info)=@{$annline};
-        say "$f FOLD CONSTS ON LINE <$line>";croak Dumper $info if $line=~/\s*[\(:]\s*funktalMaxNTokens/i;
+        # say "$f FOLD CONSTS ON LINE <$line>";croak Dumper $info if $line=~/\s*[\(:]\s*funktalMaxNTokens/i;
         # From $info, find the lines that contain expressions that might have constants to fold.
         # These would the same types of lines as in identify_array_accesses_in_exprs()
 
@@ -178,7 +178,6 @@ sub fold_constants_no_iters {
                 ) {
 
                     my $expr_str = '['.join(',',map {'['.$_->[0].','.$_->[1].']'} @{$decl->{'Dim'}}).']';
-croak if $expr_str=~/funktalMaxNTokens/;
                     my ($ast,$str_,$error_,$has_funcs_)=parse_expression_no_context($expr_str);
                     my ($const_ast, $retval_) = replace_consts_in_ast_no_iters($stref, $f, $ast, $info);
                     my $const_expr_str = emit_expr_from_ast($const_ast);
@@ -187,6 +186,7 @@ croak if $expr_str=~/funktalMaxNTokens/;
                     $const_expr_str=~s/\/\)/]/g;
 
                     my $const_dims= eval( $const_expr_str );
+
                     my $sub_or_func = sub_func_incl_mod($f,$stref);
 # croak "$sub_or_func $f",Dumper $stref->{$sub_or_func}{$f}{'Vars'} if $const_expr_str=~/funktalMaxNTokens/;
 # croak "FOLDING $var_name in $f: $expr_str => $const_expr_str => ".Dumper($const_dims) if $const_expr_str=~/funktalMaxNTokens/;
@@ -323,11 +323,18 @@ sub fold_constants_all {
 	for my $module_name (sort keys %{$stref->{'Modules'}} ) {
         next if ( $module_name eq '' or $module_name eq 'UNKNOWN_SRC' or not defined $module_name );
 
-		my $Mmn = $stref->{'module_name'}{$module_name};
-        carp "STATUS for $module_name: ".$Mmn->{'Status'};
+		my $Mmn = $stref->{'Modules'}{$module_name};
+		if ( not defined $Mmn->{'Status'} ) {
+			$Mmn->{'Status'} = $UNREAD;
+			croak "INFO: no Status for $module_name";
+		}
+
+		next if $Mmn->{'Status'} == $UNREAD;
+		next if $Mmn->{'Status'} == $READ;
 		($stref,my $new_annlines) = fold_constants_no_iters($stref,$module_name);
 		$stref->{'Modules'}{$module_name}{'RefactoredCode'} = $new_annlines;
 	}
+
 	for my $f ( sort keys %{ $stref->{'Subroutines'} } ) {
 		next if ( $f eq '' or $f eq 'UNKNOWN_SRC' or not defined $f );
 		# next if exists $stref->{'Entries'}{$f};
