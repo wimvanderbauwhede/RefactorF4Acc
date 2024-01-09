@@ -327,10 +327,8 @@ Instead of the nice but cumbersome approach we had until now, from now on it is 
 			# But the problem is of course that we have just replaced the called args by the sig args
 			# So what we need to do is check the type in $f and $subname, and use that to see if we need a '*' or even an '&' or nothing
 
-            $c_line = _emit_subroutine_call_expr_Uxntal($stref,$f,$info);
-			# if (exists $info->{'If'}  ) {
-			# 	say 'TODO: If without Then'. $line."\n".Dumper($info);
-			# }
+            $c_line = _emit_subroutine_call_expr_Uxntal($stref,$f,$line,$info);
+			# If without Then
 			if (exists $info->{'If'}) {
 				my $indent = $info->{'Indent'};
 				my $branch_id = $info->{'LineID'};
@@ -340,7 +338,7 @@ Instead of the nice but cumbersome approach we had until now, from now on it is 
 			# if (fl(1:2) == __PH0__) VV = .true.
 			# What we need is
 			# NOT <cond> <label_end> JCN
-				$c_line = "\n( If without Then )\n" . $indent.' '."$cond_expr EQU #00 ,&branch$branch_id JCN\n" . $c_line;
+				$c_line = "\n$indent $cond_expr EQU #00 ,&branch$branch_id JCN\n" . $c_line;
 			# <expr>
 				$c_line .= $indent.' '."&branch$branch_id";
 			}
@@ -463,7 +461,8 @@ Instead of the nice but cumbersome approach we had until now, from now on it is 
 			# croak Dumper $info;
 			# $c_line = $info->{'Label'}. ' : '."\n".$info->{'Indent'}.$c_line;
 		}
-
+		chomp $c_line;
+		push @{$pass_state->{'TranslatedCode'}},"( $line )" unless $skip;
 		push @{$pass_state->{'TranslatedCode'}},$c_line unless $skip;
 		# push @{$pass_state->{'TranslatedCode'}},$info->{'Indent'}.$c_line unless $skip;
 		return ([$annline],[$stref,$f,$pass_state]);
@@ -695,20 +694,20 @@ sub _emit_assignment_Uxntal { (my $stref, my $f, my $info, my $pass_state)=@_;
 	my $lhs_post = $lhs;
 	$lhs_post =~s/LDA$/STA/;
 	$lhs_post =~s/LDA2$/STA2/;
-	if ($rhs_stripped=~/\#([0-9a-f]+)/i) {
-		my $hexdigits=$1;
-		my $n_hexdigits = length($hexdigits);
-		if ($n_hexdigits==2) {
-			$lhs_post =~s/STA2/STA/;
-		}
-		elsif ($n_hexdigits!=4) {
-			croak "HEX OF WRONG SIZE: $rhs_stripped";
-		}
-	}
+	# if ($rhs_stripped=~/\#([0-9a-f]+)/i) {
+	# 	my $hexdigits=$1;
+	# 	my $n_hexdigits = length($hexdigits);
+	# 	if ($n_hexdigits==2) {
+	# 		$lhs_post =~s/STA2/STA/;
+	# 	}
+	# 	elsif ($n_hexdigits!=4) {
+	# 		croak "HEX OF WRONG SIZE: $rhs_stripped";
+	# 	}
+	# }
 	# if ($lhs_post!~/STA/) { say "WRONG ASSIGN: <$rhs> <$lhs>"; } else {
 	# 	say "CORRECT ASSIGN?: <$rhs_stripped> <$lhs_post>";
 	# }
-	my $rline = "\n( Assignment  )\n" . $info->{'Indent'}.$rhs_stripped . ' '. $lhs_post;
+	my $rline = "\n" . $info->{'Indent'} . $rhs_stripped . ' '. $lhs_post;
 	if (exists $info->{'If'}) {
 		# croak 'TODO: If without Then', Dumper($info);
 		my $branch_id = $info->{'LineID'};
@@ -996,9 +995,9 @@ sub _emit_expression_Uxntal { my ($ast, $stref, $f, $info)=@_;
 								# carp Dumper $stref->{'Modules'}{$mod_name}{$set};
 								my $rec = get_var_record_from_set($stref->{'Modules'}{$mod_name}{'Vars'},$exp);
 								if ($rec->{'Type'} eq 'logical') {
-									$instr = 'LDA';
+									$instr = 'LDA'; 
 								}
-								return $rune.$mod_name.'_'.$exp . $instr; #
+								return $rune.$mod_name.'_'.$exp . ' '. $instr; #
 							} else {
 								carp "<$f>, <$exp>, <$mod_name>"; carp $stref->{'Subroutines'}{$f}{$set};
 								my $rec = get_var_record_from_set($stref->{'Subroutines'}{$f}{'Vars'},$exp);
@@ -1006,7 +1005,7 @@ sub _emit_expression_Uxntal { my ($ast, $stref, $f, $info)=@_;
 									$instr = 'LDA';
 								}
 
-								return $rune.$exp . $instr;#"SIGIL:$sigil ".
+								return $rune.$exp . ' '. $instr;#"SIGIL:$sigil ".
 							}
 						} else {
 							return $exp;
@@ -1073,12 +1072,12 @@ while ($expr=~/\.(\w+)\./) {
 #### #### #### #### END OF C TRANSLATION CODE #### #### #### ####
 
 
-sub _emit_subroutine_call_expr_Uxntal { my ($stref,$f,$info) = @_;
+sub _emit_subroutine_call_expr_Uxntal { my ($stref,$f,$line,$info) = @_;
 	my @call_arg_expr_strs_Uxntal=();
-	carp Dumper $info;
+	# carp Dumper $info;
 	my $subname = $info->{'SubroutineCall'}{'Name'};
 	my $Ssubname = $stref->{'Subroutines'}{$subname};
-	# croak Dumper ($info, $Ssubname->{'Vars'}) if $f=~/test_subcall/;
+	croak $f,Dumper($info->{'SubroutineCall'}) if $line=~/getarg/;
 
 
 	# my $mvar = $subname;
@@ -1163,81 +1162,7 @@ sub _emit_subroutine_call_expr_Uxntal { my ($stref,$f,$info) = @_;
 	}
 
 	return join("\n", @call_arg_expr_strs_Uxntal);
-# die if $f=~/test_subcall/;
 
-# 	for my $call_arg_expr_str (@{$info->{'SubroutineCall'}{'Args'}{'List'}}) {
-
-
-# 		my $arg_type = $info->{'SubroutineCall'}{'Args'}{'Set'}{$call_arg_expr_str}{'Type'};
-# 			if ( $arg_type eq 'Scalar') {
-# 				my $ptr = '';
-# 				# If it is a parameter, it will get an '&'.
-# 				if (exists $stref->{'Subroutines'}{$f}{'Pointers'}{$call_arg_expr_str}) {
-# 					$ptr = $stref->{'Subroutines'}{$f}{'Pointers'}{$call_arg_expr_str};
-# 					$ptr = $ptr ne '&' ? '' : $ptr;
-# 				}
-# 				push @call_arg_expr_strs_C, "$ptr$call_arg_expr_str";
-# 			}
-# 			elsif ( $arg_type eq 'Array') {
-# 				# This is an array access.
-# 				my $call_arg_expr_str_C='';
-# 				my $name = $info->{'SubroutineCall'}{'Args'}{'Set'}{$call_arg_expr_str}{'Arg'};
-# 				my $args = $info->{'SubroutineCall'}{'Args'}{'Set'}{$call_arg_expr_str}{'AST'}[2];
-# # croak Dumper $args if $info->{'SubroutineCall'}{'Name'} eq 'update_map_24';
-# 				my @args_lst=();
-# 				my $has_slices=0;
-# 				if($args->[0] == 27) { # ','
-# 				# more than one arg
-# 					for my $idx (1 .. scalar @{$args}-1) {
-# 						my $arg = $args->[$idx];
-# 						my $is_slice = $arg->[0] == 12;
-# 						push @args_lst, _emit_expression_Uxntal($arg, $stref, $f,$info) unless $is_slice;
-# 						$has_slices ||= $is_slice;
-# 					}
-# 				} else {
-# 					# only one arg
-# 					$args_lst[0] = _emit_expression_Uxntal($args, $stref, $f,$info);
-# 				}
-
-# 				if( $args->[0]==29 and $args->[1] eq '1') { # if we have v(1)
-# 					push @call_arg_expr_strs_C, '(*'.$name.')';
-# 				} else {
-# 					my $decl = get_var_record_from_set($stref->{'Subroutines'}{$f}{'Vars'},$name);
-# 					my $dims =  $decl->{'Dim'};
-# 					my $ndims = scalar @{$dims};
-
-# 					my @ranges=();
-# 					my @lower_bounds=();
-# 					for my $boundspair (@{$dims}) {
-# 						(my $lb, my $hb)=@{$boundspair };
-# 						push @ranges, "(($hb - $lb )+1)";
-# 						push @lower_bounds, $lb;
-# 					}
-# 					if ($ndims==1) {
-# 						my $offset_expr = '-'.$lower_bounds[0];
-# 						if ($lower_bounds[0]<0) {
-# 								$offset_expr = '+'.($lower_bounds[0]*-1);
-# 						} elsif ($lower_bounds[0]==0) {
-# 							$offset_expr = '';
-# 						}
-# 						push @call_arg_expr_strs_C, '&'.$name.'['.$args_lst[0].''.$offset_expr.']'; #F1D2C('.$lower_bounds[0]. ', '.
-# 					} else {
-# 						push @call_arg_expr_strs_C, '&'.$name.'[F'.$ndims.'D2C('.join(',',@ranges[0.. ($ndims-2)]).' , '.join(',',@lower_bounds). ' , '.join(',',@args_lst).')]';
-# 					}
-# 				}
-# 				# push @call_arg_expr_strs_C, $call_arg_expr_str_C;
-# 			}
-# 			elsif ( $arg_type eq 'Expr') {
-# 				croak "TODO: Can't handle arguments of type $arg_type yet.";
-# 			}
-# 			else {
-# 				# Probably a Label, give up
-# 				croak "Can't handle arguments of type $arg_type yet.";
-# 			}
-
-# 	}
-# 	# croak Dumper join(", ", @call_arg_expr_strs_C) if  eq 'update_map_24';
-# 	return $subname_C.'('.join(", ", @call_arg_expr_strs_C).')';
 } # END of _emit_subroutine_call_expr_Uxntal
 
 
