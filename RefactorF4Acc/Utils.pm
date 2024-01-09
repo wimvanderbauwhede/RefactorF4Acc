@@ -599,7 +599,7 @@ sub get_var_record_from_set { (my $set, my $var)=@_;
         for my $subset (keys %{  $set->{'Subsets'} } ) {
             my $vars_ref= get_vars_from_set($set->{'Subsets'}{$subset});
             if (exists $vars_ref->{$var}) {
-            say "get_var_record_from_set: SUBSET $subset for $var: ".Dumper($vars_ref->{$var}) ;
+            # say "get_var_record_from_set: SUBSET $subset for $var: ".Dumper($vars_ref->{$var}) ;
             # %vars = ( %vars, %{$vars_ref} );
             %vars =  %{$vars_ref} ;
             }

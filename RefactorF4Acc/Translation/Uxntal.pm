@@ -290,14 +290,14 @@ Instead of the nice but cumbersome approach we had until now, from now on it is 
 		}
 		elsif (exists $info->{'Do'} ) {
 			if (exists $info->{'Do'}{'While'}) {
-				croak 'TODO: Do While';
+				say 'TODO: Do While: '.Dumper($info->{'Do'}{'ExpressionsAST'});
 				push @{$pass_state->{'DoStack'}}, [$id,$info->{'Do'}{'ExpressionsAST'},'While'];
 				$c_line = '&while_loop_'.$f.'_'.$id . "\n" ;
 			} else {
 			# $pass_state->{'DoIter'} = $f.'_'.$info->{'Do'}{'Iterator'};
 			# $pass_state->{'DoStep'} = $info->{'Do'}{'Range'}{'Expressions'}[2];
 			# id, iterator, step; loop upper bound is on the wst
-			carp Dumper $info->{'Do'};
+			# carp Dumper $info->{'Do'};
 			push @{$pass_state->{'DoStack'}}, [$id,$f.'_'.$info->{'Do'}{'Iterator'},$info->{'Do'}{'Range'}{'Expressions'}[2],'Do'];
 				$c_line =
 				$info->{'Do'}{'Range'}{'Expressions'}[1] . ' ' . $info->{'Do'}{'Range'}{'Expressions'}[0] . "\n" .
@@ -316,7 +316,7 @@ Instead of the nice but cumbersome approach we had until now, from now on it is 
 		if (exists $info->{'Assignment'} ) {
 			($c_line,$pass_state) = _emit_assignment_Uxntal($stref, $f, $info,$pass_state) ;
 		}
-		elsif (exists $info->{'SubroutineCall'} ) {
+		elsif (exists $info->{'SubroutineCall'} and not exists $info->{'IOCall'}) {
 			# WV2023-12-07 TODO: what if this has an If without Then?
 			#
 			# my $subcall_ast = [ 1, $info->{'SubroutineCall'}{'Name'},$info->{'SubroutineCall'}{'ExpressionAST'} ];
@@ -328,8 +328,21 @@ Instead of the nice but cumbersome approach we had until now, from now on it is 
 			# So what we need to do is check the type in $f and $subname, and use that to see if we need a '*' or even an '&' or nothing
 
             $c_line = _emit_subroutine_call_expr_Uxntal($stref,$f,$info);
-			if (exists $info->{'If'}  ) {
-			croak 'TODO: If without Then'. $line."\n".Dumper($info);
+			# if (exists $info->{'If'}  ) {
+			# 	say 'TODO: If without Then'. $line."\n".Dumper($info);
+			# }
+			if (exists $info->{'If'}) {
+				my $indent = $info->{'Indent'};
+				my $branch_id = $info->{'LineID'};
+				my $cond_expr_ast=$info->{'Cond'}{'AST'};
+				my $cond_expr = _emit_expression_Uxntal($cond_expr_ast,$stref,$f,$info);
+			# What we have is e.g.
+			# if (fl(1:2) == __PH0__) VV = .true.
+			# What we need is
+			# NOT <cond> <label_end> JCN
+				$c_line = "\n( If without Then )\n" . $indent.' '."$cond_expr EQU #00 ,&branch$branch_id JCN\n" . $c_line;
+			# <expr>
+				$c_line .= $indent.' '."&branch$branch_id";
 			}
 		}
 		elsif (exists $info->{'IOCall'}) {
@@ -657,14 +670,14 @@ sub __substitute_PlaceHolders_Uxntal { my ($expr_str,$info) = @_;
 sub _emit_assignment_Uxntal { (my $stref, my $f, my $info, my $pass_state)=@_;
 	my $lhs_ast =  $info->{'Lhs'}{'ExpressionAST'};
 	my $lhs = _emit_expression_Uxntal($lhs_ast,$stref,$f,$info);
-
+	my $lhs_stripped = $lhs;
 	my $indent='';
-	$lhs=~/^(\s+)/ && do {
+	$lhs_stripped=~/^(\s+)/ && do {
 		$indent=$1;
-		$lhs=~s/^\s+//;
+		$lhs_stripped=~s/^\s+//;
 	};
-	$lhs=~s/^\(([^\(\)]+)\)/$1/;
-	$lhs=$indent.$lhs;
+	$lhs_stripped=~s/^\(([^\(\)]+)\)/$1/;
+	$lhs_stripped=$indent.$lhs_stripped;
 
 	my $rhs_ast =  $info->{'Rhs'}{'ExpressionAST'};
 
@@ -679,9 +692,23 @@ sub _emit_assignment_Uxntal { (my $stref, my $f, my $info, my $pass_state)=@_;
 	$rhs_stripped=__substitute_PlaceHolders_Uxntal($rhs_stripped,$info);
 
 	# my $rline = $info->{'Indent'}.$lhs.' = '.$rhs_stripped;
-	$lhs =~s/LDA$/STA/;
-	$lhs =~s/LDA2$/STA2/;
-	my $rline = "\n( Assignment  )\n" . $info->{'Indent'}.$rhs_stripped . ' '. $lhs;
+	my $lhs_post = $lhs;
+	$lhs_post =~s/LDA$/STA/;
+	$lhs_post =~s/LDA2$/STA2/;
+	if ($rhs_stripped=~/\#([0-9a-f]+)/i) {
+		my $hexdigits=$1;
+		my $n_hexdigits = length($hexdigits);
+		if ($n_hexdigits==2) {
+			$lhs_post =~s/STA2/STA/;
+		}
+		elsif ($n_hexdigits!=4) {
+			croak "HEX OF WRONG SIZE: $rhs_stripped";
+		}
+	}
+	# if ($lhs_post!~/STA/) { say "WRONG ASSIGN: <$rhs> <$lhs>"; } else {
+	# 	say "CORRECT ASSIGN?: <$rhs_stripped> <$lhs_post>";
+	# }
+	my $rline = "\n( Assignment  )\n" . $info->{'Indent'}.$rhs_stripped . ' '. $lhs_post;
 	if (exists $info->{'If'}) {
 		# croak 'TODO: If without Then', Dumper($info);
 		my $branch_id = $info->{'LineID'};
@@ -766,7 +793,7 @@ sub _emit_expression_Uxntal { my ($ast, $stref, $f, $info)=@_;
 			# }
 
             if ($ast->[0] == 1 or $ast->[0] ==10) { #  array access 10=='@' or function call 1=='&'
-                (my $sigil, my $name, my $args) =@{$ast};
+                (my $opcode, my $name, my $args) =@{$ast};
 				# if ($ast->[0] == 1) { # No need for this in Uxn, we might as well keep the Fortran names
 				# 	my $mvar = $name;
 				# 	# AD-HOC, replacing abs/min/max to fabs/fmin/fmax without any type checking ... FIXME!!!
@@ -797,7 +824,7 @@ sub _emit_expression_Uxntal { my ($ast, $stref, $f, $info)=@_;
 						}
 
 						if ($ast->[0]==10) { # An array access
-							# In Uxntal, an array access is ;array $idx ADD2 LDA2 and if $idx is a scalar, I assume it's $idx LDA2
+							# In Uxntal, an array access is ;array $idx ADD2 LDA2 and if $idx is a scalar, I assume it's $idx LDA2, because we use shorts everywhere.
 							if( $args->[0]==29 and $args->[1] eq '1') { # if we have v(1)
 								return ';'.$f.'_'.$name.' LDA2';
 							} else {
@@ -858,7 +885,7 @@ sub _emit_expression_Uxntal { my ($ast, $stref, $f, $info)=@_;
 						die 'ERROR: f()() is not supported, sorry!'."\n";
 					}
 				} else {
-					return $name;
+					return 'SIGIL:'.$sigils[$opcode] ." $name";
 				}
             } else { # not '&' or '@'
 
@@ -881,6 +908,9 @@ sub _emit_expression_Uxntal { my ($ast, $stref, $f, $info)=@_;
         } elsif (scalar @{$ast}==2) { #  for '('  and '$'
 
             (my $opcode, my $exp) =@{$ast};
+
+			my $sigil = $sigils[$opcode];
+
             if ($opcode==0 ) { # eq '('
                 my $v = (ref($exp) eq 'ARRAY') ? _emit_expression_Uxntal($exp, $stref, $f,$info) : $exp;
 				# croak 'TODO: ( ... ) '.Dumper( $exp);
@@ -890,6 +920,7 @@ sub _emit_expression_Uxntal { my ($ast, $stref, $f, $info)=@_;
                 my $v = (ref($exp) eq 'ARRAY') ? _emit_expression_Uxntal($exp, $stref, $f,$info) : $exp;
                 return "[ $v ]"; # FIXME
             } elsif ($opcode==2 or $opcode>28) {# eq '$' or constants
+
 				$exp = __substitute_PlaceHolders_Uxntal($exp,$info) if $opcode == 33;
 				if ($opcode == 34) {
 					die 'ERROR: Fortran LABEL as arg is not supported, sorry!'."\n"; #  "*$exp" : $exp;   # Fortran LABEL, does not exist in C
@@ -934,7 +965,7 @@ sub _emit_expression_Uxntal { my ($ast, $stref, $f, $info)=@_;
 						# That would be
 						return $f.'_'.$exp;
 					}
-					elsif ( __has_module_level_declaration($stref,$f,$exp) ) {
+					elsif ( (__has_module_level_declaration($stref,$f,$exp))[0] ne '') {
 
 						croak $f.'_'.$exp.';'.Dumper( __has_module_level_declaration($stref,$f,$exp));
 					} else {
@@ -952,11 +983,33 @@ sub _emit_expression_Uxntal { my ($ast, $stref, $f, $info)=@_;
 					} elsif ($exp eq '.false.') {
 						return '#00';
 					} else {
-						my ($mod_name, $set) = __has_module_level_declaration($stref,$f,$exp) ;
-						if ($mod_name) {
-							return $mod_name.'_'.$exp
+						my $rune = '';
+						my $instr = '';
+						if ($sigil eq '$') {
+							$rune = ';';
+							$instr = ' LDA2';
+						}
+						if ($exp =~ /^[a-zA-Z_]/) {
+							my ($mod_name, $set) = __has_module_level_declaration($stref,$f,$exp) ;
+
+							if ($mod_name) {
+								# carp Dumper $stref->{'Modules'}{$mod_name}{$set};
+								my $rec = get_var_record_from_set($stref->{'Modules'}{$mod_name}{'Vars'},$exp);
+								if ($rec->{'Type'} eq 'logical') {
+									$instr = 'LDA';
+								}
+								return $rune.$mod_name.'_'.$exp . $instr; #
+							} else {
+								carp "<$f>, <$exp>, <$mod_name>"; carp $stref->{'Subroutines'}{$f}{$set};
+								my $rec = get_var_record_from_set($stref->{'Subroutines'}{$f}{'Vars'},$exp);
+								if ($rec->{'Type'} eq 'logical') {
+									$instr = 'LDA';
+								}
+
+								return $rune.$exp . $instr;#"SIGIL:$sigil ".
+							}
 						} else {
-						return $exp;
+							return $exp;
 						}
 					}
 				}
@@ -1022,6 +1075,7 @@ while ($expr=~/\.(\w+)\./) {
 
 sub _emit_subroutine_call_expr_Uxntal { my ($stref,$f,$info) = @_;
 	my @call_arg_expr_strs_Uxntal=();
+	carp Dumper $info;
 	my $subname = $info->{'SubroutineCall'}{'Name'};
 	my $Ssubname = $stref->{'Subroutines'}{$subname};
 	# croak Dumper ($info, $Ssubname->{'Vars'}) if $f=~/test_subcall/;
