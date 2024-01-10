@@ -29,6 +29,8 @@ use Exporter;
     %F95_other_intrinsics
     %F95_types
     %F95_io_keywords
+    %F95_intrinsic_subroutine_sigs
+    %F95_intrinsic_function_sigs
     &sub_func_incl_mod
     &show_annlines
     &pp_annlines
@@ -1093,6 +1095,17 @@ our %F95_types = map { $_=>1 } @F95_types_list;
 
 
 our %F95_intrinsics = (%F95_intrinsic_functions,%F95_other_intrinsics);
+
+our %F95_intrinsic_subroutine_sigs = (
+	'getarg' => [
+		'integer(kind=2) :: argIdx',
+		'character(len=128) :: arg'
+	],
+);
+
+our %F95_intrinsic_function_sigs = (
+	'iargc' => [[],'integer(kind=2) :: nArgs'],
+);
 
 our %F95_intrinsic_functions_for_eval = (
     # Numeric Functions

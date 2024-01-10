@@ -1229,6 +1229,7 @@ MODULE
 #@ ParamDecl =>
 #@        Indent    => $indent
 #@        Type      => $type
+#@		  ArrayOrScalar => Array | Scalar
 #@        Attr      => $attr
 #@        Dim       => []
 #@        Parameter => 'parameter'

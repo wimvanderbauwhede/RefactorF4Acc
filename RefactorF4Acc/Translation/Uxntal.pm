@@ -15,7 +15,7 @@ use RefactorF4Acc::Refactoring::FoldConstants qw( fold_constants_all fold_consta
 # use RefactorF4Acc::Parser::Expressions qw( @sigils );
 use RefactorF4Acc::Translation::LlvmToTyTraIR qw( generate_llvm_ir_for_TyTra );
 use RefactorF4Acc::Emitter qw( emit_AnnLines );
-
+use Fortran::F95VarDeclParser qw( parse_F95_var_decl );
 #
 #   (c) 2010-2024 Wim Vanderbauwhede <wim@dcs.gla.ac.uk>
 #
@@ -173,7 +173,7 @@ Instead of the nice but cumbersome approach we had until now, from now on it is 
 
 	my $pass_pointer_analysis = sub { my ($annline,$state) = @_;
 		my ($line, $info) = @{$annline};
-
+croak "TODO: adapt this to Uxntal!";
 		if (exists $info->{'Signature'} ) {
 			$state->{'Args'} = { map { $_=>1 } @{$info->{'Signature'}{'Args'}{'List'}}};
 		}
@@ -550,6 +550,7 @@ sub _emit_Uxntal_code { (my $stref, my $module_name, my $ocl)=@_;
 } # END of _emit_Uxntal_code
 
 sub _emit_subroutine_sig_Uxntal { (my $stref, my $f, my $annline)=@_;
+carp $f;
 	    (my $line, my $info) = @{ $annline };
 	    my $Sf = $stref->{'Subroutines'}{$f};
 
@@ -901,7 +902,7 @@ sub _emit_expression_Uxntal { my ($ast, $stref, $f, $info)=@_;
 				if (isStrCmp($ast, $stref, $f,$info)) {
 					return "$lv $rv scmp ";
 				} else {
-                	return "$lv $rv  ".$sigils[$opcode].'2'; # FIXME, needs refining
+                	return "$lv $rv  ".($opcode != 27 ? $sigils[$opcode].'2' : ''); # FIXME, needs refining
 				}
             }
         } elsif (scalar @{$ast}==2) { #  for '('  and '$'
@@ -999,7 +1000,7 @@ sub _emit_expression_Uxntal { my ($ast, $stref, $f, $info)=@_;
 								}
 								return $rune.$mod_name.'_'.$exp . ' '. $instr; #
 							} else {
-								carp "<$f>, <$exp>, <$mod_name>"; carp $stref->{'Subroutines'}{$f}{$set};
+								# carp "<$f>, <$exp>, <$mod_name>"; carp $stref->{'Subroutines'}{$f}{$set};
 								my $rec = get_var_record_from_set($stref->{'Subroutines'}{$f}{'Vars'},$exp);
 								if ($rec->{'Type'} eq 'logical') {
 									$instr = 'LDA';
@@ -1076,9 +1077,19 @@ sub _emit_subroutine_call_expr_Uxntal { my ($stref,$f,$line,$info) = @_;
 	my @call_arg_expr_strs_Uxntal=();
 	# carp Dumper $info;
 	my $subname = $info->{'SubroutineCall'}{'Name'};
-	my $Ssubname = $stref->{'Subroutines'}{$subname};
-	croak $f,Dumper($info->{'SubroutineCall'}) if $line=~/getarg/;
+	# croak "$f,$subname:",Dumper($info->{'SubroutineCall'}) if $line=~/^int$/;
+if (exists $info->{'SubroutineCall'}{'IsExternal'}) {
+	# carp "$f,$subname:",Dumper($info->{'SubroutineCall'}) ;
+	if ($subname eq 'exit') {
+		return 'BRK';
+	}
+	if (exists  $F95_intrinsic_subroutine_sigs{$subname}) {
+		# croak Dumper $F95_intrinsic_subroutine_sigs{$subname};
+		return __emit_intrinsic_subroutine_call_expr_Uxntal($stref,$f,$line,$info);
+	}
 
+}
+	my $Ssubname = $stref->{'Subroutines'}{$subname};
 
 	# my $mvar = $subname;
 	# AD-HOC, replacing abs/min/max to fabs/fmin/fmax without any type checking ... FIXME!!!
@@ -1165,6 +1176,21 @@ sub _emit_subroutine_call_expr_Uxntal { my ($stref,$f,$line,$info) = @_;
 
 } # END of _emit_subroutine_call_expr_Uxntal
 
+
+sub __emit_intrinsic_subroutine_call_expr_Uxntal { my ($stref,$f,$line,$info) = @_;
+	my $subname = $info->{'SubroutineCall'}{'Name'};
+	# my @arg_decls=();
+	# for my $arg_decl_str (@{ $F95_intrinsic_subroutine_sigs{$subname} }) {
+	# 	push @arg_decls, parse_F95_var_decl($arg_decl_str);
+	# 	# carp Dumper $arg_decl;
+	# }
+	# for my $call_arg_str (@{ $info->{'SubroutineCall'}{'Args'}{'List'} }) {
+	# }
+	my $ast = $info->{'SubroutineCall'}{'ExpressionAST'};
+	carp Dumper $ast;
+	my $tal_str = _emit_expression_Uxntal($ast, $stref, $f, $info);
+	croak "$tal_str $subname";
+} # END of __emit_intrinsic_subroutine_call_expr_Uxntal
 
 sub _emit_subroutine_return_vals_Uxntal { my ($stref,$f,$info) = @_;
 	my @sub_retvals_Uxntal=();
@@ -1338,6 +1364,9 @@ sub _gen_array_index_f2c1d_h {
 	close $fh;
 	close RefactorF4Acc::Translation::Uxntal::DATA;
 } # END of _gen_array_index_f2c1d_h
+
+
+
 
 __DATA__
 
