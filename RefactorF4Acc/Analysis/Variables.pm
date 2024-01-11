@@ -439,6 +439,8 @@ sub analyse_used_variables {
 	( $stref, $state ) = stateful_pass_inplace( $stref, $f, $__analyse_vars_on_line, $state, 'analyse_used_variables() ' . __LINE__ );
 
 	my $vars_in_code_unit = $state->[2];
+	$Sf->{'AllVarsAndPars'}{'Set'}=$vars_in_code_unit;
+	$Sf->{'AllVarsAndPars'}{'List'}= [sort keys %{$vars_in_code_unit}];
 	# So now we simply delete any var that is not in this set
 	for my $used_var (@{$Sf->{'VarsFromContainer'}{'List'}}) {
 		if (not exists $vars_in_code_unit->{$used_var}) {

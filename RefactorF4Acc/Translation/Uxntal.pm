@@ -89,9 +89,9 @@ sub translate_program_to_Uxntal {  (my $stref, my $program_name) = @_;
        # subroutine-specific passes
 	   [
 		  [
-			  \&determine_argument_io_direction_rec,
-			  \&update_arg_var_decl_sourcelines,
-			  \&_declare_undeclared_variables,
+			#   \&determine_argument_io_direction_rec,
+			#   \&update_arg_var_decl_sourcelines,
+			#   \&_declare_undeclared_variables,
 			  \&replace_case_by_if
 		  ],
 			#,\&_remove_unused_variables],
@@ -160,38 +160,102 @@ sub translate_sub_to_Uxntal {  (my $stref, my $f, my $ocl) = @_;
 WV 2021-06-07
 
 Instead of the nice but cumbersome approach we had until now, from now on it is simple:
-- All args are pointers
-- If a call arg is an expression, I will need to generate a temp, TODO
-- Arguments to calls are therefore always either bare or &arg_var[...]
-- Accesses in subroutine bodies are always *lhs_vars = expr(*rhs_vars)
-- Scalar local vars are only pointers if they are args to a subroutine
-- The latter is weak because it means that if I have a parameter used as arg,
+- All non-constant, non-param args are pointers because they are addresses
+- If a call arg is an expression, then it's a value
+- Arguments to calls are therefore always either `;`; &arg_var[idx_expr] becomes ;arg_var idx_expr ADD2
+- Accesses in subroutine bodies are always *lhs_vars = expr(*rhs_vars), i.e. expr(*rhs_vars LDA{1,2}) lhs_vars STA{1,2}
+- Scalar local vars are values, so also LDA
+- A parameter used as arg should be passed by value
 
 =cut
 	my $Sf = $stref->{'Subroutines'}{$f};
-	my $annlines = get_annotated_sourcelines( $stref, $f );
 
+	for my $var (@{$Sf->{'AllVarsAndPars'}{'List'}}) {
+		my $subset = in_nested_set($Sf,'Vars',$var);
+		my $decl = get_var_record_from_set($Sf->{$subset},$var);
+		say "$f $var $subset", Dumper $decl;
+
+			my $wordsz=0;
+			my $type = $decl->{'Type'};	
+			if ($type eq 'integer') {
+				my $kind = $decl->{'Attr'};
+				$kind=~s/kind\s*=\s*//;
+				$kind=~s/^\s*\(\s*//;
+				$kind=~s/\s*\(\s*$//;
+				$kind*=1;
+				if ($kind>2) {
+					die "Integers must be 8-bit or 16-bit: $var in $f is $kind\n";
+				}
+				$wordsz=$kind;
+			}
+			elsif ($type eq 'logical') {
+				$wordsz=1;
+			}
+			elsif ($type eq 'character') {
+					$wordsz=1;
+			} else {
+				die "Supported types are integer, character and logical: $var in $f is $type\n";
+			}
+			$Sf->{'WordSizes'}{$var} = $wordsz;
+	}
+
+	my $annlines = get_annotated_sourcelines( $stref, $f );
+# This analysis only looks at args, local vars and local parameters. We need to include globals
 	my $pass_pointer_analysis = sub { my ($annline,$state) = @_;
 		my ($line, $info) = @{$annline};
-croak "TODO: adapt this to Uxntal!";
+
 		if (exists $info->{'Signature'} ) {
 			$state->{'Args'} = { map { $_=>1 } @{$info->{'Signature'}{'Args'}{'List'}}};
 		}
 		elsif (exists $info->{'VarDecl'} ) {
 			my $var = $info->{'VarDecl'}{'Name'};
-			# carp "$var";
 			if (exists $state->{'Args'}{$var} ) {
-				$state->{'Pointers'}{$var}='*';
+				$state->{'Pointers'}{$var}='*'; # means should be treated as a pointer
 			} else {
-				$state->{'Pointers'}{$var}='';
+				$state->{'Pointers'}{$var}=''; # means should be treated as a scalar, i.e. LDA
 				$state->{'LocalVars'}{$var}=1;
 			}
+			my $wordsz=0;
+			my $type = $info->{'ParsedVarDecl'}{'TypeTup'}{'Type'};	
+			if ($type eq 'integer') {
+				my $kind = $info->{'ParsedVarDecl'}{'TypeTup'}{'Kind'};
+				if ($kind>2) {
+					die "Integers must be 8-bit or 16-bit: $var in $f is $kind\n";
+				}
+				$wordsz=$kind;
+			}
+			elsif ($type eq 'logical') {
+				$wordsz=1;
+			}
+			elsif ($type eq 'character') {
+					$wordsz=1;
+			} else {
+				die "Supported types are integer, character and logical: $var in $f is $type\n";
+			}
+			$state->{'WordSizes'}{$var}=$wordsz;
 		}
 		elsif ( exists $info->{'ParamDecl'} ) {
-			# croak "SHOULD NOT HAPPEN: $f: ".Dumper($annline);
-				my $var = $info->{'ParamDecl'}{'Var'};
-				$state->{'Pointers'}{$var}='';
-				$state->{'Parameters'}{$var}=1;
+			my $var = $info->{'ParamDecl'}{'Var'};
+			$state->{'Pointers'}{$var}='';
+			$state->{'Parameters'}{$var}=1;
+			my $wordsz=0;
+			my $type = $info->{'ParsedParDecl'}{'TypeTup'}{'Type'};	
+			if ($type eq 'integer') {
+				my $kind = $info->{'ParsedParDecl'}{'TypeTup'}{'Kind'};
+				if ($kind>2) {
+					die "Integers must be 8-bit or 16-bit: $var in $f is $kind\n";
+				}
+				$wordsz=$kind;
+			}
+			elsif ($type eq 'logical') {
+				$wordsz=1;
+			}
+			elsif ($type eq 'character') {
+					$wordsz=1;
+			} else {
+				die "Supported types are integer, character and logical: $var in $f is $type\n";
+			}
+			$state->{'WordSizes'}{$var}=$wordsz;
 		}
 		# FIXME: this is because of the presence of an empty $info->{'SubroutineCall'} record.
 		elsif (exists $info->{'SubroutineCall'} and exists $info->{'SubroutineCall'}{'Name'}) {
@@ -205,6 +269,7 @@ croak "TODO: adapt this to Uxntal!";
 					or $info->{'SubroutineCall'}{'Args'}{'Set'}{$arg_expr_str}{'Type'} eq 'Expr'
 					) ? $info->{'SubroutineCall'}{'Args'}{'Set'}{$arg_expr_str}{'Expr'}
 					: $info->{'SubroutineCall'}{'Args'}{'Set'}{$arg_expr_str}{'Arg'};
+
 					if (exists $state->{'LocalVars'}{$arg}) {
 						$state->{'Pointers'}{$arg}='*';
 					}
@@ -229,15 +294,42 @@ croak "TODO: adapt this to Uxntal!";
 			}
 		}
 
+		elsif (exists $info->{'Do'} ) {
+			if (exists $info->{'Do'}{'While'}) {
+				say 'TODO: Do While: '.Dumper($info->{'Do'}{'ExpressionsAST'});
+			} else {
+				say 'TODO: Do: '.Dumper($info->{'Do'});
+			}
+		}
+		elsif (exists $info->{'BeginDo'} ) {
+			croak 'TODO: BeginDo: what is this?';
+		}
+
+		if (exists $info->{'Assignment'} ) {
+			if (exists $info->{'If'}) {
+			}
+		}
+		elsif (exists $info->{'SubroutineCall'} and not exists $info->{'IOCall'}) {
+			if (exists $info->{'If'}) {
+			}
+		}
+		elsif (exists $info->{'IOCall'}) {
+			if (exists $info->{'PrintCall'}) {
+			}
+		}
+        elsif (exists $info->{'IfThen'}  ) {
+        }
+
+
 		return ([[$line,$info]],$state)
 	};
 
-	my $pass_state = {'Pointers'=>{},'Args' =>{},'LocalVars' =>{}, 'Parameters'=>{}};
+	my $pass_state = {'Pointers'=>{},'Args' =>{},'LocalVars' =>{}, 'Parameters'=>{}, 'WordSizes'=>{}};
 	(my $new_annlines_,$pass_state) = stateful_pass($annlines,$pass_pointer_analysis,$pass_state,"pass_pointer_analysis($f)");
 	$Sf->{'Pointers'} = $pass_state->{'Pointers'};
+	$Sf->{'WordSizes'} = $pass_state->{'WordSizes'};
 
-    # my $tannlines           = get_annotated_sourcelines( $stref, $f );
-	# emit_AnnLines($stref, $f, $tannlines);
+
 # --------------------------------------------------------------------------------------------
 	my $pass_translate_to_Uxntal = sub { (my $annline, my $state)=@_;
 		(my $line,my $info)=@{$annline};
@@ -934,10 +1026,11 @@ sub _emit_expression_Uxntal { my ($ast, $stref, $f, $info)=@_;
 				}
 				my $mvar = $ast->[1]; # Why is this not $exp?
 				my $called_sub_name = $stref->{'CalledSub'} // '';
-				if (exists $stref->{'Subroutines'}{$f}{'Pointers'}{$mvar} ) {
+				if (exists $stref->{'Subroutines'}{$f}{'Pointers'}{$mvar} ) { 
 					# Meaning that $mvar is a pointer in $f
 					# Now we need to check if it is also a pointer in $subname
 					my $ptr = $stref->{'Subroutines'}{$f}{'Pointers'}{$mvar};
+					my $wordsz = $stref->{'Subroutines'}{$f}{'WordSizes'}{$mvar};
 					# carp "$f <$ptr>" ."<$called_sub_name>".'<', exists  $stref->{'Subroutines'}{$called_sub_name} ,'><', exists $stref->{'Subroutines'}{$called_sub_name}{'Pointers'}{$mvar},'>' if $mvar eq 'wet_j_k';
 					if ($called_sub_name ne '' and $called_sub_name ne $f and
 					exists  $stref->{'Subroutines'}{$called_sub_name}
@@ -945,11 +1038,12 @@ sub _emit_expression_Uxntal { my ($ast, $stref, $f, $info)=@_;
 						my $sig_ptr = $stref->{'Subroutines'}{$called_sub_name}{'Pointers'}{$mvar};
 						warn "SIG PTR: $sig_ptr <> $ptr";
 						if ($sig_ptr eq '' and $ptr eq '*') {
-							$ptr = '*'
+							# function expects a value but is getting pointer
+							$ptr = ''; # change to value
 						} elsif ($sig_ptr eq '*' and $ptr eq '') {
+							# function expects a pointer but is getting a scalar
+							croak "PROBLEM: $mvar in call to $called_sub_name in $f";
 							$ptr = '&'
-						} else {
-							$ptr='';
 						}
 					} else {
 						if ( $called_sub_name eq $f) {
@@ -1187,9 +1281,9 @@ sub __emit_intrinsic_subroutine_call_expr_Uxntal { my ($stref,$f,$line,$info) = 
 	# for my $call_arg_str (@{ $info->{'SubroutineCall'}{'Args'}{'List'} }) {
 	# }
 	my $ast = $info->{'SubroutineCall'}{'ExpressionAST'};
-	carp Dumper $ast;
+	# carp Dumper $ast;
 	my $tal_str = _emit_expression_Uxntal($ast, $stref, $f, $info);
-	croak "$tal_str $subname";
+	return "$tal_str $subname";
 } # END of __emit_intrinsic_subroutine_call_expr_Uxntal
 
 sub _emit_subroutine_return_vals_Uxntal { my ($stref,$f,$info) = @_;
