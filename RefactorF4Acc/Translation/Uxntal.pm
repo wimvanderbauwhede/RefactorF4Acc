@@ -172,31 +172,41 @@ Instead of the nice but cumbersome approach we had until now, from now on it is 
 
 	for my $var (@{$Sf->{'AllVarsAndPars'}{'List'}}) {
 		my $subset = in_nested_set($Sf,'Vars',$var);
+		if ($subset eq '') {
+			$subset = in_nested_set($Sf,'VarsFromContainer',$var);
+		}
+		if ($subset eq '') {
+			$subset = in_nested_set($Sf,'ParametersFromContainer',$var);
+		}
+		if ($subset eq '') {
+			croak "$f $var";
+		}
 		my $decl = get_var_record_from_set($Sf->{$subset},$var);
-		say "$f $var $subset", Dumper $decl;
+		# croak "$f $var",Dumper($decl) if $f eq 'clearFunktalTokens' and $var eq 'funktalTokensIdx';
+		# say "$f $var $subset", Dumper $decl;
 
-			my $wordsz=0;
-			my $type = $decl->{'Type'};	
-			if ($type eq 'integer') {
-				my $kind = $decl->{'Attr'};
-				$kind=~s/kind\s*=\s*//;
-				$kind=~s/^\s*\(\s*//;
-				$kind=~s/\s*\(\s*$//;
-				$kind*=1;
-				if ($kind>2) {
-					die "Integers must be 8-bit or 16-bit: $var in $f is $kind\n";
-				}
-				$wordsz=$kind;
+		my $wordsz=0;
+		my $type = $decl->{'Type'};	
+		if ($type eq 'integer') {
+			my $kind = $decl->{'Attr'};
+			$kind=~s/kind\s*=\s*//;
+			$kind=~s/^\s*\(\s*//;
+			$kind=~s/\s*\)\s*$//;
+			$kind*=1;
+			if ($kind>2) {
+				die "Integers must be 8-bit or 16-bit: $var in $f is $kind\n";
 			}
-			elsif ($type eq 'logical') {
+			$wordsz=$kind;
+		}
+		elsif ($type eq 'logical') {
+			$wordsz=1;
+		}
+		elsif ($type eq 'character') {
 				$wordsz=1;
-			}
-			elsif ($type eq 'character') {
-					$wordsz=1;
-			} else {
-				die "Supported types are integer, character and logical: $var in $f is $type\n";
-			}
-			$Sf->{'WordSizes'}{$var} = $wordsz;
+		} else {
+			die "Supported types are integer, character and logical: $var in $f is $type\n";
+		}
+		$Sf->{'WordSizes'}{$var} = $wordsz;
 	}
 
 	my $annlines = get_annotated_sourcelines( $stref, $f );
@@ -327,7 +337,7 @@ Instead of the nice but cumbersome approach we had until now, from now on it is 
 	my $pass_state = {'Pointers'=>{},'Args' =>{},'LocalVars' =>{}, 'Parameters'=>{}, 'WordSizes'=>{}};
 	(my $new_annlines_,$pass_state) = stateful_pass($annlines,$pass_pointer_analysis,$pass_state,"pass_pointer_analysis($f)");
 	$Sf->{'Pointers'} = $pass_state->{'Pointers'};
-	$Sf->{'WordSizes'} = $pass_state->{'WordSizes'};
+	# $Sf->{'WordSizes'} = $pass_state->{'WordSizes'};
 
 
 # --------------------------------------------------------------------------------------------
@@ -1026,11 +1036,12 @@ sub _emit_expression_Uxntal { my ($ast, $stref, $f, $info)=@_;
 				}
 				my $mvar = $ast->[1]; # Why is this not $exp?
 				my $called_sub_name = $stref->{'CalledSub'} // '';
-				if (exists $stref->{'Subroutines'}{$f}{'Pointers'}{$mvar} ) { 
+				croak "$f $mvar".Dumper($stref->{'Subroutines'}{$f}{'WordSizes'}) if $opcode==2 and not exists $stref->{'Subroutines'}{$f}{'WordSizes'}{$mvar};
+				my $wordsz = $stref->{'Subroutines'}{$f}{'WordSizes'}{$mvar};
+				if (exists $stref->{'Subroutines'}{$f}{'Pointers'}{$mvar} ) {
 					# Meaning that $mvar is a pointer in $f
 					# Now we need to check if it is also a pointer in $subname
 					my $ptr = $stref->{'Subroutines'}{$f}{'Pointers'}{$mvar};
-					my $wordsz = $stref->{'Subroutines'}{$f}{'WordSizes'}{$mvar};
 					# carp "$f <$ptr>" ."<$called_sub_name>".'<', exists  $stref->{'Subroutines'}{$called_sub_name} ,'><', exists $stref->{'Subroutines'}{$called_sub_name}{'Pointers'}{$mvar},'>' if $mvar eq 'wet_j_k';
 					if ($called_sub_name ne '' and $called_sub_name ne $f and
 					exists  $stref->{'Subroutines'}{$called_sub_name}
@@ -1063,15 +1074,15 @@ sub _emit_expression_Uxntal { my ($ast, $stref, $f, $info)=@_;
 
 						croak $f.'_'.$exp.';'.Dumper( __has_module_level_declaration($stref,$f,$exp));
 					} else {
-						if ($ptr eq '') {
+						# if ($ptr eq '') {
 							# return $exp;
-							return ';'.$f.'_'.$exp.' LDA2';
-						} else {
-							# return '('.$ptr.$exp.')';
-							return ';'.$f.'_'.$exp.' LDA2';
-						}
+							return ';'.$f.'_'.$exp.' LDA' . $wordsz;
+						# } else {
+						# 	# return '('.$ptr.$exp.')';
+						# 	return ';'.$f.'_'.$exp.' LDA2';
+						# }
 					}
-				} else {
+				} else { # not local variables
 					if ($exp eq '.true.') {
 						return '#01';
 					} elsif ($exp eq '.false.') {
@@ -1081,26 +1092,29 @@ sub _emit_expression_Uxntal { my ($ast, $stref, $f, $info)=@_;
 						my $instr = '';
 						if ($sigil eq '$') {
 							$rune = ';';
-							$instr = ' LDA2';
+							$instr = ' LDA' .$wordsz;
 						}
 						if ($exp =~ /^[a-zA-Z_]/) {
 							my ($mod_name, $set) = __has_module_level_declaration($stref,$f,$exp) ;
 
 							if ($mod_name) {
 								# carp Dumper $stref->{'Modules'}{$mod_name}{$set};
-								my $rec = get_var_record_from_set($stref->{'Modules'}{$mod_name}{'Vars'},$exp);
-								if ($rec->{'Type'} eq 'logical') {
-									$instr = 'LDA'; 
+								# my $rec = get_var_record_from_set($stref->{'Modules'}{$mod_name}{'Vars'},$exp);
+								# if ($rec->{'Type'} eq 'logical') {
+								# 	$instr = 'LDA'; 
+								# }
+								if ($set=~/par/i) {
+									croak $set;
 								}
 								return $rune.$mod_name.'_'.$exp . ' '. $instr; #
 							} else {
 								# carp "<$f>, <$exp>, <$mod_name>"; carp $stref->{'Subroutines'}{$f}{$set};
-								my $rec = get_var_record_from_set($stref->{'Subroutines'}{$f}{'Vars'},$exp);
-								if ($rec->{'Type'} eq 'logical') {
-									$instr = 'LDA';
-								}
+								# my $rec = get_var_record_from_set($stref->{'Subroutines'}{$f}{'Vars'},$exp);
+								# if ($rec->{'Type'} eq 'logical') {
+								# 	$instr = 'LDA';
+								# }
 
-								return $rune.$exp . ' '. $instr;#"SIGIL:$sigil ".
+								return $rune.$f.'_'.$exp . ' '. $instr;#"SIGIL:$sigil ".
 							}
 						} else {
 							return $exp;

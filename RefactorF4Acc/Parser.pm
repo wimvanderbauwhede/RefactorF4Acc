@@ -4292,7 +4292,7 @@ Case 3: operation comma_sep_list : READ, PRINT, ACCEPT, REWIND => $attr_ast
 sub _parse_read_write_print {
 
     ( my $line, my $info, my $stref, my $f ) = @_;
-
+ 
     my $sub_or_func = sub_func_incl_mod( $f, $stref );
     my $Sf          = $stref->{$sub_or_func}{$f};
     my $tline=$line;
@@ -4368,8 +4368,15 @@ sub _parse_read_write_print {
          'List' => [sort keys %impl_do_range_vars]
     };
     my $attrs_vars = get_vars_from_expression($attrs_ast,{} );
+	for my $io_control_spec (qw( unit fmt nml rec iostat err end eor advance size) ) {
+		if (exists $attrs_vars->{$io_control_spec}) {
+			delete $attrs_vars->{$io_control_spec};
+		}
+	}
     $info->{'CallAttrs'} = { 'Set' => $attrs_vars, 'List' => [ sort keys %{ $attrs_vars } ] };
+
     my $exprs_vars = get_vars_from_expression($exprs_ast,{} );
+	# croak Dumper $exprs_vars if exists $exprs_vars->{'advance'};
     #my $vars = { %{ $attrs_vars }, %{ $expr_vars } };
     $info->{'ExprVars'} =  { 'Set' => $exprs_vars, 'List' => [ sort keys %{ $exprs_vars }] };
 

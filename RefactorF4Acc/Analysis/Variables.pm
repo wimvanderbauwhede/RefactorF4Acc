@@ -43,6 +43,7 @@ our @EXPORT_OK = qw(
 
 # WV 2023-12-13 This needs to handle variables from modules and containers as well.
 # I think I will create analyse_used_variables for this.
+# WV 2024-01-12 VardDecl and Signature is not included, I assume because these should have been handled already
 sub analyse_variables {
 	( my $stref, my $f, my $annline ) = @_;
 
@@ -406,18 +407,21 @@ sub analyse_used_variables {
 			or exists $info->{'CloseCall'}# IO
 			or exists $info->{'RewindCall'}# IO
 			or exists $info->{'ParamDecl'}
+			or exists $info->{'VarDecl'}
+			or exists $info->{'Signature'}
 			or exists $info->{'Equivalence'}
 			or (exists $info->{'Data'} and ( exists $Sf->{'BlockData'} and $Sf->{'BlockData'} == 1 ))
 			) {
 			( my $stref, my $f, my $identified_vars ) = @{$state};
-
 			my $Sf     = $stref->{'Subroutines'}{$f};
 		    my $chunks_ref = identify_vars_on_line($annline);
 			my @chunks = @{ $chunks_ref };
 
+
 			# -------------------------------------------------------------------------------------------------------------------
 
 			for my $mvar (@chunks) {
+				croak $line,Dumper(@chunks) if $mvar eq 'advance';
                 next if exists $stref->{'Subroutines'}{$f}{'CalledSubs'}{'Set'}{$mvar};    # Means it's a function
 				next if $mvar =~ /^\d+(?:_[1248])?$/;
 				next if not defined $mvar or $mvar eq '';
@@ -440,6 +444,11 @@ sub analyse_used_variables {
 
 	my $vars_in_code_unit = $state->[2];
 	$Sf->{'AllVarsAndPars'}{'Set'}=$vars_in_code_unit;
+	# my $decl = get_var_record_from_set($Sf->{'Vars'},'funktalTokensIdx');
+	#  if ($f eq 'clearFunktalTokens') {
+	#  say $f.Dumper( $Sf);
+	# croak;
+	#  }
 	$Sf->{'AllVarsAndPars'}{'List'}= [sort keys %{$vars_in_code_unit}];
 	# So now we simply delete any var that is not in this set
 	for my $used_var (@{$Sf->{'VarsFromContainer'}{'List'}}) {
@@ -448,7 +457,7 @@ sub analyse_used_variables {
 		}
 	}
 	$Sf->{'VarsFromContainer'}{'List'} = [sort keys %{$Sf->{'VarsFromContainer'}{'Set'}}];
-	# WV 2023-12-23 this is too aggressive
+	# WV 2023-12-23 this is too aggressive, but WHY?
 	# for my $used_var (@{$Sf->{'ParametersFromContainer'}{'List'}}) {
 	# 	if (not exists $vars_in_code_unit->{$used_var}) {
 	# 		delete $Sf->{'ParametersFromContainer'}{'Set'}{$used_var}
