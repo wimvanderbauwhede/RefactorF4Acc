@@ -573,19 +573,19 @@ sub identify_vars_on_line {
 
 ## Here we populate VarsFromContainers and ParametersFromContainers, where "Container" is any enclosing unit.
 ## Requires populate_UsesTransitively to be run first
-sub get_vars_pars_from_containers { my ($stref,$f) = @_; 
+sub get_vars_pars_from_containers { my ($stref,$f) = @_;
 	my $sub_or_func_or_mod = sub_func_incl_mod( $f, $stref );
 
 	my $Sf = $stref->{$sub_or_func_or_mod}{$f};
-	$Sf->{'VarsFromContainer'}{'List'} = []; 
+	$Sf->{'VarsFromContainer'}{'List'} = [];
 	$Sf->{'VarsFromContainer'}{'Set'} = {};
 	$Sf->{'ParametersFromContainer'}{'List'} = [];
 	$Sf->{'ParametersFromContainer'}{'Set'} = {};
 
 	# For the case of Contained subroutines
-	 
+
 	my @used_modules = sort keys %{$Sf->{'UsesTransitively'}};
-	# # Looks like I forgot to add the enclosing module 
+	# # Looks like I forgot to add the enclosing module
 	# if (exists $Sf->{'InModule'}){
 	# 	$Sf->{'UsesTransitively'}{$Sf->{'InModule'}} = [];
 	# 	@used_modules = (@used_modules,$Sf->{'InModule'});
@@ -618,7 +618,7 @@ sub populate_UsesTransitively { my ($stref,$f) = @_;
 		if ( exists $Sf->{'InModule_Blocks'} ) {
 			@mods = sort keys %{$Sf->{'InModule_Blocks'}};
 		}
-		elsif ( exists $Sf->{'InModule'} ) { 
+		elsif ( exists $Sf->{'InModule'} ) {
 			my $mod = $Sf->{'InModule'};
 			@mods = ($mod);
 		}

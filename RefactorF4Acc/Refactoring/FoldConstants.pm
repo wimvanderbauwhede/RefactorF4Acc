@@ -155,6 +155,7 @@ sub fold_constants {
 # This routine folds constants in declarations and statements but only based on parameters, not on iterators
 sub fold_constants_no_iters {
     my ($stref, $f) = @_;
+
     my $mod_or_sub = sub_func_incl_mod($f,$stref);
     my $Sf = $stref->{$mod_or_sub}{$f};
 
@@ -164,15 +165,16 @@ sub fold_constants_no_iters {
         # From $info, find the lines that contain expressions that might have constants to fold.
         # These would the same types of lines as in identify_array_accesses_in_exprs()
 
-            if (exists $info->{'VarDecl'} and not exists $info->{'ParamDecl'}
+            if (exists $info->{'VarDecl'} or exists $info->{'ParamDecl'} 
             #  and is_array_decl($info)
              ) {
 
-                my $var_name = $info->{'VarDecl'}{'Name'};
-
-                my $subset = in_nested_set( $Sf, 'Vars', $var_name );
+                my $var_name = exists $info->{'ParamDecl'} 
+                    ? ($info->{'ParamDecl'}{'Var'} // $info->{'ParamDecl'}{'Name'}[0])
+                    : $info->{'VarDecl'}{'Name'};
+                my $subset = in_nested_set( $Sf, (exists $info->{'ParamDecl'} ? 'Vars' :'Parameters'), $var_name );
                 my $decl = get_var_record_from_set($Sf->{$subset},$var_name);
-
+carp "<$subset> <$var_name>",Dumper ($info,$decl);
                 if (exists $decl->{'ArrayOrScalar'}
                 and $decl->{'ArrayOrScalar'} eq 'Array'
                 ) {
@@ -199,7 +201,12 @@ sub fold_constants_no_iters {
                             map {  $_->[0].':'.$_->[1] }
                             @{$const_dims}
                         ];
-                        $info->{'ParsedVarDecl'}{'Attributes'}{'Dim'}=$pv_dims;
+                        if (exists $info->{'ParsedVarDecl'}) {
+                            $info->{'ParsedParDecl'}{'Attributes'}{'Dim'}=$pv_dims;
+                        }
+                        elsif (exists $info->{'ParsedParDecl'}) {
+                            $info->{'ParsedVarDecl'}{'Attributes'}{'Dim'}=$pv_dims;
+                        }
                     } else {
                         warning("Could not constant-fold DIMENSION on line\n$line\nin subroutine $f");
                     }
@@ -208,7 +215,36 @@ sub fold_constants_no_iters {
                     if ($decl->{'Attr'}) {
                         my $len_expr= $decl->{'Attr'}; 
                         $len_expr=~s/len\s*=\s*//;
-                        if ($len_expr ne '(*)') {
+                            if ($len_expr ne '(*)') {
+                            my $expr_str = $len_expr;
+                            my ($ast,$str_,$error_,$has_funcs_)=parse_expression_no_context($expr_str);
+                            my ($const_ast, $retval_) = replace_consts_in_ast_no_iters($stref, $f, $ast, $info);
+                            my $const_expr_str = emit_expr_from_ast($const_ast);
+
+                            $const_expr_str=~s/\(\//[/g;
+                            $const_expr_str=~s/\/\)/]/g;
+
+                            my $const_len= eval( $const_expr_str );
+                            if (exists $info->{'ParsedVarDecl'}) {
+                                $info->{'ParsedVarDecl'}{'Attributes'}{'Len'}= "len=$const_len";
+                            }
+                            if (exists $info->{'ParsedParDecl'}) {
+                                $info->{'ParsedParDecl'}{'Attributes'}{'Len'}= "len=$const_len";
+                            }
+                        } else {
+                            if (exists $info->{'ParsedVarDecl'}) {
+                                $info->{'ParsedVarDecl'}{'Attributes'}{'Len'}= "len=*";
+                            }
+                            elsif (exists $info->{'ParsedParDecl'}) {
+                                $info->{'ParsedParDecl'}{'Attributes'}{'Len'}= "len=*";
+                            }
+                        }
+                    }
+                }
+                else { # another type
+                    if ($decl->{'Attr'}) {
+                        my $len_expr= $decl->{'Attr'}; 
+                        $len_expr=~s/kind\s*=\s*//;
                         my $expr_str = $len_expr;
                         my ($ast,$str_,$error_,$has_funcs_)=parse_expression_no_context($expr_str);
                         my ($const_ast, $retval_) = replace_consts_in_ast_no_iters($stref, $f, $ast, $info);
@@ -218,9 +254,11 @@ sub fold_constants_no_iters {
                         $const_expr_str=~s/\/\)/]/g;
 
                         my $const_len= eval( $const_expr_str );
-                        $info->{'ParsedVarDecl'}{'Attributes'}{'Len'}= "len=$const_len";
-                        } else {
-                            $info->{'ParsedVarDecl'}{'Attributes'}{'Len'}= "len=*";
+                        if (exists $info->{'ParsedVarDecl'}) {
+                            $info->{'ParsedVarDecl'}{'Attributes'}{'Len'}= "kind=$const_len";
+                        }
+                        elsif (exists $info->{'ParsedParDecl'}) {
+                            $info->{'ParsedParDecl'}{'Attributes'}{'Len'}= "kind=$const_len";
                         }
                     }
                 }
@@ -230,7 +268,10 @@ sub fold_constants_no_iters {
                 my $subset = in_nested_set( $Sf, 'Vars', $var_name );
                 my $decl = get_var_record_from_set($Sf->{$subset},$var_name);
             }
-            if (exists $info->{'ParamDecl'} ) {
+            if (exists $info->{'ParamDecl'} or exists $info->{'ParsedParDecl'}
+            # or (exists $info->{'ParsedVarDecl'} and exists $info->{'ParsedVarDecl'}{'Attributes'}
+            # and $info->{'ParsedVarDecl'}{'Attributes'} eq 'parameter')
+            ) {
                 # carp Dumper( $info);
                 my $ast = exists $info->{'ParamDecl'}{'AST'} ? $info->{'ParamDecl'}{'AST'}
                 : exists $info->{'ParsedParDecl'}{'Pars'}{'AST'} ? $info->{'ParsedParDecl'}{'Pars'}{'AST'} : [];
@@ -353,7 +394,7 @@ sub fold_constants_all {
 
         $Sf->{'RefactoredCode'}=$new_annlines;
 
-        # $stref = emit_AnnLines($stref,$f,$new_annlines) ;
+        $stref = emit_AnnLines($stref,$f,$new_annlines) ;
 
 	}
 
