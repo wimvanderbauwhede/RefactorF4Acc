@@ -2122,7 +2122,7 @@ sub _parse_use {
 					# the used module has been parsed
 					if ( exists $stref->{'Modules'}{$name} ) {    # Otherwise it means it is an external module
 						# 'Parameters' here is OK because the include might contain other includes
-						$Sf->{'UsedParameters'} = &append_to_set( $Sf->{'UsedParameters'}, $stref->{'Modules'}{$name}{'Parameters'} );
+						$Sf->{'ModuleParameters'} = &append_to_set( $Sf->{'ModuleParameters'}, $stref->{'Modules'}{$name}{'Parameters'} );
 						# I think here I should 'inherit' UsedLocalVars from this module, i.e. any LocalVars in $name
 						$Sf->{'UndeclaredCommonVars'} = append_to_set( $Sf->{'UndeclaredCommonVars'}, $stref->{'Modules'}{$name}{'DeclaredCommonVars'} );
 					}
@@ -2163,7 +2163,7 @@ sub __module_has_globals { (my $stref, my $f, my $mod_name, my $called_sub_name)
 		say "INFO: MODULE $mod_name USED in $f is GLOBAL because of $called_sub_name" if $I;
 		$stref->{'Modules'}{$mod_name}{'IsGlobal'}=1;
 
-		$Sf->{'UsedGlobalVars'} = append_to_set( $Sf->{'UsedGlobalVars'}, $stref->{'Modules'}{$mod_name}{'LocalVars'} );
+		$Sf->{'ModuleGlobalVars'} = append_to_set( $Sf->{'ModuleGlobalVars'}, $stref->{'Modules'}{$mod_name}{'LocalVars'} );
 
 		for my $var (keys %{ get_vars_from_set($stref->{'Modules'}{$mod_name}{'LocalVars'} ) } ) {
 #				say "VAR $var";
@@ -3413,8 +3413,8 @@ sub __parse_f95_decl {
 							$Sf->{$subset}{'Set'}{$tvar}=$decl;
 							push @{$Sf->{$subset}{'List'}}, $tvar;
 							if ($is_module) {
-								$Sf->{'UsedGlobalVars'}{'Set'}{$tvar}=$decl;
-								push @{$Sf->{'UsedGlobalVars'}{'List'}}, $tvar;
+								$Sf->{'ModuleGlobalVars'}{'Set'}{$tvar}=$decl;
+								push @{$Sf->{'ModuleGlobalVars'}{'List'}}, $tvar;
 							}
 						}
 					}

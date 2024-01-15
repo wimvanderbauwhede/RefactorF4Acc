@@ -494,7 +494,7 @@ sub __find_vars_in_block {# warn "This should use the same code as RefactorF4A::
 					if ( exists $tvars{$var_in_do} ) {
 						print "FOUND $var_in_do\n" if $V;
                         if (exists $varsref->{$var_in_do}{'Parameter'}
-                        and not exists $Sf->{'UsedParameters'}{'Set'}{$var_in_do}
+                        and not exists $Sf->{'ModuleParameters'}{'Set'}{$var_in_do}
                         ) {
                             $paramsref->{$block}{$var_in_do}=$var_in_do;
                         } else {
@@ -509,7 +509,7 @@ sub __find_vars_in_block {# warn "This should use the same code as RefactorF4A::
                 for my $var_on_line (@{$vars_on_line_ref}) {
                     if  ( exists $tvars{$var_on_line} ) {
                         if (exists $varsref->{$var_on_line}{'Parameter'}
-                        and not exists $Sf->{'UsedParameters'}{'Set'}{$var_on_line}
+                        and not exists $Sf->{'ModuleParameters'}{'Set'}{$var_on_line}
                         ) {
                             $paramsref->{$block}{$var_on_line}=$var_on_line;
                         } else {
@@ -609,7 +609,7 @@ sub __collect_args_for_new_sub { my ($Sf,$Sblock,$block,$occsref,$varsref,$args,
     for my $var ( sort keys %{ $occsref->{$block} } ) {
         say "VAR $var " if $V;
         if ( exists $occsref->{'OUTER'}{$var} ) {
-            if ( not exists $Sf->{'UsedParameters'}{'Set'}{$var}
+            if ( not exists $Sf->{'ModuleParameters'}{'Set'}{$var}
             and not exists $Sf->{'DeclaredCommonVars'}{'Set'}{$var}
             and not exists $Sf->{'UndeclaredCommonVars'}{'Set'}{$var}
             ) {
@@ -625,7 +625,7 @@ sub __collect_args_for_new_sub { my ($Sf,$Sblock,$block,$occsref,$varsref,$args,
                 next if $other_block eq $block;
                 if ( exists $occsref->{$other_block}{$var} ) {
                     $var_used_in_other_block=1;
-                    if ( not exists $Sf->{'UsedParameters'}{'Set'}{$var}
+                    if ( not exists $Sf->{'ModuleParameters'}{'Set'}{$var}
                     and not exists $Sf->{'DeclaredCommonVars'}{'Set'}{$var}
                     and not exists $Sf->{'UndeclaredCommonVars'}{'Set'}{$var}
                     ) {

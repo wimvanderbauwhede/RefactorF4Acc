@@ -4,7 +4,7 @@ what we need to do is
     - is the var defined at module level? We have 'Container', 'Container_Blocks' and 'ParametersFromContainer', which is only used in Refactoring::Common
     - What we don't seem to have is 'VarsFromContainer'; or yes, we have it in State, but it is not populated.
     - if not, does the module have Use statements? If so, these should be added to the Use statements of the subroutine.
-    - e have 'UsedParameters', 'UsedGlobalVars' and 'UsedLocalVars' for every subroutine. So it seems to me that in principle, we should not have this problem
+    - e have 'ModuleParameters', 'ModuleGlobalVars' and 'UsedLocalVars' for every subroutine. So it seems to me that in principle, we should not have this problem
     - we also have $stref->{'UsedModules'}, which has all used modules, but it's only populated in Modules::add_module_decls
     - but we have $stref->{'dModules'}, which has all modules reached in the recdescent
     and $Sf->{'Uses'}, which has the modules used by that unit (but not via the container)
@@ -14,3 +14,9 @@ what we need to do is
 In terms of refactoring, what we need is to detect that a variable used in a subroutine is declared in an enclosing or used module.
 
 The question is, given a variable in a subroutine, when should this become an argument?
+I think what I'll do is reserve `VarsFromContainer` for non-module containers, i.e. subroutines.
+Module variables are actually always global, so I don't think `UsedLocalVars` should exist.
+The question is if we need a distinction between `ModuleGlobalVars` and `ModuleGlobalVars`.
+Any var in UsedGlobalVars must be a module global. But not all module variables accessed in a subroutine are accessed via USE. 
+So it does make more sense to call them all `ModuleGlobalVars` and `ModuleParameters`
+

@@ -287,7 +287,7 @@ __parse_f95_decl < _analyse_lines < parse_fortran_src
 				'Attr' =>
 				'IODir' =>
 			};
-3256:				$info->{'UsedParameters'} = $pars_in_val;
+3256:				$info->{'ModuleParameters'} = $pars_in_val;
 Fortran::F95VarDeclParser::parse_F95_var_decl 
 3281:				$info->{'ParsedVarDecl'} = {
 TypeTup =>{
@@ -314,7 +314,7 @@ Dim
 
 
 __parse_f77_par_decl < _analyse_lines < parse_fortran_src
-3528:				$info->{'UsedParameters'} = $pars_in_val;
+3528:				$info->{'ModuleParameters'} = $pars_in_val;
 3529:				$info->{'ParamDecl'}      = {
 		'Indent'    => $indent,
 		'Type'      => $type,
@@ -446,7 +446,7 @@ Analysis.pm
 574:			} elsif ( exists $info->{'Assignment'} and not exists $info->{'Data'}) {
 575:				@chunks = ( @chunks, $info->{'Lhs'}{'VarName'}, @{ $info->{'Lhs'}{'IndexVars'}{'List'} }, @{ $info->{'Rhs'}{'VarList'}{'List'} } );
 576:			} elsif ( exists $info->{'ParamDecl'} ) {
-577:				@chunks = ( @chunks, keys %{ $info->{'UsedParameters'} } );
+577:				@chunks = ( @chunks, keys %{ $info->{'ModuleParameters'} } );
 735:		if ( exists $info->{'SubroutineCall'}
 736:			and not exists $info->{'SubroutineCall'}{'IsExternal'} )
 738:			my $sub = $info->{'SubroutineCall'}{'Name'};
@@ -1399,7 +1399,7 @@ $target{'Label' = $label;
 'Use' = $module;
 'Use'{'Inlineable' )
 'Use'{'Name' = $name;
-'UsedParameters' = $pars_in_val;
+'ModuleParameters' = $pars_in_val;
 'VarDecl'=$rdecl;
 'VarDecl'={'Name' => $var;#$rdecl;
 'VarDecl'{'Attr',

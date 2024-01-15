@@ -148,7 +148,7 @@ sub initialise_per_code_unit_tables {
 			#		$Sf->{'Parameters'} = {};
 			$Sf->{'LocalParameters'}    = { 'Set' => {}, 'List' => [] };
 			$Sf->{'IncludedParameters'} = { 'Set' => {}, 'List' => [] };
-			$Sf->{'UsedParameters'} = { 'Set' => {}, 'List' => [] }; # 
+			$Sf->{'ModuleParameters'} = { 'Set' => {}, 'List' => [] }; # 
 			$Sf->{'InheritedParameters'} = { 'Set' => {}, 'List' => [] };
 			$Sf->{'ParametersFromContainer'} = {
 					'Set' => {},
@@ -157,8 +157,11 @@ sub initialise_per_code_unit_tables {
 		}
 		# Var decls via a 'use' declaration
 		$Sf->{'UsedLocalVars'} = { 'Set' => {}, 'List' => [] }; # I don't think this actually exists
-		$Sf->{'UsedGlobalVars'} = { 'Set' => {}, 'List' => [] };
+		$Sf->{'ModuleGlobalVars'} = { 'Set' => {}, 'List' => [] };
 		# Same actualy, but this includes access via a container
+		# WV2024-01-15 this needs to change:
+		# VarsFromContainer is for containers that are *not* modules
+		# For modules, we use ModuleVars and ModuleGlobalVars
 		$Sf->{'VarsFromContainer'} = { 'Set' => {}, 'List' => [] };
 		# This is only for testing which vars are commons, nothing else.
 		$Sf->{'Commons'} = {};
@@ -172,18 +175,18 @@ sub initialise_per_code_unit_tables {
 
 		$Sf->{'CommonVars'}           = {
 			'Subsets' => {
-				'DeclaredCommonVars'   => $Sf->{'DeclaredCommonVars'}, # I overload this to contain UsedGlobalVars. FIXME!
+				'DeclaredCommonVars'   => $Sf->{'DeclaredCommonVars'}, # I overload this to contain ModuleGlobalVars. FIXME!
 				'UndeclaredCommonVars' => $Sf->{'UndeclaredCommonVars'},
 			}
 		};
 
-		$Sf->{'ModuleGlobalVars'}   = { 'Set' => {}, 'List' => [] };
-		$Sf->{'ModuleVars'}           = {
-			'Subsets' => {
-				'ModuleGlobalVars'   => $Sf->{'ModuleGlobalVars'}, # I overload this to contain UsedGlobalVars
-				'UsedGlobalVars' => $Sf->{'UsedGlobalVars'},
-			}
-		};
+		$Sf->{'ModuleVars'}   = { 'Set' => {}, 'List' => [] };
+		# $Sf->{'ModuleVars'}           = {
+		# 	'Subsets' => {
+		# 		'ModuleGlobalVars'   => $Sf->{'ModuleGlobalVars'}, # I overload this to contain ModuleGlobalVars
+		# 		'ModuleGlobalVars' => $Sf->{'ModuleGlobalVars'},
+		# 	}
+		# };
 
 		$Sf->{'OrigLocalVars'} = {
 			'Subsets' => {
@@ -243,7 +246,7 @@ sub initialise_per_code_unit_tables {
 					'Subsets' => {
 						'LocalParameters'    => $Sf->{'LocalParameters'},
 						'IncludedParameters' => $Sf->{'IncludedParameters'},
-						'UsedParameters' => $Sf->{'UsedParameters'},
+						'ModuleParameters' => $Sf->{'ModuleParameters'},
 						'ParametersFromContainer' => $Sf->{'ParametersFromContainer'}
 					}
 				};
@@ -253,7 +256,8 @@ sub initialise_per_code_unit_tables {
 					'Args'       => $Sf->{'Args'},
 					'CommonVars' => $Sf->{'CommonVars'},
 					'LocalVars'  => $Sf->{'LocalVars'},
-					'Parameters' => $Sf->{'Parameters'}
+					'Parameters' => $Sf->{'Parameters'},
+					'ModuleVars' => $Sf->{'ModuleVars'}
 				}
 			};
 
@@ -271,7 +275,7 @@ sub initialise_per_code_unit_tables {
 			$Sf->{'LocalVars'} =
 			  { 'Subsets' => {
 			  	'OrigLocalVars' => $Sf->{'OrigLocalVars'},
-			  	'UsedLocalVars' => $Sf->{'UsedLocalVars'}
+			  	'UsedLocalVars' => $Sf->{'UsedLocalVars'} # presumably this is always empty
 			  }
 			  };
 			 if (!$skipParams) {
@@ -279,15 +283,16 @@ sub initialise_per_code_unit_tables {
 					'Subsets' => {
 						'LocalParameters'    => $Sf->{'LocalParameters'},
 						'IncludedParameters' => $Sf->{'IncludedParameters'},
-						'UsedParameters' => $Sf->{'UsedParameters'}
+						'ModuleParameters' => $Sf->{'ModuleParameters'}
 					}
 				};
 			 }
 			$Sf->{'Vars'} = {
 				'Subsets' => {
 					'LocalVars'  => $Sf->{'LocalVars'},
-					'CommonVars' => $Sf->{'CommonVars'}, # I will overload this to include UsedGlobalVars
-					'Parameters' => $Sf->{'Parameters'}
+					'CommonVars' => $Sf->{'CommonVars'},
+					'Parameters' => $Sf->{'Parameters'},
+					'ModuleVars' => $Sf->{'ModuleVars'}
 				}
 			};
 		}

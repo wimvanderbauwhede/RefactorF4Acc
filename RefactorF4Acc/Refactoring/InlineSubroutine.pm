@@ -699,7 +699,7 @@ sub __rename_vars {
 
                 my $subset_args = in_nested_set($Sf,'Args', $var);
                 my $subset_par = in_nested_set($Sf,'Parameters', $var);
-                my $subset_usedpar = in_nested_set($Sf,'UsedParameters', $var);
+                my $subset_usedpar = in_nested_set($Sf,'ModuleParameters', $var);
                 my $subset_inclpar = in_nested_set($Sf,'IncludedParameters', $var);
                 if (not $subset_args ) {
                     if (

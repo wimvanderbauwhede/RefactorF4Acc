@@ -545,7 +545,7 @@ sub identify_vars_on_line {
 			} elsif ( (exists $info->{'Assignment'} and not exists $info->{'Data'}) or  exists $info->{'StatementFunction'}) {
 				@chunks = ( @chunks, $info->{'Lhs'}{'VarName'}, @{ $info->{'Lhs'}{'IndexVars'}{'List'} }, @{ $info->{'Rhs'}{'Vars'}{'List'} } );
 			} elsif ( exists $info->{'ParamDecl'} ) {
-				@chunks = ( @chunks, keys %{ $info->{'UsedParameters'} } );
+				@chunks = ( @chunks, keys %{ $info->{'ModuleParameters'} } );
 			} elsif ( exists $info->{'Data'}
 			or exists $info->{'Equivalence'} ) {
 				@chunks = ( @chunks, @{ $info->{'Vars'}{'List'} } );
@@ -577,10 +577,11 @@ sub get_vars_pars_from_containers { my ($stref,$f) = @_;
 	my $sub_or_func_or_mod = sub_func_incl_mod( $f, $stref );
 
 	my $Sf = $stref->{$sub_or_func_or_mod}{$f};
-	$Sf->{'VarsFromContainer'}{'List'} = [];
-	$Sf->{'VarsFromContainer'}{'Set'} = {};
-	$Sf->{'ParametersFromContainer'}{'List'} = [];
-	$Sf->{'ParametersFromContainer'}{'Set'} = {};
+	# There should be no needs for this, it's done in initialise_per_code_unit_tables()
+	# $Sf->{'VarsFromContainer'}{'List'} = [];
+	# $Sf->{'VarsFromContainer'}{'Set'} = {};
+	# $Sf->{'ParametersFromContainer'}{'List'} = [];
+	# $Sf->{'ParametersFromContainer'}{'Set'} = {};
 
 	# For the case of Contained subroutines
 
@@ -596,7 +597,7 @@ sub get_vars_pars_from_containers { my ($stref,$f) = @_;
 		my $pars = get_vars_from_set($stref->{'Modules'}{$module_name}{'LocalParameters'}); # Because Used and FromContainers should be captured through the rec descent
 		# if (exists $pars->{'funktalMaxNTokens'} and $f eq 'clearFunktalTokens') {croak "$module_name $f"}
 		$Sf->{'ParametersFromContainer'}{'Set'} = { %{$Sf->{'ParametersFromContainer'}{'Set'} }, %{$pars} };
-		my $vars = get_vars_from_set($stref->{'Modules'}{$module_name}{'UsedGlobalVars'}); # Because this is all that matters
+		my $vars = get_vars_from_set($stref->{'Modules'}{$module_name}{'ModuleGlobalVars'}); # Because this is all that matters
 		$Sf->{'VarsFromContainer'}{'Set'} = { %{$Sf->{'VarsFromContainer'}{'Set'} }, %{$vars} };
 
 	}

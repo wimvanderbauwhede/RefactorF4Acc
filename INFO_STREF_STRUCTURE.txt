@@ -234,13 +234,13 @@
 
 {UniqueVarCounters}
 
-{UsedGlobalVars}
+{ModuleGlobalVars}
 
 {UsedLocalVars}
 
 {UsedModules}{$src} 
 
-{UsedParameters}
+{ModuleParameters}
 
 
 Translation/OpenCLC     

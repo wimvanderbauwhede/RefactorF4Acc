@@ -290,12 +290,12 @@ sub _create_extra_arg_and_var_decls { #272 lines
 		push @{$rlines}, $BLANK_LINE;
 	}
 
-	if ( exists $Sf->{'UsedParameters'}{'List'}
-		and scalar @{ $Sf->{'UsedParameters'}{'List'} } > 0 )
+	if ( exists $Sf->{'ModuleParameters'}{'List'}
+		and scalar @{ $Sf->{'ModuleParameters'}{'List'} } > 0 )
 	{
-		print "INFO: UsedParameters in $f\n" if $I;
+		print "INFO: ModuleParameters in $f\n" if $I;
 
-		for my $par ( @{ $Sf->{'UsedParameters'}{'List'} } ) {
+		for my $par ( @{ $Sf->{'ModuleParameters'}{'List'} } ) {
 			# Skip any pars declared in a used module. It's either that or remove the module USE declaration. But that is more complex.
 			my $skip=0;
 			if (exists $Sf->{'Uses'}) {
@@ -310,10 +310,10 @@ sub _create_extra_arg_and_var_decls { #272 lines
 
 
 			my $test_par = in_nested_set( $Sf, 'Parameters', $par );
-			if ( not $test_par or $test_par eq 'UsedParameters' ) {
-				say "INFO PAR in $f: $par " . Dumper( $Sf->{'UsedParameters'}{'Set'}{$par} )
+			if ( not $test_par or $test_par eq 'ModuleParameters' ) {
+				say "INFO PAR in $f: $par " . Dumper( $Sf->{'ModuleParameters'}{'Set'}{$par} )
 				  if $I;
-				my $rdecl = $Sf->{'UsedParameters'}{'Set'}{$par};
+				my $rdecl = $Sf->{'ModuleParameters'}{'Set'}{$par};
 				my $rline = emit_f95_var_decl($rdecl);
 				my $info  = {};
 				$info->{'ParsedParDecl'} = {
@@ -418,7 +418,7 @@ sub _create_extra_arg_and_var_decls { #272 lines
 					$var = '';
 				}
 			}
-			if (    not exists $Sf->{'UsedGlobalVars'}{'Set'}{$var}
+			if (    not exists $Sf->{'ModuleGlobalVars'}{'Set'}{$var}
 				and not exists $Sf->{'CalledSubs'}{'Set'}{$var} )
 			{
 				say "INFO VAR: $var" if $I;
@@ -477,7 +477,7 @@ sub _create_extra_arg_and_var_decls { #272 lines
 	print "INFO: UndeclaredOrigLocalVars in $f\n" if $I;
 	for my $var ( @{ $Sf->{'UndeclaredOrigLocalVars'}{'List'} } ) {
 
-		if ( not exists $Sf->{'UsedGlobalVars'}{'Set'}{$var} ) {
+		if ( not exists $Sf->{'ModuleGlobalVars'}{'Set'}{$var} ) {
 
 			say "INFO VAR: $var" if $I;
 			if (    exists $Sf->{'CalledSubs'}
@@ -548,21 +548,18 @@ sub _create_extra_arg_and_var_decls { #272 lines
 				if ( (my $subset = in_nested_set( $Sf, 'DeclaredOrigLocalVars', $var )) and $DBG ) {
 					croak $subset;
 				}
-				# if (not exists $Sf->{'VarsFromContainer'}{'Set'}{$var}) {
-					# Because otherwise it means this var is declared elsewhere
-					# But so then it should be in ExGlobArgs
-					my $rdecl = $Sf->{'UndeclaredOrigLocalVars'}{'Set'}{$var};
-					$rdecl->{'Ann'} = "in $f (implicit declaration)";
-					# carp Dumper($stref->{'Subroutines'}{  $var});
-					my $rline = emit_f95_var_decl($rdecl);
-					my $info  = {};
-					push @{$info->{'Ann'}}, annotate( $f, __LINE__ . ' : EX-IMPLICIT VAR' );
-					$info->{'LineID'}  = $nextLineID++;
-					$info->{'Ref'}     = 1;
-					$info->{'VarDecl'} = { 'Name' => $var };    #$rdecl;
-					$info->{'SpecificationStatement'} = 1;
-					push @{$rlines}, [ $rline, $info ];
-				# }
+				# Because otherwise it means this var is declared elsewhere
+				# But so then it should be in ExGlobArgs
+				my $rdecl = $Sf->{'UndeclaredOrigLocalVars'}{'Set'}{$var};
+				$rdecl->{'Ann'} = "in $f (implicit declaration)";
+				my $rline = emit_f95_var_decl($rdecl);
+				my $info  = {};
+				push @{$info->{'Ann'}}, annotate( $f, __LINE__ . ' : EX-IMPLICIT VAR' );
+				$info->{'LineID'}  = $nextLineID++;
+				$info->{'Ref'}     = 1;
+				$info->{'VarDecl'} = { 'Name' => $var };
+				$info->{'SpecificationStatement'} = 1;
+				push @{$rlines}, [ $rline, $info ];
 			} else {
 				say "INFO: $var is a reserved word" if $I;
 				# croak Dumper($Sf->{'MaskedIntrinsics'}{$var}) if $var eq 'len';

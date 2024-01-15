@@ -144,7 +144,7 @@ The parser identifies each line and stores the information in `$info`.
         'Removed'
         'Signature'
         'StmtCount'        
-        'UsedParameters'
+        'ModuleParameters'
 
 ##### Fortran language features
 
