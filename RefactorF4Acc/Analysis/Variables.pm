@@ -451,19 +451,19 @@ sub analyse_used_variables {
 	#  }
 	$Sf->{'AllVarsAndPars'}{'List'}= [sort keys %{$vars_in_code_unit}];
 	# So now we simply delete any var that is not in this set
-	for my $used_var (@{$Sf->{'VarsFromContainer'}{'List'}}) {
+	for my $used_var (@{$Sf->{'ModuleVars'}{'List'}}) {
 		if (not exists $vars_in_code_unit->{$used_var}) {
-			delete $Sf->{'VarsFromContainer'}{'Set'}{$used_var}
+			delete $Sf->{'ModuleVars'}{'Set'}{$used_var}
 		}
 	}
-	$Sf->{'VarsFromContainer'}{'List'} = [sort keys %{$Sf->{'VarsFromContainer'}{'Set'}}];
+	$Sf->{'ModuleVars'}{'List'} = [sort keys %{$Sf->{'ModuleVars'}{'Set'}}];
 	# WV 2023-12-23 this is too aggressive, but WHY?
-	# for my $used_var (@{$Sf->{'ParametersFromContainer'}{'List'}}) {
+	# for my $used_var (@{$Sf->{'ModuleParameters'}{'List'}}) {
 	# 	if (not exists $vars_in_code_unit->{$used_var}) {
-	# 		delete $Sf->{'ParametersFromContainer'}{'Set'}{$used_var}
+	# 		delete $Sf->{'ModuleParameters'}{'Set'}{$used_var}
 	# 	}
 	# }
-	# $Sf->{'ParametersFromContainer'}{'List'} = [sort keys %{$Sf->{'ParametersFromContainer'}{'Set'}}];
+	# $Sf->{'ModuleParameters'}{'List'} = [sort keys %{$Sf->{'ModuleParameters'}{'Set'}}];
 	return $stref;
 }    # END of analyse_used_variables()
 
@@ -571,7 +571,7 @@ sub identify_vars_on_line {
 	}
 } # END of identify_vars_on_line
 
-## Here we populate VarsFromContainers and ParametersFromContainers, where "Container" is any enclosing unit.
+## Here we populate VarsFromContainers and ParametersFromContainers, where "Container" is an enclosing unit but NOT a module; for modules we put them in ModuleVars.
 ## Requires populate_UsesTransitively to be run first
 sub get_vars_pars_from_containers { my ($stref,$f) = @_;
 	my $sub_or_func_or_mod = sub_func_incl_mod( $f, $stref );
@@ -586,23 +586,43 @@ sub get_vars_pars_from_containers { my ($stref,$f) = @_;
 	# For the case of Contained subroutines
 
 	my @used_modules = sort keys %{$Sf->{'UsesTransitively'}};
-	# # Looks like I forgot to add the enclosing module
-	# if (exists $Sf->{'InModule'}){
-	# 	$Sf->{'UsesTransitively'}{$Sf->{'InModule'}} = [];
-	# 	@used_modules = (@used_modules,$Sf->{'InModule'});
-	# }
-# if ( $f eq 'clearFunktalTokens') {croak "$f :".Dumper(@used_modules,$Sf->{'InModule'})}
+
+	if (exists $Sf->{'Container'}) {
+		my $container = $Sf->{'Container'};
+		if (exists $stref->{'Subroutines'}{$container}) {
+
+		}
+		my $local_pars = get_vars_from_set($stref->{'Subroutines'}{$container}{'LocalParameters'}); # Because Used and FromContainers should be captured through the rec descent
+		my $included_pars = get_vars_from_set($stref->{'Subroutines'}{$container}{'IncludedParameters'});
+
+		# if (exists $pars->{'funktalMaxNTokens'} and $f eq 'clearFunktalTokens') {croak "$module_name $f"}
+		$Sf->{'ParametersFromContainer'}{'Set'} = {
+			%{$Sf->{'ParametersFromContainer'}{'Set'} },
+			%{$local_pars},
+			%{$included_pars}
+		};
+		my $local_vars = get_vars_from_set($stref->{'Subroutines'}{$container}{'LocalVars'});
+		# A var in a COMMON block can still be used without reference to the COMMON block in an enclosed code unit
+		my $common_vars = get_vars_from_set($stref->{'Subroutines'}{$container}{'CommonVars'});
+		$Sf->{'VarsFromContainer'}{'Set'} = {
+			%{$Sf->{'VarsFromContainer'}{'Set'} },
+			%{$local_vars},
+			%{$common_vars}
+		};
+	}
+	$Sf->{'ParametersFromContainer'}{'List'}= [sort keys %{$Sf->{'ParametersFromContainer'}{'Set'}}];
+	$Sf->{'VarsFromContainer'}{'List'}= [sort keys %{$Sf->{'VarsFromContainer'}{'Set'}}];
 
 	for my $module_name (@used_modules) {
 		my $pars = get_vars_from_set($stref->{'Modules'}{$module_name}{'LocalParameters'}); # Because Used and FromContainers should be captured through the rec descent
 		# if (exists $pars->{'funktalMaxNTokens'} and $f eq 'clearFunktalTokens') {croak "$module_name $f"}
-		$Sf->{'ParametersFromContainer'}{'Set'} = { %{$Sf->{'ParametersFromContainer'}{'Set'} }, %{$pars} };
+		$Sf->{'ModuleParameters'}{'Set'} = { %{$Sf->{'ModuleParameters'}{'Set'} }, %{$pars} };
 		my $vars = get_vars_from_set($stref->{'Modules'}{$module_name}{'ModuleGlobalVars'}); # Because this is all that matters
-		$Sf->{'VarsFromContainer'}{'Set'} = { %{$Sf->{'VarsFromContainer'}{'Set'} }, %{$vars} };
+		$Sf->{'ModuleVars'}{'Set'} = { %{$Sf->{'ModuleVars'}{'Set'} }, %{$vars} };
 
 	}
-	$Sf->{'ParametersFromContainer'}{'List'}= [sort keys %{$Sf->{'ParametersFromContainer'}{'Set'}}];
-	$Sf->{'VarsFromContainer'}{'List'}= [sort keys %{$Sf->{'VarsFromContainer'}{'Set'}}];
+	$Sf->{'ModuleParameters'}{'List'}= [sort keys %{$Sf->{'ModuleParameters'}{'Set'}}];
+	$Sf->{'ModuleVars'}{'List'}= [sort keys %{$Sf->{'ModuleVars'}{'Set'}}];
 	# croak "$sub_or_func_or_mod $f: ".Dumper $Sf->{'ParametersFromContainer'} if $f eq 'clearFunktalTokens';
 	return $stref;
 }  # END of get_vars_pars_from_containers

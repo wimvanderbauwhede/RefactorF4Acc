@@ -157,7 +157,7 @@ sub initialise_per_code_unit_tables {
 		}
 		# Var decls via a 'use' declaration
 		$Sf->{'UsedLocalVars'} = { 'Set' => {}, 'List' => [] }; # I don't think this actually exists
-		$Sf->{'ModuleGlobalVars'} = { 'Set' => {}, 'List' => [] };
+		# $Sf->{'ModuleGlobalVars'} = { 'Set' => {}, 'List' => [] };
 		# Same actualy, but this includes access via a container
 		# WV2024-01-15 this needs to change:
 		# VarsFromContainer is for containers that are *not* modules

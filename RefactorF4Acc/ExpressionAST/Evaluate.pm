@@ -151,10 +151,6 @@ sub replace_consts_in_ast_no_iters { my ($stref, $f, $ast, $state)=@_;
 			} else {
 				if ($idx==0 and (($entry & 0xFF) == 2)) { #eq '$'
 					my $mvar = $ast->[$idx+1];
-#carp "$f MVAR $mvar : ".in_nested_set($stref->{'Subroutines'}{$f},'Parameters',$mvar);
-#if (not in_nested_set($stref->{'Subroutines'}{$f},'Parameters',$mvar)) {
-#carp 'BOOM!:'.Dumper $stref->{'Subroutines'}{$f}{'Parameters'}
-#}
 					my $sub_or_func = sub_func_incl_mod($f,$stref);
 					if (in_nested_set($stref->{$sub_or_func}{$f},'Parameters',$mvar)) {
 						my $param_set = in_nested_set($stref->{$sub_or_func}{$f},'Parameters',$mvar);
@@ -164,15 +160,8 @@ sub replace_consts_in_ast_no_iters { my ($stref, $f, $ast, $state)=@_;
 		  				#The value could be an expression in terms of other parameters
 		  				my $val = $decl->{'Val'};
 		  				$ast = parse_expression($val, {},$stref,$f);
-#carp Dumper $ast;
 		  				return ($ast,1);
-					# } elsif ( exists $stref->{$sub_or_func}{$f}{'ParametersFromContainer'}{'Set'}{$mvar}) {
-					# croak  "PAR FROM CONTAINER $mvar";
-					# 		my $maybe_evaled_ast = _try_to_eval_arg($stref, $f, $mvar);
-					# 	return ($maybe_evaled_ast,1);
 					} else {
-# croak "$f",Dumper $stref->{$sub_or_func}{$f}{'Vars'} if $mvar eq 'funktalMaxNTokens';
-						# carp "AST: ".Dumper($ast);
 						return ($ast,1);
 					}
 				}

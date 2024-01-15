@@ -172,12 +172,12 @@ Instead of the nice but cumbersome approach we had until now, from now on it is 
 
 	for my $var (@{$Sf->{'AllVarsAndPars'}{'List'}}) {
 		my $subset = in_nested_set($Sf,'Vars',$var);
-		if ($subset eq '') {
-			$subset = in_nested_set($Sf,'VarsFromContainer',$var);
-		}
-		if ($subset eq '') {
-			$subset = in_nested_set($Sf,'ParametersFromContainer',$var);
-		}
+		# if ($subset eq '') {
+		# 	$subset = in_nested_set($Sf,'ModuleVars',$var);
+		# }
+		# if ($subset eq '') {
+		# 	$subset = in_nested_set($Sf,'ModuleParameters',$var);
+		# }
 		if ($subset eq '') {
 			croak "$f $var";
 		}
