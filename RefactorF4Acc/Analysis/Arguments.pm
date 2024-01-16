@@ -563,10 +563,13 @@ sub __get_common_decls { ( my $stref, my $f ) = @_;
 	my $Sf = $stref->{$sub_or_func_or_mod}{$f};
 	# WV 2023-12-15 This does not include CommonVars in Containers or Used modules
 	my $common_decls = get_vars_from_set($Sf->{'CommonVars'});
-	# So lets add VarsFromContainer. This has all the transitively used vars as well
-	if ($Config{'REFACTOR_MODULE_VARS'}==1) {
+	# So lets add VarsFromContainer. 
 		my $global_decls_from_container = get_vars_from_set($Sf->{'VarsFromContainer'});
 		$common_decls = {%{$common_decls},%{$global_decls_from_container}};
+	# Maybe add vars from Modules. 
+	if ($Config{'REFACTOR_MODULE_VARS'}==1) {
+		my $global_decls_from_modules  = get_vars_from_set($Sf->{'ModuleVars'});
+		$common_decls = {%{$common_decls},%{$global_decls_from_modules}};
 	}
 	return $common_decls;
 } # END of __get_common_decls()
