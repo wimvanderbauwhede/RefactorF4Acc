@@ -418,7 +418,7 @@ sub _create_extra_arg_and_var_decls { #272 lines
 					$var = '';
 				}
 			}
-			if (    not exists $Sf->{'ModuleGlobalVars'}{'Set'}{$var}
+			if (    not exists $Sf->{'ModuleVars'}{'Set'}{$var}
 				and not exists $Sf->{'CalledSubs'}{'Set'}{$var} )
 			{
 				say "INFO VAR: $var" if $I;
@@ -477,7 +477,7 @@ sub _create_extra_arg_and_var_decls { #272 lines
 	print "INFO: UndeclaredOrigLocalVars in $f\n" if $I;
 	for my $var ( @{ $Sf->{'UndeclaredOrigLocalVars'}{'List'} } ) {
 
-		if ( not exists $Sf->{'ModuleGlobalVars'}{'Set'}{$var} ) {
+		if ( not exists $Sf->{'ModuleVars'}{'Set'}{$var} ) {
 
 			say "INFO VAR: $var" if $I;
 			if (    exists $Sf->{'CalledSubs'}

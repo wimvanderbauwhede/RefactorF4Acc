@@ -663,7 +663,7 @@ sub _split_multivar_decls {
             elsif ( exists $info->{'ParamDecl'}
             # and not exists $info->{'ParsedParDecl'}
             ) {
-                ($new_annlines,$nextLineID) = __split_multivar_ParamDecl($line,$info,$stref,$f,$Sf,$nextLineID,$new_annlines);
+                ($new_annlines,$nextLineID) = __split_multipar_ParamDecl($line,$info,$stref,$f,$Sf,$nextLineID,$new_annlines);
             }
             else {
                 push @{$new_annlines}, $annline;

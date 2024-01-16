@@ -3,7 +3,7 @@ use v5.10;
 use RefactorF4Acc::Config;
 use RefactorF4Acc::Utils;
 use RefactorF4Acc::Analysis::Includes qw( find_root_for_includes lift_param_includes);
-use RefactorF4Acc::Analysis::Variables qw( analyse_variables analyse_used_variables get_vars_pars_from_containers populate_UsesTransitively );
+use RefactorF4Acc::Analysis::Variables qw( analyse_variables analyse_used_variables get_vars_pars_from_containers_and_modules populate_UsesTransitively );
 use RefactorF4Acc::Analysis::Arguments qw(
 	determine_ExGlobArgs
 	find_argument_declarations
@@ -92,7 +92,7 @@ sub analyse_all {
 			## Here we populate UsesTransitively for every code unit.
 			$stref = populate_UsesTransitively( $stref,$f);
 			## Here we populate VarsFromContainers and ParametersFromContainers, where "Container" is any enclosing unit.
-			$stref = get_vars_pars_from_containers($stref,$f);
+			$stref = get_vars_pars_from_containers_and_modules($stref,$f);
 			$stref = analyse_used_variables($stref,$f);
 			} else {
 				say "Skipping USE analysis for $f as it has not been parsed";

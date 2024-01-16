@@ -146,9 +146,9 @@ sub refactor_subroutine_signature {
         }
     }
 
-    print "INFO: ModuleGlobalVars in $f\n" if $I;
+    print "INFO: ModuleVars in $f\n" if $I;
 
-    for my $var ( @{ $Sf->{'ModuleGlobalVars'}{'List'} } ) {
+    for my $var ( @{ $Sf->{'ModuleVars'}{'List'} } ) {
     	# Check if this var is used in the subroutine
     	if (exists $Sf->{'UndeclaredOrigLocalVars'}{'Set'}{$var}) {
     		say "INFO VAR: $var" if $I;

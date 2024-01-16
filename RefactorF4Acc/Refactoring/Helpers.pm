@@ -618,9 +618,9 @@ sub emit_f95_var_decl {
       my $is_par = exists $var_decl_rec->{'Parameter'} ? 1 : 0;
       # We seem to have three ways of encoding the (var,val) pairs
       my ($var,$val);
-      if ($is_par) {
+      if ($is_par) { 
 
-        if (exists $var_decl_rec->{'Name'}) {
+        if (exists $var_decl_rec->{'Name'} and defined $var_decl_rec->{'Name'}) {
             if (ref(  $var_decl_rec->{'Name'} ) eq 'ARRAY'  and scalar @{ $var_decl_rec->{'Name'} } == 2 ) {
                 ($var,$val) = @{	$var_decl_rec->{'Name'} };
             } elsif (ref(  $var_decl_rec->{'Name'} ) ne 'ARRAY'  and exists $var_decl_rec->{'Val'} ) {
@@ -628,7 +628,7 @@ sub emit_f95_var_decl {
                 $val = $var_decl_rec->{'Val'};
             }
         }
-        elsif (exists $var_decl_rec->{'Var'}) {
+        elsif (exists $var_decl_rec->{'Var'} and defined $var_decl_rec->{'Var'}) {
             if (ref(  $var_decl_rec->{'Var'} ) eq 'ARRAY'  and scalar @{ $var_decl_rec->{'Var'} } == 2 ) {
                 ($var,$val) = @{	$var_decl_rec->{'Var'} };
                 croak 'SHOULD NEVER HAPPEN!' if $DBG;
@@ -642,12 +642,17 @@ sub emit_f95_var_decl {
             } else {
                 croak 'Parameter declaration record is incorrect: '.Dumper($var_decl_rec) if $DBG;
             }
-
         }
       } else {
-      	$var = $var_decl_rec->{'Name'};
+        if (exists $var_decl_rec->{'Var'}) {
+            $var = $var_decl_rec->{'Var'}
+        } elsif (exists $var_decl_rec->{'Name'} and defined $var_decl_rec->{'Name'}) {
+            $var = $var_decl_rec->{'Name'} ;
+        } else {
+            croak Dumper $var_decl_rec;
+        }
       }
-        # carp Dumper $var_decl_rec;
+        # carp Dumper( $var_decl_rec,$var);
      my $maybe_init_val = exists $var_decl_rec->{'InitialValue'} ? ' = '.$var_decl_rec->{'InitialValue'} : '';
     #  if ($maybe_init_val) {
     #  }
@@ -752,8 +757,9 @@ sub emit_f95_var_decl {
     } else {
         # Parameter
 #        say Dumper($var_decl_rec);
-    if ($dimstr) {$dimstr.=', '}
+        if ($dimstr) {$dimstr.=', '}
         croak Dumper($var_decl_rec) if $DBG and not defined $val;
+
         my $var_val = ref($var) eq 'ARRAY' ? $var->[0] . '=' . $var->[1] :  $var.'='.$val;
         my $decl_line =
             $spaces

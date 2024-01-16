@@ -1263,16 +1263,22 @@ or $line=~/^character\s*\(\s*len\s*=\s*[\w\*]+\s*\)/
 			  ) {
 				$type   = $1;
 				$varlst = $2;
-
+				my $parsed_as_f95_decl = 0;
 				if ($line=~/::/) {
 					( $Sf, $info ) = __parse_f95_decl( $stref, $f, $Sf, $indent, $line, $info);
-					if (exists $info->{'ParamDecl'}) {
-						$has_pars=1;
-						$Sf->{'HasParameters'}=1;
+					if (exists $info->{'ParseError'}) {
+						delete $info->{'ParseError'};
+						$parsed_as_f95_decl = 1;
+					} else {
+						if (exists $info->{'ParamDecl'}) {
+							$has_pars=1;
+							$Sf->{'HasParameters'}=1;
+						}
+						$info->{'HasVars'} = 1;
+						push @{ $info->{'Ann'} }, annotate( $f, __LINE__ . " F95 VarDecl" );
 					}
-					$info->{'HasVars'} = 1;
-					push @{ $info->{'Ann'} }, annotate( $f, __LINE__ . " F95 VarDecl" );
-				} else {
+				} 
+				if ($parsed_as_f95_decl == 0 ) {
 					( $Sf, $info ) = _parse_f77_var_decl( $Sf, $stref, $f,$indent, $line, $info, $type, $varlst );
 					push @{ $info->{'Ann'} }, annotate( $f, __LINE__ . " F77 VarDecl" );
 				}
@@ -2163,7 +2169,7 @@ sub __module_has_globals { (my $stref, my $f, my $mod_name, my $called_sub_name)
 		say "INFO: MODULE $mod_name USED in $f is GLOBAL because of $called_sub_name" if $I;
 		$stref->{'Modules'}{$mod_name}{'IsGlobal'}=1;
 
-		$Sf->{'ModuleGlobalVars'} = append_to_set( $Sf->{'ModuleGlobalVars'}, $stref->{'Modules'}{$mod_name}{'LocalVars'} );
+		$Sf->{'ModuleVars'} = append_to_set( $Sf->{'ModuleVars'}, $stref->{'Modules'}{$mod_name}{'LocalVars'} );
 
 		for my $var (keys %{ get_vars_from_set($stref->{'Modules'}{$mod_name}{'LocalVars'} ) } ) {
 #				say "VAR $var";
@@ -3240,7 +3246,9 @@ sub __parse_f95_decl {
 
 	my $pt = parse_F95_var_decl($line);
 	if (exists $pt->{'ParseError'}) {
-		error( 'Parse error on F90 variable declaration on line '.$info->{'LineID'}.' in '. $Sf->{'Source'}.":\n\n\t$line\n\nProbably unsupported mixed F77/F90 syntax", 0, 'PARSE ERROR');
+		warning( 'Parse error on F90 variable declaration on line '.$info->{'LineID'}.' in '. $Sf->{'Source'}.":\n\n\t$line\n\nProbably unsupported mixed F77/F90 syntax; trying F77 parser", 0, 'PARSE ERROR');
+		$info->{'ParseError'}=1;
+		return ( $Sf, $info );
 	}
 
 	# But this could be a parameter declaration, with an assignment ...
@@ -3413,8 +3421,8 @@ sub __parse_f95_decl {
 							$Sf->{$subset}{'Set'}{$tvar}=$decl;
 							push @{$Sf->{$subset}{'List'}}, $tvar;
 							if ($is_module) {
-								$Sf->{'ModuleGlobalVars'}{'Set'}{$tvar}=$decl;
-								push @{$Sf->{'ModuleGlobalVars'}{'List'}}, $tvar;
+								$Sf->{'ModuleVars'}{'Set'}{$tvar}=$decl;
+								push @{$Sf->{'ModuleVars'}{'List'}}, $tvar;
 							}
 						}
 					}

@@ -27,7 +27,7 @@ our @EXPORT_OK = qw(
   &analyse_variables
   &analyse_used_variables
   &identify_vars_on_line
-  &get_vars_pars_from_containers
+  &get_vars_pars_from_containers_and_modules
   &populate_UsesTransitively
 );
 
@@ -573,7 +573,7 @@ sub identify_vars_on_line {
 
 ## Here we populate VarsFromContainers and ParametersFromContainers, where "Container" is an enclosing unit but NOT a module; for modules we put them in ModuleVars.
 ## Requires populate_UsesTransitively to be run first
-sub get_vars_pars_from_containers { my ($stref,$f) = @_;
+sub get_vars_pars_from_containers_and_modules { my ($stref,$f) = @_;
 	my $sub_or_func_or_mod = sub_func_incl_mod( $f, $stref );
 
 	my $Sf = $stref->{$sub_or_func_or_mod}{$f};
@@ -584,8 +584,6 @@ sub get_vars_pars_from_containers { my ($stref,$f) = @_;
 	# $Sf->{'ParametersFromContainer'}{'Set'} = {};
 
 	# For the case of Contained subroutines
-
-	my @used_modules = sort keys %{$Sf->{'UsesTransitively'}};
 
 	if (exists $Sf->{'Container'}) {
 		my $container = $Sf->{'Container'};
@@ -613,19 +611,20 @@ sub get_vars_pars_from_containers { my ($stref,$f) = @_;
 	$Sf->{'ParametersFromContainer'}{'List'}= [sort keys %{$Sf->{'ParametersFromContainer'}{'Set'}}];
 	$Sf->{'VarsFromContainer'}{'List'}= [sort keys %{$Sf->{'VarsFromContainer'}{'Set'}}];
 
+	my @used_modules = sort keys %{$Sf->{'UsesTransitively'}};
+
 	for my $module_name (@used_modules) {
 		my $pars = get_vars_from_set($stref->{'Modules'}{$module_name}{'LocalParameters'}); # Because Used and FromContainers should be captured through the rec descent
-		# if (exists $pars->{'funktalMaxNTokens'} and $f eq 'clearFunktalTokens') {croak "$module_name $f"}
-		$Sf->{'ModuleParameters'}{'Set'} = { %{$Sf->{'ModuleParameters'}{'Set'} }, %{$pars} };
-		my $vars = get_vars_from_set($stref->{'Modules'}{$module_name}{'ModuleGlobalVars'}); # Because this is all that matters
+		$Sf->{'ModuleParameters'}{'Set'} = defined $Sf->{'ModuleParameters'}{'Set'} ?
+		{ %{$Sf->{'ModuleParameters'}{'Set'} }, %{$pars} } : $pars;
+		my $vars = get_vars_from_set($stref->{'Modules'}{$module_name}{'ModuleVars'}); 
 		$Sf->{'ModuleVars'}{'Set'} = { %{$Sf->{'ModuleVars'}{'Set'} }, %{$vars} };
-
 	}
 	$Sf->{'ModuleParameters'}{'List'}= [sort keys %{$Sf->{'ModuleParameters'}{'Set'}}];
 	$Sf->{'ModuleVars'}{'List'}= [sort keys %{$Sf->{'ModuleVars'}{'Set'}}];
-	# croak "$sub_or_func_or_mod $f: ".Dumper $Sf->{'ParametersFromContainer'} if $f eq 'clearFunktalTokens';
+
 	return $stref;
-}  # END of get_vars_pars_from_containers
+}  # END of get_vars_pars_from_containers_and_modules
 
 sub populate_UsesTransitively { my ($stref,$f) = @_;
 	my $sub_incl_or_mod = sub_func_incl_mod($f, $stref);

@@ -150,18 +150,14 @@ sub initialise_per_code_unit_tables {
 			$Sf->{'IncludedParameters'} = { 'Set' => {}, 'List' => [] };
 			$Sf->{'ModuleParameters'} = { 'Set' => {}, 'List' => [] }; # 
 			$Sf->{'InheritedParameters'} = { 'Set' => {}, 'List' => [] };
-			$Sf->{'ParametersFromContainer'} = {
-					'Set' => {},
-					'List' => []
-			};
+			$Sf->{'ParametersFromContainer'} = { 'Set' => {}, 'List' => [] };
 		}
 		# Var decls via a 'use' declaration
 		$Sf->{'UsedLocalVars'} = { 'Set' => {}, 'List' => [] }; # I don't think this actually exists
-		# $Sf->{'ModuleGlobalVars'} = { 'Set' => {}, 'List' => [] };
 		# Same actualy, but this includes access via a container
 		# WV2024-01-15 this needs to change:
 		# VarsFromContainer is for containers that are *not* modules
-		# For modules, we use ModuleVars and ModuleGlobalVars
+		# For modules, we use ModuleVars only
 		$Sf->{'VarsFromContainer'} = { 'Set' => {}, 'List' => [] };
 		# This is only for testing which vars are commons, nothing else.
 		$Sf->{'Commons'} = {};
@@ -175,18 +171,12 @@ sub initialise_per_code_unit_tables {
 
 		$Sf->{'CommonVars'}           = {
 			'Subsets' => {
-				'DeclaredCommonVars'   => $Sf->{'DeclaredCommonVars'}, # I overload this to contain ModuleGlobalVars. FIXME!
+				'DeclaredCommonVars'   => $Sf->{'DeclaredCommonVars'}, # I overload this to contain ModuleVars. FIXME!
 				'UndeclaredCommonVars' => $Sf->{'UndeclaredCommonVars'},
 			}
 		};
 
 		$Sf->{'ModuleVars'}   = { 'Set' => {}, 'List' => [] };
-		# $Sf->{'ModuleVars'}           = {
-		# 	'Subsets' => {
-		# 		'ModuleGlobalVars'   => $Sf->{'ModuleGlobalVars'}, # I overload this to contain ModuleGlobalVars
-		# 		'ModuleGlobalVars' => $Sf->{'ModuleGlobalVars'},
-		# 	}
-		# };
 
 		$Sf->{'OrigLocalVars'} = {
 			'Subsets' => {
