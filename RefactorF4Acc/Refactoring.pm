@@ -22,7 +22,7 @@ use RefactorF4Acc::Refactoring::FoldConstants qw( fold_constants_all );
 # use RefactorF4Acc::Analysis::LoopNature qw( analyse_loop_nature_all );
 
 use vars qw( $VERSION );
-$VERSION = "5.1.0";
+$VERSION = "5.1.1";
 
 #use warnings::unused;
 use warnings;

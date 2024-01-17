@@ -18,7 +18,7 @@ use RefactorF4Acc::Parser::Expressions qw( parse_expression_no_context );
 use RefactorF4Acc::Analysis::Arguments qw( create_RefactoredArgs );
 
 use vars qw( $VERSION );
-$VERSION = "5.1.0";
+$VERSION = "5.1.1";
 
 use Carp;
 use Data::Dumper;

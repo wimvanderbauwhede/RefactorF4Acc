@@ -14,7 +14,7 @@ use RefactorF4Acc::Config;
 use RefactorF4Acc::Utils qw( annotate );
 
 use vars qw( $VERSION );
-$VERSION = "5.1.0";
+$VERSION = "5.1.1";
 
 use Carp;
 use Data::Dumper;

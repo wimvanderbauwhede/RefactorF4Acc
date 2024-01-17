@@ -8,7 +8,7 @@ use RefactorF4Acc::Analysis::Globals qw( lift_includes ); # TODO: put lift_inclu
 #   
 
 use vars qw( $VERSION );
-$VERSION = "1.2.0";
+$VERSION = "5.1.1";
 
 #use warnings::unused;
 use warnings;

@@ -8,7 +8,7 @@ use RefactorF4Acc::CallTree qw( add_to_call_tree );
 #
 
 use vars qw( $VERSION );
-$VERSION = "5.1.0";
+$VERSION = "5.1.1";
 
 #use warnings::unused;
 use warnings;

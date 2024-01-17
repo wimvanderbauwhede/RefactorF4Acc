@@ -12,6 +12,10 @@ The versioning convention is as follows:
     - Minor version increments each quarter
     - Patch version increments inside a quarter, ad-hoc
 
+## [5.1.1] - 2024-01-17
+    - Fixed placement of 'implicit none'
+    - Removed some experimental features that are not in the main branch
+
 ## [5.1.0] - 2023-10-23
     - Better support for F90/F95 features, see `LIMITATIONS.md` for details
     - Better errors and warnings

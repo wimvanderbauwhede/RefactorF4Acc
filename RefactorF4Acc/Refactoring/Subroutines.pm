@@ -25,7 +25,7 @@ use RefactorF4Acc::Refactoring::Equivalence qw( change_EQUIVALENCE_to_assignment
 use RefactorF4Acc::Refactoring::StatementFunctions qw( move_StatementFunctions_after_SpecificationStatements );
 
 use vars qw( $VERSION );
-$VERSION = "5.1.0";
+$VERSION = "5.1.1";
 
 use Carp;
 use Data::Dumper;
@@ -397,13 +397,14 @@ sub _add_extra_assignments_in_block_data {
 	return $merged_annlines_w_args;
 }    # END of _add_extra_assignments_in_block_data
 
-sub _add_implicit_none {
+sub _add_implicit_none { 
 	my ( $stref, $f, $annlines ) = @_;
 	my $Sf            = $stref->{'Subroutines'}{$f};
 	my $first_vardecl = 1;
 	my $first_spec_stmt = 1;
 	my $rlines        = [];
 	my $prev_line_id=0;
+	# croak Dumper $Sf->{'AnnLines'} if $f eq 'wave2d	';
 	for my $annline ( @{$annlines} ) {
 		( my $line, my $info ) = @{$annline};
 		if (exists $info->{'LineID'}) {
@@ -411,7 +412,7 @@ sub _add_implicit_none {
 		} else {
 			warn "LINE '$line' has no LineID in $f" if $DBG;
 		}
-		if (exists $info->{'SpecificationStatement'} and $first_spec_stmt) {
+		if (exists $info->{'SpecificationStatement'} and not exists $info->{'Use'} and $first_spec_stmt) {
 			$first_spec_stmt = 0;
 			# Here I think I can insert 'implicit none'
 			if ( not exists $Sf->{'ImplicitNone'} ) {

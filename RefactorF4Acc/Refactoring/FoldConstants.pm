@@ -6,7 +6,7 @@ package RefactorF4Acc::Refactoring::FoldConstants;
 #
 
 use vars qw( $VERSION );
-$VERSION = "5.1.0";
+$VERSION = "5.1.1";
 
 use warnings;
 use warnings FATAL => qw(uninitialized);

@@ -14,7 +14,7 @@ use Storable qw( dclone );
 use Digest::MD5 qw(md5_base64 md5_hex md5);
 
 use vars qw( $VERSION );
-$VERSION = "5.1.0";
+$VERSION = "5.1.1";
 
 #use warnings::unused;
 use warnings;
