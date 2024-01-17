@@ -882,7 +882,7 @@ MODULE
 							'Dimension' => 1,
 							'SpecificationStatement' =>1
 							});
-
+						die if exists $info->{'ParseError'};
 						$Sf->{'DeclCount'}{$varname}{'Dimension'}=1;
 
 						$info->{'StmtCount'}{$varname} = scalar keys %{$Sf->{'DeclCount'}{$varname}};
@@ -1268,8 +1268,8 @@ or $line=~/^character\s*\(\s*len\s*=\s*[\w\*]+\s*\)/
 					( $Sf, $info ) = __parse_f95_decl( $stref, $f, $Sf, $indent, $line, $info);
 					if (exists $info->{'ParseError'}) {
 						delete $info->{'ParseError'};
-						$parsed_as_f95_decl = 1;
 					} else {
+						$parsed_as_f95_decl = 1;
 						if (exists $info->{'ParamDecl'}) {
 							$has_pars=1;
 							$Sf->{'HasParameters'}=1;
@@ -1290,10 +1290,19 @@ or $line=~/^character\s*\(\s*len\s*=\s*[\w\*]+\s*\)/
 		 elsif ( $line =~ /^(.+)\s*::\s*(?:.+)(?:\s*|\s+\!\$ACC.+)$/ ) {# croak if $line=~/__pipe\s\!\$ACC/;
 
 				( $Sf, $info ) = __parse_f95_decl( $stref, $f, $Sf, $indent, $line, $info);
-
-				if (exists $info->{'ParamDecl'}) {
-					$has_pars=1;
-					$Sf->{'HasParameters'}=1;
+				my $parsed_as_f95_decl = 0;
+				if (exists $info->{'ParseError'}) {
+					delete $info->{'ParseError'};
+				} else {
+					$parsed_as_f95_decl = 1;
+					if (exists $info->{'ParamDecl'}) {
+						$has_pars=1;
+						$Sf->{'HasParameters'}=1;
+					}
+				}
+				if ($parsed_as_f95_decl == 0 ) {
+					( $Sf, $info ) = _parse_f77_var_decl( $Sf, $stref, $f,$indent, $line, $info, $type, $varlst );
+					push @{ $info->{'Ann'} }, annotate( $f, __LINE__ . " F77 VarDecl" );
 				}
                 $info->{'SpecificationStatement'} = 1;
                 $info->{'HasVars'} = 1;
