@@ -16,10 +16,10 @@ use RefactorF4Acc::Refactoring::EliminateDeadCode qw( pass_eliminate_dead_code )
 
 use RefactorF4Acc::Translation::SaC qw( translate_module_to_SaC );
 use RefactorF4Acc::Translation::OpenCLC qw( translate_module_to_C );
-use RefactorF4Acc::Translation::Uxntal qw( translate_module_to_Uxntal );
+# use RefactorF4Acc::Translation::Uxntal qw( translate_module_to_Uxntal );
 use RefactorF4Acc::Translation::TyTraCL qw( pass_emit_TyTraCL );
 use RefactorF4Acc::Translation::TyTraIR qw( pass_emit_TyTraIR );
-use RefactorF4Acc::Translation::TyTra::MemoryReduction qw( pass_memory_reduction );
+# use RefactorF4Acc::Translation::TyTra::MemoryReduction qw( pass_memory_reduction );
 
 use RefactorF4Acc::Analysis::ArrayAccessPatterns qw( pass_identify_stencils );
 

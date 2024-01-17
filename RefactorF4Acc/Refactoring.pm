@@ -16,7 +16,7 @@ use RefactorF4Acc::Refactoring::IncludeFiles qw( refactor_include_files );
 use RefactorF4Acc::Refactoring::Modules qw( add_module_decls );
 use RefactorF4Acc::Refactoring::InlineSubroutine qw( inline_subroutines );
 use RefactorF4Acc::Refactoring::EvalParamExprs qw( eval_param_expressions_all );
-use RefactorF4Acc::Refactoring::DSM qw( refactor_dsm_all );
+# use RefactorF4Acc::Refactoring::DSM qw( refactor_dsm_all );
 use RefactorF4Acc::Refactoring::FoldConstants qw( fold_constants_all );
 # The detection of the loop nature is Analysis but in the current code the rewrites are interleaved
 # use RefactorF4Acc::Analysis::LoopNature qw( analyse_loop_nature_all );
