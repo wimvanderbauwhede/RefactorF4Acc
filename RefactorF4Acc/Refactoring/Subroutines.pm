@@ -411,9 +411,9 @@ sub _add_implicit_none {
 		} else {
 			warn "LINE '$line' has no LineID in $f" if $DBG;
 		}
-		if (exists $info->{'SpecificationStatement'} and $first_spec_stmt) {
+		if (exists $info->{'SpecificationStatement'} and not exists $info->{'Use'} and $first_spec_stmt) {
 			$first_spec_stmt = 0;
-			# Here I think I can insert 'implicit none'
+			# Here I can insert 'implicit none', must be after any USE but before the other specification statements
 			if ( not exists $Sf->{'ImplicitNone'} ) {
 				say "Adding 'implicit none' at " . __PACKAGE__ . ' ' . __LINE__ if $V;
 				$Sf->{'ImplicitNone'} = 1;
