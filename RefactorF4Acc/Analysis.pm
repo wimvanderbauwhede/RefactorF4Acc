@@ -93,13 +93,26 @@ sub analyse_all {
 			$stref = populate_UsesTransitively( $stref,$f);
 			## Here we populate VarsFromContainers and ParametersFromContainers, where "Container" is any enclosing unit.
 			$stref = get_vars_pars_from_containers_and_modules($stref,$f);
-			$stref = analyse_used_variables($stref,$f);
 			} else {
 				say "Skipping USE analysis for $f as it has not been parsed";
 			}
 		}
 	}
 
+	for my $f ( keys %{ $stref->{'Subroutines'} } ) {
+		next if $f eq '';
+		if (exists $stref->{'Entries'}{$f}) {
+			next;
+		}
+		my $Sf = $stref->{'Subroutines'}{$f};
+		if (not exists $Sf->{'BlockData'} or $Sf->{'BlockData'} == 0 ) {
+			if ($Sf->{'Status'} >= $PARSED) {
+				$stref = analyse_used_variables($stref,$f);
+			} else {
+				say "Skipping USE analysis for $f as it has not been parsed";
+			}
+		}
+	}
 	# croak Dumper $stref->{'Subroutines'}{'clearFunktalTokens'}{'ParametersFromContainer'};
 	# for my $module_name (sort keys %{$stref->{'Modules'}}) {
 	# 	my $Sf = $stref->{'Modules'}{$module_name};

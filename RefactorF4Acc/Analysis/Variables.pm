@@ -453,17 +453,25 @@ sub analyse_used_variables {
 	# So now we simply delete any var that is not in this set
 	for my $used_var (@{$Sf->{'ModuleVars'}{'List'}}) {
 		if (not exists $vars_in_code_unit->{$used_var}) {
-			delete $Sf->{'ModuleVars'}{'Set'}{$used_var}
-		}
+			# say "$f: DELETE $used_var";
+			delete $Sf->{'ModuleVars'}{'Set'}{$used_var};
+		} 
+		# else {
+			# say "$f: KEEP $used_var";
+		# }
 	}
 	$Sf->{'ModuleVars'}{'List'} = [sort keys %{$Sf->{'ModuleVars'}{'Set'}}];
 	# WV 2023-12-23 this is too aggressive, but WHY?
-	# for my $used_var (@{$Sf->{'ModuleParameters'}{'List'}}) {
-	# 	if (not exists $vars_in_code_unit->{$used_var}) {
-	# 		delete $Sf->{'ModuleParameters'}{'Set'}{$used_var}
-	# 	}
-	# }
-	# $Sf->{'ModuleParameters'}{'List'} = [sort keys %{$Sf->{'ModuleParameters'}{'Set'}}];
+	for my $used_var (@{$Sf->{'ModuleParameters'}{'List'}}) {
+		if (not exists $vars_in_code_unit->{$used_var}) {
+			# say "$f: DELETE PAR $used_var";	
+			delete $Sf->{'ModuleParameters'}{'Set'}{$used_var};
+		} 
+		# else {
+			# say "$f: KEEP PAR $used_var";
+		# }
+	}
+	$Sf->{'ModuleParameters'}{'List'} = [sort keys %{$Sf->{'ModuleParameters'}{'Set'}}];
 	return $stref;
 }    # END of analyse_used_variables()
 

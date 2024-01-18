@@ -22,6 +22,7 @@ use RefactorF4Acc::ExpressionAST::Evaluate qw(
     fold_constants_in_expr_no_iters
     replace_consts_in_ast_no_iters
     eval_expression_with_parameters
+    eval_intrinsic
     );
 use RefactorF4Acc::Parser::Expressions qw( emit_expr_from_ast parse_expression_no_context get_vars_from_expression);
 use RefactorF4Acc::Emitter qw( emit_AnnLines );
@@ -161,7 +162,8 @@ sub fold_constants_no_iters {
 
     my $pass_fold_constants = sub { (my $annline)=@_;
         (my $line,my $info)=@{$annline};
-        # say "$f FOLD CONSTS ON LINE <$line>";croak Dumper $info if $line=~/\s*[\(:]\s*funktalMaxNTokens/i;
+        # say "$f FOLD CONSTS ON LINE <$line>";
+        # croak Dumper $info if $line=~/\s*[\(:]\s*funktalMaxNTokens/i;
         # From $info, find the lines that contain expressions that might have constants to fold.
         # These would the same types of lines as in identify_array_accesses_in_exprs()
 
@@ -172,9 +174,9 @@ sub fold_constants_no_iters {
                 my $var_name = exists $info->{'ParamDecl'} 
                     ? ($info->{'ParamDecl'}{'Var'} // $info->{'ParamDecl'}{'Name'}[0])
                     : $info->{'VarDecl'}{'Name'};
-                my $subset = in_nested_set( $Sf, (exists $info->{'ParamDecl'} ? 'Vars' :'Parameters'), $var_name );
+                my $subset = in_nested_set( $Sf, (exists $info->{'ParamDecl'} ? 'Parameters' : 'Vars'), $var_name );
                 my $decl = get_var_record_from_set($Sf->{$subset},$var_name);
-carp "<$subset> <$var_name>",Dumper ($info,$decl);
+# carp "<$subset> <$var_name>",Dumper ($info,$decl);
                 if (exists $decl->{'ArrayOrScalar'}
                 and $decl->{'ArrayOrScalar'} eq 'Array'
                 ) {
@@ -202,10 +204,10 @@ carp "<$subset> <$var_name>",Dumper ($info,$decl);
                             @{$const_dims}
                         ];
                         if (exists $info->{'ParsedVarDecl'}) {
-                            $info->{'ParsedParDecl'}{'Attributes'}{'Dim'}=$pv_dims;
+                            $info->{'ParsedVarDecl'}{'Attributes'}{'Dim'}=$pv_dims;
                         }
                         elsif (exists $info->{'ParsedParDecl'}) {
-                            $info->{'ParsedVarDecl'}{'Attributes'}{'Dim'}=$pv_dims;
+                            $info->{'ParsedParDecl'}{'Attributes'}{'Dim'}=$pv_dims;
                         }
                     } else {
                         warning("Could not constant-fold DIMENSION on line\n$line\nin subroutine $f");
@@ -281,7 +283,15 @@ carp "<$subset> <$var_name>",Dumper ($info,$decl);
                 if (ref($info->{'ParamDecl'}{'Name'}) eq 'ARRAY') {
                     $val_expr_str = $info->{'ParamDecl'}{'Name'}[1];
                 }
-                if ($val_expr_str=~/^([a-z]\w+)/i
+                say "VAL EXPR STR: $val_expr_str";
+                # WV2024-01-18 DEBUG
+                if (
+				    $val_expr_str =~ /^\-?\d+$/ or
+				    $val_expr_str =~ /^(\-?(?:\d+|\d*\.\d*)(?:[edqEDQ][\-\+]?\d+)?)$/ 
+                ) {
+                    $info->{'ParsedParDecl'}{'Pars'}{'Val'} = $val_expr_str;
+                }
+                elsif (1 or $val_expr_str=~/^([a-z]\w+)/i
                     and  not exists $F95_intrinsics{$1}
                 ) {
                     my $evaled_val = eval_expression_with_parameters($val_expr_str,$info, $stref, $f) ;
@@ -372,6 +382,7 @@ sub fold_constants_all {
 
 		next if $Mmn->{'Status'} == $UNREAD;
 		next if $Mmn->{'Status'} == $READ;
+
 		($stref,my $new_annlines) = fold_constants_no_iters($stref,$module_name);
 		$stref->{'Modules'}{$module_name}{'RefactoredCode'} = $new_annlines;
 	}
@@ -441,20 +452,3 @@ sub fold_constants_in_decls {
     return $stref;
 } # END of fold_constants_in_decls
 
-sub eval_intrinsic { my ($val_expr_str) = @_;
-    my $intr = $val_expr_str;
-    $intr=~s/\s*\(.+$//;
-    my $intr_args_str = $val_expr_str;
-    $intr_args_str =~s/\s*\)\s*$//;
-    $intr_args_str =~s/$intr\s*\(\s*//;
-    my @intr_args = split(/\s*,\s*/,$intr_args_str);
-    for my $intr_arg (@intr_args) {
-        if ($intr_arg=~/^[a-z_]/) {
-            error("TODO: evaluating intrinsics only works with numerical literals");
-        }
-    }
-    my $intr_calc = $F95_intrinsic_functions_for_eval{$intr};
-    my $res = $intr_calc->(@intr_args);
-    # croak Dumper($intr,@intr_args,$res);
-    return $res;
-} # END of eval_intrinsic

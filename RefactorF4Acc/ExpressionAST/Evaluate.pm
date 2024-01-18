@@ -52,6 +52,7 @@ use Exporter;
 
 @RefactorF4Acc::ExpressionAST::Evaluate::EXPORT_OK = qw(
 &eval_expression_with_parameters
+&eval_intrinsic
 &replace_param_by_val
 &replace_consts_in_ast
 &replace_consts_in_ast_no_iters
@@ -64,23 +65,27 @@ use Exporter;
 # Apply to RHS of assignments
 sub replace_consts_in_ast { (my $stref, my $f, my $block_id, my $ast, my $state, my $const)=@_;
 	my $retval=0;
-	# say "AST in replace_consts_in_ast:".Dumper($ast);
+	say "AST in replace_consts_in_ast:",Dumper($ast),;
 	if (ref($ast) eq 'ARRAY') {
+		say 0 .. (scalar( @{$ast})-1) ;
 		# But retval for arrays should only be 0 if it is 0 for every element!
 		# So we need to sum them!
-		for my  $idx (0 .. scalar @{$ast}-1) {
-
+		for my  $idx (0 .. (scalar( @{$ast})-1)) {
+say "IDX:$idx ", Dumper($ast);
 			my $entry = $ast->[$idx];
-
+say "ENTRY:$entry <",ref($entry),'>';
 			if (ref($entry) eq 'ARRAY') {
+				say 'RECURSE ON ',Dumper($entry);
 				(my $entry2, my $retval2) = replace_consts_in_ast($stref,$f, $block_id,$entry, $state,$const);
 				$retval+=$retval2;
-				# say "ARRAY ".Dumper($entry2). " RETVAL $retval";
+				say "ARRAY ".Dumper($entry2). " RETVAL $retval";
 				$ast->[$idx] = $entry2;
 			} else {
+				# carp Dumper $entry;
+				say "SCALAR ENTRY:$entry <",ref($entry),'>';
 				if ($idx==0 and (($entry & 0xFF) == 2)) { #eq '$'
 					my $mvar = $ast->[$idx+1];
-					# carp "VAR $mvar ".Dumper($ast);
+					say "VAR $mvar ".Dumper($ast); croak;
 					# If $mvar is a loop iterator for a loop nest with ID $block_id,
 					# we replace it with a constant value, this is to estimate bounds
 					if (exists $state->{$block_id}{'LoopIters'}{ $mvar }) {
@@ -126,8 +131,10 @@ sub replace_consts_in_ast { (my $stref, my $f, my $block_id, my $ast, my $state,
 						}
 					}
 				}
+				say "H2:$idx";
 			}
-		}
+			say "H3:$idx";
+		} # for idx
 	}
 	# else {
 	# 	say "NOT AN ARRAY: ".Dumper($ast);
@@ -240,14 +247,14 @@ sub fold_constants_in_expr_no_iters { my ($stref, $f, $ast, $info)=@_;
 } # END of fold_constants_in_expr_no_iters
 
 sub eval_expression_with_parameters { (my $expr_str,my $info, my $stref, my $f) = @_;
-	# say "EXPR STR $expr_str";
+	say "EXPR STR $expr_str";
     my $expr_ast=parse_expression($expr_str,$info, $stref,$f);
-#    say Dumper($expr_ast);
+   say Dumper($expr_ast);
     my $expr_ast2 = replace_param_by_val($stref, $f, 0,$expr_ast, {});
-#    say Dumper($expr_ast2);
+   say Dumper($expr_ast2);
     my $evaled_expr_str= emit_expr_from_ast($expr_ast2);
 	$evaled_expr_str=~s/\-/ -/g;
-#    say "EXPR $expr_str TO EVAL:$evaled_expr_str";
+   say "EXPR <$expr_str> TO EVAL: $evaled_expr_str";
 
     my $expr_val=eval($evaled_expr_str);
 	return $expr_val;
@@ -403,5 +410,22 @@ sub _try_to_eval_via_vars  {my ($stref, $f, $var) = @_;
 		}
 } # END of _try_to_eval_via_vars
 
+sub eval_intrinsic { my ($val_expr_str) = @_;
+    my $intr = $val_expr_str;
+    $intr=~s/\s*\(.+$//;
+    my $intr_args_str = $val_expr_str;
+    $intr_args_str =~s/\s*\)\s*$//;
+    $intr_args_str =~s/$intr\s*\(\s*//;
+    my @intr_args = split(/\s*,\s*/,$intr_args_str);
+    for my $intr_arg (@intr_args) {
+        if ($intr_arg=~/^[a-z_]/) {
+            error("TODO: evaluating intrinsics only works with numerical literals");
+        }
+    }
+    my $intr_calc = $F95_intrinsic_functions_for_eval{$intr};
+    my $res = $intr_calc->(@intr_args);
+    # croak Dumper($intr,@intr_args,$res);
+    return $res;
+} # END of eval_intrinsic
 
 1;
