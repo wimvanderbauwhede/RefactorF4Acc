@@ -283,13 +283,13 @@ sub fold_constants_no_iters {
                 if (ref($info->{'ParamDecl'}{'Name'}) eq 'ARRAY') {
                     $val_expr_str = $info->{'ParamDecl'}{'Name'}[1];
                 }
-                say "VAL EXPR STR: $val_expr_str";
+                # say "VAL EXPR STR: $val_expr_str";
                 # WV2024-01-18 DEBUG
                 if (
-				    $val_expr_str =~ /^\-?\d+$/ or
+				    $val_expr_str =~ /^(\-?\d+)(?:_[124])?$/ or
 				    $val_expr_str =~ /^(\-?(?:\d+|\d*\.\d*)(?:[edqEDQ][\-\+]?\d+)?)$/ 
                 ) {
-                    $info->{'ParsedParDecl'}{'Pars'}{'Val'} = $val_expr_str;
+                    $info->{'ParsedParDecl'}{'Pars'}{'Val'} = $1;
                 }
                 elsif (1 or $val_expr_str=~/^([a-z]\w+)/i
                     and  not exists $F95_intrinsics{$1}

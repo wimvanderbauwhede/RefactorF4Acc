@@ -64,28 +64,26 @@ use Exporter;
 # We replace LoopIters with $const and Parameters with their values.
 # Apply to RHS of assignments
 sub replace_consts_in_ast { (my $stref, my $f, my $block_id, my $ast, my $state, my $const)=@_;
+	my $sub_or_func_or_mod = sub_func_incl_mod( $f, $stref );
 	my $retval=0;
-	say "AST in replace_consts_in_ast:",Dumper($ast),;
+	# say "AST in replace_consts_in_ast:",Dumper($ast);
 	if (ref($ast) eq 'ARRAY') {
-		say 0 .. (scalar( @{$ast})-1) ;
+		# say 0 .. (scalar( @{$ast})-1) ;
 		# But retval for arrays should only be 0 if it is 0 for every element!
 		# So we need to sum them!
 		for my  $idx (0 .. (scalar( @{$ast})-1)) {
-say "IDX:$idx ", Dumper($ast);
 			my $entry = $ast->[$idx];
-say "ENTRY:$entry <",ref($entry),'>';
 			if (ref($entry) eq 'ARRAY') {
-				say 'RECURSE ON ',Dumper($entry);
+				# say 'RECURSE ON ',Dumper($entry);
 				(my $entry2, my $retval2) = replace_consts_in_ast($stref,$f, $block_id,$entry, $state,$const);
 				$retval+=$retval2;
-				say "ARRAY ".Dumper($entry2). " RETVAL $retval";
+				# say "ARRAY ".Dumper($entry2). " RETVAL $retval";
 				$ast->[$idx] = $entry2;
 			} else {
 				# carp Dumper $entry;
-				say "SCALAR ENTRY:$entry <",ref($entry),'>';
 				if ($idx==0 and (($entry & 0xFF) == 2)) { #eq '$'
 					my $mvar = $ast->[$idx+1];
-					say "VAR $mvar ".Dumper($ast); croak;
+					# say "$f VAR $mvar ".Dumper($ast);
 					# If $mvar is a loop iterator for a loop nest with ID $block_id,
 					# we replace it with a constant value, this is to estimate bounds
 					if (exists $state->{$block_id}{'LoopIters'}{ $mvar }) {
@@ -93,24 +91,24 @@ say "ENTRY:$entry <",ref($entry),'>';
 						# $ast->[$idx+1] =  ''.$const.'';
 						# say "MVAR $mvar RETURN $ast";
 						return ($ast,1);
-					} elsif (in_nested_set($stref->{'Subroutines'}{$f},'Parameters',$mvar)) {
-						my $param_set = in_nested_set($stref->{'Subroutines'}{$f},'Parameters',$mvar);
+					} elsif (in_nested_set($stref->{$sub_or_func_or_mod}{$f},'Parameters',$mvar)) {
+						my $param_set = in_nested_set($stref->{$sub_or_func_or_mod}{$f},'Parameters',$mvar);
 
-		  				my $decl = get_var_record_from_set( $stref->{'Subroutines'}{$f}{'Parameters'},$mvar);
+		  				my $decl = get_var_record_from_set( $stref->{$sub_or_func_or_mod}{$f}{'Parameters'},$mvar);
 		  				# say 'DECL: '. Dumper($decl);
 		  				#The value could be an expression in terms of other parameters
 		  				my $val = $decl->{'Val'};
 		  				# carp( "MVAR $mvar MVAL: $val");
 		  				$ast = parse_expression($val, {},$stref,$f);
 		  				return ($ast,1);
-					} elsif (in_nested_set($stref->{'Subroutines'}{$f},'Args',$mvar)) {
+					} elsif (in_nested_set($stref->{$sub_or_func_or_mod}{$f},'Args',$mvar)) {
 						# carp "VAR $mvar is an arg in $f, not a parameter. Trying to eval anyway ... ";
-						# if ( scalar keys %{$stref->{'Subroutines'}{$f}{'Callers'} }==1) {
+						# if ( scalar keys %{$stref->{$sub_or_func_or_mod}{$f}{'Callers'} }==1) {
 							my $maybe_evaled_ast = _try_to_eval_arg($stref, $f, $mvar);
 						# }
 						return ($maybe_evaled_ast,1);
 					} else {
-						my $var_set = in_nested_set($stref->{'Subroutines'}{$f},'Vars',$mvar);
+						my $var_set = in_nested_set($stref->{$sub_or_func_or_mod}{$f},'Vars',$mvar);
 						# FIXME: parameters from USEd modules are not found?!
 						if ($var_set) {
 							carp "replace_consts_in_ast($f,$const): Can\'t replace $mvar, no parameter record found in $f, it is a Var in $var_set"
@@ -126,14 +124,12 @@ say "ENTRY:$entry <",ref($entry),'>';
 							}
 						} else {
 							croak "Cannot replace $mvar, no parameter or var record found in $f"
-							."\n". Dumper( $stref->{'Subroutines'}{$f}{Parameters}   ) if $DBG;
+							."\n". Dumper( $stref->{$sub_or_func_or_mod}{$f}{Parameters}   ) if $DBG;
 							return ($ast,0);
 						}
 					}
 				}
-				say "H2:$idx";
 			}
-			say "H3:$idx";
 		} # for idx
 	}
 	# else {
@@ -247,18 +243,22 @@ sub fold_constants_in_expr_no_iters { my ($stref, $f, $ast, $info)=@_;
 } # END of fold_constants_in_expr_no_iters
 
 sub eval_expression_with_parameters { (my $expr_str,my $info, my $stref, my $f) = @_;
-	say "EXPR STR $expr_str";
+	# say "EXPR STR $expr_str";
     my $expr_ast=parse_expression($expr_str,$info, $stref,$f);
-   say Dumper($expr_ast);
     my $expr_ast2 = replace_param_by_val($stref, $f, 0,$expr_ast, {});
-   say Dumper($expr_ast2);
-    my $evaled_expr_str= emit_expr_from_ast($expr_ast2);
-	$evaled_expr_str=~s/\-/ -/g;
-   say "EXPR <$expr_str> TO EVAL: $evaled_expr_str";
-
-    my $expr_val=eval($evaled_expr_str);
-	return $expr_val;
-
+	my $evaled_expr_str= emit_expr_from_ast($expr_ast2);
+	if ($expr_ast2->[0] ==1 and exists $F95_intrinsics{$expr_ast2->[1]} ) {
+		# my $evaled_val = eval_expression_with_parameters($val_expr_str,$info, $stref, $f) ;
+		# TODO: this only works if the args are constant literals. Need to eval the args.
+		my $expr_val = eval_intrinsic($evaled_expr_str);
+		# say "INTRINSIC EXPR <$expr_str> TO EVAL: $evaled_expr_str => <$expr_val>";
+		return $expr_val;
+	} else {
+		$evaled_expr_str=~s/\-/ -/g;
+		my $expr_val=eval($evaled_expr_str);
+		# say "EXPR <$expr_str> TO EVAL: $evaled_expr_str => $expr_val";
+		return $expr_val;
+	}
 } # END of eval_expression_with_parameters()
 
 # This routine attempts to evaluate arguments by following them to the caller,
