@@ -726,6 +726,10 @@ sub parse_expression_no_context { (my $str)=@_;
             $expr_ast=[32,"'".$1."'"];
             #$expr_ast="'".$1."'";
         }
+        elsif ( $str=~s/^\"(.+?)\"// ) {
+            $expr_ast=[32,"'".$1."'"];
+            #$expr_ast="'".$1."'";
+        }
         else {
             # Here we return with an error value
             # What I could do is say:

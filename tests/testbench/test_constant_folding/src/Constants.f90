@@ -7,6 +7,9 @@ module Constants
     integer(kind=1), parameter :: testHex = Z"2A"
     real, parameter :: secret = 5.57188
     character, parameter :: NL = achar(10)
+    character, parameter :: charA = achar(65)
+    integer, parameter :: ordA = iachar('A')
+    character(len=8), parameter :: testConcat = '*' // 'CONCAT' // "_"
 
 end module Constants
 

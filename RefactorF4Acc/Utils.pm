@@ -1137,14 +1137,14 @@ our %F95_intrinsic_functions_for_eval = (
     'spacing' => sub { die "TODO: spacing is NOT IMPLEMENTED\n" },
 
     # Character Functions
-    'achar'=> sub {chr($_[0])},
+    'achar'=> sub {"'".chr($_[0])."'"}, # integer -> character
     'adjustl' => sub { die "TODO: adjustl is NOT IMPLEMENTED\n" },
     'adjustr' => sub { die "TODO: adjustr is NOT IMPLEMENTED\n" },
-    'char'=> sub {chr($_[0])}, # dubious
-    'iachar'=> sub {ord($_[0])},
-    'ichar'=> sub {ord($_[0])}, # dubious
+    'char'=> sub {chr($_[0])}, # dubious; # integer -> character
+    'iachar'=> sub { $_[0]=~s/[\'\"]//g; ord($_[0])},# character -> integer
+    'ichar'=> sub { $_[0]=~s/[\'\"]//g; ord($_[0])}, # dubious
     'index' => sub {index($_[0],$_[1])},
-    'len' => sub {length($_[0])}, 
+    'len' => sub {length($_[0])},
     'len_trim' => sub {my $tstr = $_[0];$tstr=~s/\s+$//;length($tstr)},
     'lge'  => sub { ($_[0] eq $_[1]) or ($_[0] gt $_[1]) },
     'lgt'  => sub { $_[0] gt $_[1] },
@@ -1154,6 +1154,7 @@ our %F95_intrinsic_functions_for_eval = (
     'scan' => sub { die "TODO: scan is NOT IMPLEMENTED\n" },
     'trim' => sub {$_[0]=~s/\s+$//;return $_[0]},
     'verify' => sub { die "TODO: verify is NOT IMPLEMENTED\n" },
+
     # Mathematical Functions
     'acos'=> sub { atan2( sqrt(1 - $_[0] * $_[0]), $_[0] ) },
     'asin' => sub { atan2($_[0], sqrt(1 - $_[0] * $_[0])) },

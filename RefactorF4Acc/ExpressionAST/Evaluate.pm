@@ -244,7 +244,9 @@ sub fold_constants_in_expr_no_iters { my ($stref, $f, $ast, $info)=@_;
 
 sub eval_expression_with_parameters { (my $expr_str,my $info, my $stref, my $f) = @_;
 	# say "EXPR STR $expr_str";
-    my $expr_ast=parse_expression($expr_str,$info, $stref,$f);
+	my $expr_str_no_ph = _substitute_PlaceHolders($expr_str,$info);
+    my $expr_ast=parse_expression($expr_str_no_ph,$info, $stref,$f);
+	# croak Dumper $expr_ast if $expr_str =~/__PH/;
     my $expr_ast2 = replace_param_by_val($stref, $f, 0,$expr_ast, {});
 	my $evaled_expr_str= emit_expr_from_ast($expr_ast2);
 	if ($expr_ast2->[0] ==1 and exists $F95_intrinsics{$expr_ast2->[1]} ) {
@@ -255,9 +257,14 @@ sub eval_expression_with_parameters { (my $expr_str,my $info, my $stref, my $f) 
 		return $expr_val;
 	} else {
 		$evaled_expr_str=~s/\-/ -/g;
+		$evaled_expr_str=~s/\/\//./g;
 		my $expr_val=eval($evaled_expr_str);
-		# say "EXPR <$expr_str> TO EVAL: $evaled_expr_str => $expr_val";
-		return $expr_val;
+		# croak "EXPR <$expr_str> TO EVAL: $evaled_expr_str => $expr_val".Dumper($info) if $expr_str_no_ph =~/CONCAT/;
+		if ($info->{'ParsedParDecl'}{'TypeTup'}{'Type'} eq 'character') {
+			return "'".$expr_val."'";
+		} else {
+			return $expr_val;
+		}
 	}
 } # END of eval_expression_with_parameters()
 
@@ -417,6 +424,10 @@ sub eval_intrinsic { my ($val_expr_str) = @_;
     $intr_args_str =~s/\s*\)\s*$//;
     $intr_args_str =~s/$intr\s*\(\s*//;
     my @intr_args = split(/\s*,\s*/,$intr_args_str);
+	if ($intr eq 'achar' and $intr_args[0] == 10) {
+		# This evals to a newline which we can't print in Fortran, so just keep it.
+		return $val_expr_str;
+	}
     for my $intr_arg (@intr_args) {
         if ($intr_arg=~/^[a-z_]/) {
             error("TODO: evaluating intrinsics only works with numerical literals");
@@ -424,8 +435,22 @@ sub eval_intrinsic { my ($val_expr_str) = @_;
     }
     my $intr_calc = $F95_intrinsic_functions_for_eval{$intr};
     my $res = $intr_calc->(@intr_args);
-    # croak Dumper($intr,@intr_args,$res);
     return $res;
 } # END of eval_intrinsic
+
+sub _substitute_PlaceHolders { my ($expr_str,$info) = @_;
+    if ($expr_str=~/__PH/ and exists $info->{'PlaceHolders'}) {
+        # croak $expr_str.Dumper($info->{'PlaceHolders'})
+        while ($expr_str =~ /(__PH\d+__)/) {
+            my $ph=$1;
+            my $ph_str = $info->{'PlaceHolders'}{$ph};
+            $ph_str=~s/[\'\"]$/\"/;
+            $ph_str=~s/^[\']/\"/;
+            $expr_str=~s/$ph/$ph_str/;
+        }
+    }
+    return $expr_str;
+} # END of _substitute_PlaceHolders
+
 
 1;
