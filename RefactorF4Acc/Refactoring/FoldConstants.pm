@@ -176,6 +176,7 @@ sub fold_constants_no_iters {
                     : $info->{'VarDecl'}{'Name'};
                 my $subset = in_nested_set( $Sf, (exists $info->{'ParamDecl'} ? 'Parameters' : 'Vars'), $var_name );
                 my $decl = get_var_record_from_set($Sf->{$subset},$var_name);
+                # die "<$subset>" if $line =~ /testExpr/i;
 # carp "<$subset> <$var_name>",Dumper ($info,$decl);
                 if (exists $decl->{'ArrayOrScalar'}
                 and $decl->{'ArrayOrScalar'} eq 'Array'
@@ -229,10 +230,13 @@ sub fold_constants_no_iters {
                             my $const_len= eval( $const_expr_str );
                             if (exists $info->{'ParsedVarDecl'}) {
                                 $info->{'ParsedVarDecl'}{'Attributes'}{'Len'}= "len=$const_len";
+                                $info->{'ParsedVarDecl'}{'TypeTup'}{'Kind'} = $const_len;
                             }
                             if (exists $info->{'ParsedParDecl'}) {
                                 $info->{'ParsedParDecl'}{'Attributes'}{'Len'}= "len=$const_len";
+                                $info->{'ParsedParDecl'}{'TypeTup'}{'Kind'} = $const_len;
                             }
+                            $decl->{'ConstAttr'} = "len=$const_len";
                         } else {
                             if (exists $info->{'ParsedVarDecl'}) {
                                 $info->{'ParsedVarDecl'}{'Attributes'}{'Len'}= "len=*";
@@ -245,23 +249,26 @@ sub fold_constants_no_iters {
                 }
                 else { # another type
                     if ($decl->{'Attr'}) {
-                        my $len_expr= $decl->{'Attr'}; 
-                        $len_expr=~s/kind\s*=\s*//;
-                        my $expr_str = $len_expr;
+                        my $kind_expr= $decl->{'Attr'}; 
+                        $kind_expr=~s/kind\s*=\s*//;
+                        my $expr_str = $kind_expr;
                         my ($ast,$str_,$error_,$has_funcs_)=parse_expression_no_context($expr_str);
                         my ($const_ast, $retval_) = replace_consts_in_ast_no_iters($stref, $f, $ast, $info);
                         my $const_expr_str = emit_expr_from_ast($const_ast);
 
                         $const_expr_str=~s/\(\//[/g;
                         $const_expr_str=~s/\/\)/]/g;
+                        my $const_kind = eval( $const_expr_str );
 
-                        my $const_len= eval( $const_expr_str );
                         if (exists $info->{'ParsedVarDecl'}) {
-                            $info->{'ParsedVarDecl'}{'Attributes'}{'Len'}= "kind=$const_len";
+                            $info->{'ParsedVarDecl'}{'Attributes'}{'Len'}= "kind=$const_kind";
+                            $info->{'ParsedVarDecl'}{'TypeTup'}{'Kind'} = $const_kind;
                         }
                         elsif (exists $info->{'ParsedParDecl'}) {
-                            $info->{'ParsedParDecl'}{'Attributes'}{'Len'}= "kind=$const_len";
+                            $info->{'ParsedParDecl'}{'Attributes'}{'Len'}= "kind=$const_kind";
+                            $info->{'ParsedParDecl'}{'TypeTup'}{'Kind'} = $const_kind;
                         }
+                        $decl->{'ConstAttr'} = "kind=$const_kind";
                     }
                 }
 			}
@@ -274,7 +281,6 @@ sub fold_constants_no_iters {
             # or (exists $info->{'ParsedVarDecl'} and exists $info->{'ParsedVarDecl'}{'Attributes'}
             # and $info->{'ParsedVarDecl'}{'Attributes'} eq 'parameter')
             ) {
-                # carp Dumper( $info);
                 my $ast = exists $info->{'ParamDecl'}{'AST'} ? $info->{'ParamDecl'}{'AST'}
                 : exists $info->{'ParsedParDecl'}{'Pars'}{'AST'} ? $info->{'ParsedParDecl'}{'Pars'}{'AST'} : [];
                 my $var_name = $info->{'ParsedParDecl'}{'Pars'}{'Var'};
@@ -387,6 +393,26 @@ sub fold_constants_all {
 		$stref->{'Modules'}{$module_name}{'RefactoredCode'} = $new_annlines;
 	}
 
+	for my $f ( sort keys %{ $stref->{'Modules'} } ) {
+		next if ( $f eq '' or $f eq 'UNKNOWN_SRC' or not defined $f );
+		my $Sf = $stref->{'Modules'}{$f};
+
+		if ( not defined $Sf->{'Status'} ) {
+			$Sf->{'Status'} = $UNREAD;
+			say "INFO: no Status for $f" if $I;
+		}
+
+		next if $Sf->{'Status'} == $UNREAD;
+		next if $Sf->{'Status'} == $READ;
+		next if $Sf->{'Status'} == $FROM_BLOCK;
+
+		($stref, my $new_annlines) = fold_constants_no_iters( $stref, $f );
+
+        $Sf->{'RefactoredCode'}=$new_annlines;
+
+        $stref = emit_AnnLines($stref,$f,$new_annlines) ;
+
+	}
 	for my $f ( sort keys %{ $stref->{'Subroutines'} } ) {
 		next if ( $f eq '' or $f eq 'UNKNOWN_SRC' or not defined $f );
 		# next if exists $stref->{'Entries'}{$f};

@@ -3768,11 +3768,12 @@ sub _parse_f77_par_decl {
 
 				}
 				else {
-					if ($type ne 'complex') {
-						$ttatrs_types{$var}=[$ctype,''];
-					} else {
-						$ttatrs_types{$var}=[$type,''];
-					}
+					if ($type eq 'complex') {
+						$ttatrs_types{$var}=[$ctype,$attr];
+					} 
+					# else {
+					# 	$ttatrs_types{$var}=[$type,''];
+					# }
 				}
 			}
 

@@ -562,9 +562,8 @@ sub emit_AnnLines {
         }
         elsif ( exists $info->{'ParamDecl'} ) {
 
-            # carp Dumper  $info;;
             my $par_decl_str =
-              emit_f95_parsed_par_decl( $info->{'ParsedParDecl'} );
+              emit_f95_parsed_par_decl( $info->{'ParsedParDecl'} , $Config{'FOLD_CONSTANTS'});
 
             $rline = $indent . $par_decl_str;
         }
