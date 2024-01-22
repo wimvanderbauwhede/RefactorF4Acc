@@ -327,7 +327,6 @@ sub fold_constants_no_iters {
 
                 my $rhs_ast  = $info->{'Rhs'}{'ExpressionAST'};
                 my $const_fold_rhs_ast = fold_constants_in_expr_no_iters($stref, $f, $rhs_ast,$info);
-                croak $line,Dumper $const_fold_rhs_ast;
                 $info->{'Rhs'}{'ExpressionAST'}=$const_fold_rhs_ast;
 			}
 	 		if (exists $info->{'If'} or exists $info->{'IfThen'} or exists $info->{'ElseIf'}) {

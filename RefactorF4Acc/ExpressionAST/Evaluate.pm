@@ -170,15 +170,17 @@ sub replace_consts_in_ast_no_iters { my ($stref, $f, $ast, $state)=@_;
 					}
 				}
 				elsif ($idx==0 and (($entry & 0xFF) == 1) ) { #eq '&' 
-				my $fname = $ast->[$idx+1];
-				if (exists $F95_intrinsics{$fname}) {
-					# fold the arguments
-					my $entry = $ast->[$idx+2];
-					(my $entry2, my $retval2) = replace_consts_in_ast_no_iters($stref,$f, $entry, $state);
-					my $evaled_expr_str= $fname.'('.emit_expr_from_ast($entry2).')';
-					my $expr_val = eval_intrinsic($evaled_expr_str);
-					croak "$evaled_expr_str => $expr_val",Dumper $entry2;
-				}
+					my $fname = $ast->[$idx+1];
+					if (exists $F95_intrinsics{$fname}) {
+						# fold the arguments
+						my $entry = $ast->[$idx+2];
+						(my $entry2, my $retval2) = replace_consts_in_ast_no_iters($stref,$f, $entry, $state);
+						if ($retval2==1 ) {
+							my $evaled_expr_str= $fname.'('.emit_expr_from_ast($entry2).')';
+							my $expr_val = eval_intrinsic($evaled_expr_str);
+							return ([2,$expr_val],1);
+						} 
+					}
 				}
 			}
 		}
@@ -436,15 +438,16 @@ sub eval_intrinsic { my ($val_expr_str) = @_;
     $intr_args_str =~s/\s*\)\s*$//;
     $intr_args_str =~s/$intr\s*\(\s*//;
     my @intr_args = split(/\s*,\s*/,$intr_args_str);
+    for my $intr_arg (@intr_args) {
+        if ($intr_arg=~/^[a-z_]/) {
+            warning("Evaluating intrinsics only works with constant arguments: $val_expr_str",0,'ERROR');
+			return $val_expr_str;
+        }
+    }
 	if ($intr eq 'achar' and $intr_args[0] == 10) {
 		# This evals to a newline which we can't print in Fortran, so just keep it.
 		return $val_expr_str;
 	}
-    for my $intr_arg (@intr_args) {
-        if ($intr_arg=~/^[a-z_]/) {
-            error("TODO: evaluating intrinsics only works with numerical literals");
-        }
-    }
     my $intr_calc = $F95_intrinsic_functions_for_eval{$intr};
     my $res = $intr_calc->(@intr_args);
     return $res;
