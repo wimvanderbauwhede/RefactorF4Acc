@@ -2,7 +2,8 @@ package RefactorF4Acc::Parser::SrcReader;
 use v5.10;
 use RefactorF4Acc::Config;
 use RefactorF4Acc::Utils
-  qw( sub_func_incl_mod show_status show_annlines %F95_reserved_words %F95_types pp_annlines toLower tabToFixed warning error);
+  qw( sub_func_incl_mod show_status show_annlines pp_annlines toLower tabToFixed warning error);
+use RefactorF4Acc::F95SpecWords qw( %F95_reserved_words %F95_types );
 use RefactorF4Acc::Preconditioning qw( split_multiblock_common_lines );
 use RefactorF4Acc::Refactoring::Helpers;
 use Fortran::F95Normaliser qw( normalise_F95_src );

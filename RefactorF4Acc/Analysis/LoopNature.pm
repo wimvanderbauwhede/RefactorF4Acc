@@ -15,6 +15,7 @@ use v5.10;
 
 use RefactorF4Acc::Config;
 use RefactorF4Acc::Utils;
+use RefactorF4Acc::F95SpecWords qw( %F95_assoc_intrinsic_functions );
 use RefactorF4Acc::Utils::Functional;
 use RefactorF4Acc::Refactoring::FoldConstants qw( fold_constants );
 use RefactorF4Acc::Analysis::VarAccessAnalysis qw( analyseAllVarAccesses );

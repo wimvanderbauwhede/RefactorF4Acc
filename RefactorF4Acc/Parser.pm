@@ -69,6 +69,7 @@ use RefactorF4Acc::Utils;
 use RefactorF4Acc::Utils::Functional qw( ordered_union );
 use RefactorF4Acc::State qw( initialise_per_code_unit_tables );
 use RefactorF4Acc::CallTree qw( add_to_call_tree );
+use RefactorF4Acc::F95SpecWords qw( %F95_reserved_words %F95_intrinsic_functions %F95_intrinsics );
 use RefactorF4Acc::Refactoring::Helpers qw( get_f95_var_decl stateful_pass_inplace parsedVarDecl_to_Decl );
 use RefactorF4Acc::Parser::SrcReader qw( read_fortran_src );
 use RefactorF4Acc::Parser::Expressions qw(

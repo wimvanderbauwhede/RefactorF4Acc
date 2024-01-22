@@ -2,6 +2,7 @@ package RefactorF4Acc::Analysis::Variables;
 use v5.10;
 use RefactorF4Acc::Config;
 use RefactorF4Acc::Utils;
+use RefactorF4Acc::F95SpecWords qw( %F95_reserved_words %F95_intrinsics );
 use RefactorF4Acc::Refactoring::Helpers qw( get_f95_var_decl stateful_pass_inplace stateless_pass_inplace );
 use RefactorF4Acc::Utils::Functional qw( ordered_union ordered_difference );
 #

@@ -19,7 +19,7 @@ use Data::Dumper;
 $Data::Dumper::Indent = 1;
 
 use Fortran::Expression::Evaluator::Parser;
-use RefactorF4Acc::Utils qw( %F95_reserved_words %F95_function_like_reserved_words %F95_intrinsics %F95_other_intrinsics %F95_intrinsic_functions );
+use RefactorF4Acc::F95SpecWords qw( %F95_reserved_words %F95_function_like_reserved_words %F95_intrinsics %F95_other_intrinsics %F95_intrinsic_functions );
 use Exporter;
 
 @RefactorF4Acc::Parser::Expressions::ISA = qw(Exporter);

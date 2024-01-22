@@ -2,6 +2,7 @@ package RefactorF4Acc::ExpressionAST::Evaluate;
 use v5.10;
 use RefactorF4Acc::Config;
 use RefactorF4Acc::Utils;
+use RefactorF4Acc::F95SpecWords qw( %F95_intrinsics %F95_intrinsic_functions_for_eval );
 use RefactorF4Acc::Refactoring::Helpers qw(
 	pass_wrapper_subs_in_module
 	stateful_pass_inplace
@@ -141,7 +142,7 @@ sub replace_consts_in_ast { (my $stref, my $f, my $block_id, my $ast, my $state,
 
 sub replace_consts_in_ast_no_iters { my ($stref, $f, $ast, $state)=@_;
 	my $retval=0;
-	# say "AST in replace_consts_in_ast:".Dumper($ast);
+	# say "AST in replace_consts_in_ast_no_iters:".Dumper($ast);
 	if (ref($ast) eq 'ARRAY') {
 		# But retval for arrays should only be 0 if it is 0 for every element!
 		# So we need to sum them!
@@ -167,6 +168,17 @@ sub replace_consts_in_ast_no_iters { my ($stref, $f, $ast, $state)=@_;
 					} else {
 						return ($ast,1);
 					}
+				}
+				elsif ($idx==0 and (($entry & 0xFF) == 1) ) { #eq '&' 
+				my $fname = $ast->[$idx+1];
+				if (exists $F95_intrinsics{$fname}) {
+					# fold the arguments
+					my $entry = $ast->[$idx+2];
+					(my $entry2, my $retval2) = replace_consts_in_ast_no_iters($stref,$f, $entry, $state);
+					my $evaled_expr_str= $fname.'('.emit_expr_from_ast($entry2).')';
+					my $expr_val = eval_intrinsic($evaled_expr_str);
+					croak "$evaled_expr_str => $expr_val",Dumper $entry2;
+				}
 				}
 			}
 		}

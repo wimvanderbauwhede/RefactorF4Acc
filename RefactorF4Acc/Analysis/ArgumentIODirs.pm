@@ -9,8 +9,9 @@ use RefactorF4Acc::Utils qw(
     type_via_implicits 
     in_nested_set 
     get_var_record_from_set 
-    %F95_intrinsic_functions warning
+    warning
     );
+use RefactorF4Acc::F95SpecWords qw( %F95_intrinsic_functions );
 use RefactorF4Acc::Refactoring::Helpers qw( get_annotated_sourcelines stateful_pass_inplace emit_f95_var_decl get_f95_var_decl );
 
 #use RefactorF4Acc::Refactoring::Subroutines::Signatures qw( refactor_subroutine_signature );
