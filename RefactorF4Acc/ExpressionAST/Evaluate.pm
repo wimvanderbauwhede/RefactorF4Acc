@@ -169,7 +169,7 @@ sub replace_consts_in_ast_no_iters { my ($stref, $f, $ast, $state)=@_;
 						return ($ast,1);
 					}
 				}
-				elsif ($idx==0 and (($entry & 0xFF) == 1) ) { #eq '&' 
+				elsif ($idx==0 and (($entry & 0xFF) == 1) ) { #eq '&'
 					my $fname = $ast->[$idx+1];
 					if (exists $F95_intrinsics{$fname}) {
 						# fold the arguments
@@ -179,7 +179,7 @@ sub replace_consts_in_ast_no_iters { my ($stref, $f, $ast, $state)=@_;
 							my $evaled_expr_str= $fname.'('.emit_expr_from_ast($entry2).')';
 							my $expr_val = eval_intrinsic($evaled_expr_str);
 							return ([2,$expr_val],1);
-						} 
+						}
 					}
 				}
 			}
@@ -448,6 +448,7 @@ sub eval_intrinsic { my ($val_expr_str) = @_;
 		# This evals to a newline which we can't print in Fortran, so just keep it.
 		return $val_expr_str;
 	}
+	carp "$val_expr_str => $intr";
     my $intr_calc = $F95_intrinsic_functions_for_eval{$intr};
     my $res = $intr_calc->(@intr_args);
     return $res;

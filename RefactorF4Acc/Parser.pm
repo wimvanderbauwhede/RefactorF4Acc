@@ -1301,7 +1301,7 @@ or $line=~/^character\s*\(\s*len\s*=\s*[\w\*]+\s*\)/
 						$Sf->{'HasParameters'}=1;
 					}
 				}
-				if ($parsed_as_f95_decl == 0 ) {
+				if ($parsed_as_f95_decl == 0 ) { 
 					( $Sf, $info ) = _parse_f77_var_decl( $Sf, $stref, $f,$indent, $line, $info, $type, $varlst );
 					push @{ $info->{'Ann'} }, annotate( $f, __LINE__ . " F77 VarDecl" );
 				}
@@ -3267,7 +3267,7 @@ sub __parse_f95_decl {
 		$info->{'ParsedParDecl'} = $pt;
 		my $parliststr = $1;
 		( $Sf, $info ) = _parse_f77_par_decl(  $Sf, $stref, $f, $indent,  $line, $info, $parliststr , $pt);
-		# croak $line,Dumper $info if $line=~/IdentifierLabel/;
+		# croak $line,Dumper $info if $line=~/false/;
 	} else {
 		# F95 VarDecl, continued
 		if (not defined $pt->{'Vars'}[0] and exists $pt->{'Pars'} and defined $pt->{'Pars'}{'Var'}) {
@@ -3440,172 +3440,7 @@ sub __parse_f95_decl {
 # croak "CODE UNIT $f VAR $tvar DECL:".Dumper($decl).'SET:'.in_nested_set($Sf,'Vars',$tvar) if $tvar =~/tokenLabel/i and $f=~/reconstructTypeNameExpr/i;
 
 			} # for $decl
-=pod approach_before_2023-12-13
-			my $idx=0;
-			for my $tvar ( @{ $pt->{'Vars'} } ) { # corresponds to @{$pvars_lst} in F77
 
-				my $decl = {};
-				$decl->{'Indent'}        = $indent;
-				$decl->{'Type'}          = $pt->{'TypeTup'}{'Type'};
-				$decl->{'ArrayOrScalar'} = 'Scalar';
-				$decl->{'Dim'}           = [];
-				$decl->{'MemSpace'}		 = $pragmas->{'MemSpace'};
-				# Pars is abused here as this works for both Vars and Pars
-				if (exists $pt->{'Pars'}) {
-					$decl->{'InitialValue'} = $pt->{'Pars'}{'Val'};
-				}
-				my $type =$decl->{'Type'};
-				if ( exists $pt->{'Attributes'} ) {
-					if ( exists $pt->{'Attributes'}{'Dim'} ) {
-
-						if ( $pt->{'Attributes'}{'Dim'}[0] ne '0' ) {
-							my @shape = ();
-							for my $range ( @{ $pt->{'Attributes'}{'Dim'} } ) {
-								if ( $range =~ /:/ ) {
-									push @shape, [ split( /:/, $range ) ];
-								} else {
-									push @shape, [ '1', $range ];
-								}
-							}
-							$decl->{'Dim'}           = \@shape;
-							$decl->{'ArrayOrScalar'} = 'Array';
-						}
-					}
-
-					if ( exists $pt->{'Attributes'}{'Allocatable'}) {
-						$decl->{'Allocatable'}='allocatable';
-
-						my $alloc_dim = exists $pt->{'Attributes'}{'Dim'}
-							? $pt->{'Attributes'}{'Dim'}[$idx]
-							: 0;
-						if ($alloc_dim==0) {
-							if ($pt->{'TypeTup'}{'Kind'} eq ':'	) {
-								error("TODO: allocatable character string");
-							}
-						} else {
-						# So what we do is replace every value with this pair of empty strings.
-							my @dims = map { ['',''] } @{$alloc_dim};
-							$decl->{'Dim'}           = \@dims;
-						}
-					}
-				}
-				if ($decl->{'Dim'}) {
-					$decl=__get_params_from_dim($decl,$Sf);
-				}
-                # We ignore the halo attribute unless it's an array
-                # We should also check if the dims match!
-                if ($decl->{'ArrayOrScalar'} eq 'Array' ) {
-					if (exists $pragmas->{'Halos'}) {
-	#                	say "SUB $f VAR $tvar HALOS: ".Dumper($halos);
-						$decl->{'Halos'} = $pragmas->{'Halos'};
-						if( scalar( @{$decl->{'Dim'} } ) != scalar(@{$pragmas->{'Halos'}}) ) {
-							die("ERROR: The halo attribute must have the same dimension as the array\n".$line."\n");
-						}
-					}
-					if (exists $pragmas->{'Partitions'}) {
-	#                	say "SUB $f VAR $tvar HALOS: ".Dumper($halos);
-						$decl->{'Partitions'} = $pragmas->{'Partitions'};
-						if( scalar( @{$decl->{'Dim'} } ) != scalar(@{$pragmas->{'Partitions'}}) ) {
-							die("ERROR: The partition attribute must have the same dimension as the array\n".$line."\n");
-						}
-					}
-				}
-				if ( $type =~ /character/ ) {
-					if (exists $pt->{TypeTup}{'ArrayOrScalar'} ) {
-						$decl->{'Attr'} = '(len=' . $pt->{TypeTup}{'ArrayOrScalar'} . ')';
-					} elsif (exists $pt->{'TypeTup'}{'Kind'}) {
-						$decl->{'Attr'} = 'len=' . $pt->{'TypeTup'}{'Kind'} ;
-					} else {
-						warning("No length given for character string $tvar:\n\t$line",2 );
-						$decl->{'Attr'} = 'len=*';
-					}
-				} elsif ( exists $pt->{'TypeTup'}{'Kind'} ) {
-					$decl->{'Attr'} = '(kind=' . $pt->{'TypeTup'}{'Kind'} . ')';
-				} else {
-					$decl->{'Attr'} = '';
-				}
-
-				$decl->{'IODir'} = defined $pt->{'Attributes'}{'Intent'} ? $pt->{'Attributes'}{'Intent'} : 'Unknown';
-
-				$decl->{'Name'}=$tvar;
-
-				my $subset =in_nested_set($Sf,'Vars',$tvar);
-				my $orig_decl = ($subset ne '') ? $Sf->{$subset}{'Set'}{$tvar} : {};
-				if (ref($orig_decl) ne 'HASH') {
-					$orig_decl  = {};
-				}
-				if ($decl->{'Type'} eq 'character'
-					and exists $decl->{'Attr'}
-					and exists $orig_decl->{'Attr'}
-					) {
-						$decl->{'Attr'}=$orig_decl->{'Attr'};
-				}
-				# It is possible that at this point the variable had not been declared yet and we use implicit rules
-				# Then we change it to declared.
-
-				if ( exists $Sf->{'UndeclaredOrigArgs'}{'Set'}{$tvar} ) {
-					$Sf = __move_var_from_UndeclaredOrigArgs_to_DeclaredOrigArgs($Sf, $tvar, $decl);
-				}
-				elsif ( exists $Sf->{'DeclaredOrigArgs'}{'Set'}{$tvar} ) {
-					$Sf->{'DeclaredOrigArgs'}{'Set'}{$tvar} = $decl;
-				}
-				# In principle F95 code can also have COMMON vars
-				# When we encounter UndeclaredCommonVars we make them DeclaredCommonVars
-				elsif ( exists $Sf->{'UndeclaredCommonVars'}{'Set'}{$tvar} ) {
-					$Sf->{'DeclaredCommonVars'}{'Set'}{$tvar} = $decl;
-					delete $Sf->{'UndeclaredCommonVars'}{'Set'}{$tvar}; # Regardless of what was there
-					@{ $Sf->{'UndeclaredCommonVars'}{'List'} } = grep { $_ ne $tvar } @{ $Sf->{'UndeclaredCommonVars'}{'List'} };
-					$Sf->{'DeclaredCommonVars'}{'List'} = ordered_union( $Sf->{'DeclaredCommonVars'}{'List'}, [$tvar] );
-				} else { # A var decl must be unique, so it it's not a arg, it's a local or a common
-
-				# I added this check so that I can use the parser for variables that are declared using implicit rules
-				# All this does is update the var entry
-					if (exists $Sf->{'UndeclaredOrigLocalVars'}{'Set'}{$tvar} ) {
-
-						$Sf->{'UndeclaredOrigLocalVars'}{'Set'}{$tvar} = $decl;
-						my @test=grep {$_ eq $tvar}  @{ $Sf->{'UndeclaredOrigLocalVars'}{'List'} };
-						if ( scalar @test == 0) {
-							push @{ $Sf->{'UndeclaredOrigLocalVars'}{'List'} }, $tvar;
-						}
-					} elsif	(exists $Sf->{'DeclaredOrigLocalVars'}{'Set'}{$tvar} ) {
-						$Sf->{'DeclaredOrigLocalVars'}{'Set'}{$tvar} = $decl;
-						my @test=grep {$_ eq $tvar}  @{ $Sf->{'DeclaredOrigLocalVars'}{'List'} };
-						if ( scalar @test == 0) {
-							push @{ $Sf->{'DeclaredOrigLocalVars'}{'List'} }, $tvar;
-						}
-					} elsif (exists $Sf->{'UndeclaredCommonVars'}{'Set'}{$tvar} ) {
-						my $common_block_name = $Sf->{'UndeclaredCommonVars'}{'Set'}{$tvar}{'CommonBlockName'};
-							$Sf->{'UndeclaredCommonVars'}{'Set'}{$tvar} = $decl;
-							$Sf->{'UndeclaredCommonVars'}{'Set'}{$tvar}{'CommonBlockName'} = $common_block_name;
-							my @test=grep {$_ eq $tvar}  @{ $Sf->{'UndeclaredCommonVars'}{'List'} };
-							if ( scalar @test == 0) {
-								push @{ $Sf->{'UndeclaredCommonVars'}{'List'} }, $tvar;
-							}
-					} elsif (exists $Sf->{'DeclaredCommonVars'}{'Set'}{$tvar} ) {
-						my $common_block_name = $Sf->{'DeclaredCommonVars'}{'Set'}{$tvar}{'CommonBlockName'};
-						$Sf->{'DeclaredCommonVars'}{'Set'}{$tvar} = $decl;
-						$Sf->{'DeclaredCommonVars'}{'Set'}{$tvar}{'CommonBlockName'} = $common_block_name;
-						my @test=grep {$_ eq $tvar}  @{ $Sf->{'DeclaredCommonVars'}{'List'} };
-						if ( scalar @test == 0) {
-							push @{ $Sf->{'DeclaredCommonVars'}{'List'} }, $tvar;
-						}
-					} else {
-						my $subset =in_nested_set($Sf,'Vars',$tvar);
-						if ($subset ne '') {
-#							carp "LINE $line: $tvar in subset $subset of Vars";
-							$Sf->{$subset}{'Set'}{$tvar} = $decl;
-						} else {
-							say "INFO: <$line>: $tvar does not have a record in Vars" if $I;
-							$subset = $is_module ? 'DeclaredCommonVars' : 'DeclaredOrigLocalVars';
-							if ($is_module) { $decl->{'CommonBlockName'} = $f; } # overload CommonBlockName with module name
-							$Sf->{$subset}{'Set'}{$tvar}=$decl;
-							push @{$Sf->{$subset}{'List'}}, $tvar;
-						}
-					}
-				}
-				$idx++;
-			} # for $tvar
-=cut
 		}
 	}
 	# croak Dumper $Sf if (not exists $Sf->{'Source'} or not defined $Sf->{'Source'});

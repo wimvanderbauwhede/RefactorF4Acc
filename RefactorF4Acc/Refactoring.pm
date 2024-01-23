@@ -58,9 +58,9 @@ sub refactor_all {
 # TODO: this should be treated just like subs, but of course that requires full parsing of expressions that contain function calls
 # All this does at the moment is context-free refactoring, which is done in Refactoring::Subroutines as well
     $stref = refactor_called_functions($stref); # Context-free only
-
     # Refactor the source, but don't split long lines and keep annotations
     $stref = refactor_all_subroutines($stref);
+
 
 
     # This can't go into refactor_all_subroutines() because it is recursive
@@ -82,7 +82,8 @@ sub refactor_all {
     	say "eval_param_expressions_all" if $V;
 		$stref = eval_param_expressions_all($stref);
 	}
-# croak Dumper $stref->{'Subroutines'}{'clearFunktalTokens'}{'Vars'};
+
+
     if ($Config{'FOLD_CONSTANTS'}==1) {
         $stref = fold_constants_all($stref) ;
     }

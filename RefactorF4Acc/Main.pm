@@ -177,6 +177,14 @@ sub main {
                 say $sub,"\t=>\tEXTERNAL";
             }
 		}
+        say "INFO: Modules that will be analysed:";
+		for my $sub (sort keys %{ $stref->{'Modules'} }) {
+            if (exists $stref->{'Modules'}{$sub}{'Source'}) {
+			    say $sub,"\t=>\t",$stref->{'Modules'}{$sub}{'Source'};
+            } else {
+                say $sub,"\t=>\tEXTERNAL";
+            }
+		}
 	}
 
     # 2. Parser: Parse the source
@@ -257,6 +265,7 @@ sub main {
 	$stref = build_call_graph($code_unit_name, $stref);
     # 3. Analysis: Analyse the source
     my $stage=0;
+
     if ($V) {
         say "----------------". ('-' x length($code_unit_name)) ;
         say "ANALYSE ALL for $code_unit_name";

@@ -10,6 +10,6 @@ module Constants
     character, parameter :: charA = achar(65)
     integer, parameter :: ordA = iachar('A')
     character(len=8), parameter :: testConcat = '*' // 'CONCAT' // "_"
-
+    logical, parameter :: VV = .false.
 end module Constants
 

@@ -598,24 +598,24 @@ sub get_vars_pars_from_containers_and_modules { my ($stref,$f) = @_;
 		my $container = $Sf->{'Container'};
 		if (exists $stref->{'Subroutines'}{$container}) {
 
-		}
-		my $local_pars = get_vars_from_set($stref->{'Subroutines'}{$container}{'LocalParameters'}); # Because Used and FromContainers should be captured through the rec descent
-		my $included_pars = get_vars_from_set($stref->{'Subroutines'}{$container}{'IncludedParameters'});
+			my $local_pars = get_vars_from_set($stref->{'Subroutines'}{$container}{'LocalParameters'}); # Because Used and FromContainers should be captured through the rec descent
+			my $included_pars = get_vars_from_set($stref->{'Subroutines'}{$container}{'IncludedParameters'});
 
-		# if (exists $pars->{'funktalMaxNTokens'} and $f eq 'clearFunktalTokens') {croak "$module_name $f"}
-		$Sf->{'ParametersFromContainer'}{'Set'} = {
-			%{$Sf->{'ParametersFromContainer'}{'Set'} },
-			%{$local_pars},
-			%{$included_pars}
-		};
-		my $local_vars = get_vars_from_set($stref->{'Subroutines'}{$container}{'LocalVars'});
-		# A var in a COMMON block can still be used without reference to the COMMON block in an enclosed code unit
-		my $common_vars = get_vars_from_set($stref->{'Subroutines'}{$container}{'CommonVars'});
-		$Sf->{'VarsFromContainer'}{'Set'} = {
-			%{$Sf->{'VarsFromContainer'}{'Set'} },
-			%{$local_vars},
-			%{$common_vars}
-		};
+			# if (exists $pars->{'funktalMaxNTokens'} and $f eq 'clearFunktalTokens') {croak "$module_name $f"}
+			$Sf->{'ParametersFromContainer'}{'Set'} = {
+				%{$Sf->{'ParametersFromContainer'}{'Set'} },
+				%{$local_pars},
+				%{$included_pars}
+			};
+			my $local_vars = get_vars_from_set($stref->{'Subroutines'}{$container}{'LocalVars'});
+			# A var in a COMMON block can still be used without reference to the COMMON block in an enclosed code unit
+			my $common_vars = get_vars_from_set($stref->{'Subroutines'}{$container}{'CommonVars'});
+			$Sf->{'VarsFromContainer'}{'Set'} = {
+				%{$Sf->{'VarsFromContainer'}{'Set'} },
+				%{$local_vars},
+				%{$common_vars}
+			};
+		}
 	}
 	$Sf->{'ParametersFromContainer'}{'List'}= [sort keys %{$Sf->{'ParametersFromContainer'}{'Set'}}];
 	$Sf->{'VarsFromContainer'}{'List'}= [sort keys %{$Sf->{'VarsFromContainer'}{'Set'}}];

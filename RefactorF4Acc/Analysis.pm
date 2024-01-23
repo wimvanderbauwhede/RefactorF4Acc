@@ -124,7 +124,6 @@ sub analyse_all {
 	if ($sub_or_func_or_mod eq 'Subroutines') {
 		determine_ExGlobArgs($code_unit_name, $stref);
 	}
-	
 
 
 	# First find any additional argument declarations, either in includes or via implicits

@@ -520,6 +520,22 @@ our %F95_intrinsic_functions_for_eval = (
     'sign' => sub { die "TODO: sign is NOT IMPLEMENTED\n" },
     'spacing' => sub { die "TODO: spacing is NOT IMPLEMENTED\n" },
 
+    # Bit manipulation
+    'btest' => sub { die "TODO: btest is NOT IMPLEMENTED\n" },
+    'iand' => sub { $_[0] & $_[1] },
+    'ibclr' => sub { die "TODO: ibclr is NOT IMPLEMENTED\n" },
+    'ibits' => sub { die "TODO: ibits is NOT IMPLEMENTED\n" },
+    'ibset' => sub { die "TODO: ibset is NOT IMPLEMENTED\n" },
+    'ieor' => sub { $_[0] ^ $_[1] },
+    'ior' => sub { $_[0] | $_[1] },
+    'ishft' => sub {   if ($_[1]<0) {
+                            $_[0] >> $_[1]
+                        } else {
+                            $_[0] << $_[1]
+                        }
+     },
+    'ishftc' => sub { die "TODO: ishftc is NOT IMPLEMENTED\n" },
+
     # Character Functions
     'achar'=> sub {"'".chr($_[0])."'"}, # integer -> character
     'adjustl' => sub { die "TODO: adjustl is NOT IMPLEMENTED\n" },

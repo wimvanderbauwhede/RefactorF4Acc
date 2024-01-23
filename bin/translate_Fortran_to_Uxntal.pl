@@ -48,8 +48,6 @@ if ($opts{'d'}) {
     $DBG = '-d';
 }
 
-my $uxn_target = 'translate_to_Uxntal';
-
 chdir $kernels_dir;
 
 my @kernel_srcs = $module_src eq '' ?  glob("*$ext") : ( $module_src );
@@ -65,8 +63,8 @@ if (@kernel_srcs) {
         say "MODULE SRC: $kernel_src" if $V;
         # if ($kernel_sub_name and $kernel_sub_name ne '') {
             my $rf4a_cfg = create_rf4a_cfg($kernel_src,$kernel_sub_name, $kernel_module_name);
-            # die("refactorF4acc.pl $DBG $VV -P $uxn_target -c $rf4a_cfg $kernel_module_name");
-            system("refactorF4acc.pl $DBG $VV -P $uxn_target -c $rf4a_cfg $kernel_module_name");
+            # die("refactorF4acc.pl $DBG $VV -P translate_to_Uxntal -c $rf4a_cfg $kernel_module_name");
+            system("refactorF4acc.pl $DBG $VV -P translate_to_Uxntal -c $rf4a_cfg $kernel_module_name");
         # }
     }
 } else {

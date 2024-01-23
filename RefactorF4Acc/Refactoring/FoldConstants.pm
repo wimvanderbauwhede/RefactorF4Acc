@@ -171,9 +171,9 @@ sub fold_constants_no_iters {
             if (exists $info->{'VarDecl'} or exists $info->{'ParamDecl'} 
             #  and is_array_decl($info)
              ) {
-
+# carp Dumper( $annline );
                 my $var_name = exists $info->{'ParamDecl'} 
-                    ? ($info->{'ParamDecl'}{'Var'} // $info->{'ParamDecl'}{'Name'}[0])
+                    ? ($info->{'ParamDecl'}{'Var'} // (ref($info->{'ParamDecl'}{'Name'}) eq 'ARRAY' ? $info->{'ParamDecl'}{'Name'}[0] : $info->{'ParamDecl'}{'Name'}))
                     : $info->{'VarDecl'}{'Name'};
                 my $subset = in_nested_set( $Sf, (exists $info->{'ParamDecl'} ? 'Parameters' : 'Vars'), $var_name );
                 my $decl = get_var_record_from_set($Sf->{$subset},$var_name);
@@ -298,24 +298,16 @@ sub fold_constants_no_iters {
                 ) {
                     $info->{'ParsedParDecl'}{'Pars'}{'Val'} = $1;
                 }
-                elsif (1 or $val_expr_str=~/^([a-z]\w+)/i
-                    and  not exists $F95_intrinsics{$1}
-                ) {
+                elsif ($val_expr_str =~ /\.(?:true|false|not|and|or|n?eqv)\./) {
+                    # boolean expression
+                    # TODO: eval in full; for now, keep it.
+                    $info->{'ParsedParDecl'}{'Pars'}{'Val'} = $val_expr_str;
+                }
+                else {
                     my $evaled_val = eval_expression_with_parameters($val_expr_str,$info, $stref, $f) ;
                     $info->{'ParsedParDecl'}{'Pars'}{'Val'} = $evaled_val;
                 }
-                elsif ($ast->[0] ==1 and
-                        exists $F95_intrinsics{$ast->[1]}
-                    # $val_expr_str=~/^([a-z]\w+)\s*\(/i
-                    # and exists $F95_intrinsics{$1}
-                ) {
-                    # my $evaled_val = eval_expression_with_parameters($val_expr_str,$info, $stref, $f) ;
-                    # TODO: this only works if the args are constant literals. Need to eval the args.
-                    my $evaled_val = eval_intrinsic($val_expr_str);
-                    # croak "TODO: F95_intrinsics: $f $line $val_expr_str";
-                    # croak Dumper $info; 
-                    $info->{'ParsedParDecl'}{'Pars'}{'Val'} = $evaled_val;
-                }
+
 			}
 			if (exists $info->{'Assignment'} ) {
                 # We need the AST for LHS and RHS
