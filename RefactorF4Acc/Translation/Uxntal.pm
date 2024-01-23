@@ -1037,7 +1037,8 @@ sub _emit_expression_Uxntal { my ($ast, $stref, $f, $info)=@_;
 				}
 				my $mvar = $ast->[1]; # Why is this not $exp?
 				my $called_sub_name = $stref->{'CalledSub'} // '';
-				croak "$f $mvar".Dumper($stref->{'Subroutines'}{$f}{'WordSizes'}) if $opcode==2 and not exists $stref->{'Subroutines'}{$f}{'WordSizes'}{$mvar};
+				croak "$f <$mvar>".Dumper($ast) if $opcode==2 and not exists $stref->{'Subroutines'}{$f}{'WordSizes'}{$mvar};
+				# croak "$f <$mvar>".Dumper($stref->{'Subroutines'}{$f}{'WordSizes'}) if $opcode==2 and not exists $stref->{'Subroutines'}{$f}{'WordSizes'}{$mvar};
 				my $wordsz = $stref->{'Subroutines'}{$f}{'WordSizes'}{$mvar};
 				if (exists $stref->{'Subroutines'}{$f}{'Pointers'}{$mvar} ) {
 					# Meaning that $mvar is a pointer in $f

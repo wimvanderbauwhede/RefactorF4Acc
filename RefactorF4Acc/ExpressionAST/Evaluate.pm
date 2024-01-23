@@ -177,8 +177,8 @@ sub replace_consts_in_ast_no_iters { my ($stref, $f, $ast, $state)=@_;
 						(my $entry2, my $retval2) = replace_consts_in_ast_no_iters($stref,$f, $entry, $state);
 						if ($retval2==1 ) {
 							my $evaled_expr_str= $fname.'('.emit_expr_from_ast($entry2).')';
-							my $expr_val = eval_intrinsic($evaled_expr_str);
-							return ([2,$expr_val],1);
+							my $expr_val_ast = eval_intrinsic($evaled_expr_str,[1,$fname,$entry2]);
+							return ($expr_val_ast,1);
 						}
 					}
 				}
@@ -256,6 +256,7 @@ sub fold_constants_in_expr_no_iters { my ($stref, $f, $ast, $info)=@_;
 
 } # END of fold_constants_in_expr_no_iters
 
+# This is designed to return integers 
 sub eval_expression_with_parameters { (my $expr_str,my $info, my $stref, my $f) = @_;
 	# say "EXPR STR $expr_str";
 	my $expr_str_no_ph = _substitute_PlaceHolders($expr_str,$info);
@@ -266,21 +267,58 @@ sub eval_expression_with_parameters { (my $expr_str,my $info, my $stref, my $f) 
 	if ($expr_ast2->[0] ==1 and exists $F95_intrinsics{$expr_ast2->[1]} ) {
 		# my $evaled_val = eval_expression_with_parameters($val_expr_str,$info, $stref, $f) ;
 		# TODO: this only works if the args are constant literals. Need to eval the args.
-		my $expr_val = eval_intrinsic($evaled_expr_str);
+		my $expr_val_ast = eval_intrinsic($evaled_expr_str,$expr_ast2);
 		# say "INTRINSIC EXPR <$expr_str> TO EVAL: $evaled_expr_str => <$expr_val>";
-		return $expr_val;
+		if ($expr_val_ast->[0] != 29) {
+			error("$expr_str does not reduce to an integer");
+		} else {
+			return $expr_val_ast->[1];
+		}
 	} else {
 		$evaled_expr_str=~s/\-/ -/g;
 		$evaled_expr_str=~s/\/\//./g;
 		my $expr_val=eval($evaled_expr_str);
 		# croak "EXPR <$expr_str> TO EVAL: $evaled_expr_str => $expr_val".Dumper($info) if $expr_str_no_ph =~/CONCAT/;
 		if ($info->{'ParsedParDecl'}{'TypeTup'}{'Type'} eq 'character') {
+			error("$expr_str does not reduce to an integer");
 			return "'".$expr_val."'";
 		} else {
 			return $expr_val;
 		}
 	}
 } # END of eval_expression_with_parameters()
+
+# This returns an AST for constant folding
+sub eval_expression_with_parameters_to_AST { (my $expr_str,my $info, my $stref, my $f) = @_;
+	# say "EXPR STR $expr_str";
+	my $expr_str_no_ph = _substitute_PlaceHolders($expr_str,$info);
+    my $expr_ast=parse_expression($expr_str_no_ph,$info, $stref,$f);
+	# croak Dumper $expr_ast if $expr_str =~/__PH/;
+    my $expr_ast2 = replace_param_by_val($stref, $f, 0,$expr_ast, {});
+	my $evaled_expr_str= emit_expr_from_ast($expr_ast2);
+	if ($expr_ast2->[0] ==1 and exists $F95_intrinsics{$expr_ast2->[1]} ) {
+		# my $evaled_val = eval_expression_with_parameters($val_expr_str,$info, $stref, $f) ;
+		# TODO: this only works if the args are constant literals. Need to eval the args.
+		my $expr_val_ast = eval_intrinsic($evaled_expr_str,$expr_ast2);
+		# say "INTRINSIC EXPR <$expr_str> TO EVAL: $evaled_expr_str => <$expr_val>";
+		return $expr_val_ast;
+	} else {
+		$evaled_expr_str=~s/\-/ -/g;
+		$evaled_expr_str=~s/\/\//./g;
+		my $expr_val=eval($evaled_expr_str);
+		# croak "EXPR <$expr_str> TO EVAL: $evaled_expr_str => $expr_val".Dumper($info) if $expr_str_no_ph =~/CONCAT/;
+		if ($info->{'ParsedParDecl'}{'TypeTup'}{'Type'} eq 'character') {
+			return [32,"'".$expr_val."'"];
+		} elsif ($info->{'ParsedParDecl'}{'TypeTup'}{'Type'} eq 'integer') {
+			return [29,$expr_val];
+		} elsif ($info->{'ParsedParDecl'}{'TypeTup'}{'Type'} eq 'logica') {
+			croak "TODO: support for logical";
+			return [31,$expr_val];
+		} else { # assume it's a real
+			return [30,$expr_val];
+		}
+	}
+} # END of eval_expression_with_parameters_to_AST()
 
 # This routine attempts to evaluate arguments by following them to the caller,
 # but in a very limited way.
@@ -431,7 +469,7 @@ sub _try_to_eval_via_vars  {my ($stref, $f, $var) = @_;
 		}
 } # END of _try_to_eval_via_vars
 
-sub eval_intrinsic { my ($val_expr_str) = @_;
+sub eval_intrinsic { my ($val_expr_str,$val_expr_ast) = @_;
     my $intr = $val_expr_str;
     $intr=~s/\s*\(.+$//;
     my $intr_args_str = $val_expr_str;
@@ -441,12 +479,12 @@ sub eval_intrinsic { my ($val_expr_str) = @_;
     for my $intr_arg (@intr_args) {
         if ($intr_arg=~/^[a-z_]/) {
             warning("Evaluating intrinsics only works with constant arguments: $val_expr_str",0,'ERROR');
-			return $val_expr_str;
+			return $val_expr_ast;
         }
     }
 	if ($intr eq 'achar' and $intr_args[0] == 10) {
 		# This evals to a newline which we can't print in Fortran, so just keep it.
-		return $val_expr_str;
+		return $val_expr_ast;
 	}
 	carp "$val_expr_str => $intr";
     my $intr_calc = $F95_intrinsic_functions_for_eval{$intr};
