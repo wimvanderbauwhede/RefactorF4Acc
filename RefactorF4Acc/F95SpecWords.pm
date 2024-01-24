@@ -482,13 +482,88 @@ our %F95_intrinsics = (%F95_intrinsic_functions,%F95_other_intrinsics);
 
 our %F95_intrinsic_subroutine_sigs = (
 	'getarg' => [
-		'integer(kind=2) :: argIdx',
-		'character(len=128) :: arg'
+		'integer(kind=2)',
+		'character(len=128)'
 	],
 );
 
 our %F95_intrinsic_function_sigs = (
-	'iargc' => [[],'integer(kind=2) :: nArgs'],
+	'iargc' => [[],'integer(kind=2)'],
+
+# Numeric Functions
+    'abs' => [['a'],'a'],
+    'aimag' => [['complex'],'real'],
+    'aint' => [['real'],'real'],
+    'anint' => [['real'],'real'],
+    'ceiling' => [['real'],'integer'],
+    'cmplx' => [['a','a'],'complex'],
+    'conjg' => [['complex'],'complex'],
+    'dble' => [['a'],'real(kind=8)'],
+    'dim' => [['a','a'],'a'],
+    'dprod' => [['real(8)','real(8)'],'real(8)'],
+    'exponent' => [['real'],'real'],
+    'floor' => [['real'],'integer'],
+    'fraction' => [['real'],'real'],
+    'int' => [['a'],'integer'],
+    'max' => [['a','a'],'a'],
+    'min' => [['a','a'],'a'],
+    'mod' => [['a','a'],'a'],
+    'modulo' => [['a','a'],'a'],
+    'nearest' => [['real','real'],'real'],
+    'nint' => [['real'],'integer'],
+    'real' => [['a'],'real'],
+    'rrspacing' => [['real'],'real'],
+    'scale' => [['real','integer'],'real'],
+    'set_exponent' => [['real','integer'],'real'],
+    'sign' => [['a','a'],'a'],
+    'spacing' => [['real'],'real'],
+
+    # Bit manipulation
+    'btest' => [['integer','integer'],'logical'],
+    'iand' => [['integer','integer'],'integer'],
+    'ibclr' => [['integer','integer'],'integer'],
+    'ibits' => [['integer','integer','integer'],'integer'],
+    'ibset' => [['integer','integer'],'integer'],
+    'ieor' => [['integer','integer'],'integer'],
+    'ior' => [['integer','integer'],'integer'],
+    'ishft' =>[['integer','integer'],'integer'],
+    'ishftc' => [['integer','integer','integer'],'integer'],
+
+    # Character Functions
+    'achar'=> [['integer'], 'character'],
+    'adjustl' => [['character(*)'], 'character(*)'],
+    'adjustr' => [['character(*)'], 'character(*)'],
+    'char'=> [['integer'], 'character'],
+    'iachar'=> [['character'], 'integer'],
+    'ichar'=> [['character'], 'integer'],
+    'index' => [['character(*)','character(*)','logical'],'integer'],
+    'len' => [['character(*)'],'integer'],
+    'len_trim' => sub {my $tstr = $_[0];$tstr=~s/\s+$//;length($tstr)}, # integer
+    'lge'  => [['character(*)','character(*)'],'logical'],
+    'lgt'  => [['character(*)','character(*)'],'logical'],
+    'lle'  => [['character(*)','character(*)'],'logical'],
+    'llt'  => [['character(*)','character(*)'],'logical'],
+    'repeat' => [['character(*)','integer'],'character(*)'],
+    'scan' => [['character(*)','character(*)','logical'],'integer'],
+    'trim' => [['character(*)'], 'character(*)'],
+    'verify' => [['character(*)','character(*)','logical'],'integer'],
+
+    # Mathematical Functions
+    # Most of these actually can take complex args too
+    'acos'=> [['real'],'real'],
+    'asin' => [['real'],'real'],
+    'atan' =>  [['real'],'real'],
+    'atan2' =>  [['real','real'],'real'],
+    'cos' =>  [['real'],'real'],
+    'cosh' => [['real'],'real'],
+    'exp' => [['real'],'real'],
+    'log' => [['real'],'real'],
+    'log10' => [['real'],'real'],
+    'sin' =>  [['real'],'real'],
+    'sinh' =>  [['real'],'real'],
+    'sqrt' =>  [['real'],'real'],
+    'tan' =>  [['real'],'real'],
+    'tanh' =>  [['real'],'real'],
 );
 
 our %F95_intrinsic_functions_for_eval = (
@@ -515,25 +590,25 @@ our %F95_intrinsic_functions_for_eval = (
     'nint' => sub { die "TODO: nint is NOT IMPLEMENTED\n" },
     'real' => sub {$_[0]}, # dummy # real
     'rrspacing' => sub { die "TODO: rrspacing is NOT IMPLEMENTED\n" },
-    'scale' => sub { die "TODO: scale is NOT IMPLEMENTED\n" },
+    'scale' => sub { $_[0]*(2<<$_[1]) },
     'set_exponent' => sub { die "TODO: set_exponent is NOT IMPLEMENTED\n" },
     'sign' => sub { die "TODO: sign is NOT IMPLEMENTED\n" },
     'spacing' => sub { die "TODO: spacing is NOT IMPLEMENTED\n" },
 
     # Bit manipulation
     'btest' => sub { die "TODO: btest is NOT IMPLEMENTED\n" },
-    'iand' => sub { $_[0] & $_[1] }, # logical
+    'iand' => sub { $_[0] & $_[1] }, # integer
     'ibclr' => sub { die "TODO: ibclr is NOT IMPLEMENTED\n" },
     'ibits' => sub { die "TODO: ibits is NOT IMPLEMENTED\n" },
     'ibset' => sub { die "TODO: ibset is NOT IMPLEMENTED\n" },
-    'ieor' => sub { $_[0] ^ $_[1] }, # logical
-    'ior' => sub { $_[0] | $_[1] }, # logical
+    'ieor' => sub { $_[0] ^ $_[1] }, # integer
+    'ior' => sub { $_[0] | $_[1] }, # integer
     'ishft' => sub {   if ($_[1]<0) {
                             $_[0] >> $_[1]
                         } else {
                             $_[0] << $_[1]
                         }
-                    }, # logical
+                    }, # integer
     'ishftc' => sub { die "TODO: ishftc is NOT IMPLEMENTED\n" },
 
     # Character Functions
@@ -550,26 +625,26 @@ our %F95_intrinsic_functions_for_eval = (
     'lgt'  => sub { $_[0] gt $_[1] }, # logical
     'lle'  => sub { ($_[0] eq $_[1]) or ($_[0] lt $_[1]) }, # logical
     'llt'  => sub { $_[0] lt $_[1] }, # logical
-    'repeat' => sub { die "TODO: repeat is NOT IMPLEMENTED\n" },
+    'repeat' => sub { $_[0] x $_[1] },
     'scan' => sub { die "TODO: scan is NOT IMPLEMENTED\n" },
     'trim' => sub {$_[0]=~s/\s+$//;return $_[0]}, # character
     'verify' => sub { die "TODO: verify is NOT IMPLEMENTED\n" },
 
     # Mathematical Functions
-    'acos'=> sub { atan2( sqrt(1 - $_[0] * $_[0]), $_[0] ) },# real
-    'asin' => sub { atan2($_[0], sqrt(1 - $_[0] * $_[0])) },# real
-    'atan' => sub { atan2($_[0],1) },# real
-    'atan2' => sub { atan2($_[0],$_[1]) },# real
-    'cos' => sub { cos($_[0])},# real
-    'cosh' => sub { die "TODO: cosh is NOT IMPLEMENTED\n" },
-    'exp' => sub { exp($_[0])},# real
-    'log' => sub { log($_[0])},# real
-    'log10' => sub { log($_[0])/log(10)},# real
-    'sin' => sub { sin($_[0])},# real
-    'sinh' => sub { die "TODO: sinh is NOT IMPLEMENTED\n" },
-    'sqrt' => sub { sqrt($_[0])},# real
-    'tan' => sub { sin($_[0])/cos($_[0])},# real
-    'tanh' => sub { die "TODO: tanh is NOT IMPLEMENTED\n" },
+    'acos'=> sub { atan2( sqrt(1 - $_[0] * $_[0]), $_[0] ) },
+    'asin' => sub { atan2($_[0], sqrt(1 - $_[0] * $_[0])) },
+    'atan' => sub { atan2($_[0],1) },
+    'atan2' => sub { atan2($_[0],$_[1]) },
+    'cos' => sub { cos($_[0])},
+    'cosh' => sub { (exp($_[0])+exp(-$_[0]))/2 },
+    'exp' => sub { exp($_[0])},
+    'log' => sub { log($_[0])},
+    'log10' => sub { log($_[0])/log(10)},
+    'sin' => sub { sin($_[0])},
+    'sinh' => sub { (exp($_[0])-exp(-$_[0]))/2 },
+    'sqrt' => sub { sqrt($_[0])},
+    'tan' => sub { sin($_[0])/cos($_[0])},
+    'tanh' => sub { (exp($_[0])-exp(-$_[0]))/(exp($_[0])+exp(-$_[0])) },
 );
 
 
