@@ -338,10 +338,34 @@ Instead of the nice but cumbersome approach we had until now, from now on it is 
         my $id = $info->{'LineID'};
 		my $skip=0;
 		if (exists $info->{'Signature'} ) {
+			# subroutine f(x) becomes @f ;x LDA{sz} if x is read
+			# but if x is write, then we have 
+			# @f ... ;x STA{sz} JMP2r
+			# So what we need is to create a Set $arg => [$wordz, $iodir]
+			# and a List of $arg
+			# Or maybe {ReadArgs} and {WriteArgs} with the actual code
+			# Then to create the final code, combine
+			# $pass_state->{'ArgVarDecls'}
+			# $pass_state->{'Sig'}
+			# $pass_state->{'ReadArgs'}
+			# $pass_state->{'TranslatedCode'}
+			# $pass_state->{'WriteArgs'}
+			# 'JMP2r'
+			# Thinking about it a bit more, the first 3 can be pushed onto $pass_state->{'TranslatedCode'}
 			$pass_state->{'Args'}=$info->{'Signature'}{'Args'}{'List'};
-			my ($sig_line,$arg_decls) = _emit_subroutine_sig_Uxntal( $stref, $f, $annline);
-			@{$pass_state->{'ArgVarDecls'}}= map { $_ } @{$arg_decls};
-			$c_line = $sig_line."\n";
+			my ($sig_line,$arg_decls, $read_args,$write_args) = _emit_subroutine_sig_Uxntal( $stref, $f, $annline);
+			$pass_state->{'TranslatedCode'}=[@{$pass_state->{'TranslatedCode'}},
+				@{$arg_decls},
+				$sig_line,
+				@{$read_args}
+			];
+			$skip=1;
+			$pass_state->{'WriteArgs'}=$write_args;
+			# $pass_state->{'ArgVarDecls'}{'List'}= $arg_decls;
+			if ($sig_line eq '|0100') {
+				$pass_state->{'IsMain'}=1; 
+			}
+			# $c_line = $sig_line."\n";
 		}
 		elsif (exists $info->{'VarDecl'} ) {
 			my $var = $info->{'VarDecl'}{'Name'};
@@ -351,14 +375,14 @@ Instead of the nice but cumbersome approach we had until now, from now on it is 
 				$skip=1;
 			} else {
 				($stref,my $uxntal_var) =  _emit_var_decl_Uxntal($stref,$f,$info,$var);
-				if (not exists $stref->{'Uxntal'}{'Subroutines'}{$f}{'LocalVars'}{'Set'}{$uxntal_var}) {
-					$stref->{'Uxntal'}{'Subroutines'}{$f}{'LocalVars'}{'Set'}{$uxntal_var}=$uxntal_var;
-					push @{$stref->{'Uxntal'}{'Subroutines'}{$f}{'LocalVars'}{'List'}},$uxntal_var;
+				if (not exists $pass_state->{'LocalVars'}{'Set'}{$uxntal_var}) {
+					$pass_state->{'LocalVars'}{'Set'}{$uxntal_var}=$uxntal_var;
+					push @{$pass_state->{'LocalVars'}{'List'}},$uxntal_var;
 				} else {
 					croak "Vars should be unique: $uxntal_var";
 				}
 			}
-					$pass_state->{'ArgVarDecls'}=[@{$pass_state->{'ArgVarDecls'}},$c_line];
+					# $pass_state->{'ArgVarDecls'}=[@{$pass_state->{'ArgVarDecls'}},$c_line];
 			$skip=1;
 		}
 		elsif ( exists $info->{'ParamDecl'} ) {
@@ -572,10 +596,20 @@ Instead of the nice but cumbersome approach we had until now, from now on it is 
 	};
 
 	my $state = [$stref,$f,
+
 	# pass state
-	{
+	# for subroutine, we need the args, local vars and the actual body
+	# That then goes into $stref->{'Uxntal'}{'Subroutines'}{$f}
+	{ 
+	'LocalVars'=> {'Set' =>{}, 'List' => [] }, 
+	'Args' => {'Set' =>{}, 'List' => [] },  
+	# 'Lines' => [], # use TranslatedCode
+	'IsMain' => 0,
+
 		'TranslatedCode'=>[],
-		'Args'=>[],'ArgVarDecls'=>[],
+		# 'Args'=>[],
+		'ArgVarDecls'=>[],
+
 		'IfStack'=>[],'IfId' =>0,'IfBranchId' =>0,
 		'DoStack'=>[], 'DoIter'=>'', 'DoId' => 0,
 	}
@@ -652,18 +686,18 @@ sub _emit_Uxntal_code { (my $stref, my $module_name, my $ocl)=@_;
 } # END of _emit_Uxntal_code
 
 sub _emit_subroutine_sig_Uxntal { (my $stref, my $f, my $annline)=@_;
-carp $f;
+# croak $f;
 	    (my $line, my $info) = @{ $annline };
 	    my $Sf = $stref->{'Subroutines'}{$f};
 
 	    my $name = $info->{'Signature'}{'Name'};
 		my $args_ref = $info->{'Signature'}{'Args'}{'List'};
-		my $c_args_ref=[];
+		my $uxntal_arg_decls=[];
 		for my $arg (@{ $args_ref }) {
-			($stref,my $c_arg_decl) = _emit_arg_decl_Uxntal($stref,$f,$arg,$f);
-			push @{$c_args_ref},$c_arg_decl;
+			($stref,my $uxntal_arg_decl) = _emit_arg_decl_Uxntal($stref,$f,$arg,$f);
+			push @{$uxntal_arg_decls},$uxntal_arg_decl;
 		}
-	    my $args_str = join( ' ', @{$c_args_ref} );
+	    # my $args_str = join( ' ', @{$uxntal_arg_decls} );
 		my $rline =
 		# $args_str."\n".
 		'@'.$name;
@@ -671,7 +705,7 @@ carp $f;
 		) {
 			$rline = '|0100';
 		}
-		return  ($rline,$c_args_ref);
+		return  ($rline,$uxntal_arg_decls, $read_args, $write_args);
 } # END of _emit_subroutine_sig_Uxntal
 
 sub _emit_arg_decl_Uxntal { (my $stref,my $f,my $arg, my $name)=@_;
