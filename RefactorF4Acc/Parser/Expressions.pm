@@ -56,8 +56,8 @@ our @sigils = ('(', '&', '$', '+', '-', '*', '/', '%', '**', '=', '@', '#', ':' 
 #                27   28
                ,',', '(/',
 # Constants
-#                29        30      31         32           33             34       35
-               ,'integer', 'real', 'logical', 'character', 'PlaceHolder', 'Label', 'BLANK'
+#                29        30      31         32           33         34             35       36
+               ,'integer', 'real', 'logical', 'character', 'complex', 'PlaceHolder', 'Label', 'BLANK'
               );
 
 # '&','@': my ($sigil, $var_name_str, $args) = @{$ast}; # [1|10,'v',[...]]
@@ -664,7 +664,7 @@ sub parse_expression_no_context { (my $str)=@_;
         }
         elsif ( $str=~s/^((?:__PH\d+__)+)// ) {
             #variable
-            $expr_ast=[33,$1];
+            $expr_ast=[34,$1];
             #$expr_ast=['$',$1];
             # Now it is possible that there are several of these in a row!
         }
@@ -696,7 +696,7 @@ sub parse_expression_no_context { (my $str)=@_;
         elsif ($str=~s/^\*(\d+)//) {
             # The '*' is for "alternate returns", a bizarre F77 feature.
             # The integer following the * is a label
-            $expr_ast=[34,$1];
+            $expr_ast=[35,$1];
             #$expr_ast=$1;#['Label',$1];
         }
         elsif ($Config{'ALLOW_SPACES_IN_NUMBERS'}==0 and $str=~s/^(\d+(?:_[1248])?)//) {
@@ -1169,7 +1169,7 @@ sub emit_expr_from_ast { (my $ast)=@_;
                 my $v = (ref($exp) eq 'ARRAY') ? emit_expr_from_ast($exp) : $exp;
                 return "(/ $v /)";
             } elsif ($opcode == 2 or $opcode>28) {# eq '$' or constants
-                return ($opcode == 34) ?  "*$exp" : $exp;
+                return ($opcode == 35) ?  "*$exp" : $exp;
             } elsif ($opcode == 21 or $opcode == 4 or $opcode == 3) {# '.not.' '+' '-'
                 my $v = (ref($exp) eq 'ARRAY') ? emit_expr_from_ast($exp) : $exp;
                 return $sigils[$opcode]. $v;
@@ -1558,8 +1558,8 @@ sub _find_args_in_ast { (my $ast, my $args) =@_;
 #our @sigils = ('(', '&', '$', '+', '-', '*', '/', '%', '**', '=', '@', '#', ':' ,'//', ')('
 #                15    16    17  18   19    20     21       22       23      24       25       26
 #              ,'==', '/=', '<', '>', '<=', '>=', '.not.', '.and.', '.or.', '.xor.', '.eqv.', '.neqv.'
-#                27   28    29        30      31         32           33             34       35
-#              ,',', '(/', 'integer', 'real', 'logical', 'character', 'PlaceHolder', 'Label', 'BLANK'
+#                27   28    29        30      31         32           33         34             35
+#              ,',', '(/', 'integer', 'real', 'logical', 'character', 'complex', 'PlaceHolder', 'Label', 'BLANK'
 #              );
 # The assumption is that we pass this the 3rd arg of an AST for a subroutine call
 # This can either be a comma-sep list or a single arg

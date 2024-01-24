@@ -50,8 +50,8 @@ our @sigils = ('(', '&', '$', 'ADD', 'SUB', 'MUL', 'DIV', 'mod', 'pow', '=', '@'
 #                27   28
                ,',', '(/',
 # Constants
-#                29        30      31         32           33             34       35
-               ,'integer', 'real', 'logical', 'character', 'PlaceHolder', 'Label', 'BLANK'
+#                29        30      31         32           33         34             35       36
+               ,'integer', 'real', 'logical', 'character', 'complex', 'PlaceHolder', 'Label', 'BLANK'
               );
 
 
@@ -870,7 +870,7 @@ sub _emit_ifbranch_end_Uxntal { my ($id, $state) = @_;
 #                 27   28
 #			    ,',', '(/',
 # Constants
-#                 29        30      31         32           33             34       35
+#                 29        30      31         32           34             35       36
 #			    ,'integer', 'real', 'logical', 'character', 'PlaceHolder', 'Label', 'BLANK'
 #   );
 # $: scalar
@@ -1024,8 +1024,8 @@ sub _emit_expression_Uxntal { my ($ast, $stref, $f, $info)=@_;
                 return "[ $v ]"; # FIXME
             } elsif ($opcode==2 or $opcode>28) {# eq '$' or constants
 
-				$exp = __substitute_PlaceHolders_Uxntal($exp,$info) if $opcode == 33;
-				if ($opcode == 34) {
+				$exp = __substitute_PlaceHolders_Uxntal($exp,$info) if $opcode == 34;
+				if ($opcode == 35) {
 					die 'ERROR: Fortran LABEL as arg is not supported, sorry!'."\n"; #  "*$exp" : $exp;   # Fortran LABEL, does not exist in C
 				}
 				# Handle integers, also with size notations, e.g. 11_1, 22_2
@@ -1387,8 +1387,8 @@ sub genSubstr { my ($strn, $cb,$ce, $len,$id) = @_;
 sub isStrCmp { my ($ast, $stref, $f,$info) =@_;
 	my $lhs_name = $ast->[1][0] == 10 ? $ast->[1][1] : '';
 	my $rhs_name = $ast->[2][0] == 10 ? $ast->[2][1] : '';
-	my $lhs_is_str = $ast->[1][0] == 33 ? 1 : 0;
-	my $rhs_is_str = $ast->[2][0] == 33 ? 1 : 0;
+	my $lhs_is_str = $ast->[1][0] == 34 ? 1 : 0;
+	my $rhs_is_str = $ast->[2][0] == 34 ? 1 : 0;
 	if (not $lhs_is_str) {
 		if ($lhs_name ne '') {
 			my $decl = get_var_record_from_set($stref->{'Subroutines'}{$f}{'Vars'},$lhs_name);

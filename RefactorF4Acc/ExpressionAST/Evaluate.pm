@@ -2,7 +2,11 @@ package RefactorF4Acc::ExpressionAST::Evaluate;
 use v5.10;
 use RefactorF4Acc::Config;
 use RefactorF4Acc::Utils;
-use RefactorF4Acc::F95SpecWords qw( %F95_intrinsics %F95_intrinsic_functions_for_eval );
+use RefactorF4Acc::F95SpecWords qw( 
+	%F95_intrinsics 
+	%F95_intrinsic_functions_for_eval 
+	%F95_intrinsic_function_sigs 
+	);
 use RefactorF4Acc::Refactoring::Helpers qw(
 	pass_wrapper_subs_in_module
 	stateful_pass_inplace
@@ -257,8 +261,9 @@ sub fold_constants_in_expr_no_iters { my ($stref, $f, $ast, $info)=@_;
 } # END of fold_constants_in_expr_no_iters
 
 # This is designed to return integers 
-sub eval_expression_with_parameters { (my $expr_str,my $info, my $stref, my $f) = @_;
+sub eval_expression_with_parameters { (my $expr_str,my $info, my $stref, my $f, my $err) = @_;
 	# say "EXPR STR $expr_str";
+	if (not defined $err) {$err=0}
 	my $expr_str_no_ph = _substitute_PlaceHolders($expr_str,$info);
     my $expr_ast=parse_expression($expr_str_no_ph,$info, $stref,$f);
 	# croak Dumper $expr_ast if $expr_str =~/__PH/;
@@ -268,9 +273,12 @@ sub eval_expression_with_parameters { (my $expr_str,my $info, my $stref, my $f) 
 		# my $evaled_val = eval_expression_with_parameters($val_expr_str,$info, $stref, $f) ;
 		# TODO: this only works if the args are constant literals. Need to eval the args.
 		my $expr_val_ast = eval_intrinsic($evaled_expr_str,$expr_ast2);
-		# say "INTRINSIC EXPR <$expr_str> TO EVAL: $evaled_expr_str => <$expr_val>";
+		carp "INTRINSIC EXPR <$expr_str> TO EVAL: $evaled_expr_str => ",Dumper($expr_val_ast);
 		if ($expr_val_ast->[0] != 29) {
-			error("$expr_str does not reduce to an integer");
+			if ($err) {
+				error("$expr_str does not reduce to an integer");
+			} 
+			return $evaled_expr_str;
 		} else {
 			return $expr_val_ast->[1];
 		}
@@ -280,7 +288,9 @@ sub eval_expression_with_parameters { (my $expr_str,my $info, my $stref, my $f) 
 		my $expr_val=eval($evaled_expr_str);
 		# croak "EXPR <$expr_str> TO EVAL: $evaled_expr_str => $expr_val".Dumper($info) if $expr_str_no_ph =~/CONCAT/;
 		if ($info->{'ParsedParDecl'}{'TypeTup'}{'Type'} eq 'character') {
-			error("$expr_str does not reduce to an integer");
+			if ($err) {
+				error("$expr_str does not reduce to an integer");
+			}
 			return "'".$expr_val."'";
 		} else {
 			return $expr_val;
@@ -486,10 +496,14 @@ sub eval_intrinsic { my ($val_expr_str,$val_expr_ast) = @_;
 		# This evals to a newline which we can't print in Fortran, so just keep it.
 		return $val_expr_ast;
 	}
-	carp "$val_expr_str => $intr";
+
     my $intr_calc = $F95_intrinsic_functions_for_eval{$intr};
-    my $res = $intr_calc->(@intr_args);
-    return $res;
+	my $sub_type = $F95_intrinsic_function_sigs{$intr}[-1];
+	my $res = $intr_calc->(@intr_args);
+	my $opcode = ($sub_type ne 'a')
+		? $sigil_codes{$sub_type}
+		: ($intr_args_str=~/\./) ? 30 : 29 ;
+	return [$opcode,$res];
 } # END of eval_intrinsic
 
 sub _substitute_PlaceHolders { my ($expr_str,$info) = @_;
