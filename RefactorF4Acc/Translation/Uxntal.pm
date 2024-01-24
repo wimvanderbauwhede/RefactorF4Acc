@@ -60,47 +60,36 @@ our @sigils = ('(', '&', '$', 'ADD', 'SUB', 'MUL', 'DIV', 'mod', 'pow', '=', '@'
 # Essentially, this should be like the constant folding step in Refactoring.
 
 sub translate_program_to_Uxntal {  (my $stref, my $program_name) = @_;
-# die $program_name;
-# croak Dumper( keys(%{$stref->{'Modules'}}),$stref->{'Program'},$stref->{'SourceContains'}{$stref->{'Program'}}{'List'});
+
+	$stref->{'Uxntal'} = {
+		'Macros' => { 'Set' =>{}, 'List' => [] },
+		'Main' => [], # will be empty as we use Subroutines
+		'Subroutines' => {}, # { 'LocalVars'=> {'Set' =>{}, 'List' => [] }, 'Args' => {'Set' =>{}, 'List' => [] },  'isMain' => 0|1 }
+		'Globals' => { 'Set' =>{}, 'List' => [] },
+	};
+
 	$stref = fold_constants_all($stref) ;
 
-
-	# ($stref,my $new_annlines) = fold_constants_no_iters($stref,$program_name);
-	# $stref->{'Subroutines'}{$program_name}{'RefactoredCode'} = $new_annlines;
-	# for my $module_name (sort keys %{$stref->{'Modules'}} ) {
-	# 	($stref,my $new_annlines) = fold_constants_no_iters($stref,$module_name);
-	# 	$stref->{'Modules'}{$module_name}{'RefactoredCode'} = $new_annlines;
-	# }
-	# croak Dumper $stref->{'Subroutines'}{$program_name}{'RefactoredCode'};
 	my $new_annlines = $stref->{'Subroutines'}{$program_name}{'RefactoredCode'};
-	# say $program_name;
-	# croak Dumper pp_annlines($new_annlines);
-	# croak Dumper pp_annlines($new_annlines,1);
 	$stref->{'TranslatedCode'}=[];
 	$Config{'FIXES'}={
 		# _declare_undeclared_variables => 1,
-	# _remove_unused_variables => 1
+		# _remove_unused_variables => 1
 	};
 	$stref = pass_wrapper_subs_in_module($stref,$program_name,
 	   # module-specific passes.
        [
 			[\&translate_module_decls_to_Uxntal]
-        #    [\&_emit_OpenCL_pipe_declarations]
        ],
        # subroutine-specific passes
 	   [
 		  [
-			#   \&determine_argument_io_direction_rec,
-			#   \&update_arg_var_decl_sourcelines,
-			#   \&_declare_undeclared_variables,
 			  \&replace_case_by_if
 		  ],
-			#,\&_remove_unused_variables],
 		  [\&translate_sub_to_Uxntal]
        ]
        );
-
-	# $stref = _write_headers($stref,$ocl);
+	# This prints out the lines from $stref->{'TranslatedCode'}
 	$stref = _emit_Uxntal_code($stref, $program_name);
 	# This enables the postprocessing for custom passes
 	$stref->{'CustomPassPostProcessing'}=1;
@@ -173,18 +162,10 @@ Instead of the nice but cumbersome approach we had until now, from now on it is 
 
 	for my $var (@{$Sf->{'AllVarsAndPars'}{'List'}}) {
 		my $subset = in_nested_set($Sf,'Vars',$var);
-		# if ($subset eq '') {
-		# 	$subset = in_nested_set($Sf,'ModuleVars',$var);
-		# }
-		# if ($subset eq '') {
-		# 	$subset = in_nested_set($Sf,'ModuleParameters',$var);
-		# }
 		if ($subset eq '') {
 			croak "$f $var";
 		}
 		my $decl = get_var_record_from_set($Sf->{$subset},$var);
-		# croak "$f $var",Dumper($decl) if $f eq 'clearFunktalTokens' and $var eq 'funktalTokensIdx';
-		# say "$f $var $subset", Dumper $decl;
 
 		my $wordsz=0;
 		my $type = $decl->{'Type'};	
@@ -211,7 +192,11 @@ Instead of the nice but cumbersome approach we had until now, from now on it is 
 	}
 
 	my $annlines = get_annotated_sourcelines( $stref, $f );
-# This analysis only looks at args, local vars and local parameters. We need to include globals
+
+	# This analysis only looks at args, local vars and local parameters. We need to include globals
+	# Or maybe not, as pointer analysis is not necessary for Uxntal.
+	# We populate $state->{'Pointers'} and $state->{'WordSizes'} but the latter is not used as
+	# $Sf->{'WordSizes'} is populated above; 
 	my $pass_pointer_analysis = sub { my ($annline,$state) = @_;
 		my ($line, $info) = @{$annline};
 
@@ -271,10 +256,8 @@ Instead of the nice but cumbersome approach we had until now, from now on it is 
 		# FIXME: this is because of the presence of an empty $info->{'SubroutineCall'} record.
 		elsif (exists $info->{'SubroutineCall'} and exists $info->{'SubroutineCall'}{'Name'}) {
 			my $fname =  $info->{'SubroutineCall'}{'Name'};
-			# croak $line.';'.Dumper( $info) unless defined $fname;
 			if (not exists $F95_intrinsic_functions{$fname} ) {
 				for my $arg_expr_str (@{$info->{'SubroutineCall'}{'Args'}{'List'}}) {
-					# say "<$fname $arg_expr_str>";
 					my $arg = ($info->{'SubroutineCall'}{'Args'}{'Set'}{$arg_expr_str}{'Type'} eq 'Scalar'
 					or $info->{'SubroutineCall'}{'Args'}{'Set'}{$arg_expr_str}{'Type'} eq 'Const'
 					or $info->{'SubroutineCall'}{'Args'}{'Set'}{$arg_expr_str}{'Type'} eq 'Expr'
@@ -305,31 +288,36 @@ Instead of the nice but cumbersome approach we had until now, from now on it is 
 			}
 		}
 
-		elsif (exists $info->{'Do'} ) {
-			if (exists $info->{'Do'}{'While'}) {
-				say 'TODO: Do While: '.Dumper($info->{'Do'}{'ExpressionsAST'});
-			} else {
-				say 'TODO: Do: '.Dumper($info->{'Do'});
-			}
-		}
-		elsif (exists $info->{'BeginDo'} ) {
-			croak 'TODO: BeginDo: what is this?';
-		}
+		# elsif (exists $info->{'Do'} ) {
+		# 	if (exists $info->{'Do'}{'While'}) {
+		# 		croak 'TODO: Do While: '.Dumper($info->{'Do'}{'ExpressionsAST'});
+		# 	} else {
+		# 		my $iter = $info->{'Do'}{'Iterator'};
+		# 		$state->{'Pointers'}{$iter}='';
+		# 	}
+		# }
+		# elsif (exists $info->{'BeginDo'} ) {
+		# 	croak 'TODO: BeginDo: what is this?';
+		# }
 
-		if (exists $info->{'Assignment'} ) {
-			if (exists $info->{'If'}) {
-			}
-		}
-		elsif (exists $info->{'SubroutineCall'} and not exists $info->{'IOCall'}) {
-			if (exists $info->{'If'}) {
-			}
-		}
-		elsif (exists $info->{'IOCall'}) {
-			if (exists $info->{'PrintCall'}) {
-			}
-		}
-        elsif (exists $info->{'IfThen'}  ) {
-        }
+		# if (exists $info->{'Assignment'} ) {
+		# 	if (exists $info->{'If'}) {
+		# 		say 'TODO: If with assignment: '.Dumper($info->{'If'});
+		# 	}
+		# }
+		# elsif (exists $info->{'SubroutineCall'} and not exists $info->{'IOCall'}) {
+		# 	if (exists $info->{'If'}) {
+		# 		say 'TODO: If with call: '.Dumper($info->{'If'});
+		# 	}
+		# }
+		# elsif (exists $info->{'IOCall'}) {
+		# 	if (exists $info->{'PrintCall'}) {
+		# 		say 'TODO: If with call: '.Dumper($info->{'If'});
+		# 	}
+		# }
+        # elsif (exists $info->{'IfThen'}  ) {
+		# 	say 'TODO: IfThen: '.Dumper($info->{'IfThen'});
+        # }
 
 
 		return ([[$line,$info]],$state)
@@ -344,7 +332,7 @@ Instead of the nice but cumbersome approach we had until now, from now on it is 
 # --------------------------------------------------------------------------------------------
 	my $pass_translate_to_Uxntal = sub { (my $annline, my $state)=@_;
 		(my $line,my $info)=@{$annline};
-		say "$f LINE:<$line> ";#.Dumper($info);
+		say "$f LINE:<$line> ";
 		my $c_line=$line;
 		(my $stref, my $f, my $pass_state)=@{$state};
         my $id = $info->{'LineID'};
@@ -356,22 +344,34 @@ Instead of the nice but cumbersome approach we had until now, from now on it is 
 			$c_line = $sig_line."\n";
 		}
 		elsif (exists $info->{'VarDecl'} ) {
-				my $var = $info->{'VarDecl'}{'Name'};
-				# carp Dumper $info;
-				if (exists $stref->{'Subroutines'}{$f}{'DeclaredOrigArgs'}{'Set'}{$var}) {
-					$c_line='( '.$line.' )';
-					$skip=1;
+			my $var = $info->{'VarDecl'}{'Name'};
+			# carp Dumper $info;
+			if (exists $stref->{'Subroutines'}{$f}{'DeclaredOrigArgs'}{'Set'}{$var}) {
+				$c_line='( '.$line.' )';
+				$skip=1;
+			} else {
+				($stref,my $uxntal_var) =  _emit_var_decl_Uxntal($stref,$f,$info,$var);
+				if (not exists $stref->{'Uxntal'}{'Subroutines'}{$f}{'LocalVars'}{'Set'}{$uxntal_var}) {
+					$stref->{'Uxntal'}{'Subroutines'}{$f}{'LocalVars'}{'Set'}{$uxntal_var}=$uxntal_var;
+					push @{$stref->{'Uxntal'}{'Subroutines'}{$f}{'LocalVars'}{'List'}},$uxntal_var;
 				} else {
-					$c_line =  _emit_var_decl_Uxntal($stref,$f,$info,$var);
-					$pass_state->{'ArgVarDecls'}=[@{$pass_state->{'ArgVarDecls'}},$c_line];
-					$skip=1;
+					croak "Vars should be unique: $uxntal_var";
 				}
+			}
+					$pass_state->{'ArgVarDecls'}=[@{$pass_state->{'ArgVarDecls'}},$c_line];
+			$skip=1;
 		}
 		elsif ( exists $info->{'ParamDecl'} ) {
-			# carp Dumper $info;
+			# A parameter should become a macro
 			my $var = $info->{'ParamDecl'}{'Var'};
-
-				$c_line = _emit_var_decl_Uxntal($stref,$f,$info,$var);
+			($stref,my $uxntal_par) = _emit_var_decl_Uxntal($stref,$f,$info,$var);
+			if (not exists $stref->{'Uxntal'}{'Macros'}{'Set'}{$uxntal_par}) {
+				$stref->{'Uxntal'}{'Macros'}{'Set'}{$uxntal_par}=$uxntal_par;
+				push @{$stref->{'Uxntal'}{'Macros'}{'List'}},$uxntal_par;
+			} else {
+				croak "Macros should be unique: $uxntal_par";
+			}
+			$skip=1;
 		}
 		# For Uxntal, we need to turn the Case into an IfThen
 		elsif (exists $info->{'Select'} ) {
@@ -582,15 +582,14 @@ Instead of the nice but cumbersome approach we had until now, from now on it is 
 	];
  	($stref,$state) = stateful_pass_inplace($stref,$f,$pass_translate_to_Uxntal, $state,'pass_translate_to_Uxntal() ' . __LINE__  ) ;
 # --------------------------------------------------------------------------------------------
+	
+
  	$stref->{'Subroutines'}{$f}{'TranslatedCode'}=$state->[2]{'TranslatedCode'};
  	$stref->{'TranslatedCode'}=[
 		@{$stref->{'TranslatedCode'}},'',
 		 @{$state->[2]{'ArgVarDecls'}},'',
 		 @{$state->[2]{'TranslatedCode'}}
 		 ] ;
-	# # For fixing LLVM IR
-	# $stref->{'SubroutineArgs'}=$state->[2]{'Args'};
-	# $stref->{'SubroutineName'}=$f;
  	return $stref;
 
 } # END of translate_sub_to_Uxntal()
@@ -695,7 +694,6 @@ sub _emit_var_decl_Uxntal { (my $stref,my $f,my $info,my $var)=@_;
 	my $Sf = $stref->{$sub_or_module}{$f};
 	say "_emit_var_decl_Uxntal: VAR $var in $f ";
 	my $decl =  get_var_record_from_set($stref->{$sub_or_module}{$f}{'Vars'},$var);
-	croak Dumper( $decl,$stref->{'Subroutines'}{'tokeniseFunktal'}{'ExGlobArgs'}{'Set'}{'funktalStringConstsIdx'}) if ($f eq 'tokeniseFunktal' and $var eq 'funktalStringConstsIdx');
 	my $array = (exists $decl->{'ArrayOrScalar'} and $decl->{'ArrayOrScalar'} eq 'Array') ? 1 : 0;
 
 	my $const = '';
