@@ -353,11 +353,11 @@ Instead of the nice but cumbersome approach we had until now, from now on it is 
 			# 'JMP2r'
 			# Thinking about it a bit more, the first 3 can be pushed onto $pass_state->{'TranslatedCode'}
 			$pass_state->{'Args'}=$info->{'Signature'}{'Args'}{'List'};
-			my ($sig_line,$arg_decls, $read_args,$write_args) = _emit_subroutine_sig_Uxntal( $stref, $f, $annline);
+			my ($sig_line,$arg_decls, $args_to_store,$write_args) = _emit_subroutine_sig_Uxntal( $stref, $f, $annline);
 			$pass_state->{'TranslatedCode'}=[@{$pass_state->{'TranslatedCode'}},
 				@{$arg_decls},
 				$sig_line,
-				@{$read_args}
+				@{$args_to_store}
 			];
 			$skip=1;
 			$pass_state->{'WriteArgs'}=$write_args;
@@ -602,7 +602,8 @@ Instead of the nice but cumbersome approach we had until now, from now on it is 
 	# That then goes into $stref->{'Uxntal'}{'Subroutines'}{$f}
 	{ 
 	'LocalVars'=> {'Set' =>{}, 'List' => [] }, 
-	'Args' => {'Set' =>{}, 'List' => [] },  
+	'Args' => {'Set' =>{}, 'List' => [] }, 
+	'WriteArgs' => {}, # This should probably replace Pointers
 	# 'Lines' => [], # use TranslatedCode
 	'IsMain' => 0,
 
@@ -693,10 +694,17 @@ sub _emit_subroutine_sig_Uxntal { (my $stref, my $f, my $annline)=@_;
 	    my $name = $info->{'Signature'}{'Name'};
 		my $args_ref = $info->{'Signature'}{'Args'}{'List'};
 		my $uxntal_arg_decls=[];
+		my $uxntal_args_to_store=[];
+		my $uxntal_write_args={}; 
 		for my $arg (@{ $args_ref }) {
-			($stref,my $uxntal_arg_decl) = _emit_arg_decl_Uxntal($stref,$f,$arg,$f);
+			($stref,my $uxntal_arg_decl, my $uxntal_arg_store, my $uxntal_write_arg) = _emit_arg_decl_Uxntal($stref,$f,$arg,$name);
+			if ($uxntal_write_arg) {
+				$uxntal_write_args->{$arg}=[$arg,$name];
+			}
 			push @{$uxntal_arg_decls},$uxntal_arg_decl;
+			push @{$uxntal_args_to_store},$uxntal_arg_store;
 		}
+
 	    # my $args_str = join( ' ', @{$uxntal_arg_decls} );
 		my $rline =
 		# $args_str."\n".
@@ -705,22 +713,26 @@ sub _emit_subroutine_sig_Uxntal { (my $stref, my $f, my $annline)=@_;
 		) {
 			$rline = '|0100';
 		}
-		return  ($rline,$uxntal_arg_decls, $read_args, $write_args);
+		return  ($rline,$uxntal_arg_decls, $uxntal_args_to_store, $uxntal_write_args);
 } # END of _emit_subroutine_sig_Uxntal
 
 sub _emit_arg_decl_Uxntal { (my $stref,my $f,my $arg, my $name)=@_;
 
-	my $decl_for_iodir =	$stref->{'Subroutines'}{$f}{'RefactoredArgs'}{'Set'}{$arg};
+	# my $decl_for_iodir =	$stref->{'Subroutines'}{$f}{'RefactoredArgs'}{'Set'}{$arg};
 	my $decl =  get_var_record_from_set($stref->{'Subroutines'}{$f}{'Vars'},$arg) ;
-
+	my $iodir = $decl->{'IODir'};
 	my $ftype = $decl->{'Type'};
 	my $fkind = $decl->{'Attr'};
 	$fkind=~s/\(kind=//;
 	$fkind=~s/\)//;
 	if ($fkind eq '') {$fkind=2};
 	my $uxntal_size = toUxntalType($ftype,$fkind);
-	my $c_arg_decl = '@'.$name.'_'.$arg.' $'.$uxntal_size;
-	return ($stref,$c_arg_decl);
+	my $word_sz = $stref->{'Subroutines'}{$f}{'WordSizes'}{$arg};
+	croak if $word_sz != $uxntal_size;
+	my $uxntal_arg_decl = '@'.$name.'_'.$arg.' $'.$uxntal_size;
+	my $uxntal_arg_store = ';'.$name.'_'.$arg.' STA'.$uxntal_size;
+	my $uxntal_write_arg = $iodir eq 'out' or $iodir eq 'inout' ? 1 : 0 ;
+	return ($stref,$uxntal_arg_decl,$uxntal_arg_store, $uxntal_write_arg);
 }
 
 sub _emit_var_decl_Uxntal { (my $stref,my $f,my $info,my $var)=@_;
