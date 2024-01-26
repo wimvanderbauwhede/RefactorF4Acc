@@ -627,6 +627,11 @@ sub get_vars_pars_from_containers_and_modules { my ($stref,$f) = @_;
 		$Sf->{'ModuleParameters'}{'Set'} = defined $Sf->{'ModuleParameters'}{'Set'} ?
 		{ %{$Sf->{'ModuleParameters'}{'Set'} }, %{$pars} } : $pars;
 		my $vars = get_vars_from_set($stref->{'Modules'}{$module_name}{'ModuleVars'}); 
+		for my $var (sort keys %{$vars}) {
+			if (not exists $vars->{$var}{'ParentModule'}) {
+				$vars->{$var}{'ParentModule'}=$module_name;
+			}
+		}
 		$Sf->{'ModuleVars'}{'Set'} = { %{$Sf->{'ModuleVars'}{'Set'} }, %{$vars} };
 	}
 	$Sf->{'ModuleParameters'}{'List'}= [sort keys %{$Sf->{'ModuleParameters'}{'Set'}}];

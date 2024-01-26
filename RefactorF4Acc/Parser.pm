@@ -1450,8 +1450,16 @@ or $line=~/^character\s*\(\s*len\s*=\s*[\w\*]+\s*\)/
 					( my $iter, my $range ) = split( /\s*=\s*/, $do_stmt );
 					# ( my $range_start, my $range_stop, my $range_step ) = split( /s*,\s*/, $range ); # This is naive
 					( my $range_start, my $range_stop, my $range_step ) = _parse_comma_sep_expr_list($range);
+					my $range_start_ast = $range_start=~/^\-?\d+$/ ? [29,$range_start] : parse_expression($range_start,  $info,  $stref,  $f);
+					my $range_stop_ast = $range_stop=~/^\-?\d+$/ ? [29,$range_stop] :  parse_expression($range_stop,  $info,  $stref,  $f);
+					my $range_step_ast = [29,1]; # default
 					if (not defined $range_step) {
 						$range_step='1'; # the default
+					} else {
+						$range_step_ast =
+							$range_step=~/^\-?\d+$/
+							? [29,$range_step]
+							: parse_expression($range_step,  $info,  $stref,  $f);
 					}
 					my $mvars = [];
 					for my $mchunk ( $range_start, $range_stop,$range_step ) {
@@ -1481,6 +1489,7 @@ or $line=~/^character\s*\(\s*len\s*=\s*[\w\*]+\s*\)/
 						'Label'    => $label,
 						'Range'    => {
 							'Expressions' => [ $range_start, $range_stop, $range_step ],
+							'ExpressionASTs' =>[ $range_start_ast, $range_stop_ast, $range_step_ast ],
 							'Vars'        => $mvars,
 							'Ann' => annotate($f, "DO $range_start, $range_stop, $range_step")
 						},
