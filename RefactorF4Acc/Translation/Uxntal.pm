@@ -168,8 +168,9 @@ Instead of the nice but cumbersome approach we had until now, from now on it is 
 		my $decl = get_var_record_from_set($Sf->{$subset},$var);
 
 		my $wordsz=0;
-		my $type = $decl->{'Type'};	
+		my $type = $decl->{'Type'};
 		if ($type eq 'integer') {
+			# carp Dumper $decl;
 			my $kind = $decl->{'Attr'};
 			$kind=~s/kind\s*=\s*//;
 			$kind=~s/^\s*\(\s*//;
@@ -184,7 +185,12 @@ Instead of the nice but cumbersome approach we had until now, from now on it is 
 			$wordsz=1;
 		}
 		elsif ($type eq 'character') {
-				$wordsz=1;
+				if (exists $decl->{'Attr'} and $decl->{'Attr'}!~/len=1/) {
+					# It's a string, not a character, so we store the address, not the value.
+					$wordsz=2;
+				} else {
+					$wordsz=1;
+				}
 		} else {
 			die "Supported types are integer, character and logical: $var in $f is $type\n";
 		}
@@ -196,7 +202,7 @@ Instead of the nice but cumbersome approach we had until now, from now on it is 
 	# This analysis only looks at args, local vars and local parameters. We need to include globals
 	# Or maybe not, as pointer analysis is not necessary for Uxntal.
 	# We populate $state->{'Pointers'} and $state->{'WordSizes'} but the latter is not used as
-	# $Sf->{'WordSizes'} is populated above; 
+	# $Sf->{'WordSizes'} is populated above;
 	my $pass_pointer_analysis = sub { my ($annline,$state) = @_;
 		my ($line, $info) = @{$annline};
 
@@ -212,7 +218,7 @@ Instead of the nice but cumbersome approach we had until now, from now on it is 
 				$state->{'LocalVars'}{$var}=1;
 			}
 			my $wordsz=0;
-			my $type = $info->{'ParsedVarDecl'}{'TypeTup'}{'Type'};	
+			my $type = $info->{'ParsedVarDecl'}{'TypeTup'}{'Type'};
 			if ($type eq 'integer') {
 				my $kind = $info->{'ParsedVarDecl'}{'TypeTup'}{'Kind'};
 				if ($kind>2) {
@@ -235,7 +241,7 @@ Instead of the nice but cumbersome approach we had until now, from now on it is 
 			$state->{'Pointers'}{$var}='';
 			$state->{'Parameters'}{$var}=1;
 			my $wordsz=0;
-			my $type = $info->{'ParsedParDecl'}{'TypeTup'}{'Type'};	
+			my $type = $info->{'ParsedParDecl'}{'TypeTup'}{'Type'};
 			if ($type eq 'integer') {
 				my $kind = $info->{'ParsedParDecl'}{'TypeTup'}{'Kind'};
 				if ($kind>2) {
@@ -339,7 +345,7 @@ Instead of the nice but cumbersome approach we had until now, from now on it is 
 		my $skip=0;
 		if (exists $info->{'Signature'} ) {
 			# subroutine f(x) becomes @f ;x LDA{sz} if x is read
-			# but if x is write, then we have 
+			# but if x is write, then we have
 			# @f ... ;x STA{sz} JMP2r
 			# So what we need is to create a Set $arg => [$wordz, $iodir]
 			# and a List of $arg
@@ -363,7 +369,7 @@ Instead of the nice but cumbersome approach we had until now, from now on it is 
 			$pass_state->{'WriteArgs'}=$write_args;
 			# $pass_state->{'ArgVarDecls'}{'List'}= $arg_decls;
 			if ($sig_line eq '|0100') {
-				$pass_state->{'IsMain'}=1; 
+				$pass_state->{'IsMain'}=1;
 			}
 			# $c_line = $sig_line."\n";
 		}
@@ -600,9 +606,9 @@ Instead of the nice but cumbersome approach we had until now, from now on it is 
 	# pass state
 	# for subroutine, we need the args, local vars and the actual body
 	# That then goes into $stref->{'Uxntal'}{'Subroutines'}{$f}
-	{ 
-	'LocalVars'=> {'Set' =>{}, 'List' => [] }, 
-	'Args' => {'Set' =>{}, 'List' => [] }, 
+	{
+	'LocalVars'=> {'Set' =>{}, 'List' => [] },
+	'Args' => {'Set' =>{}, 'List' => [] },
 	'WriteArgs' => {}, # This should probably replace Pointers
 	# 'Lines' => [], # use TranslatedCode
 	'IsMain' => 0,
@@ -617,7 +623,7 @@ Instead of the nice but cumbersome approach we had until now, from now on it is 
 	];
  	($stref,$state) = stateful_pass_inplace($stref,$f,$pass_translate_to_Uxntal, $state,'pass_translate_to_Uxntal() ' . __LINE__  ) ;
 # --------------------------------------------------------------------------------------------
-	
+
 
  	$stref->{'Subroutines'}{$f}{'TranslatedCode'}=$state->[2]{'TranslatedCode'};
  	$stref->{'TranslatedCode'}=[
@@ -679,7 +685,7 @@ sub _emit_Uxntal_code { (my $stref, my $module_name, my $ocl)=@_;
     if (not -d $targetdir) {
         mkdir $targetdir;
     }
-	# croak "$targetdir/$csrc.$ext";
+
  	open my $OUT, '>', "$targetdir/$csrc.$ext";
  	map {say $OUT $_ } @{$stref->{'TranslatedCode'}};
  	close $OUT;
@@ -695,7 +701,7 @@ sub _emit_subroutine_sig_Uxntal { (my $stref, my $f, my $annline)=@_;
 		my $args_ref = $info->{'Signature'}{'Args'}{'List'};
 		my $uxntal_arg_decls=[];
 		my $uxntal_args_to_store=[];
-		my $uxntal_write_args={}; 
+		my $uxntal_write_args={};
 		for my $arg (@{ $args_ref }) {
 			($stref,my $uxntal_arg_decl, my $uxntal_arg_store, my $uxntal_write_arg) = _emit_arg_decl_Uxntal($stref,$f,$arg,$name);
 			if ($uxntal_write_arg) {
@@ -726,11 +732,11 @@ sub _emit_arg_decl_Uxntal { (my $stref,my $f,my $arg, my $name)=@_;
 	$fkind=~s/\(kind=//;
 	$fkind=~s/\)//;
 	if ($fkind eq '') {$fkind=2};
-	my $uxntal_size = toUxntalType($ftype,$fkind);
+	# my $uxntal_size = toUxntalType($ftype,$fkind);
 	my $word_sz = $stref->{'Subroutines'}{$f}{'WordSizes'}{$arg};
-	croak if $word_sz != $uxntal_size;
-	my $uxntal_arg_decl = '@'.$name.'_'.$arg.' $'.$uxntal_size;
-	my $uxntal_arg_store = ';'.$name.'_'.$arg.' STA'.$uxntal_size;
+	# croak "$f $arg: $word_sz != $uxntal_size" if $word_sz != $uxntal_size;
+	my $uxntal_arg_decl = '@'.$name.'_'.$arg.' $'.$word_sz;
+	my $uxntal_arg_store = ';'.$name.'_'.$arg.' zzzSTA'.$word_sz;
 	my $uxntal_write_arg = $iodir eq 'out' or $iodir eq 'inout' ? 1 : 0 ;
 	return ($stref,$uxntal_arg_decl,$uxntal_arg_store, $uxntal_write_arg);
 }
@@ -793,7 +799,8 @@ sub _emit_var_decl_Uxntal { (my $stref,my $f,my $info,my $var)=@_;
 		$fkind=~s/\)//;
 		if ($fkind eq '') {$fkind=4};
 
-		my $sz = toUxntalType($ftype,$fkind)*$dim;
+		my $sz = $Sf->{'WordSizes'}{$var};
+		# toUxntalType($ftype,$fkind)*$dim;
 		my $c_var_decl =  '@'.$f.'_'.$var.' $'. $sz;
 		return ($stref,$c_var_decl);
 	}
@@ -810,11 +817,15 @@ sub __substitute_PlaceHolders_Uxntal { my ($expr_str,$info) = @_;
 			$ph_str=~s/^[\']/\"/;
 			$expr_str=~s/$ph/$ph_str/;
 		}
+	my $len = length($expr_str)-1;
+	$expr_str = "{ $len $expr_str } STH2r";
 	}
 	return $expr_str;
 } # END of __substitute_PlaceHolders
 
+
 sub _emit_assignment_Uxntal { (my $stref, my $f, my $info, my $pass_state)=@_;
+
 	my $lhs_ast =  $info->{'Lhs'}{'ExpressionAST'};
 	my $lhs = _emit_expression_Uxntal($lhs_ast,$stref,$f,$info);
 	my $lhs_stripped = $lhs;
@@ -827,34 +838,22 @@ sub _emit_assignment_Uxntal { (my $stref, my $f, my $info, my $pass_state)=@_;
 	$lhs_stripped=$indent.$lhs_stripped;
 
 	my $rhs_ast =  $info->{'Rhs'}{'ExpressionAST'};
-
 	my $rhs = _emit_expression_Uxntal($rhs_ast,$stref,$f,$info);
+
 	my $rhs_stripped = $rhs;
 	$rhs_stripped=~s/^\(([^\(\)]+)\)$/$1/;
 
-	for my $macro (keys %{ $Config{'Macros'} } ) {
-		my $lc_macro=lc($macro);
-		$rhs_stripped=~s/\b$lc_macro\b/$macro/g;
-	}
+	# for my $macro (keys %{ $Config{'Macros'} } ) {
+	# 	my $lc_macro=lc($macro);
+	# 	$rhs_stripped=~s/\b$lc_macro\b/$macro/g;
+	# }
 	$rhs_stripped=__substitute_PlaceHolders_Uxntal($rhs_stripped,$info);
 
 	# my $rline = $info->{'Indent'}.$lhs.' = '.$rhs_stripped;
 	my $lhs_post = $lhs;
-	$lhs_post =~s/LDA$/STA/;
-	$lhs_post =~s/LDA2$/STA2/;
-	# if ($rhs_stripped=~/\#([0-9a-f]+)/i) {
-	# 	my $hexdigits=$1;
-	# 	my $n_hexdigits = length($hexdigits);
-	# 	if ($n_hexdigits==2) {
-	# 		$lhs_post =~s/STA2/STA/;
-	# 	}
-	# 	elsif ($n_hexdigits!=4) {
-	# 		croak "HEX OF WRONG SIZE: $rhs_stripped";
-	# 	}
-	# }
-	# if ($lhs_post!~/STA/) { say "WRONG ASSIGN: <$rhs> <$lhs>"; } else {
-	# 	say "CORRECT ASSIGN?: <$rhs_stripped> <$lhs_post>";
-	# }
+	$lhs_post =~s/LDA$/xxxSTA/;
+	$lhs_post =~s/LDA2$/yyySTA2/;
+
 	my $rline = "\n" . $info->{'Indent'} . $rhs_stripped . ' '. $lhs_post;
 	if (exists $info->{'If'}) {
 		# croak 'TODO: If without Then', Dumper($info);
@@ -1040,14 +1039,17 @@ sub _emit_expression_Uxntal { my ($ast, $stref, $f, $info)=@_;
 
                 my $lv = (ref($lexp) eq 'ARRAY') ? _emit_expression_Uxntal($lexp, $stref, $f,$info) : $lexp;
                 my $rv = (ref($rexp) eq 'ARRAY') ? _emit_expression_Uxntal($rexp, $stref, $f,$info) : $rexp;
+
 				if ($lv=~/^\"/) {
-					$lv = "{ $lv 00 } STH2r";
+					my $len = toRawHex( length($lv)-1,2);
+					$lv = "{ $len $lv } STH2r";
 				}
 				if ($rv=~/^\"/) {
-					$rv = "{ $rv 00 } STH2r";
+					my $len = toRawHex( length($rv)-1,2);
+					$rv = "{ $len $rv } STH2r";
 				}
 				if (isStrCmp($ast, $stref, $f,$info)) {
-					return "$lv $rv scmp ";
+					return "$lv $rv scmp ( TODO: scmp for strings with length ) ";
 				} else {
                 	return "$lv $rv  ".($opcode != 27 ? $sigils[$opcode].'2' : ''); # FIXME, needs refining
 				}
@@ -1122,7 +1124,7 @@ sub _emit_expression_Uxntal { my ($ast, $stref, $f, $info)=@_;
 					} else {
 						# if ($ptr eq '') {
 							# return $exp;
-							return ';'.$f.'_'.$exp.' LDA' . $wordsz;
+							return ';'.$f.'_'.$exp.' LDA' . ($wordsz==1 ? '' : '2' );
 						# } else {
 						# 	# return '('.$ptr.$exp.')';
 						# 	return ';'.$f.'_'.$exp.' LDA2';
@@ -1147,7 +1149,7 @@ sub _emit_expression_Uxntal { my ($ast, $stref, $f, $info)=@_;
 								# carp Dumper $stref->{'Modules'}{$mod_name}{$set};
 								# my $rec = get_var_record_from_set($stref->{'Modules'}{$mod_name}{'Vars'},$exp);
 								# if ($rec->{'Type'} eq 'logical') {
-								# 	$instr = 'LDA'; 
+								# 	$instr = 'LDA';
 								# }
 								if ($set=~/par/i) {
 									croak $set;
@@ -1244,7 +1246,7 @@ if (exists $info->{'SubroutineCall'}{'IsExternal'}) {
 
 }
 	my $Ssubname = $stref->{'Subroutines'}{$subname};
-
+	my $Sf = $stref->{'Subroutines'}{$f};
 	# my $mvar = $subname;
 	# AD-HOC, replacing abs/min/max to fabs/fmin/fmax without any type checking ... FIXME!!!
 	# The (float) cast is necessary because otherwise I get an "ambiguous" error
@@ -1266,12 +1268,14 @@ if (exists $info->{'SubroutineCall'}{'IsExternal'}) {
 		# say "$subname: $sig_arg => ";say $call_arg_expr_str;
 		my $intent = $rec->{'IODir'};
 		my $isArray = $rec->{'ArrayOrScalar'} eq 'Array';
+		my $isString = 0;
 		if (not $isArray  and $rec->{'Type'} eq 'character') {
-			if ($rec->{'Attr'}=~/len=(\d+)/) {
+			if ($rec->{'Attr'}=~/len=(.+?)/) {
 				my $len = $1;
-				$isArray = $len>1;
+				$isString = $len ne '1';
 			}
 		}
+		my $word_sz = $Sf->{'WordSizes'}{$sig_arg};
 		my $wordSz = $rec->{'Type'} eq 'character' ? 1 : 2;
 		if ($rec->{'Attr'}=~/kind=(\d+)/) {
 			$wordSz = $1;
@@ -1282,11 +1286,11 @@ if (exists $info->{'SubroutineCall'}{'IsExternal'}) {
 		(($info->{'SubroutineCall'}{'Args'}{'Set'}{$call_arg_expr_str}{'Type'} eq 'Const' ) or ($info->{'SubroutineCall'}{'Args'}{'Set'}{$call_arg_expr_str}{'Type'} eq 'Expr')) : 0;
 
 		if ($intent eq 'in' or $intent eq 'inout') {
-			if ($isArray) {
+			if ($isArray or $isString) {
 				push @call_arg_expr_strs_Uxntal, ';'.$f.'_'.$call_arg_expr_str;
 			}
-			elsif (not $isConstOrExpr) { # must be a scalar variable
-				push @call_arg_expr_strs_Uxntal, ';'.$f.'_'.$call_arg_expr_str.' STA'.$wordSz;
+			elsif (not $isConstOrExpr) { # must be a scalar variable, so load it and pass by value
+				push @call_arg_expr_strs_Uxntal, ';'.$f.'_'.$call_arg_expr_str.' LDA'.($word_sz==1 ? '' : '2' );
 			}
 			else {
 				my $arg_expr_ast = $info->{'SubroutineCall'}{'ExpressionAST'}[0] == 27 ? $info->{'SubroutineCall'}{'ExpressionAST'}[$idx] : $info->{'SubroutineCall'}{'ExpressionAST'};
@@ -1386,14 +1390,22 @@ sub toUxntalType {
 
     if (not defined $kind) {$kind=4};
 	if ($kind=~/kind/) {$kind=~s/kind\s*=\s*//;}; # FIXME, this should have been sorted in the Parser
+	my $word_sz = $kind;
+	if ($ftype eq 'character' and $kind=~/len/) {
+		if ($kind !~/len=1/) {
+			$word_sz=2;
+		} else {
+			$word_sz=1;
+		}
+	}
 
     my %corr = (
         'logical'          => 1, # C has no bool
-        'integer'          =>  $kind,
+        'integer'          =>  $word_sz,
         # 'real'             => ($ftype eq 'real' and $kind == 8 ? 'double' : 'float'),
         # 'double precision' => 'double',
         # 'doubleprecision'  => 'double',
-        'character'        => 1
+        'character'        => $word_sz
     );
     if ( exists( $corr{$ftype} ) ) {
         return $corr{$ftype};

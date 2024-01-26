@@ -546,9 +546,9 @@ sub identify_vars_on_line {
 					# croak Dumper @chunks;
 				}
 			} elsif ( exists $info->{'Do'} ) {
-				# if ($DBG==1 and not defined $info->{'Do'}{'Iterator'} or not defined $info->{'Do'}{'Range'} or not defined $info->{'Do'}{'Range'}{'Vars'} ) {
+				# if ($line=~/do.+int.+len/ ) {
 				# 	say $line;
-				# 	carp Dumper($info);
+				# 	croak Dumper($info->{'Do'});
 				# }
 				@chunks = exists $info->{'Do'}{'Iterator'} ? ( @chunks, $info->{'Do'}{'Iterator'}, @{ $info->{'Do'}{'Range'}{'Vars'} } ) : ();
 			} elsif ( (exists $info->{'Assignment'} and not exists $info->{'Data'}) or  exists $info->{'StatementFunction'}) {

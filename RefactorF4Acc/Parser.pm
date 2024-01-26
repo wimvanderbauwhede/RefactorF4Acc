@@ -1425,6 +1425,7 @@ or $line=~/^character\s*\(\s*len\s*=\s*[\w\*]+\s*\)/
 					# we can parse this as a normal expression I think
 					my $ast = parse_expression($do_stmt,  $info,  $stref,  $f);
 					my $mvars = get_vars_from_expression($ast,{});
+					
 					my $vars= [ sort keys %{$mvars} ];
 #					warn 'Support for WHILE: '.$line;#.Dumper($vars);
 					$info->{'Do'} = {
@@ -1447,9 +1448,10 @@ or $line=~/^character\s*\(\s*len\s*=\s*[\w\*]+\s*\)/
 					};
 				} else {
 					( my $iter, my $range ) = split( /\s*=\s*/, $do_stmt );
-					( my $range_start, my $range_stop, my $range_step ) = split( /s*,\s*/, $range );
+					# ( my $range_start, my $range_stop, my $range_step ) = split( /s*,\s*/, $range ); # This is naive
+					( my $range_start, my $range_stop, my $range_step ) = _parse_comma_sep_expr_list($range);
 					if (not defined $range_step) {
-						$range_step=1; # the default
+						$range_step='1'; # the default
 					}
 					my $mvars = [];
 					for my $mchunk ( $range_start, $range_stop,$range_step ) {
@@ -1463,9 +1465,11 @@ or $line=~/^character\s*\(\s*len\s*=\s*[\w\*]+\s*\)/
 						} else {
 							die "ERROR: Unknown pattern $mchunk in DO range\n";
 						}
+
 						for my $mvar (@mchunks) {
 							next if exists $Config{'Macros'}{uc($mvar)}; # skip macros
 							next if exists $F95_reserved_words{$mvar};
+							next if exists $F95_intrinsics{$mvar};
 							next if exists $stref->{$sub_incl_or_mod}{$f}{'CalledSubs'}{'Set'}{$mvar};    # Means it's a function
 							next if $mvar =~ /^__PH\d+__$/;
 							next if $mvar !~ /^[_a-z]\w*$/;
