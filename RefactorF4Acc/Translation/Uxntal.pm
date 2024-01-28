@@ -90,6 +90,12 @@ sub translate_program_to_Uxntal {  (my $stref, my $program_name) = @_;
 		  [\&translate_sub_to_Uxntal]
        ]
        );
+	   $stref->{'TranslatedCode'}=[ 
+		@{$stref->{'Uxntal'}{'Macros'}{'List'}},
+		@{$stref->{'TranslatedCode'}},
+		@{$stref->{'Uxntal'}{'Globals'}{'List'}},
+	   ];
+	   croak "TODO: Global decls; Macros as arg";
 	# This prints out the lines from $stref->{'TranslatedCode'}
 	$stref = _emit_Uxntal_code($stref, $program_name);
 	# This enables the postprocessing for custom passes
@@ -271,19 +277,19 @@ Instead of the nice but cumbersome approach we had until now, from now on it is 
 		elsif (exists $info->{'SubroutineCall'} and exists $info->{'SubroutineCall'}{'Name'}) {
 			my $fname =  $info->{'SubroutineCall'}{'Name'};
 			if (not exists $F95_intrinsic_functions{$fname} ) {
-				for my $arg_expr_str (@{$info->{'SubroutineCall'}{'Args'}{'List'}}) {
-					my $arg = ($info->{'SubroutineCall'}{'Args'}{'Set'}{$arg_expr_str}{'Type'} eq 'Scalar'
-					or $info->{'SubroutineCall'}{'Args'}{'Set'}{$arg_expr_str}{'Type'} eq 'Const'
-					or $info->{'SubroutineCall'}{'Args'}{'Set'}{$arg_expr_str}{'Type'} eq 'Expr'
-					) ? $info->{'SubroutineCall'}{'Args'}{'Set'}{$arg_expr_str}{'Expr'}
-					: $info->{'SubroutineCall'}{'Args'}{'Set'}{$arg_expr_str}{'Arg'};
+				for my $call_arg_expr_str (@{$info->{'SubroutineCall'}{'Args'}{'List'}}) {
+					my $call_arg = ($info->{'SubroutineCall'}{'Args'}{'Set'}{$call_arg_expr_str}{'Type'} eq 'Scalar'
+					or $info->{'SubroutineCall'}{'Args'}{'Set'}{$call_arg_expr_str}{'Type'} eq 'Const'
+					or $info->{'SubroutineCall'}{'Args'}{'Set'}{$call_arg_expr_str}{'Type'} eq 'Expr'
+					) ? $info->{'SubroutineCall'}{'Args'}{'Set'}{$call_arg_expr_str}{'Expr'}
+					: $info->{'SubroutineCall'}{'Args'}{'Set'}{$call_arg_expr_str}{'Arg'};
 
-					if (exists $state->{'LocalVars'}{$arg}) {
-						$state->{'Pointers'}{$arg}='*';
+					if (exists $state->{'LocalVars'}{$call_arg}) {
+						$state->{'Pointers'}{$call_arg}='*';
 					}
-					elsif (exists $state->{'Parameters'}{$arg}) {
-						$state->{'Pointers'}{$arg}='&';
-						carp 'TODO: a const scalar passed as arg';
+					elsif (exists $state->{'Parameters'}{$call_arg}) {
+						$state->{'Pointers'}{$call_arg}='&';
+						carp 'TODO: a const scalar passed as arg: ',$call_arg_expr_str ;
 					}
 				}
 			}
@@ -368,30 +374,33 @@ Instead of the nice but cumbersome approach we had until now, from now on it is 
 			# Thinking about it a bit more, the first 3 can be pushed onto $pass_state->{'TranslatedCode'}
 			$pass_state->{'Args'}=$info->{'Signature'}{'Args'}{'List'};
 			my ($sig_line,$arg_decls, $args_to_store,$write_args) = _emit_subroutine_sig_Uxntal( $stref, $f, $annline);
-			$pass_state->{'TranslatedCode'}=[@{$pass_state->{'TranslatedCode'}},
-				@{$arg_decls},
-				$sig_line,
-				@{$args_to_store}
-			];
+			# $pass_state->{'TranslatedCode'}=[@{$pass_state->{'TranslatedCode'}},
+			# 	@{$arg_decls}, # Make this ArgDecls
+			# 	$sig_line, # Make this Sig
+			# 	@{$args_to_store} # Make this ReadArgs
+			# ];
+			$pass_state->{'Subroutine'}{'ArgDecls'}=$arg_decls;
+			$pass_state->{'Subroutine'}{'Sig'}=$sig_line;
+			$pass_state->{'Subroutine'}{'ReadArgs'}=$args_to_store;
 			$skip=1;
-			$pass_state->{'WriteArgs'}=$write_args;
+			$pass_state->{'Subroutine'}{'WriteArgs'}=$write_args;
 			# $pass_state->{'ArgVarDecls'}{'List'}= $arg_decls;
 			if ($sig_line eq '|0100') {
-				$pass_state->{'IsMain'}=1;
+				$pass_state->{'Subroutine'}{'IsMain'}=$f;
 			}
 			# $c_line = $sig_line."\n";
 		}
 		elsif (exists $info->{'VarDecl'} ) {
 			my $var = $info->{'VarDecl'}{'Name'};
-			# carp Dumper $info;
 			if (exists $stref->{'Subroutines'}{$f}{'DeclaredOrigArgs'}{'Set'}{$var}) {
 				$c_line='( '.$line.' )';
 				$skip=1;
 			} else {
+			# croak Dumper $info if $line=~/ii/;
 				($stref,my $uxntal_var) =  _emit_var_decl_Uxntal($stref,$f,$info,$var);
-				if (not exists $pass_state->{'LocalVars'}{'Set'}{$uxntal_var}) {
-					$pass_state->{'LocalVars'}{'Set'}{$uxntal_var}=$uxntal_var;
-					push @{$pass_state->{'LocalVars'}{'List'}},$uxntal_var;
+				if (not exists $pass_state->{'Subroutine'}{'LocalVars'}{'Set'}{$uxntal_var}) {
+					$pass_state->{'Subroutine'}{'LocalVars'}{'Set'}{$uxntal_var}=$uxntal_var;
+					push @{$pass_state->{'Subroutine'}{'LocalVars'}{'List'}},$uxntal_var;
 				} else {
 					croak "Vars should be unique: $uxntal_var";
 				}
@@ -619,8 +628,8 @@ Instead of the nice but cumbersome approach we had until now, from now on it is 
 			# $c_line = $info->{'Label'}. ' : '."\n".$info->{'Indent'}.$c_line;
 		}
 		chomp $c_line;
-		push @{$pass_state->{'TranslatedCode'}},"( ____ $line )" unless $skip or $line=~/^\s*$/;
-		push @{$pass_state->{'TranslatedCode'}},$c_line unless $skip;
+		push @{$pass_state->{'Subroutine'}{'TranslatedCode'}},"( ____ $line )" ;#unless $skip or $line=~/^\s*$/;
+		push @{$pass_state->{'Subroutine'}{'TranslatedCode'}},$c_line unless $skip;
 		# push @{$pass_state->{'TranslatedCode'}},$info->{'Indent'}.$c_line	 unless $skip;
 		return ([$annline],[$stref,$f,$pass_state]);
 	};
@@ -631,56 +640,50 @@ Instead of the nice but cumbersome approach we had until now, from now on it is 
 	# for subroutine, we need the args, local vars and the actual body
 	# That then goes into $stref->{'Uxntal'}{'Subroutines'}{$f}
 	{
-		'LocalVars'=> {'Set' =>{}, 'List' => [] },
 		'Args' => {'Set' =>{}, 'List' => [] },
-		'WriteArgs' => {}, # This should probably replace Pointers
-		'IsMain' => 0,
-		'TranslatedCode'=>[],
-		'ArgVarDecls'=>[],
-
+		'Subroutine' => {
+			'WriteArgs' => {}, # This should probably replace Pointers
+			'IsMain' => '',
+			'TranslatedCode'=>[],
+			'ArgDecls'=>[],
+			'LocalVars'=> {'Set' =>{}, 'List' => [] },
+			# 'LocalVarDecls' =>[],
+			'ReadArgs' => [],
+			'Sig' => '',
+		},
 		'IfStack'=>[],'IfId' =>0,'IfBranchId' =>0,
 		'DoStack'=>[], 'DoIter'=>'', 'DoId' => 0,
 	}
 	];
  	($stref,$state) = stateful_pass_inplace($stref,$f,$pass_translate_to_Uxntal, $state,'pass_translate_to_Uxntal() ' . __LINE__  ) ;
 # --------------------------------------------------------------------------------------------
+	my $sub_uxntal_code = $state->[2]{'Subroutine'};
+	# $stref->{'Uxntal'}{'Subroutines'}{$f}=$sub_uxntal_code;
+ 	# $stref->{'Subroutines'}{$f}{'TranslatedCode'}=$state->[2]{'TranslatedCode'};
+ 	my @translated_sub_code=(
+		# @{$stref->{'TranslatedCode'}},'',
+		@{$sub_uxntal_code->{'ArgDecls'}},
+		@{$sub_uxntal_code->{'LocalVars'}{'List'}},
+		$sub_uxntal_code->{'Sig'},
+		@{$sub_uxntal_code->{'ReadArgs'}},
+		@{$sub_uxntal_code->{'TranslatedCode'}},
+		# @{$stref->{'TranslatedCode'}},'',
+		#  @{$state->[2]{'ArgVarDecls'}},'',
+		#  @{$state->[2]{'TranslatedCode'}}
+	 ) ;
+	# $stref->{'Uxntal'}{'Subroutines'}{$f}{'TranslatedCode'}=$stref->{'TranslatedCode'};
 
-
- 	$stref->{'Subroutines'}{$f}{'TranslatedCode'}=$state->[2]{'TranslatedCode'};
- 	$stref->{'TranslatedCode'}=[
-		@{$stref->{'TranslatedCode'}},'',
-		 @{$state->[2]{'ArgVarDecls'}},'',
-		 @{$state->[2]{'TranslatedCode'}}
-		 ] ;
+	# if (exists $stref->{'Uxntal'}{'Subroutines'}{$f}{'IsMain'} and $stref->{'Uxntal'}{'Subroutines'}{$f}{'IsMain'} ne '') {
+	# 	$stref->{'Uxntal'}{'Main'} = $stref->{'Uxntal'}{'Subroutines'}{$f};
+	# 	delete $stref->{'Uxntal'}{'Subroutines'}{$f};
+	# }
+	$stref->{'TranslatedCode'}=[
+			@{$stref->{'TranslatedCode'}},'',"( ==== $f ==== )",'', @translated_sub_code
+	];
  	return $stref;
 
 } # END of translate_sub_to_Uxntal()
 
-
-# FIXME: only include if they are actually used in the code!
-# $ocl: 0 = C, 1 = CPU/GPU OpenCL, 2 = C for TyTraIR aka TyTraC, 3 = pipe-based OpenCL for FPGAs
-sub _write_headers { (my $stref, my $ocl)=@_;
-	my @headers = grep { $_ ne '' } (
-		# 0 means C, needs the header;
-		( $ocl>0 ? '' : '#include <stdlib.h>'),
-		( ($ocl>0 and $ocl!=2) ? '' : '#include <math.h>'),
-		( $ocl>0 ? '' : 'unsigned int get_global_id(unsigned int n);'),
-		# ($ocl != 2 ? '#include "array_index_f2c1d.h"' : ''), # WV 2019-11-20 this is incorrect as non-map/fold args can be arrays
-		'#include "array_index_f2c1d.h"' ,
-		''
-		);
-
-	my @footers = grep { $_ ne '' } (
-		# 0 means C, needs the header;
-		( $ocl>0 ? '' : 'inline unsigned int get_global_id(unsigned int n) { return 0; }'),
-		);
-		$stref->{'TranslatedCode'}=[@headers,@{$stref->{'TranslatedCode'}},@footers];
-
-		if (not -e $targetdir.'/array_index_f2c1d.h') {
-			_gen_array_index_f2c1d_h();
-		}
-		return $stref;
-} # END of _write_headers()
 
 sub _emit_Uxntal_code { (my $stref, my $module_name, my $ocl)=@_;
  	map {say $_ } @{$stref->{'TranslatedCode'}} if $V;
@@ -1007,10 +1010,30 @@ sub _emit_expression_Uxntal { my ($ast, $stref, $f, $info)=@_;
 							# return "$name("._emit_expression_Uxntal($args, $stref, $f).')';
 						}
 
-						if ($ast->[0]==10) { # An array access
+						if ($ast->[0]==10) { # An array access; but also a string access?
 							# In Uxntal, an array access is ;array $idx ADD2 LDA2 and if $idx is a scalar, I assume it's $idx LDA2, because we use shorts everywhere.
+							my $var_name = $ast->[1];
+							my $qual_vname = $f .'_' . $var_name;
+							my $subset = in_nested_set($Sf,'Vars',$var_name);
+							if ($subset eq 'ModuleVars') {
+								my $decl = get_var_record_from_set($Sf->{$subset},$var_name);
+								# my ($mod_name, $set) = __has_module_level_declaration($stref,$f,$var_name) ;
+								my $mod_name ='';
+								if (exists $decl->{'ParentModule'}) {
+									$mod_name = $decl->{'ParentModule'};
+								}
+								if ($mod_name ne '') {
+
+									if (not exists $stref->{'Uxntal'}{'Globals'}{'Set'}{$mod_name.'_'.$var_name}) {
+										$stref->{'Uxntal'}{'Globals'}{'Set'}{$mod_name.'_'.$var_name} = 1;
+										push @{$stref->{'Uxntal'}{'Globals'}{'List'}},$mod_name.'_'.$var_name;
+									}
+									$qual_vname = $mod_name.'_'.$var_name
+								}
+							}
+
 							if( $args->[0]==29 and $args->[1] eq '1') { # if we have v(1)
-								return ';'.$f.'_'.$name.' LDA2';
+								return ';'.$qual_vname.' LDA2';
 							} else {
 								my $decl = get_var_record_from_set($stref->{'Subroutines'}{$f}{'Vars'},$name);
 								if ($decl->{'ArrayOrScalar'} eq 'Array') {
@@ -1026,25 +1049,24 @@ sub _emit_expression_Uxntal { my ($ast, $stref, $f, $info)=@_;
 										push @lower_bounds, $lb;
 									}
 									if ($ndims==1) {
-										return ';'.$f.'_'.$name.' '.$args_lst[0].' ADD2 LDA2'
+										return ';'.$qual_vname.' '.$args_lst[0].' ADD2 LDA2'
 									} elsif ($ndims==0 and $decl->{'Type'} eq 'character') {
 										# die "No support for strings yet\n" .
 										# Dumper($info).';'.
 										# Dumper($decl).';'.
 										# croak Dumper($ast);
 										# fl(1:2)
-										my $strn=$f.'_'.$ast->[1];
+										# my $strn=$f.'_'.$ast->[1];
 										my $cb = _emit_expression_Uxntal($ast->[2][1], $stref, $f,$info);
 										my $ce = _emit_expression_Uxntal($ast->[2][2], $stref, $f,$info);
 										my $id=$info->{'LineID'};
 										my $len = $decl->{'Attr'};$len=~s/len=//;
-										return genSubstr($strn, $cb,$ce, $len, $id);
+										return genSubstr($qual_vname, $cb,$ce, $len, $id);
 										# I think I should have a streq function and maybe a substr function
 										# we should be able to use a range-fold for this
 										# <chars> ;fl <cb> <ce> streq
 									} else {
-										die "No support for multidimensional ($ndims) arrays yet\n" . Dumper($ast);
-										# return $maybe_amp.$name.'[F'.$ndims.'D2C('.join(',',@ranges[0.. ($ndims-2)]).' , '.join(',',@lower_bounds). ' , '.join(',',@args_lst).')]';
+										error( "No support for multidimensional ($ndims) arrays yet\n" . Dumper($ast),0,'ERROR');
 									}
 								} elsif ( $decl->{'Type'} eq 'character') {
 									# Although the AST says '10', decls says it's a scalar
@@ -1052,10 +1074,13 @@ sub _emit_expression_Uxntal { my ($ast, $stref, $f, $info)=@_;
 										my $cb = _emit_expression_Uxntal($ast->[2][1], $stref, $f,$info);
 										my $ce = _emit_expression_Uxntal($ast->[2][2], $stref, $f,$info);
 										my $id=$info->{'LineID'};
+										if($decl->{'Attr'}!~/len/) {
+											croak 'String with index>1 but the type is character', Dumper $ast;
+										}
 										my $len = $decl->{'Attr'};$len=~s/len=//;
 										return genSubstr($strn, $cb,$ce, $len, $id);
 								} else { # Although the AST says '10', decls says it's a scalar
-									# croak Dumper $ast,$decl;
+									croak Dumper $ast,$decl;
 								}
 							}
 						} else { # A subroutine access.
@@ -1103,7 +1128,7 @@ sub _emit_expression_Uxntal { my ($ast, $stref, $f, $info)=@_;
 				# croak 'TODO: ( ... ) '.Dumper( $exp);
                 return "[ $v ]"; # FIXME, but of course this is valid Uxntal
             } elsif ($opcode==28 ) { # eq '(/'
-			croak 'TODO: (/ ... /) '.Dumper( $exp);
+				croak 'TODO: (/ ... /) '.Dumper( $exp);
                 my $v = (ref($exp) eq 'ARRAY') ? _emit_expression_Uxntal($exp, $stref, $f,$info) : $exp;
                 return "[ $v ]"; # FIXME
             } elsif ($opcode==2 or $opcode>28) {# eq '$' or constants
@@ -1129,7 +1154,7 @@ sub _emit_expression_Uxntal { my ($ast, $stref, $f, $info)=@_;
 					# Meaning that $mvar is a pointer in $f
 					# Now we need to check if it is also a pointer in $subname
 					my $ptr = $stref->{'Subroutines'}{$f}{'Pointers'}{$mvar};
-					# carp "$f <$ptr>" ."<$called_sub_name>".'<', exists  $stref->{'Subroutines'}{$called_sub_name} ,'><', exists $stref->{'Subroutines'}{$called_sub_name}{'Pointers'}{$mvar},'>' if $mvar eq 'wet_j_k';
+
 					if ($called_sub_name ne '' and $called_sub_name ne $f and
 					exists  $stref->{'Subroutines'}{$called_sub_name}
 					and exists $stref->{'Subroutines'}{$called_sub_name}{'Pointers'}{$mvar} ) {
@@ -1160,10 +1185,11 @@ sub _emit_expression_Uxntal { my ($ast, $stref, $f, $info)=@_;
 					# elsif ( in_nested_set($Sf,'Vars',$exp)) {
 					# 	croak "MODULE VAR $exp" if $exp=~/funktal/;
 					# }
-					elsif ( (__has_module_level_declaration($stref,$f,$exp))[0] ne '') {
+					# elsif ( (__has_module_level_declaration($stref,$f,$exp))[0] ne '') {
 
-						croak $f.'_'.$exp.';'.Dumper( __has_module_level_declaration($stref,$f,$exp));
-					} else {
+					# 	croak $f.'_'.$exp.';'.Dumper( __has_module_level_declaration($stref,$f,$exp));
+					# }
+					else {
 						# if ($ptr eq '') {
 							# return $exp;
 							return ';'.$f.'_'.$exp.' LDA' . ($wordsz==1 ? '' : '2' );
@@ -1192,27 +1218,15 @@ sub _emit_expression_Uxntal { my ($ast, $stref, $f, $info)=@_;
 							if (exists $decl->{'ParentModule'}) {
 								$mod_name = $decl->{'ParentModule'};
 							}
-							# croak "$exp $subset $mod_name".Dumper($decl);
 
 							if ($mod_name ne '') {
-								# carp Dumper $stref->{'Modules'}{$mod_name}{$set};
-								# my $rec = get_var_record_from_set($stref->{'Modules'}{$mod_name}{'Vars'},$exp);
-								# if ($rec->{'Type'} eq 'logical') {
-								# 	$instr = 'LDA';
-								# }
-								# if ($set=~/par/i) {
-								# 	croak $set;
-								# }
-								croak "NOW ADD GLOBAL DECL HERE";
+								if (not exists $stref->{'Uxntal'}{'Globals'}{'Set'}{$mod_name.'_'.$exp}) {
+									$stref->{'Uxntal'}{'Globals'}{'Set'}{$mod_name.'_'.$exp} = 1;
+									push @{$stref->{'Uxntal'}{'Globals'}{'List'}},$mod_name.'_'.$exp;
+								}
 								return $rune.$mod_name.'_'.$exp . ' '. $instr; #
 							} else {
-								# carp "<$f>, <$exp>, <$mod_name>"; carp $stref->{'Subroutines'}{$f}{$set};
-								# my $rec = get_var_record_from_set($stref->{'Subroutines'}{$f}{'Vars'},$exp);
-								# if ($rec->{'Type'} eq 'logical') {
-								# 	$instr = 'LDA';
-								# }
-
-								return $rune.$f.'_'.$exp . ' '. $instr;#"SIGIL:$sigil ".
+								return $rune.$f.'_'.$exp . ' '. $instr;
 							}
 						} else {
 							return $exp;
