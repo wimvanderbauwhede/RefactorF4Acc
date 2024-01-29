@@ -17,6 +17,7 @@ use RefactorF4Acc::Refactoring::FoldConstants qw( fold_constants_all fold_consta
 use RefactorF4Acc::Translation::LlvmToTyTraIR qw( generate_llvm_ir_for_TyTra );
 use RefactorF4Acc::Emitter qw( emit_AnnLines );
 use Fortran::F95VarDeclParser qw( parse_F95_var_decl );
+
 #
 #   (c) 2010-2024 Wim Vanderbauwhede <wim@dcs.gla.ac.uk>
 #
@@ -54,18 +55,15 @@ our @sigils = ('(', '&', '$', 'ADD', 'SUB', 'MUL', 'DIV', 'mod', 'pow', '=', '@'
                ,'integer', 'real', 'logical', 'character', 'complex', 'PlaceHolder', 'Label', 'BLANK'
               );
 
-
-# WV2023-12-08 I think this has to be done fundamentally differently.
-# Maybe I should  fold_constants_no_iters on all modules and the main program first.
-# Essentially, this should be like the constant folding step in Refactoring.
-
 sub translate_program_to_Uxntal {  (my $stref, my $program_name) = @_;
 
 	$stref->{'Uxntal'} = {
 		'Macros' => { 'Set' =>{}, 'List' => [] },
-		'Main' => [], # will be empty as we use Subroutines
+		'CLIHandling' => ['( TODO CLI HANDLING )'],
+		'Main' => [],
+		'Libraries' => { 'Set' =>{}, 'List' => ['( TODO LIBRARIES )'] },
 		'Subroutines' => {},
-		# { 'LocalVars'=> {'Set' =>{}, 'List' => [] }, 'Args' => {'Set' =>{}, 'List' => [] },  'isMain' => 0|1 , 'TranslatedCode'}
+		# { 'LocalVars'=> {'Set' =>{}, 'List' => [] }, 'Args' => {'Set' =>{}, 'List' => [] },  'isMain' => '' , 'TranslatedCode'}
 		'Globals' => { 'Set' =>{}, 'List' => [] },
 	};
 
@@ -80,7 +78,7 @@ sub translate_program_to_Uxntal {  (my $stref, my $program_name) = @_;
 	$stref = pass_wrapper_subs_in_module($stref,$program_name,
 	   # module-specific passes.
        [
-			[\&translate_module_decls_to_Uxntal]
+			# [\&translate_module_decls_to_Uxntal]
        ],
        # subroutine-specific passes
 	   [
@@ -92,10 +90,13 @@ sub translate_program_to_Uxntal {  (my $stref, my $program_name) = @_;
        );
 	   $stref->{'TranslatedCode'}=[ 
 		@{$stref->{'Uxntal'}{'Macros'}{'List'}},
-		@{$stref->{'TranslatedCode'}},
+		@{$stref->{'Uxntal'}{'CLIHandling'}},
+		@{$stref->{'Uxntal'}{'Main'}},
+		@{$stref->{'Uxntal'}{'Libraries'}{'List'}},
+		@{$stref->{'TranslatedCode'}}, # These are the subroutines
 		@{$stref->{'Uxntal'}{'Globals'}{'List'}},
 	   ];
-	   croak "TODO: Global decls; Macros as arg";
+	   carp "TODO: Global decls; Macros as arg";
 	# This prints out the lines from $stref->{'TranslatedCode'}
 	$stref = _emit_Uxntal_code($stref, $program_name);
 	# This enables the postprocessing for custom passes
@@ -373,7 +374,7 @@ Instead of the nice but cumbersome approach we had until now, from now on it is 
 			# 'JMP2r'
 			# Thinking about it a bit more, the first 3 can be pushed onto $pass_state->{'TranslatedCode'}
 			$pass_state->{'Args'}=$info->{'Signature'}{'Args'}{'List'};
-			my ($sig_line,$arg_decls, $args_to_store,$write_args) = _emit_subroutine_sig_Uxntal( $stref, $f, $annline);
+			my ($sig_line,$arg_decls, $args_to_store,$write_args,$isMain) = _emit_subroutine_sig_Uxntal( $stref, $f, $annline);
 			# $pass_state->{'TranslatedCode'}=[@{$pass_state->{'TranslatedCode'}},
 			# 	@{$arg_decls}, # Make this ArgDecls
 			# 	$sig_line, # Make this Sig
@@ -385,7 +386,7 @@ Instead of the nice but cumbersome approach we had until now, from now on it is 
 			$skip=1;
 			$pass_state->{'Subroutine'}{'WriteArgs'}=$write_args;
 			# $pass_state->{'ArgVarDecls'}{'List'}= $arg_decls;
-			if ($sig_line eq '|0100') {
+			if ($isMain) {
 				$pass_state->{'Subroutine'}{'IsMain'}=$f;
 			}
 			# $c_line = $sig_line."\n";
@@ -673,13 +674,14 @@ Instead of the nice but cumbersome approach we had until now, from now on it is 
 	 ) ;
 	# $stref->{'Uxntal'}{'Subroutines'}{$f}{'TranslatedCode'}=$stref->{'TranslatedCode'};
 
-	# if (exists $stref->{'Uxntal'}{'Subroutines'}{$f}{'IsMain'} and $stref->{'Uxntal'}{'Subroutines'}{$f}{'IsMain'} ne '') {
-	# 	$stref->{'Uxntal'}{'Main'} = $stref->{'Uxntal'}{'Subroutines'}{$f};
-	# 	delete $stref->{'Uxntal'}{'Subroutines'}{$f};
-	# }
-	$stref->{'TranslatedCode'}=[
-			@{$stref->{'TranslatedCode'}},'',"( ==== $f ==== )",'', @translated_sub_code
-	];
+	if ( $sub_uxntal_code->{'IsMain'} ne '') {
+		$stref->{'Uxntal'}{'Main'} = [@translated_sub_code];
+		delete $stref->{'Uxntal'}{'Subroutines'}{$f};
+	} else {
+		$stref->{'TranslatedCode'}=[
+				@{$stref->{'TranslatedCode'}},'',"( ==== $f ==== )",'', @translated_sub_code
+		];
+	}
  	return $stref;
 
 } # END of translate_sub_to_Uxntal()
@@ -736,14 +738,14 @@ sub _emit_subroutine_sig_Uxntal { (my $stref, my $f, my $annline)=@_;
 		}
 
 	    # my $args_str = join( ' ', @{$uxntal_arg_decls} );
-		my $rline =
-		# $args_str."\n".
-		'@'.$name;
+		my $rline = '@'.$name;
+		my $isMain = 0;
 		if (exists $stref->{'Subroutines'}{$f}{'Program'} and $stref->{'Subroutines'}{$f}{'Program'}==1
 		) {
-			$rline = '|0100';
+			$isMain = 1;
+			# $rline = '|0100';
 		}
-		return  ($rline,$uxntal_arg_decls, $uxntal_args_to_store, $uxntal_write_args);
+		return  ($rline,$uxntal_arg_decls, $uxntal_args_to_store, $uxntal_write_args,$isMain);
 } # END of _emit_subroutine_sig_Uxntal
 
 sub _emit_arg_decl_Uxntal { (my $stref,my $f,my $arg, my $name)=@_;
@@ -783,6 +785,7 @@ sub _emit_var_decl_Uxntal { (my $stref,my $f,my $info,my $var)=@_;
 	my $Sf = $stref->{$sub_or_module}{$f};
 	say "_emit_var_decl_Uxntal: VAR $var in $f ";
 	my $decl =  get_var_record_from_set($stref->{$sub_or_module}{$f}{'Vars'},$var);
+
 	my $array = (exists $decl->{'ArrayOrScalar'} and $decl->{'ArrayOrScalar'} eq 'Array') ? 1 : 0;
 
 	my $const = '';
@@ -836,7 +839,7 @@ sub _emit_var_decl_Uxntal { (my $stref,my $f,my $info,my $var)=@_;
 		$fkind=~s/\)//;
 		if ($fkind eq '') {$fkind=4};
 
-		my $sz = $Sf->{'WordSizes'}{$var};
+		my $sz = $Sf->{'WordSizes'}{$var}; # This breaks because we did not populate this for modules!
 		# toUxntalType($ftype,$fkind)*$dim;
 		my $c_var_decl =  '@'.$f.'_'.$var.' $'. $sz;
 		return ($stref,$c_var_decl);
@@ -1025,8 +1028,10 @@ sub _emit_expression_Uxntal { my ($ast, $stref, $f, $info)=@_;
 								if ($mod_name ne '') {
 
 									if (not exists $stref->{'Uxntal'}{'Globals'}{'Set'}{$mod_name.'_'.$var_name}) {
+										($stref, my $global_var_decl)= _emit_var_decl_Uxntal($stref,$mod_name,$info,$var_name);
+										croak $global_var_decl;
 										$stref->{'Uxntal'}{'Globals'}{'Set'}{$mod_name.'_'.$var_name} = 1;
-										push @{$stref->{'Uxntal'}{'Globals'}{'List'}},$mod_name.'_'.$var_name;
+										push @{$stref->{'Uxntal'}{'Globals'}{'List'}},$global_var_decl ;#'@'.$mod_name.'_'.$var_name.' $';
 									}
 									$qual_vname = $mod_name.'_'.$var_name
 								}
