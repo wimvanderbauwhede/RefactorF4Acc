@@ -210,6 +210,9 @@ Instead of the nice but cumbersome approach we had until now, from now on it is 
 			die "Supported types are integer, character and logical: $var in $f is $type\n";
 		}
 		$Sf->{'WordSizes'}{$var} = $wordsz;
+		if (exists $decl->{'ParentModule'}) {
+			$stref->{'Modules'}{$decl->{'ParentModule'}}{'WordSizes'}{$var} = $wordsz;
+		}
 	}
 
 	my $annlines = get_annotated_sourcelines( $stref, $f );
@@ -840,6 +843,9 @@ sub _emit_var_decl_Uxntal { (my $stref,my $f,my $info,my $var)=@_;
 		if ($fkind eq '') {$fkind=4};
 
 		my $sz = $Sf->{'WordSizes'}{$var}; # This breaks because we did not populate this for modules!
+		if (not defined $sz) {
+			croak "$f $var ".Dumper($decl);
+		}
 		# toUxntalType($ftype,$fkind)*$dim;
 		my $c_var_decl =  '@'.$f.'_'.$var.' $'. $sz;
 		return ($stref,$c_var_decl);
@@ -1017,21 +1023,25 @@ sub _emit_expression_Uxntal { my ($ast, $stref, $f, $info)=@_;
 							# In Uxntal, an array access is ;array $idx ADD2 LDA2 and if $idx is a scalar, I assume it's $idx LDA2, because we use shorts everywhere.
 							my $var_name = $ast->[1];
 							my $qual_vname = $f .'_' . $var_name;
-							my $subset = in_nested_set($Sf,'Vars',$var_name);
-							if ($subset eq 'ModuleVars') {
-								my $decl = get_var_record_from_set($Sf->{$subset},$var_name);
+							my $subset='';
+							my $decl = get_var_record_from_set($Sf->{'ModuleVars'},$var_name);
+							if (defined $decl) {
+							# croak "VAR: $var_name ".Dumper($decl);
+							# }
+							# if ($subset eq 'ModuleVars') {
+							# 	my $decl = get_var_record_from_set($Sf->{$subset},$var_name);
+								# carp Dumper $decl;
 								# my ($mod_name, $set) = __has_module_level_declaration($stref,$f,$var_name) ;
 								my $mod_name ='';
 								if (exists $decl->{'ParentModule'}) {
 									$mod_name = $decl->{'ParentModule'};
 								}
 								if ($mod_name ne '') {
-
 									if (not exists $stref->{'Uxntal'}{'Globals'}{'Set'}{$mod_name.'_'.$var_name}) {
 										($stref, my $global_var_decl)= _emit_var_decl_Uxntal($stref,$mod_name,$info,$var_name);
-										croak $global_var_decl;
+croak $mod_name.'_'.$var_name.' : '. $global_var_decl;
 										$stref->{'Uxntal'}{'Globals'}{'Set'}{$mod_name.'_'.$var_name} = 1;
-										push @{$stref->{'Uxntal'}{'Globals'}{'List'}},$global_var_decl ;#'@'.$mod_name.'_'.$var_name.' $';
+										push @{$stref->{'Uxntal'}{'Globals'}{'List'}},$global_var_decl ;
 									}
 									$qual_vname = $mod_name.'_'.$var_name
 								}
@@ -1195,13 +1205,7 @@ sub _emit_expression_Uxntal { my ($ast, $stref, $f, $info)=@_;
 					# 	croak $f.'_'.$exp.';'.Dumper( __has_module_level_declaration($stref,$f,$exp));
 					# }
 					else {
-						# if ($ptr eq '') {
-							# return $exp;
-							return ';'.$f.'_'.$exp.' LDA' . ($wordsz==1 ? '' : '2' );
-						# } else {
-						# 	# return '('.$ptr.$exp.')';
-						# 	return ';'.$f.'_'.$exp.' LDA2';
-						# }
+						return ';'.$f.'_'.$exp.' LDA' . ($wordsz==1 ? '' : '2' ).' ( LOCAL ) ';
 					}
 				} else { # not local variables
 					if ($exp eq '.true.') {
@@ -1213,7 +1217,7 @@ sub _emit_expression_Uxntal { my ($ast, $stref, $f, $info)=@_;
 						my $instr = '';
 						if ($sigil eq '$') {
 							$rune = ';';
-							$instr = ' LDA' .$wordsz;
+							$instr = ' LDA' .($wordsz==1 ? '' : '2' ).' ( NOT LOCAL ) ';
 						}
 						if ($exp =~ /^[a-zA-Z_]/) {
 							my $subset = in_nested_set($Sf,'ModuleVars',$exp);
@@ -1333,7 +1337,9 @@ if (exists $info->{'SubroutineCall'}{'IsExternal'}) {
 		$idx++;
 		my $rec = $Ssubname->{'RefactoredArgs'}{'Set'}{$sig_arg};
 		my $call_arg_expr_str = $info->{'SubroutineCall'}{'ArgMap'}{$sig_arg} // $sig_arg;
-		# say Dumper $info->{'SubroutineCall'};
+		my $call_arg_decl = get_var_record_from_set($Sf->{'Vars'},$call_arg_expr_str);
+		my $isParam = defined $call_arg_decl and exists $call_arg_decl->{'Parameter'};
+		# croak Dumper $call_arg_decl,$rec,$call_arg_expr_str if $call_arg_expr_str eq 'idx';
 		# say "$subname: $sig_arg => ";say $call_arg_expr_str;
 		my $intent = $rec->{'IODir'};
 		my $isArray = $rec->{'ArrayOrScalar'} eq 'Array';
@@ -1349,21 +1355,23 @@ if (exists $info->{'SubroutineCall'}{'IsExternal'}) {
 		if ($rec->{'Attr'}=~/kind=(\d+)/) {
 			$wordSz = $1;
 		}
-		$wordSz==1 && do {$wordSz=''};
-		# say $info->{'SubroutineCall'}{'Args'}{'Set'}{$call_arg_expr_str}{'Type'};
+
 		my $isConstOrExpr = exists $info->{'SubroutineCall'}{'Args'}{'Set'}{$call_arg_expr_str} ?
-		(($info->{'SubroutineCall'}{'Args'}{'Set'}{$call_arg_expr_str}{'Type'} eq 'Const' ) or ($info->{'SubroutineCall'}{'Args'}{'Set'}{$call_arg_expr_str}{'Type'} eq 'Expr')) : 0;
+		(($info->{'SubroutineCall'}{'Args'}{'Set'}{$call_arg_expr_str}{'Type'} eq 'Const' ) 
+		or ($info->{'SubroutineCall'}{'Args'}{'Set'}{$call_arg_expr_str}{'Type'} eq 'Expr') 
+		or $isParam)
+		: 0;
 
 		if ($intent eq 'in' or $intent eq 'inout') {
 			if ($isArray or $isString) {
-				push @call_arg_expr_strs_Uxntal, ';'.$f.'_'.$call_arg_expr_str;
+				push @call_arg_expr_strs_Uxntal, ';'.$f.'_'.$call_arg_expr_str.' ( ARG by ADDR ) ';
 			}
 			elsif (not $isConstOrExpr) { # must be a scalar variable, so load it and pass by value
-				push @call_arg_expr_strs_Uxntal, ';'.$f.'_'.$call_arg_expr_str.' LDA'.($word_sz==1 ? '' : '2' );
+				push @call_arg_expr_strs_Uxntal, ';'.$f.'_'.$call_arg_expr_str.' LDA'.($word_sz==1 ? '' : '2' ).' ( ARG by VAL ) ';
 			}
 			else {
 				my $arg_expr_ast = $info->{'SubroutineCall'}{'ExpressionAST'}[0] == 27 ? $info->{'SubroutineCall'}{'ExpressionAST'}[$idx] : $info->{'SubroutineCall'}{'ExpressionAST'};
-				push @call_arg_expr_strs_Uxntal, _emit_expression_Uxntal($arg_expr_ast, $stref, $f,$info);
+				push @call_arg_expr_strs_Uxntal, _emit_expression_Uxntal($arg_expr_ast, $stref, $f,$info).' ( ARG by VAL, CONST ) ';
 			}
 		}
 	}
