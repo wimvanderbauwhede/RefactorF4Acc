@@ -60,7 +60,7 @@ sub translate_program_to_Uxntal {  (my $stref, my $program_name) = @_;
 	$stref->{'Uxntal'} = {
 		'Macros' => { 'Set' =>{}, 'List' => [] },
 		'CLIHandling' => ['( TODO CLI HANDLING )'],
-		'Main' => [],
+		'Main' => {'TranslatedCode'=>[],'Name'=>''},
 		'Libraries' => { 'Set' =>{}, 'List' => ['( TODO LIBRARIES )'] },
 		'Subroutines' => {},
 		# { 'LocalVars'=> {'Set' =>{}, 'List' => [] }, 'Args' => {'Set' =>{}, 'List' => [] },  'isMain' => '' , 'TranslatedCode'}
@@ -91,12 +91,17 @@ sub translate_program_to_Uxntal {  (my $stref, my $program_name) = @_;
 	   $stref->{'TranslatedCode'}=[ 
 		@{$stref->{'Uxntal'}{'Macros'}{'List'}},
 		@{$stref->{'Uxntal'}{'CLIHandling'}},
-		@{$stref->{'Uxntal'}{'Main'}},
+
+		'','|0100',
+		$stref->{'Uxntal'}{'Main'}{'Name'},
+		'BRK','',
+
+		@{$stref->{'Uxntal'}{'Main'}{'TranslatedCode'}},
 		@{$stref->{'Uxntal'}{'Libraries'}{'List'}},
 		@{$stref->{'TranslatedCode'}}, # These are the subroutines
 		@{$stref->{'Uxntal'}{'Globals'}{'List'}},
 	   ];
-	   carp "TODO: Global decls";
+	#    carp "TODO: Global decls";
 	# This prints out the lines from $stref->{'TranslatedCode'}
 	$stref = _emit_Uxntal_code($stref, $program_name);
 	# This enables the postprocessing for custom passes
@@ -601,7 +606,7 @@ Instead of the nice but cumbersome approach we had until now, from now on it is 
 			# $c_line = $info->{'Label'}. ' : '."\n".$info->{'Indent'}.$c_line;
 		}
 		chomp $c_line;
-		push @{$pass_state->{'Subroutine'}{'TranslatedCode'}},"( ____ $line )" ;#unless $skip or $line=~/^\s*$/;
+		push @{$pass_state->{'Subroutine'}{'TranslatedCode'}},"( ____ $line )" unless $skip or $line=~/^\s*$/;
 		push @{$pass_state->{'Subroutine'}{'TranslatedCode'}},$c_line unless $skip;
 		# push @{$pass_state->{'TranslatedCode'}},$info->{'Indent'}.$c_line	 unless $skip;
 		return ([$annline],[$stref,$f,$pass_state]);
@@ -647,7 +652,8 @@ Instead of the nice but cumbersome approach we had until now, from now on it is 
 	# $stref->{'Uxntal'}{'Subroutines'}{$f}{'TranslatedCode'}=$stref->{'TranslatedCode'};
 
 	if ( $sub_uxntal_code->{'IsMain'} ne '') {
-		$stref->{'Uxntal'}{'Main'} = [@translated_sub_code];
+		$stref->{'Uxntal'}{'Main'}{'Name'} = $sub_uxntal_code->{'IsMain'};
+		$stref->{'Uxntal'}{'Main'}{'TranslatedCode'} = [@translated_sub_code];
 		delete $stref->{'Uxntal'}{'Subroutines'}{$f};
 	} else {
 		$stref->{'TranslatedCode'}=[
@@ -755,7 +761,7 @@ if ($isArray or $isString) {
 sub _emit_var_decl_Uxntal { (my $stref,my $f,my $info,my $var)=@_;
 	my $sub_or_module = sub_func_incl_mod( $f, $stref );
 	my $Sf = $stref->{$sub_or_module}{$f};
-	say "_emit_var_decl_Uxntal: VAR $var in $f ";
+	# say "_emit_var_decl_Uxntal: VAR $var in $f ";
 	my $decl =  get_var_record_from_set($stref->{$sub_or_module}{$f}{'Vars'},$var);
 
 	my $array = (exists $decl->{'ArrayOrScalar'} and $decl->{'ArrayOrScalar'} eq 'Array') ? 1 : 0;
@@ -1006,7 +1012,7 @@ sub _emit_expression_Uxntal { my ($ast, $stref, $f, $info)=@_;
 							my $qual_vname = $f .'_' . $var_name;
 							my $subset='';
 							my $decl = get_var_record_from_set($Sf->{'ModuleVars'},$var_name);
-							carp "VAR: $var_name ".Dumper($decl) if $var_name eq 'funktalGlobalString';
+							# carp "VAR: $var_name ".Dumper($decl) if $var_name eq 'funktalGlobalString';
 							if (defined $decl) {
 								my $mod_name ='';
 								if (exists $decl->{'ModuleName'}) {
@@ -1015,7 +1021,7 @@ sub _emit_expression_Uxntal { my ($ast, $stref, $f, $info)=@_;
 								if ($mod_name ne '') {
 									if (not exists $stref->{'Uxntal'}{'Globals'}{'Set'}{$mod_name.'_'.$var_name}) {
 										($stref, my $global_var_decl)= _emit_var_decl_Uxntal($stref,$mod_name,$info,$var_name);
-carp 'GLOBAL ARRAY:'. $mod_name.'_'.$var_name.' : '. $global_var_decl;
+# carp 'GLOBAL ARRAY:'. $mod_name.'_'.$var_name.' : '. $global_var_decl;
 										$stref->{'Uxntal'}{'Globals'}{'Set'}{$mod_name.'_'.$var_name} = 1;
 										push @{$stref->{'Uxntal'}{'Globals'}{'List'}},$global_var_decl ;
 									}
@@ -1040,7 +1046,7 @@ carp 'GLOBAL ARRAY:'. $mod_name.'_'.$var_name.' : '. $global_var_decl;
 										push @lower_bounds, $lb;
 									}
 									if ($ndims==1) {
-										return ';'.$qual_vname.'  ( ARRAY ) '.$args_lst[0].' ADD2 LDA2';
+										return ';'.$qual_vname.' '.$args_lst[0].' ADD2 LDA2';
 									} elsif ($ndims==0 and $decl->{'Type'} eq 'character') {
 										my $cb = _emit_expression_Uxntal($ast->[2][1], $stref, $f,$info);
 										my $ce = _emit_expression_Uxntal($ast->[2][2], $stref, $f,$info);
@@ -1055,8 +1061,8 @@ carp 'GLOBAL ARRAY:'. $mod_name.'_'.$var_name.' : '. $global_var_decl;
 									}
 								} elsif ( $decl->{'Type'} eq 'character') {
 									# Although the AST says '10', decls says it's a scalar
-										my $strn=$f.'_'.$ast->[1];
-										croak "ALLOW FOR MODULE GLOBALS HERE!";
+										my $strn= (exists $decl->{'ModuleName'} ? $decl->{'ModuleName'} :$f).'_'.$ast->[1];
+										# croak "ALLOW FOR MODULE GLOBALS HERE!";
 										my $cb = _emit_expression_Uxntal($ast->[2][1], $stref, $f,$info);
 										my $ce = _emit_expression_Uxntal($ast->[2][2], $stref, $f,$info);
 										my $id=$info->{'LineID'};
@@ -1170,7 +1176,7 @@ carp 'GLOBAL ARRAY:'. $mod_name.'_'.$var_name.' : '. $global_var_decl;
 					}
 
 					else {
-						return ';'.$f.'_'.$exp.' LDA' . ($wordsz==1 ? '' : '2' ).' ( LOCAL ) ';
+						return ';'.$f.'_'.$exp.' LDA' . ($wordsz==1 ? '' : '2' );#.' ( LOCAL ) ';
 					}
 				} else { # not local variables
 					if ($exp eq '.true.') {
@@ -1182,7 +1188,7 @@ carp 'GLOBAL ARRAY:'. $mod_name.'_'.$var_name.' : '. $global_var_decl;
 						my $instr = '';
 						if ($sigil eq '$') {
 							$rune = ';';
-							$instr = ' LDA' .($wordsz==1 ? '' : '2' ).' ( NOT LOCAL ) ';
+							$instr = ' LDA' .($wordsz==1 ? '' : '2' );#.' ( NOT LOCAL ) ';
 						}
 						if ($exp =~ /^[a-zA-Z_]/) {
 							my $subset = in_nested_set($Sf,'ModuleVars',$exp);
@@ -1196,16 +1202,16 @@ carp 'GLOBAL ARRAY:'. $mod_name.'_'.$var_name.' : '. $global_var_decl;
 							if ($mod_name ne '') {
 								if (not exists $stref->{'Uxntal'}{'Globals'}{'Set'}{$mod_name.'_'.$exp}) { 
 									($stref, my $global_var_decl)= _emit_var_decl_Uxntal($stref,$mod_name,$info,$exp);
-carp 'GLOBAL SCALAR:'. $mod_name.'_'.$exp.' : '. $global_var_decl;
+# carp 'GLOBAL SCALAR:'. $mod_name.'_'.$exp.' : '. $global_var_decl;
 									$stref->{'Uxntal'}{'Globals'}{'Set'}{$mod_name.'_'.$exp} = 1;
 									push @{$stref->{'Uxntal'}{'Globals'}{'List'}},$global_var_decl ;
 									# croak "BOOM! ".$mod_name.'_'.$exp;
 									# $stref->{'Uxntal'}{'Globals'}{'Set'}{$mod_name.'_'.$exp} = 1;
 									# push @{$stref->{'Uxntal'}{'Globals'}{'List'}},$mod_name.'_'.$exp;
 								}
-								return $rune.$mod_name.'_'.$exp . ' '. $instr. '( SCALAR MODULE VAR )'; #
+								return $rune.$mod_name.'_'.$exp . ' '. $instr;#. '( SCALAR MODULE VAR )'; #
 							} else {
-								return $rune.$f.'_'.$exp . ' '. $instr. '( SCALAR FALLBACK )';
+								return $rune.$f.'_'.$exp . ' '. $instr;#. '( SCALAR FALLBACK )';
 							}
 						} else {
 							return $exp;
@@ -1334,14 +1340,14 @@ if (exists $info->{'SubroutineCall'}{'IsExternal'}) {
 
 		if ($intent eq 'in' or $intent eq 'inout') {
 			if ($isArray or $isString) {
-				push @call_arg_expr_strs_Uxntal, ';'.$f.'_'.$call_arg_expr_str.' ( ARG by ADDR ) ';
+				push @call_arg_expr_strs_Uxntal, ';'.$f.'_'.$call_arg_expr_str;#.' ( ARG by ADDR ) ';
 			}
 			elsif (not $isConstOrExpr) { # must be a scalar variable, so load it and pass by value
-				push @call_arg_expr_strs_Uxntal, ';'.$f.'_'.$call_arg_expr_str.' LDA'.($word_sz==1 ? '' : '2' ).' ( ARG by VAL ) ';
+				push @call_arg_expr_strs_Uxntal, ';'.$f.'_'.$call_arg_expr_str.' LDA'.($word_sz==1 ? '' : '2' );#.' ( ARG by VAL ) ';
 			}
 			else {
 				my $arg_expr_ast = $info->{'SubroutineCall'}{'ExpressionAST'}[0] == 27 ? $info->{'SubroutineCall'}{'ExpressionAST'}[$idx] : $info->{'SubroutineCall'}{'ExpressionAST'};
-				push @call_arg_expr_strs_Uxntal, _emit_expression_Uxntal($arg_expr_ast, $stref, $f,$info).' ( ARG by VAL, CONST ) ';
+				push @call_arg_expr_strs_Uxntal, _emit_expression_Uxntal($arg_expr_ast, $stref, $f,$info);#.' ( ARG by VAL, CONST ) ';
 			}
 		}
 	}
@@ -1372,7 +1378,7 @@ if (exists $info->{'SubroutineCall'}{'IsExternal'}) {
 			if (not $isArray and not $isConstOrExpr) {
 				my $arg_expr_ast = $info->{'SubroutineCall'}{'ExpressionAST'}[0] == 27 ? $info->{'SubroutineCall'}{'ExpressionAST'}[$idx] : $info->{'SubroutineCall'}{'ExpressionAST'};
 				# say _emit_expression_Uxntal($arg_expr_ast, $stref, $f,$info);
-				push @call_arg_expr_strs_Uxntal, ';'.$f.'_'.$call_arg_expr_str.' STA'.$wordSz.' ( CALL EXPR )';
+				push @call_arg_expr_strs_Uxntal, ';'.$f.'_'.$call_arg_expr_str.' STA'.$wordSz;#.' ( CALL EXPR )';
 			}
 		}
 	}
