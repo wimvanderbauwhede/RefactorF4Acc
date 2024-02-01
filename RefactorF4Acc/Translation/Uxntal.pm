@@ -96,7 +96,7 @@ sub translate_program_to_Uxntal {  (my $stref, my $program_name) = @_;
 		@{$stref->{'TranslatedCode'}}, # These are the subroutines
 		@{$stref->{'Uxntal'}{'Globals'}{'List'}},
 	   ];
-	   carp "TODO: Global decls; Macros as arg";
+	   carp "TODO: Global decls";
 	# This prints out the lines from $stref->{'TranslatedCode'}
 	$stref = _emit_Uxntal_code($stref, $program_name);
 	# This enables the postprocessing for custom passes
@@ -210,8 +210,9 @@ Instead of the nice but cumbersome approach we had until now, from now on it is 
 			die "Supported types are integer, character and logical: $var in $f is $type\n";
 		}
 		$Sf->{'WordSizes'}{$var} = $wordsz;
-		if (exists $decl->{'ParentModule'}) {
-			$stref->{'Modules'}{$decl->{'ParentModule'}}{'WordSizes'}{$var} = $wordsz;
+		# carp Dumper($decl) if $var eq 'funktalGlobalCharArray';
+		if (exists $decl->{'ModuleName'}) {
+			$stref->{'Modules'}{$decl->{'ModuleName'}}{'WordSizes'}{$var} = $wordsz;
 		}
 	}
 
@@ -293,7 +294,7 @@ Instead of the nice but cumbersome approach we had until now, from now on it is 
 					}
 					elsif (exists $state->{'Parameters'}{$call_arg}) {
 						$state->{'Pointers'}{$call_arg}='&';
-						carp 'TODO: a const scalar passed as arg: ',$call_arg_expr_str ;
+						# carp 'TODO: a const scalar passed as arg: ',$call_arg_expr_str ;
 					}
 				}
 			}
@@ -312,45 +313,13 @@ Instead of the nice but cumbersome approach we had until now, from now on it is 
 			}
 		}
 
-		# elsif (exists $info->{'Do'} ) {
-		# 	if (exists $info->{'Do'}{'While'}) {
-		# 		croak 'TODO: Do While: '.Dumper($info->{'Do'}{'ExpressionsAST'});
-		# 	} else {
-		# 		my $iter = $info->{'Do'}{'Iterator'};
-		# 		$state->{'Pointers'}{$iter}='';
-		# 	}
-		# }
-		# elsif (exists $info->{'BeginDo'} ) {
-		# 	croak 'TODO: BeginDo: what is this?';
-		# }
-
-		# if (exists $info->{'Assignment'} ) {
-		# 	if (exists $info->{'If'}) {
-		# 		say 'TODO: If with assignment: '.Dumper($info->{'If'});
-		# 	}
-		# }
-		# elsif (exists $info->{'SubroutineCall'} and not exists $info->{'IOCall'}) {
-		# 	if (exists $info->{'If'}) {
-		# 		say 'TODO: If with call: '.Dumper($info->{'If'});
-		# 	}
-		# }
-		# elsif (exists $info->{'IOCall'}) {
-		# 	if (exists $info->{'PrintCall'}) {
-		# 		say 'TODO: If with call: '.Dumper($info->{'If'});
-		# 	}
-		# }
-        # elsif (exists $info->{'IfThen'}  ) {
-		# 	say 'TODO: IfThen: '.Dumper($info->{'IfThen'});
-        # }
-
-
 		return ([[$line,$info]],$state)
 	};
 
 	my $pass_state = {'Pointers'=>{},'Args' =>{},'LocalVars' =>{}, 'Parameters'=>{}, 'WordSizes'=>{}};
 	(my $new_annlines_,$pass_state) = stateful_pass($annlines,$pass_pointer_analysis,$pass_state,"pass_pointer_analysis($f)");
 	$Sf->{'Pointers'} = $pass_state->{'Pointers'};
-	# $Sf->{'WordSizes'} = $pass_state->{'WordSizes'};
+
 
 
 # --------------------------------------------------------------------------------------------
@@ -828,9 +797,19 @@ sub _emit_var_decl_Uxntal { (my $stref,my $f,my $info,my $var)=@_;
 		#.Dumper($stref->{$sub_or_module}{$f}{'Vars'})
 		my $subset = in_nested_set( $Sf, 'Vars', $var );
 		# croak "$subset $f ". Dumper( $decl) if $decl->{'Type'} eq 'real';
-		# croak "$subset $f ". Dumper( $decl) if Dumper($decl->{'Dim'}) =~/funktalMaxNTokens/;
+		# croak "$subset $f ". Dumper( $decl) if $var eq 'funktalGlobalCharArray';
 		my $dim= $array  ? __C_array_size($decl->{'Dim'}) : 1;
 		my $ftype = $decl->{'Type'};
+		if ($ftype eq 'character') {
+			if (exists $decl->{'Attr'} and $decl->{'Attr'} ne '') { 
+				my $strlen = $decl->{'Attr'};
+				$strlen=~s/len=//;
+				$strlen=~s/^\(//;
+				$strlen=~s/\)$//;
+				# croak $decl->{'Attr'}.$strlen;
+				$dim *= $strlen;
+			}
+		}
 		my $fkind = $decl->{'Attr'};
 		if (ref ($ftype) eq 'HASH') {
 			if (exists $ftype->{'Kind'}) {
@@ -847,7 +826,9 @@ sub _emit_var_decl_Uxntal { (my $stref,my $f,my $info,my $var)=@_;
 			croak "$f $var ".Dumper($decl);
 		}
 		# toUxntalType($ftype,$fkind)*$dim;
-		my $c_var_decl =  '@'.$f.'_'.$var.' $'. $sz;
+		my $padding = toRawHex($sz*$dim,2);
+		$padding =~s/^0+//;
+		my $c_var_decl =  '@'.$f.'_'.$var.' $'. $padding;
 		return ($stref,$c_var_decl);
 	}
 } # END of _emit_var_decl_Uxntal
@@ -1025,21 +1006,16 @@ sub _emit_expression_Uxntal { my ($ast, $stref, $f, $info)=@_;
 							my $qual_vname = $f .'_' . $var_name;
 							my $subset='';
 							my $decl = get_var_record_from_set($Sf->{'ModuleVars'},$var_name);
+							carp "VAR: $var_name ".Dumper($decl) if $var_name eq 'funktalGlobalString';
 							if (defined $decl) {
-							# croak "VAR: $var_name ".Dumper($decl);
-							# }
-							# if ($subset eq 'ModuleVars') {
-							# 	my $decl = get_var_record_from_set($Sf->{$subset},$var_name);
-								# carp Dumper $decl;
-								# my ($mod_name, $set) = __has_module_level_declaration($stref,$f,$var_name) ;
 								my $mod_name ='';
-								if (exists $decl->{'ParentModule'}) {
-									$mod_name = $decl->{'ParentModule'};
+								if (exists $decl->{'ModuleName'}) {
+									$mod_name = $decl->{'ModuleName'};
 								}
 								if ($mod_name ne '') {
 									if (not exists $stref->{'Uxntal'}{'Globals'}{'Set'}{$mod_name.'_'.$var_name}) {
 										($stref, my $global_var_decl)= _emit_var_decl_Uxntal($stref,$mod_name,$info,$var_name);
-croak $mod_name.'_'.$var_name.' : '. $global_var_decl;
+carp 'GLOBAL ARRAY:'. $mod_name.'_'.$var_name.' : '. $global_var_decl;
 										$stref->{'Uxntal'}{'Globals'}{'Set'}{$mod_name.'_'.$var_name} = 1;
 										push @{$stref->{'Uxntal'}{'Globals'}{'List'}},$global_var_decl ;
 									}
@@ -1064,14 +1040,8 @@ croak $mod_name.'_'.$var_name.' : '. $global_var_decl;
 										push @lower_bounds, $lb;
 									}
 									if ($ndims==1) {
-										return ';'.$qual_vname.' '.$args_lst[0].' ADD2 LDA2'
+										return ';'.$qual_vname.'  ( ARRAY ) '.$args_lst[0].' ADD2 LDA2';
 									} elsif ($ndims==0 and $decl->{'Type'} eq 'character') {
-										# die "No support for strings yet\n" .
-										# Dumper($info).';'.
-										# Dumper($decl).';'.
-										# croak Dumper($ast);
-										# fl(1:2)
-										# my $strn=$f.'_'.$ast->[1];
 										my $cb = _emit_expression_Uxntal($ast->[2][1], $stref, $f,$info);
 										my $ce = _emit_expression_Uxntal($ast->[2][2], $stref, $f,$info);
 										my $id=$info->{'LineID'};
@@ -1086,6 +1056,7 @@ croak $mod_name.'_'.$var_name.' : '. $global_var_decl;
 								} elsif ( $decl->{'Type'} eq 'character') {
 									# Although the AST says '10', decls says it's a scalar
 										my $strn=$f.'_'.$ast->[1];
+										croak "ALLOW FOR MODULE GLOBALS HERE!";
 										my $cb = _emit_expression_Uxntal($ast->[2][1], $stref, $f,$info);
 										my $ce = _emit_expression_Uxntal($ast->[2][2], $stref, $f,$info);
 										my $id=$info->{'LineID'};
@@ -1197,13 +1168,7 @@ croak $mod_name.'_'.$var_name.' : '. $global_var_decl;
 						# That would be
 						return $f.'_'.$exp;
 					}
-					# elsif ( in_nested_set($Sf,'Vars',$exp)) {
-					# 	croak "MODULE VAR $exp" if $exp=~/funktal/;
-					# }
-					# elsif ( (__has_module_level_declaration($stref,$f,$exp))[0] ne '') {
 
-					# 	croak $f.'_'.$exp.';'.Dumper( __has_module_level_declaration($stref,$f,$exp));
-					# }
 					else {
 						return ';'.$f.'_'.$exp.' LDA' . ($wordsz==1 ? '' : '2' ).' ( LOCAL ) ';
 					}
@@ -1224,18 +1189,23 @@ croak $mod_name.'_'.$var_name.' : '. $global_var_decl;
 							my $decl = get_var_record_from_set($Sf->{$subset},$exp);
 							# my ($mod_name, $set) = __has_module_level_declaration($stref,$f,$exp) ;
 							my $mod_name ='';
-							if (exists $decl->{'ParentModule'}) {
-								$mod_name = $decl->{'ParentModule'};
+							if (exists $decl->{'ModuleName'}) {
+								$mod_name = $decl->{'ModuleName'};
 							}
 
 							if ($mod_name ne '') {
-								if (not exists $stref->{'Uxntal'}{'Globals'}{'Set'}{$mod_name.'_'.$exp}) {
+								if (not exists $stref->{'Uxntal'}{'Globals'}{'Set'}{$mod_name.'_'.$exp}) { 
+									($stref, my $global_var_decl)= _emit_var_decl_Uxntal($stref,$mod_name,$info,$exp);
+carp 'GLOBAL SCALAR:'. $mod_name.'_'.$exp.' : '. $global_var_decl;
 									$stref->{'Uxntal'}{'Globals'}{'Set'}{$mod_name.'_'.$exp} = 1;
-									push @{$stref->{'Uxntal'}{'Globals'}{'List'}},$mod_name.'_'.$exp;
+									push @{$stref->{'Uxntal'}{'Globals'}{'List'}},$global_var_decl ;
+									# croak "BOOM! ".$mod_name.'_'.$exp;
+									# $stref->{'Uxntal'}{'Globals'}{'Set'}{$mod_name.'_'.$exp} = 1;
+									# push @{$stref->{'Uxntal'}{'Globals'}{'List'}},$mod_name.'_'.$exp;
 								}
-								return $rune.$mod_name.'_'.$exp . ' '. $instr; #
+								return $rune.$mod_name.'_'.$exp . ' '. $instr. '( SCALAR MODULE VAR )'; #
 							} else {
-								return $rune.$f.'_'.$exp . ' '. $instr;
+								return $rune.$f.'_'.$exp . ' '. $instr. '( SCALAR FALLBACK )';
 							}
 						} else {
 							return $exp;
@@ -1402,7 +1372,7 @@ if (exists $info->{'SubroutineCall'}{'IsExternal'}) {
 			if (not $isArray and not $isConstOrExpr) {
 				my $arg_expr_ast = $info->{'SubroutineCall'}{'ExpressionAST'}[0] == 27 ? $info->{'SubroutineCall'}{'ExpressionAST'}[$idx] : $info->{'SubroutineCall'}{'ExpressionAST'};
 				# say _emit_expression_Uxntal($arg_expr_ast, $stref, $f,$info);
-				push @call_arg_expr_strs_Uxntal, ';'.$f.'_'.$call_arg_expr_str.' STA'.$wordSz;
+				push @call_arg_expr_strs_Uxntal, ';'.$f.'_'.$call_arg_expr_str.' STA'.$wordSz.' ( CALL EXPR )';
 			}
 		}
 	}
@@ -1453,7 +1423,7 @@ sub _emit_subroutine_return_vals_Uxntal { my ($stref,$f,$info) = @_;
 
 		if ($intent eq 'out' or $intent eq 'inout') {
 			if (not $isArray ) {
-				push @sub_retvals_Uxntal, ';'.$f.'_'.$sig_arg.' LDA'.$wordSz;
+				push @sub_retvals_Uxntal, ';'.$f.'_'.$sig_arg.' LDA'.$wordSz. ' ( RETVAL ) ';
 			}
 		}
 	}
@@ -1503,7 +1473,7 @@ sub toRawHex { my ($n,$sz) = @_;
 
 sub genSubstr { my ($strn, $cb,$ce, $len,$id) = @_;
 	if ($cb eq $ce) { # -1 to go to base-0 but +2 because of the length field, so +1
-		return $cb . ' INC2 ;'.$strn.' ADD2 LDA'
+		return $cb . ' INC2 ;'.$strn.' ( STRING ) ADD2 LDA'
 	} else {
 		my $cbb = $cb; $cbb=~s/^\#00//;$cbb='#'.$cbb;
 		my $ceb = $ce; $ceb=~s/^\#00//;$ceb='#'.$ceb;
