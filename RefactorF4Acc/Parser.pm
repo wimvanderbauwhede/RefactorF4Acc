@@ -3468,7 +3468,8 @@ sub _parse_f77_par_decl {
 	# F77-style parameters
 	( my $Sf, my $stref, my $f,my $indent, my $line, my $info, my $parliststr, my $pt ) = @_;
 	# say "LINE: $line";
-
+	my $sub_or_mod =  sub_func_incl_mod( $f, $stref );
+	my $is_module = $sub_or_mod eq 'Modules' ? 1 : 0;
 	my $type   = 'Unknown';
 	my $typed=0;
 	my $attr = '';
@@ -3649,6 +3650,10 @@ sub _parse_f77_par_decl {
 			'Status'    => 0,
 			'Implicit' => 0
 		};
+
+		if ($is_module) {
+			$param_decl->{'ModuleName'} = $f;
+		}
 
 		$Sf->{'LocalParameters'}{'Set'}{$var}=$param_decl;
 

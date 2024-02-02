@@ -272,12 +272,10 @@ Instead of the nice but cumbersome approach we had until now, from now on it is 
 					die "Integers must be 8-bit or 16-bit: $var in $f is $kind\n";
 				}
 				$wordsz=$kind;
-			}
-			elsif ($type eq 'logical') {
+			} elsif ($type eq 'logical') {
 				$wordsz=1;
-			}
-			elsif ($type eq 'character') {
-					$wordsz=1;
+			} elsif ($type eq 'character') {
+				$wordsz=1;
 			} else {
 				die "Supported types are integer, character and logical: $var in $f is $type\n";
 			}
@@ -325,16 +323,14 @@ Instead of the nice but cumbersome approach we had until now, from now on it is 
 	(my $new_annlines_,$pass_state) = stateful_pass($annlines,$pass_pointer_analysis,$pass_state,"pass_pointer_analysis($f)");
 	$Sf->{'Pointers'} = $pass_state->{'Pointers'};
 
-
-
 # --------------------------------------------------------------------------------------------
 	my $pass_translate_to_Uxntal = sub { (my $annline, my $state)=@_;
 		(my $line,my $info)=@{$annline};
-		# say "$f LINE:<$line> ";
 		my $c_line=$line;
 		(my $stref, my $f, my $pass_state)=@{$state};
         my $id = $info->{'LineID'};
 		my $skip=0;
+		my $skip_comment=0;
 		if (exists $info->{'Signature'} ) {
 			# subroutine f(x) becomes @f ;x LDA{sz} if x is read
 			# but if x is write, then we have
@@ -342,48 +338,36 @@ Instead of the nice but cumbersome approach we had until now, from now on it is 
 			# So what we need is to create a Set $arg => [$wordz, $iodir]
 			# and a List of $arg
 			# Or maybe {ReadArgs} and {WriteArgs} with the actual code
-			# Then to create the final code, combine
-			# $pass_state->{'ArgVarDecls'}
-			# $pass_state->{'Sig'}
-			# $pass_state->{'ReadArgs'}
-			# $pass_state->{'TranslatedCode'}
-			# $pass_state->{'WriteArgs'}
-			# 'JMP2r'
-			# Thinking about it a bit more, the first 3 can be pushed onto $pass_state->{'TranslatedCode'}
 			$pass_state->{'Args'}=$info->{'Signature'}{'Args'}{'List'};
 			my ($sig_line,$arg_decls, $args_to_store,$write_args,$isMain) = _emit_subroutine_sig_Uxntal( $stref, $f, $annline);
-			# $pass_state->{'TranslatedCode'}=[@{$pass_state->{'TranslatedCode'}},
-			# 	@{$arg_decls}, # Make this ArgDecls
-			# 	$sig_line, # Make this Sig
-			# 	@{$args_to_store} # Make this ReadArgs
-			# ];
 			$pass_state->{'Subroutine'}{'ArgDecls'}=$arg_decls;
-			$pass_state->{'Subroutine'}{'Sig'}=$sig_line;
+			$pass_state->{'Subroutine'}{'Sig'}=[
+				"( ____ $line )",
+				$sig_line
+				];
 			$pass_state->{'Subroutine'}{'ReadArgs'}=$args_to_store;
-			$skip=1;
+			$skip=1;$skip_comment=1;
 			$pass_state->{'Subroutine'}{'WriteArgs'}=$write_args;
-			# $pass_state->{'ArgVarDecls'}{'List'}= $arg_decls;
 			if ($isMain) {
 				$pass_state->{'Subroutine'}{'IsMain'}=$f;
 			}
-			# $c_line = $sig_line."\n";
 		}
 		elsif (exists $info->{'VarDecl'} ) {
 			my $var = $info->{'VarDecl'}{'Name'};
 			if (exists $stref->{'Subroutines'}{$f}{'DeclaredOrigArgs'}{'Set'}{$var}) {
 				$c_line='( '.$line.' )';
-				$skip=1;
+				# croak 'WHY?'.$line;
 			} else {
-			# croak Dumper $info if $line=~/ii/;
-				($stref,my $uxntal_var) =  _emit_var_decl_Uxntal($stref,$f,$info,$var);
-				if (not exists $pass_state->{'Subroutine'}{'LocalVars'}{'Set'}{$uxntal_var}) {
-					$pass_state->{'Subroutine'}{'LocalVars'}{'Set'}{$uxntal_var}=$uxntal_var;
-					push @{$pass_state->{'Subroutine'}{'LocalVars'}{'List'}},$uxntal_var;
+				($stref,my $uxntal_var_decl) =  _emit_var_decl_Uxntal($stref,$f,$info,$var);
+				if (not exists $pass_state->{'Subroutine'}{'LocalVars'}{'Set'}{$uxntal_var_decl}) {
+					$pass_state->{'Subroutine'}{'LocalVars'}{'Set'}{$uxntal_var_decl}=$uxntal_var_decl;
+					push @{$pass_state->{'Subroutine'}{'LocalVars'}{'List'}}, "( ____ $line )";
+					push @{$pass_state->{'Subroutine'}{'LocalVars'}{'List'}},$uxntal_var_decl;
+					$skip_comment=1;
 				} else {
-					croak "Vars should be unique: $uxntal_var";
+					croak "Vars should be unique: $uxntal_var_decl";
 				}
 			}
-					# $pass_state->{'ArgVarDecls'}=[@{$pass_state->{'ArgVarDecls'}},$c_line];
 			$skip=1;
 		}
 		elsif ( exists $info->{'ParamDecl'} ) {
@@ -401,16 +385,9 @@ Instead of the nice but cumbersome approach we had until now, from now on it is 
 		# For Uxntal, we need to turn the Case into an IfThen
 		elsif (exists $info->{'Select'} ) {
 			croak 'SHOULD NOT HAPPEN!';
-			my $switch_expr = _emit_expression_Uxntal([2,$info->{'CaseVar'}],$stref,$f,$info); # FIXME
-			$c_line ="switch ( $switch_expr ) {";
 		}
 		elsif (exists $info->{'Case'} ) {
 			croak 'SHOULD NOT HAPPEN!';
-            # FIXME: support macros
-			# $c_line=$line.': {';#'case';
-			# if ($info->{'Case'}>1) {
-			# 	$c_line = $info->{'Indent'}."} break;\n".$info->{'Indent'}.$c_line;
-			# }
 		}
 		elsif (exists $info->{'CaseDefault'}) {
 			croak 'SHOULD NOT HAPPEN!';
@@ -418,21 +395,17 @@ Instead of the nice but cumbersome approach we had until now, from now on it is 
 		}
 		elsif (exists $info->{'Do'} ) {
 			if (exists $info->{'Do'}{'While'}) {
-				say 'TODO: Do While: '.Dumper($info->{'Do'}{'ExpressionsAST'});
+				# say 'TODO: Do While: '.Dumper($info->{'Do'}{'ExpressionsAST'});
 				push @{$pass_state->{'DoStack'}}, [$id,$info->{'Do'}{'ExpressionsAST'},'While'];
 				$c_line = '&while_loop_'.$f.'_'.$id . "\n" ;
 			} else {
-			# $pass_state->{'DoIter'} =
 			my $do_iterator = $f.'_'.$info->{'Do'}{'Iterator'};
-			# $pass_state->{'DoStep'} = $info->{'Do'}{'Range'}{'Expressions'}[2];
-			# id, iterator, step; loop upper bound is on the wst
-			# carp Dumper $info->{'Do'};
 			my $do_step = $info->{'Do'}{'Range'}{'Expressions'}[2];
-			if ($do_step!~/^\-?\d+$/) {
-				error("Only DO with constant integer STEP is supported: $line in $f",0,'ERROR');
-			}
-			push @{$pass_state->{'DoStack'}}, [
-				$id,$do_iterator,$do_step,'Do'];
+				if ($do_step!~/^\-?\d+$/) {
+					error("Only DO with constant integer STEP is supported: $line in $f",0,'ERROR');
+				}
+				push @{$pass_state->{'DoStack'}}, [
+					$id,$do_iterator,$do_step,'Do'];
 				my $do_start= _emit_expression_Uxntal($info->{'Do'}{'Range'}{'ExpressionASTs'}[0],$stref, $f, $info);
 				my $do_stop =  _emit_expression_Uxntal($info->{'Do'}{'Range'}{'ExpressionASTs'}[1],$stref, $f, $info);
 				$c_line = $do_stop . ' ' . $do_start . "\n" .
@@ -449,16 +422,6 @@ Instead of the nice but cumbersome approach we had until now, from now on it is 
 			($c_line,$pass_state) = _emit_assignment_Uxntal($stref, $f, $info,$pass_state) ;
 		}
 		elsif (exists $info->{'SubroutineCall'} and not exists $info->{'IOCall'}) {
-			# WV2023-12-07 TODO: what if this has an If without Then?
-			#
-			# my $subcall_ast = [ 1, $info->{'SubroutineCall'}{'Name'},$info->{'SubroutineCall'}{'ExpressionAST'} ];
-
-			# There is an issue here:
-			# We actually need to check the type of the called arg against the type of the sig arg
-			# If the called arg is a pointer and the sig arg is a pointer, no '*', else, we need a '*'
-			# But the problem is of course that we have just replaced the called args by the sig args
-			# So what we need to do is check the type in $f and $subname, and use that to see if we need a '*' or even an '&' or nothing
-
             $c_line = _emit_subroutine_call_expr_Uxntal($stref,$f,$line,$info);
 			# If without Then
 			if (exists $info->{'If'}) {
@@ -494,7 +457,6 @@ Instead of the nice but cumbersome approach we had until now, from now on it is 
 			}
 		}
 		elsif (exists $info->{'If'} and not exists $info->{'IfThen'} ) {
-			# croak 'TODO: If without Then'. $line."\n".Dumper($info);
 			if (exists $info->{'Goto'}) {
 				$c_line = ',&'.$f.'_'.$info->{'Goto'}{'Label'}.' JMP';
 			} else {
@@ -523,15 +485,6 @@ Instead of the nice but cumbersome approach we had until now, from now on it is 
             pop @{$pass_state->{'IfStack'}};
             $pass_state->{'IfId'}=$pass_state->{'IfStack'}[-1];
         }
-		# elsif (exists $info->{'If'} ) {
-		# 	$c_line = _emit_ifthen_Uxntal($stref, $f, $info);
-		# }
-		# elsif (exists $info->{'ElseIf'} ) {
-		# 	$c_line = '} else '._emit_ifthen_Uxntal($stref, $f, $info);
-		# }
-		# elsif (exists $info->{'Else'} ) {
-		# 	$c_line = ' } else {';
-		# }
 		elsif (
 				exists $info->{'EndDo'}
 			) {
@@ -572,7 +525,7 @@ Instead of the nice but cumbersome approach we had until now, from now on it is 
 		}
 		elsif (exists $info->{'Use'}) {
 			if ($line=~/$f/) {
-				$c_line = '( '.$line.' )'; $skip=1;
+				$c_line = '( '.$line.' )'; $skip=1;$skip_comment=1;
 			} else {
 			# We should parse the module, or we can simply assume that we replace it with an include with the same name
 			warn "Replacing USE with #include: ".$line;
@@ -606,7 +559,7 @@ Instead of the nice but cumbersome approach we had until now, from now on it is 
 			# $c_line = $info->{'Label'}. ' : '."\n".$info->{'Indent'}.$c_line;
 		}
 		chomp $c_line;
-		push @{$pass_state->{'Subroutine'}{'TranslatedCode'}},"( ____ $line )" unless $skip or $line=~/^\s*$/;
+		push @{$pass_state->{'Subroutine'}{'TranslatedCode'}},"( ____ $line )" unless $skip_comment or $line=~/^\s*$/;
 		push @{$pass_state->{'Subroutine'}{'TranslatedCode'}},$c_line unless $skip;
 		# push @{$pass_state->{'TranslatedCode'}},$info->{'Indent'}.$c_line	 unless $skip;
 		return ([$annline],[$stref,$f,$pass_state]);
@@ -642,7 +595,7 @@ Instead of the nice but cumbersome approach we had until now, from now on it is 
 		# @{$stref->{'TranslatedCode'}},'',
 		@{$sub_uxntal_code->{'ArgDecls'}},
 		@{$sub_uxntal_code->{'LocalVars'}{'List'}},
-		$sub_uxntal_code->{'Sig'},
+		@{$sub_uxntal_code->{'Sig'}},
 		@{$sub_uxntal_code->{'ReadArgs'}},
 		@{$sub_uxntal_code->{'TranslatedCode'}},
 		# @{$stref->{'TranslatedCode'}},'',
@@ -1019,13 +972,12 @@ sub _emit_expression_Uxntal { my ($ast, $stref, $f, $info)=@_;
 									$mod_name = $decl->{'ModuleName'};
 								}
 								if ($mod_name ne '') {
-									if (not exists $stref->{'Uxntal'}{'Globals'}{'Set'}{$mod_name.'_'.$var_name}) {
+									$qual_vname = $mod_name.'_'.$var_name;
+									if (not exists $stref->{'Uxntal'}{'Globals'}{'Set'}{$qual_vname}) {
+										$stref->{'Uxntal'}{'Globals'}{'Set'}{$qual_vname} = 1;
 										($stref, my $global_var_decl)= _emit_var_decl_Uxntal($stref,$mod_name,$info,$var_name);
-# carp 'GLOBAL ARRAY:'. $mod_name.'_'.$var_name.' : '. $global_var_decl;
-										$stref->{'Uxntal'}{'Globals'}{'Set'}{$mod_name.'_'.$var_name} = 1;
 										push @{$stref->{'Uxntal'}{'Globals'}{'List'}},$global_var_decl ;
 									}
-									$qual_vname = $mod_name.'_'.$var_name
 								}
 							}
 
@@ -1137,10 +1089,10 @@ sub _emit_expression_Uxntal { my ($ast, $stref, $f, $info)=@_;
 					$exp = toHex($exp,$sz);
 				}
 				my $mvar = $ast->[1]; # Why is this not $exp?
-
+				# croak "PROBLEM: $mvar <> $exp " if $mvar ne $exp;
+				# my $qual_vname = $f .'_' . $mvar;
 				my $called_sub_name = $stref->{'CalledSub'} // '';
-				croak "$f <$mvar>".Dumper($ast) if $opcode==2 and not exists $stref->{'Subroutines'}{$f}{'WordSizes'}{$mvar};
-				# croak "$f <$mvar>".Dumper($stref->{'Subroutines'}{$f}{'WordSizes'}) if $opcode==2 and not exists $stref->{'Subroutines'}{$f}{'WordSizes'}{$mvar};
+
 				my $wordsz = $stref->{'Subroutines'}{$f}{'WordSizes'}{$mvar};
 				if (exists $stref->{'Subroutines'}{$f}{'Pointers'}{$mvar} ) {
 					# Meaning that $mvar is a pointer in $f
@@ -1171,10 +1123,13 @@ sub _emit_expression_Uxntal { my ($ast, $stref, $f, $info)=@_;
 
 					if ( in_nested_set($Sf,'Parameters',$exp)) {
 						# What is lacking here is a check in the container.
-						# That would be
 						return $f.'_'.$exp;
 					}
 
+					elsif ( in_nested_set($Sf,'ModuleParameters',$exp)) {
+						# What is lacking here is a check in the container.
+						croak 'MODULE PAR: _'.$exp;
+					}
 					else {
 						return ';'.$f.'_'.$exp.' LDA' . ($wordsz==1 ? '' : '2' );#.' ( LOCAL ) ';
 					}
@@ -1191,6 +1146,7 @@ sub _emit_expression_Uxntal { my ($ast, $stref, $f, $info)=@_;
 							$instr = ' LDA' .($wordsz==1 ? '' : '2' );#.' ( NOT LOCAL ) ';
 						}
 						if ($exp =~ /^[a-zA-Z_]/) {
+							my $qual_vname = $f.'_'.$exp;
 							my $subset = in_nested_set($Sf,'ModuleVars',$exp);
 							my $decl = get_var_record_from_set($Sf->{$subset},$exp);
 							# my ($mod_name, $set) = __has_module_level_declaration($stref,$f,$exp) ;
@@ -1200,18 +1156,33 @@ sub _emit_expression_Uxntal { my ($ast, $stref, $f, $info)=@_;
 							}
 
 							if ($mod_name ne '') {
-								if (not exists $stref->{'Uxntal'}{'Globals'}{'Set'}{$mod_name.'_'.$exp}) { 
+								$qual_vname = $mod_name.'_'.$exp;
+								if (not exists $stref->{'Uxntal'}{'Globals'}{'Set'}{$qual_vname}) { 
 									($stref, my $global_var_decl)= _emit_var_decl_Uxntal($stref,$mod_name,$info,$exp);
-# carp 'GLOBAL SCALAR:'. $mod_name.'_'.$exp.' : '. $global_var_decl;
-									$stref->{'Uxntal'}{'Globals'}{'Set'}{$mod_name.'_'.$exp} = 1;
+									$stref->{'Uxntal'}{'Globals'}{'Set'}{$qual_vname} = 1;
 									push @{$stref->{'Uxntal'}{'Globals'}{'List'}},$global_var_decl ;
-									# croak "BOOM! ".$mod_name.'_'.$exp;
-									# $stref->{'Uxntal'}{'Globals'}{'Set'}{$mod_name.'_'.$exp} = 1;
-									# push @{$stref->{'Uxntal'}{'Globals'}{'List'}},$mod_name.'_'.$exp;
 								}
-								return $rune.$mod_name.'_'.$exp . ' '. $instr;#. '( SCALAR MODULE VAR )'; #
-							} else {
-								return $rune.$f.'_'.$exp . ' '. $instr;#. '( SCALAR FALLBACK )';
+								return $rune.$qual_vname . ' '. $instr;#. '( SCALAR MODULE VAR )'; #
+							} else { # Could be a module parameter
+								my $subset = in_nested_set($Sf,'ModuleParameters',$exp);
+								my $decl = get_var_record_from_set($Sf->{$subset},$exp);
+								my $mod_name ='';
+								if (exists $decl->{'ModuleName'}) {
+									$mod_name = $decl->{'ModuleName'};
+								}
+
+								if ($mod_name ne '') {
+									$qual_vname = $mod_name.'_'.$exp;
+									if (not exists $stref->{'Uxntal'}{'Macros'}{'Set'}{$qual_vname}) {
+										$stref->{'Uxntal'}{'Macros'}{'Set'}{$qual_vname} = 1;
+										($stref, my $global_var_decl)= _emit_var_decl_Uxntal($stref,$mod_name,$info,$exp);
+										push @{$stref->{'Uxntal'}{'Macros'}{'List'}},$global_var_decl ;
+									}
+
+									return $qual_vname ;
+								 } else {
+									return $rune.$f.'_'.$exp . ' '. $instr. ' ( SCALAR FALLBACK )';
+								}
 							}
 						} else {
 							return $exp;
@@ -1280,29 +1251,17 @@ while ($expr=~/\.(\w+)\./) {
 
 sub _emit_subroutine_call_expr_Uxntal { my ($stref,$f,$line,$info) = @_;
 	my @call_arg_expr_strs_Uxntal=();
-	# carp Dumper $info;
 	my $subname = $info->{'SubroutineCall'}{'Name'};
-	# croak "$f,$subname:",Dumper($info->{'SubroutineCall'}) if $line=~/^int$/;
-if (exists $info->{'SubroutineCall'}{'IsExternal'}) {
-	# carp "$f,$subname:",Dumper($info->{'SubroutineCall'}) ;
-	if ($subname eq 'exit') {
-		return 'BRK';
+	if (exists $info->{'SubroutineCall'}{'IsExternal'}) {
+		if ($subname eq 'exit') {
+			return 'BRK';
+		}
+		if (exists  $F95_intrinsic_subroutine_sigs{$subname}) {
+			return __emit_intrinsic_subroutine_call_expr_Uxntal($stref,$f,$line,$info);
+		}
 	}
-	if (exists  $F95_intrinsic_subroutine_sigs{$subname}) {
-		# croak Dumper $F95_intrinsic_subroutine_sigs{$subname};
-		return __emit_intrinsic_subroutine_call_expr_Uxntal($stref,$f,$line,$info);
-	}
-
-}
 	my $Ssubname = $stref->{'Subroutines'}{$subname};
 	my $Sf = $stref->{'Subroutines'}{$f};
-	# my $mvar = $subname;
-	# AD-HOC, replacing abs/min/max to fabs/fmin/fmax without any type checking ... FIXME!!!
-	# The (float) cast is necessary because otherwise I get an "ambiguous" error
-	# $mvar=~s/^(abs|min|max)$/(float)f$1/;
-	# $mvar=~s/^am(ax|in)1$/(float)fm$1/;
-	# $mvar=~s/^alog$/(float)log/;
-	# my $subname_C = $mvar;
 # What we need for every argument is IODir , ArrayOrScalar from the record
 # So we'd better loop over the List in the record.
 	#  "inout" args will occur in both places if required.
@@ -1338,7 +1297,7 @@ if (exists $info->{'SubroutineCall'}{'IsExternal'}) {
 		or $isParam)
 		: 0;
 
-		if ($intent eq 'in' or $intent eq 'inout') {
+		# if ($intent eq 'in' or $intent eq 'inout') {
 			if ($isArray or $isString) {
 				push @call_arg_expr_strs_Uxntal, ';'.$f.'_'.$call_arg_expr_str;#.' ( ARG by ADDR ) ';
 			}
@@ -1349,7 +1308,7 @@ if (exists $info->{'SubroutineCall'}{'IsExternal'}) {
 				my $arg_expr_ast = $info->{'SubroutineCall'}{'ExpressionAST'}[0] == 27 ? $info->{'SubroutineCall'}{'ExpressionAST'}[$idx] : $info->{'SubroutineCall'}{'ExpressionAST'};
 				push @call_arg_expr_strs_Uxntal, _emit_expression_Uxntal($arg_expr_ast, $stref, $f,$info);#.' ( ARG by VAL, CONST ) ';
 			}
-		}
+		# }
 	}
 	push @call_arg_expr_strs_Uxntal, $subname;
 	$idx=0;
@@ -1374,11 +1333,13 @@ if (exists $info->{'SubroutineCall'}{'IsExternal'}) {
 		# say $info->{'SubroutineCall'}{'Args'}{'Set'}{$call_arg_expr_str}{'Type'};
 		my $isConstOrExpr = exists $info->{'SubroutineCall'}{'Args'}{'Set'}{$call_arg_expr_str} ?
 		(($info->{'SubroutineCall'}{'Args'}{'Set'}{$call_arg_expr_str}{'Type'} eq 'Const' ) or ($info->{'SubroutineCall'}{'Args'}{'Set'}{$call_arg_expr_str}{'Type'} eq 'Expr')) : 0;
+
 		if ($intent eq 'out' or $intent eq 'inout') {
 			if (not $isArray and not $isConstOrExpr) {
 				my $arg_expr_ast = $info->{'SubroutineCall'}{'ExpressionAST'}[0] == 27 ? $info->{'SubroutineCall'}{'ExpressionAST'}[$idx] : $info->{'SubroutineCall'}{'ExpressionAST'};
 				# say _emit_expression_Uxntal($arg_expr_ast, $stref, $f,$info);
-				push @call_arg_expr_strs_Uxntal, ';'.$f.'_'.$call_arg_expr_str.' STA'.$wordSz;#.' ( CALL EXPR )';
+				push @call_arg_expr_strs_Uxntal,
+				';' .$subname.'_'.$sig_arg.' LDA'.$wordSz.   ' ;'.$f.'_'.$call_arg_expr_str.' STA'.$wordSz.' ( OUT/INOUT CHECK IF WORKS FOR ADDRESSES! )';
 			}
 		}
 	}
