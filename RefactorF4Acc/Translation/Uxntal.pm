@@ -61,7 +61,7 @@ sub translate_program_to_Uxntal {  (my $stref, my $program_name) = @_;
 		'Macros' => { 'Set' =>{}, 'List' => [] },
 		'CLIHandling' => ['( TODO CLI HANDLING )'],
 		'Main' => {'TranslatedCode'=>[],'Name'=>''},
-		'Libraries' => { 'Set' =>{}, 'List' => ['( TODO LIBRARIES )'] },
+		'Libraries' => { 'Set' =>{}, 'List' => ['( TODO LIBRARIES )','@print-list #18 DEO #18 DEO BRK','@len LDA2 JMP2r'] },
 		'Subroutines' => {},
 		# { 'LocalVars'=> {'Set' =>{}, 'List' => [] }, 'Args' => {'Set' =>{}, 'List' => [] },  'isMain' => '' , 'TranslatedCode'}
 		'Globals' => { 'Set' =>{}, 'List' => [] },
@@ -650,7 +650,6 @@ sub _emit_Uxntal_code { (my $stref, my $module_name, my $ocl)=@_;
 } # END of _emit_Uxntal_code
 
 sub _emit_subroutine_sig_Uxntal { (my $stref, my $f, my $annline)=@_;
-# croak $f;
 	    (my $line, my $info) = @{ $annline };
 	    my $Sf = $stref->{'Subroutines'}{$f};
 
@@ -665,7 +664,7 @@ sub _emit_subroutine_sig_Uxntal { (my $stref, my $f, my $annline)=@_;
 				$uxntal_write_args->{$arg}=[$arg,$name];
 			}
 			unshift @{$uxntal_arg_decls},$uxntal_arg_decl;
-			push @{$uxntal_args_to_store},$uxntal_arg_store;
+			unshift @{$uxntal_args_to_store},$uxntal_arg_store;
 		}
 
 	    # my $args_str = join( ' ', @{$uxntal_arg_decls} );
@@ -803,7 +802,7 @@ sub __substitute_PlaceHolders_Uxntal { my ($expr_str,$info) = @_;
 			$ph_str=~s/^[\']/\"/;
 			$expr_str=~s/$ph/$ph_str/;
 		}
-	my $len = length($expr_str)-1;
+	my $len = toRawHex(length($expr_str)-1,2);
 	$expr_str = "{ $len $expr_str } STH2r";
 	}
 	return $expr_str;
@@ -1298,8 +1297,11 @@ sub _emit_subroutine_call_expr_Uxntal { my ($stref,$f,$line,$info) = @_;
 		: 0;
 
 		# if ($intent eq 'in' or $intent eq 'inout') {
-			if ($isArray or $isString) {
+			if ($isArray ) {
 				push @call_arg_expr_strs_Uxntal, ';'.$f.'_'.$call_arg_expr_str;#.' ( ARG by ADDR ) ';
+			}
+			elsif ($isString) {
+				push @call_arg_expr_strs_Uxntal, ';'.$f.'_'.$call_arg_expr_str.' LDA2';
 			}
 			elsif (not $isConstOrExpr) { # must be a scalar variable, so load it and pass by value
 				push @call_arg_expr_strs_Uxntal, ';'.$f.'_'.$call_arg_expr_str.' LDA'.($word_sz==1 ? '' : '2' );#.' ( ARG by VAL ) ';
