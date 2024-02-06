@@ -207,6 +207,7 @@ Instead of the nice but cumbersome approach we had until now, from now on it is 
 		elsif ($type eq 'character') {
 				if (exists $decl->{'Attr'} and $decl->{'Attr'}!~/len=1/) {
 					# It's a string, not a character, so we store the address, not the value.
+					# croak('WRONG! Need to disambiguate between the pointer and the value!');
 					$wordsz=2;
 				} else {
 					$wordsz=1;
@@ -493,7 +494,7 @@ Instead of the nice but cumbersome approach we had until now, from now on it is 
 					# croak Dumper $f,$annline,$do_tup;
 					my ($do_id, $do_iter, $do_step) = @{$do_tup};
 					my $inc = $do_step == 1 ? 'INC2' : toHex($do_step,2). ($do_step>0 ? ' ADD2' : ' SUB2');
-            		$c_line = "DUP2 ;$do_iter LDA2 $inc NEQ2 ".',&loop_'.$f.'_'.$do_id.' JCN';
+            		$c_line = "DUP2 INC2 ;$do_iter LDA2 $inc DUP2 ROT2 ROT2 NEQ2 ".',&loop_'.$f.'_'.$do_id.' JCN';
 				} else { # while
 				# croak Dumper $do_tup;
 					my ($do_id, $do_while_cond) = @{$do_tup};
@@ -961,6 +962,7 @@ sub _emit_expression_Uxntal { my ($ast, $stref, $f, $info)=@_;
 						if ($ast->[0]==10) { # An array access; but also a string access?
 							# In Uxntal, an array access is ;array $idx ADD2 LDA2 and if $idx is a scalar, I assume it's $idx LDA2, because we use shorts everywhere.
 							my $var_name = $ast->[1];
+							my $wordsz = $stref->{'Subroutines'}{$f}{'WordSizes'}{$var_name};
 							my $qual_vname = $f .'_' . $var_name;
 							my $subset='';
 							my $decl = get_var_record_from_set($Sf->{'ModuleVars'},$var_name);
@@ -981,7 +983,7 @@ sub _emit_expression_Uxntal { my ($ast, $stref, $f, $info)=@_;
 							}
 
 							if( $args->[0]==29 and $args->[1] eq '1') { # if we have v(1)
-								return ';'.$qual_vname.' LDA2';
+								return ';'.$qual_vname.' LDA'.($wordsz==1?'':'2');
 							} else {
 								my $decl = get_var_record_from_set($stref->{'Subroutines'}{$f}{'Vars'},$name);
 								if ($decl->{'ArrayOrScalar'} eq 'Array') {
@@ -997,7 +999,7 @@ sub _emit_expression_Uxntal { my ($ast, $stref, $f, $info)=@_;
 										push @lower_bounds, $lb;
 									}
 									if ($ndims==1) {
-										return ';'.$qual_vname.' '.$args_lst[0].' ADD2 LDA2';
+										return ';'.$qual_vname.' '.$args_lst[0].' ADD2 LDA'.($wordsz==1?'':'2');
 									} elsif ($ndims==0 and $decl->{'Type'} eq 'character') {
 										my $cb = _emit_expression_Uxntal($ast->[2][1], $stref, $f,$info);
 										my $ce = _emit_expression_Uxntal($ast->[2][2], $stref, $f,$info);
@@ -1442,7 +1444,7 @@ sub toRawHex { my ($n,$sz) = @_;
 
 sub genSubstr { my ($strn, $cb,$ce, $len,$id) = @_;
 	if ($cb eq $ce) { # -1 to go to base-0 but +2 because of the length field, so +1
-		return $cb . ' INC2 ;'.$strn.' ( STRING ) ADD2 LDA'
+		return $cb . ' INC2 ;'.$strn.' LDA2 ( STRING ) ADD2 LDA'
 	} else {
 		my $cbb = $cb; $cbb=~s/^\#00//;$cbb='#'.$cbb;
 		my $ceb = $ce; $ceb=~s/^\#00//;$ceb='#'.$ceb;
