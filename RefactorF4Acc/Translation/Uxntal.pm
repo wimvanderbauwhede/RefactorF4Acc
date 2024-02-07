@@ -362,9 +362,9 @@ Instead of the nice but cumbersome approach we had until now, from now on it is 
 				($stref,my $uxntal_var_decl) =  _emit_var_decl_Uxntal($stref,$f,$info,$var);
 				if (not exists $pass_state->{'Subroutine'}{'LocalVars'}{'Set'}{$uxntal_var_decl}) {
 					$pass_state->{'Subroutine'}{'LocalVars'}{'Set'}{$uxntal_var_decl}=$uxntal_var_decl;
-					push @{$pass_state->{'Subroutine'}{'LocalVars'}{'List'}}, "( ____ $line )";
-					push @{$pass_state->{'Subroutine'}{'LocalVars'}{'List'}},$uxntal_var_decl;
 					$skip_comment=1;
+					push @{$pass_state->{'Subroutine'}{'LocalVars'}{'List'}}, "( ____ $line )" unless $skip_comment;
+					push @{$pass_state->{'Subroutine'}{'LocalVars'}{'List'}},$uxntal_var_decl;
 				} else {
 					croak "Vars should be unique: $uxntal_var_decl";
 				}
@@ -446,6 +446,7 @@ Instead of the nice but cumbersome approach we had until now, from now on it is 
 					my @list_to_print = @{$ast->[2]};
 					shift @list_to_print; shift @list_to_print;
 					# croak @list_to_print;
+					carp "TODO: SPLIT BY TYPE";
 					if (scalar @list_to_print>1) {
 						$ast = [1,'print-list',[27,@list_to_print]];
 					} else {
@@ -560,6 +561,7 @@ Instead of the nice but cumbersome approach we had until now, from now on it is 
 			# $c_line = $info->{'Label'}. ' : '."\n".$info->{'Indent'}.$c_line;
 		}
 		chomp $c_line;
+		$skip_comment=1;
 		push @{$pass_state->{'Subroutine'}{'TranslatedCode'}},"( ____ $line )" unless $skip_comment or $line=~/^\s*$/;
 		push @{$pass_state->{'Subroutine'}{'TranslatedCode'}},$c_line unless $skip;
 		# push @{$pass_state->{'TranslatedCode'}},$info->{'Indent'}.$c_line	 unless $skip;
@@ -999,7 +1001,7 @@ sub _emit_expression_Uxntal { my ($ast, $stref, $f, $info)=@_;
 										push @lower_bounds, $lb;
 									}
 									if ($ndims==1) {
-										return ';'.$qual_vname.' '.$args_lst[0].' ADD2 LDA'.($wordsz==1?'':'2');
+										return ';'.$qual_vname.'<<< '.$args_lst[0].' ADD2 LDA'.($wordsz==1?'':'2');
 									} elsif ($ndims==0 and $decl->{'Type'} eq 'character') {
 										my $cb = _emit_expression_Uxntal($ast->[2][1], $stref, $f,$info);
 										my $ce = _emit_expression_Uxntal($ast->[2][2], $stref, $f,$info);
