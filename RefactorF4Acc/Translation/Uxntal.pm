@@ -423,7 +423,7 @@ Instead of the nice but cumbersome approach we had until now, from now on it is 
 					$id,$do_iterator,$do_step,'Do'];
 				my $do_start= _emit_expression_Uxntal($info->{'Do'}{'Range'}{'ExpressionASTs'}[0],$stref, $f, $info);
 				my $do_stop =  _emit_expression_Uxntal($info->{'Do'}{'Range'}{'ExpressionASTs'}[1],$stref, $f, $info);
-				$c_line = $do_stop . ' ' . $do_start . "\n" .
+				$c_line = $do_stop . ' INC2 ' . $do_start . "\n" .
 				'&loop_'.$f.'_'.$id . "\n" .
 				';'.$do_iterator.' STA2 ';
 			}
@@ -509,7 +509,8 @@ Instead of the nice but cumbersome approach we had until now, from now on it is 
 					# croak Dumper $f,$annline,$do_tup;
 					my ($do_id, $do_iter, $do_step) = @{$do_tup};
 					my $inc = $do_step == 1 ? 'INC2' : toHex($do_step,2). ($do_step>0 ? ' ADD2' : ' SUB2');
-            		$c_line = "DUP2 INC2 ;$do_iter LDA2 $inc DUP2 ROT2 ROT2 NEQ2 ".',&loop_'.$f.'_'.$do_id.' JCN';
+            		# $c_line = "DUP2 INC2 ;$do_iter LDA2 $inc DUP2 ROT2 ROT2 NEQ2 ".',&loop_'.$f.'_'.$do_id.' JCN';
+					$c_line = ";$do_iter LDA2 $inc OVR2 OVR2 NEQ2 ".',&loop_'.$f.'_'.$do_id.' JCN';
 				} else { # while
 				# croak Dumper $do_tup;
 					my ($do_id, $do_while_cond) = @{$do_tup};
