@@ -55,13 +55,26 @@ our @sigils = ('(', '&', '$', 'ADD', 'SUB', 'MUL', 'DIV', 'mod', 'pow', '=', '@'
                ,'integer', 'real', 'logical', 'character', 'complex', 'PlaceHolder', 'Label', 'BLANK'
               );
 
+my $lib_lines = [
+	'( TODO LIBRARIES )',
+	'@print-list',
+    'ROT ROT SWP',
+    '#30 ADD #18 DEO',
+	'#30 ADD #18 DEO',
+    '#20 #18 DEO',
+    '#18 DEO',
+    '#0a #18 DEO',
+    'JMP2r',
+	'@len LDA2 JMP2r'
+];
+
 sub translate_program_to_Uxntal {  (my $stref, my $program_name) = @_;
 
 	$stref->{'Uxntal'} = {
 		'Macros' => { 'Set' =>{}, 'List' => [] },
 		'CLIHandling' => ['( TODO CLI HANDLING )'],
 		'Main' => {'TranslatedCode'=>[],'Name'=>''},
-		'Libraries' => { 'Set' =>{}, 'List' => ['( TODO LIBRARIES )','@print-list #18 DEO #18 DEO BRK','@len LDA2 JMP2r'] },
+		'Libraries' => { 'Set' =>{}, 'List' => $lib_lines },
 		'Subroutines' => {},
 		# { 'LocalVars'=> {'Set' =>{}, 'List' => [] }, 'Args' => {'Set' =>{}, 'List' => [] },  'isMain' => '' , 'TranslatedCode'}
 		'Globals' => { 'Set' =>{}, 'List' => [] },
@@ -88,7 +101,7 @@ sub translate_program_to_Uxntal {  (my $stref, my $program_name) = @_;
 		  [\&translate_sub_to_Uxntal]
        ]
        );
-	   $stref->{'TranslatedCode'}=[ 
+	   $stref->{'TranslatedCode'}=[
 		@{$stref->{'Uxntal'}{'Macros'}{'List'}},
 		@{$stref->{'Uxntal'}{'CLIHandling'}},
 
@@ -181,6 +194,7 @@ Instead of the nice but cumbersome approach we had until now, from now on it is 
 	my $Sf = $stref->{'Subroutines'}{$f};
 
 	for my $var (@{$Sf->{'AllVarsAndPars'}{'List'}}) {
+		
 		my $subset = in_nested_set($Sf,'Vars',$var);
 		if ($subset eq '') {
 			croak "$f $var";
@@ -205,7 +219,7 @@ Instead of the nice but cumbersome approach we had until now, from now on it is 
 			$wordsz=1;
 		}
 		elsif ($type eq 'character') {
-				if (exists $decl->{'Attr'} and $decl->{'Attr'}!~/len=1/) {
+				if (exists $decl->{'Attr'} and $decl->{'Attr'} ne '' and $decl->{'Attr'}!~/len=1/) {
 					# It's a string, not a character, so we store the address, not the value.
 					# croak('WRONG! Need to disambiguate between the pointer and the value!');
 					$wordsz=2;
@@ -762,7 +776,7 @@ sub _emit_var_decl_Uxntal { (my $stref,my $f,my $info,my $var)=@_;
 		my $dim= $array  ? __C_array_size($decl->{'Dim'}) : 1;
 		my $ftype = $decl->{'Type'};
 		if ($ftype eq 'character') {
-			if (exists $decl->{'Attr'} and $decl->{'Attr'} ne '') { 
+			if (exists $decl->{'Attr'} and $decl->{'Attr'} ne '') {
 				my $strlen = $decl->{'Attr'};
 				$strlen=~s/len=//;
 				$strlen=~s/^\(//;
@@ -816,6 +830,7 @@ sub _emit_assignment_Uxntal { (my $stref, my $f, my $info, my $pass_state)=@_;
 
 	my $lhs_ast =  $info->{'Lhs'}{'ExpressionAST'};
 	my $lhs = _emit_expression_Uxntal($lhs_ast,$stref,$f,$info);
+
 	my $lhs_stripped = $lhs;
 	my $indent='';
 	$lhs_stripped=~/^(\s+)/ && do {
@@ -967,25 +982,27 @@ sub _emit_expression_Uxntal { my ($ast, $stref, $f, $info)=@_;
 							my $wordsz = $stref->{'Subroutines'}{$f}{'WordSizes'}{$var_name};
 							my $qual_vname = $f .'_' . $var_name;
 							my $subset='';
-							my $decl = get_var_record_from_set($Sf->{'ModuleVars'},$var_name);
-							# carp "VAR: $var_name ".Dumper($decl) if $var_name eq 'funktalGlobalString';
-							if (defined $decl) {
-								my $mod_name ='';
-								if (exists $decl->{'ModuleName'}) {
-									$mod_name = $decl->{'ModuleName'};
-								}
-								if ($mod_name ne '') {
-									$qual_vname = $mod_name.'_'.$var_name;
-									if (not exists $stref->{'Uxntal'}{'Globals'}{'Set'}{$qual_vname}) {
-										$stref->{'Uxntal'}{'Globals'}{'Set'}{$qual_vname} = 1;
-										($stref, my $global_var_decl)= _emit_var_decl_Uxntal($stref,$mod_name,$info,$var_name);
-										push @{$stref->{'Uxntal'}{'Globals'}{'List'}},$global_var_decl ;
+							my $is_arg = in_nested_set($Sf,'DeclaredOrigArgs',$var_name) eq 'DeclaredOrigArgs' ? 1 : 0;
+							if (not $is_arg) { # could be a module global
+								my $decl = get_var_record_from_set($Sf->{'ModuleVars'},$var_name);
+								# carp "VAR: $var_name ".Dumper($decl) if $var_name eq 'funktalGlobalString';
+								if (defined $decl) {
+									my $mod_name ='';
+									if (exists $decl->{'ModuleName'}) {
+										$mod_name = $decl->{'ModuleName'};
+									}
+									if ($mod_name ne '') {
+										$qual_vname = $mod_name.'_'.$var_name;
+										if (not exists $stref->{'Uxntal'}{'Globals'}{'Set'}{$qual_vname}) {
+											$stref->{'Uxntal'}{'Globals'}{'Set'}{$qual_vname} = 1;
+											($stref, my $global_var_decl)= _emit_var_decl_Uxntal($stref,$mod_name,$info,$var_name);
+											push @{$stref->{'Uxntal'}{'Globals'}{'List'}},$global_var_decl ;
+										}
 									}
 								}
 							}
-
 							if( $args->[0]==29 and $args->[1] eq '1') { # if we have v(1)
-								return ';'.$qual_vname.' LDA'.($wordsz==1?'':'2');
+								return ';'.$qual_vname.($is_arg? ' LDA2': '').' LDA'.($wordsz==1?'':'2');
 							} else {
 								my $decl = get_var_record_from_set($stref->{'Subroutines'}{$f}{'Vars'},$name);
 								if ($decl->{'ArrayOrScalar'} eq 'Array') {
@@ -1001,13 +1018,13 @@ sub _emit_expression_Uxntal { my ($ast, $stref, $f, $info)=@_;
 										push @lower_bounds, $lb;
 									}
 									if ($ndims==1) {
-										return ';'.$qual_vname.'<<< '.$args_lst[0].' ADD2 LDA'.($wordsz==1?'':'2');
+										return ';'.$qual_vname.($is_arg? ' LDA2': '').' '.$args_lst[0].' ADD2 LDA'.($wordsz==1?'':'2');
 									} elsif ($ndims==0 and $decl->{'Type'} eq 'character') {
 										my $cb = _emit_expression_Uxntal($ast->[2][1], $stref, $f,$info);
 										my $ce = _emit_expression_Uxntal($ast->[2][2], $stref, $f,$info);
 										my $id=$info->{'LineID'};
 										my $len = $decl->{'Attr'};$len=~s/len=//;
-										return genSubstr($qual_vname, $cb,$ce, $len, $id);
+										return genSubstr($qual_vname.($is_arg? ' LDA2': ''), $cb,$ce, $len, $id);
 										# I think I should have a streq function and maybe a substr function
 										# we should be able to use a range-fold for this
 										# <chars> ;fl <cb> <ce> streq
@@ -1098,6 +1115,7 @@ sub _emit_expression_Uxntal { my ($ast, $stref, $f, $info)=@_;
 
 				my $wordsz = $stref->{'Subroutines'}{$f}{'WordSizes'}{$mvar};
 				if (exists $stref->{'Subroutines'}{$f}{'Pointers'}{$mvar} ) {
+					my $is_arg = in_nested_set($Sf,'DeclaredOrigArgs',$mvar) eq 'DeclaredOrigArgs' ? 1 : 0;
 					# Meaning that $mvar is a pointer in $f
 					# Now we need to check if it is also a pointer in $subname
 					my $ptr = $stref->{'Subroutines'}{$f}{'Pointers'}{$mvar};
@@ -1160,7 +1178,7 @@ sub _emit_expression_Uxntal { my ($ast, $stref, $f, $info)=@_;
 
 							if ($mod_name ne '') {
 								$qual_vname = $mod_name.'_'.$exp;
-								if (not exists $stref->{'Uxntal'}{'Globals'}{'Set'}{$qual_vname}) { 
+								if (not exists $stref->{'Uxntal'}{'Globals'}{'Set'}{$qual_vname}) {
 									($stref, my $global_var_decl)= _emit_var_decl_Uxntal($stref,$mod_name,$info,$exp);
 									$stref->{'Uxntal'}{'Globals'}{'Set'}{$qual_vname} = 1;
 									push @{$stref->{'Uxntal'}{'Globals'}{'List'}},$global_var_decl ;
@@ -1295,8 +1313,8 @@ sub _emit_subroutine_call_expr_Uxntal { my ($stref,$f,$line,$info) = @_;
 		}
 
 		my $isConstOrExpr = exists $info->{'SubroutineCall'}{'Args'}{'Set'}{$call_arg_expr_str} ?
-		(($info->{'SubroutineCall'}{'Args'}{'Set'}{$call_arg_expr_str}{'Type'} eq 'Const' ) 
-		or ($info->{'SubroutineCall'}{'Args'}{'Set'}{$call_arg_expr_str}{'Type'} eq 'Expr') 
+		(($info->{'SubroutineCall'}{'Args'}{'Set'}{$call_arg_expr_str}{'Type'} eq 'Const' )
+		or ($info->{'SubroutineCall'}{'Args'}{'Set'}{$call_arg_expr_str}{'Type'} eq 'Expr')
 		or $isParam)
 		: 0;
 
