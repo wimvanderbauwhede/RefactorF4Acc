@@ -456,16 +456,13 @@ Instead of the nice but cumbersome approach we had until now, from now on it is 
 		elsif (exists $info->{'IOCall'}) {
 			if (exists $info->{'PrintCall'}) {
 				my $ast = $info->{'IOCall'}{'Args'}{'AST'};
+				# list-oriented print
 				if (ref($ast->[2][1]) eq 'ARRAY' and $ast->[2][1][1] eq '*') {
 					my @list_to_print = @{$ast->[2]};
 					shift @list_to_print; shift @list_to_print;
-					# croak @list_to_print;
-					carp "TODO: SPLIT BY TYPE";
-					if (scalar @list_to_print>1) {
-						$ast = [1,'print-list',[27,@list_to_print]];
-					} else {
-						$ast = [1,'print-list',@list_to_print];
-					}
+					croak Dumper @list_to_print;
+					$ast = _gen_list_print_ast($stref,$f,$line,$info,\@list_to_print);
+
 				}
 				$c_line = _emit_expression_Uxntal($ast,$stref, $f, $info);
 			} else {
@@ -935,7 +932,10 @@ sub _emit_expression_Uxntal { my ($ast, $stref, $f, $info)=@_;
 				(my $op, my $arg1, my $arg2) = @{$ast};
 				$ast = [1,'pow',[27,$arg1,$arg2] ] ;
 			}
-
+			elsif ($ast->[0] == 7) { # eq '%'
+				(my $op, my $arg1, my $arg2) = @{$ast};
+				$ast = [1,'mod',[27,$arg1,$arg2] ] ;
+			}
             if ($ast->[0] == 1 or $ast->[0] ==10) { #  array access 10=='@' or function call 1=='&'
                 (my $opcode, my $name, my $args) =@{$ast};
 				if ($ast->[0] == 1 and $ast->[1] eq 'int') {
@@ -948,16 +948,6 @@ sub _emit_expression_Uxntal { my ($ast, $stref, $f, $info)=@_;
 					my $uxn_ast = [1,'print',$ast->[2][2]];
 					return _emit_expression_Uxntal($uxn_ast, $stref, $f,$info);
 				}
-				# if ($ast->[0] == 1) { # No need for this in Uxn, we might as well keep the Fortran names
-				# 	my $mvar = $name;
-				# 	# AD-HOC, replacing abs/min/max to fabs/fmin/fmax without any type checking ... FIXME!!!
-				# 	# The (float) cast is necessary because otherwise I get an "ambiguous" error
-				# 	$mvar=~s/^(abs|min|max)$/(float)f$1/;
-				# 	$mvar=~s/^am(ax|in)1$/(float)fm$1/;
-				# 	$mvar=~s/^alog$/(float)log/;
-				# 	$name = $mvar;
-				#  	$stref->{'CalledSub'}= $mvar;
-				# }
 
                 if (@{$args}) {
 					if ($args->[0] != 14 ) { # NOT ')('
@@ -1511,6 +1501,109 @@ sub isStrCmp { my ($ast, $stref, $f,$info) =@_;
 # 	&d ( a* c1 c2 b* -- f )
 # 		NIP2 POP2r EQU JMP2r
 
+
+sub _gen_list_print_ast { my ($stref,$f,$line,$info,,$list_to_print) = @_;
+	my $Sf = $stref->{'Subroutines'}{$f};
+	my $ast=[];
+# so for every elt in the list, we must work out if it is 
+#  - an integer
+# - a character
+# - a string
+# - a boolean
+# - anything else, but that should fail
+# although of course in principle a function should work too
+for my $elt (@{$list_to_print}) {
+	if ($elt->[0] == 2 ) {
+		my $var_name = $elt->[1];
+		my $wordsz = $stref->{'Subroutines'}{$f}{'WordSizes'}{$var_name};
+		my $decl = get_var_record_from_set($Sf->{'Vars'},$var_name);
+		if ( $decl->{'Type'} eq 'character') {
+			if($decl->{'Attr'}!~/len/) {
+			}
+		}
+		if ( $decl->{'Type'} eq 'integer') {
+		}
+		if ( $decl->{'Type'} eq 'logical') {
+		}
+	elsif ($elt->[0] == 10 ) {
+		my $var_name = $elt->[1];
+	}
+	elsif ($elt->[0] == 1 ) {
+		my $var_name = $elt->[1];
+	} elsif ($elt->[0]>=29) {
+		my $const_type = $elt->[0];
+		my $const = $elt->[1];
+		if ($const_type == 29 ) {
+			# print-int
+		}
+		elsif ($const_type == 31 ) {
+			# print-bool
+		}
+		elsif ($const_type == 32 ) {
+			# print-char
+		}
+		elsif ($const_type == 34 ) {
+			die("Placeholder in print statement\n");
+		}
+		else {
+			error('Unsupported type in print statement: '.$sigils[$const_type]);
+		}
+	} 
+	elsif ($elt->[0]>=3 and $elt->[0]<=6) {
+		# print-int
+	} 
+	elsif ($elt->[0]==7 or $elt->[0]==8) {
+		die("TODO: printing of ".$sigils[$elt->[0]]."\n");
+	}
+	elsif ($elt->[0]>=15 and $elt->[0]<=26) {
+		# print-bool
+	} 
+	elsif ($elt->[0]==13) {
+		die("TODO: printing of string concatenation expression\n");
+	}
+	else {
+		error('Unsupported type in print statement: '.$sigils[$elt->[0]]);
+	}
+
+#                0    1    2    3      4      5      6      7      8      9   10   11   12   13    14
+#our @sigils = ('(', '&', '$', 'ADD', 'SUB', 'MUL', 'DIV', 'mod', 'pow', '=', '@', '#', ':' ,'//', ')('
+#                 15    16      17    18      19     20     21     22     23     24       25       26
+#               ,'EQU', 'NEQ', 'LTH', 'GTH', 'lte', 'gte', 'not', 'AND', 'ORA', 'EOR', '.eqv.', '.neqv.'
+#                27   28
+#               ,',', '(/',
+#                 29        30      31         32           33         34             35       36
+#               ,'integer', 'real', 'logical', 'character', 'complex', 'PlaceHolder', 'Label', 'BLANK'
+	}
+}
+# $VAR1 = [
+#   2,
+#   'ii'
+# ];
+# $VAR2 = [
+#   10,
+#   'charArray',
+#   [
+#     2,
+#     'ii'
+#   ]
+# ];
+# $VAR3 = [
+#   29,
+#   '42'
+# ];
+# $VAR4 = [
+#   2,
+#   'charStr'
+# ];
+
+
+					if (scalar @{$list_to_print}>1) {
+						$ast = [1,'print-list',[27,@{$list_to_print}]];
+					} else {
+						$ast = [1,'print-list',@{$list_to_print}];
+					}
+	return $ast;
+}
 # -----------------------------------------------------------------------------
 sub add_to_C_build_sources {
     ( my $f, my $stref ) = @_;
