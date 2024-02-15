@@ -55,8 +55,11 @@ our @sigils = ('(', '&', '$', 'ADD', 'SUB', 'MUL', 'DIV', 'mod', 'pow', '=', '@'
                ,'integer', 'real', 'logical', 'character', 'complex', 'PlaceHolder', 'Label', 'BLANK'
               );
 
+# TODO This needs to be changed so that only the used functions are emitted
 my $lib_lines = [
 	'( TODO LIBRARIES )',
+
+	'( now obsolete )',
 	'@print-list',
     'ROT ROT SWP',
     '#30 ADD #18 DEO',
@@ -65,7 +68,55 @@ my $lib_lines = [
     '#18 DEO',
     '#0a #18 DEO',
     'JMP2r',
-	'@len LDA2 JMP2r'
+
+'@print-char #18 DEO JMP2r',
+
+'( a bool is a byte; prints `t` or `f` )
+@print-bool
+DUP ,&true JCN
+#66 #18 DEO JMP2r
+&true
+#74 #18 DEO JMP2r
+',
+
+'( this assumes 2-byte integers )
+@print-int
+DUP2
+DUP2 #2710  LTH2 ,&d2 JCN
+#2710 DIV2 DUP #30 ADD #18 DEO
+#2710 MUL2 SUB2
+DUP2
+&d2
+DUP2 #03e8  LTH2 ,&d3 JCN
+#03e8 DIV2 DUP #30 ADD #18 DEO
+#03e8 MUL2 SUB2
+DUP2
+&d3
+DUP2 #0064  LTH2 ,&d4 JCN
+#0064 DIV2 DUP #30 ADD #18 DEO
+#0064 MUL2 SUB2
+DUP2
+&d4
+#000a DIV2 DUP #30 ADD #18 DEO
+#000a MUL2 SUB2 #30 ADD #18 DEO POP
+JMP2r
+',
+
+'( this assumes a string with structure `{ 0006 "hello 0a } STH2r` )
+@print-str ( {str}* -- )
+    DUP2 LDA2 ( str len )
+    SWP2 ( len str )
+    INC2 INC2 DUP2  ( len str+2 str+2 )
+    ROT2 ADD2 SWP2 ( str+2+len str+2 )
+    &l ( -- )
+    LDAk .Console/write DEO
+        INC2 GTH2k ?&l
+        POP2 POP2 JMP2r
+',
+
+'@len LDA2 JMP2r'
+
+
 ];
 
 sub translate_program_to_Uxntal {  (my $stref, my $program_name) = @_;
@@ -194,7 +245,7 @@ Instead of the nice but cumbersome approach we had until now, from now on it is 
 	my $Sf = $stref->{'Subroutines'}{$f};
 
 	for my $var (@{$Sf->{'AllVarsAndPars'}{'List'}}) {
-		
+
 		my $subset = in_nested_set($Sf,'Vars',$var);
 		if ($subset eq '') {
 			croak "$f $var";
@@ -461,7 +512,7 @@ Instead of the nice but cumbersome approach we had until now, from now on it is 
 					my @list_to_print = @{$ast->[2]};
 					shift @list_to_print; shift @list_to_print;
 					croak Dumper @list_to_print;
-					$ast = _gen_list_print_ast($stref,$f,$line,$info,\@list_to_print);
+					$ast = _emit_list_print_Uxntal($stref,$f,$line,$info,\@list_to_print);
 
 				}
 				$c_line = _emit_expression_Uxntal($ast,$stref, $f, $info);
@@ -1502,45 +1553,81 @@ sub isStrCmp { my ($ast, $stref, $f,$info) =@_;
 # 		NIP2 POP2r EQU JMP2r
 
 
-sub _gen_list_print_ast { my ($stref,$f,$line,$info,,$list_to_print) = @_;
+sub _emit_list_print_Uxntal { my ($stref,$f,$line,$info,$list_to_print) = @_;
 	my $Sf = $stref->{'Subroutines'}{$f};
-	my $ast=[];
-# so for every elt in the list, we must work out if it is 
+# so for every elt in the list, we must work out if it is
 #  - an integer
 # - a character
 # - a string
 # - a boolean
 # - anything else, but that should fail
 # although of course in principle a function should work too
-for my $elt (@{$list_to_print}) {
-	if ($elt->[0] == 2 ) {
+
+	my $line_Uxntal = '';
+	for my $elt ( @{$list_to_print} ) {
+		my $print_fn_Uxntal = _emit_print_from_ast($stref,$f,$line,$info,$elt);
+
+		my $arg_to_print_Uxntal =  _emit_expression_Uxntal($elt,$stref, $f, $info);
+		$line_Uxntal .= "$arg_to_print_Uxntal $print_fn_Uxntal"
+	}
+	$line_Uxntal .= '#0a #18 DEO';
+	return $line_Uxntal;
+
+}
+
+sub _emit_print_from_ast { my ($stref,$f,$line,$info,$elt) = @_;
+	my $Sf = $stref->{'Subroutines'}{$f};
+	my $code = $elt->[0];
+	if ($code == 2 or $code == 10) { # A scalar, but can be an unindexed string or array
 		my $var_name = $elt->[1];
 		my $wordsz = $stref->{'Subroutines'}{$f}{'WordSizes'}{$var_name};
 		my $decl = get_var_record_from_set($Sf->{'Vars'},$var_name);
+		if ($code == 2 and $decl->{'ArrayOrScalar'} eq 'Array') {
+			error("Printing an array is currently unsupported");
+		}
 		if ( $decl->{'Type'} eq 'character') {
-			if($decl->{'Attr'}!~/len/) {
+			if( $code == 2 and $decl->{'Attr'}!~/len/) {
+				return 'print-char';
+			}
+			elsif( $code == 10 and $decl->{'ArrayOrScalar'} eq 'Array') {
+				my $dims =  $decl->{'Dim'};
+				my $ndims = scalar @{$dims};
+				if ($ndims==0 ) {
+					return 'print-string';
+				} else {
+				# an indexed array of characters, so print a char
+					return 'print-char';
+				}
+			}
+			elsif( $code == 10 and $decl->{'ArrayOrScalar'} eq 'Scalar') {
+				die "Code says array but decls says Scalar:".Dumper( $elt);
+			} else {
+				return 'print-string';
 			}
 		}
 		if ( $decl->{'Type'} eq 'integer') {
+			return 'print-int';
 		}
 		if ( $decl->{'Type'} eq 'logical') {
+			return 'print-bool';
 		}
-	elsif ($elt->[0] == 10 ) {
-		my $var_name = $elt->[1];
 	}
-	elsif ($elt->[0] == 1 ) {
+	elsif ($code == 1 ) {
 		my $var_name = $elt->[1];
-	} elsif ($elt->[0]>=29) {
-		my $const_type = $elt->[0];
+		# This is a function, need to get its return type
+		# TODO
+	} 
+	elsif ($code>=29) {
+		my $const_type = $code;
 		my $const = $elt->[1];
 		if ($const_type == 29 ) {
-			# print-int
+			return 'print-int';
 		}
 		elsif ($const_type == 31 ) {
-			# print-bool
+			return 'print-bool';
 		}
 		elsif ($const_type == 32 ) {
-			# print-char
+			return 'print-char';
 		}
 		elsif ($const_type == 34 ) {
 			die("Placeholder in print statement\n");
@@ -1548,61 +1635,22 @@ for my $elt (@{$list_to_print}) {
 		else {
 			error('Unsupported type in print statement: '.$sigils[$const_type]);
 		}
-	} 
-	elsif ($elt->[0]>=3 and $elt->[0]<=6) {
-		# print-int
-	} 
-	elsif ($elt->[0]==7 or $elt->[0]==8) {
-		die("TODO: printing of ".$sigils[$elt->[0]]."\n");
 	}
-	elsif ($elt->[0]>=15 and $elt->[0]<=26) {
-		# print-bool
-	} 
-	elsif ($elt->[0]==13) {
+	elsif ($code>=3 and $code<=6) {
+		return 'print-int';
+	}
+	elsif ($code==7 or $code==8) {
+		die("TODO: printing of ".$sigils[$code]."\n");
+	}
+	elsif ($code>=15 and $code<=26) {
+		return 'print-bool';
+	}
+	elsif ($code==13) {
 		die("TODO: printing of string concatenation expression\n");
 	}
 	else {
-		error('Unsupported type in print statement: '.$sigils[$elt->[0]]);
+		error('Unsupported type in print statement: '.$sigils[$code]);
 	}
-
-#                0    1    2    3      4      5      6      7      8      9   10   11   12   13    14
-#our @sigils = ('(', '&', '$', 'ADD', 'SUB', 'MUL', 'DIV', 'mod', 'pow', '=', '@', '#', ':' ,'//', ')('
-#                 15    16      17    18      19     20     21     22     23     24       25       26
-#               ,'EQU', 'NEQ', 'LTH', 'GTH', 'lte', 'gte', 'not', 'AND', 'ORA', 'EOR', '.eqv.', '.neqv.'
-#                27   28
-#               ,',', '(/',
-#                 29        30      31         32           33         34             35       36
-#               ,'integer', 'real', 'logical', 'character', 'complex', 'PlaceHolder', 'Label', 'BLANK'
-	}
-}
-# $VAR1 = [
-#   2,
-#   'ii'
-# ];
-# $VAR2 = [
-#   10,
-#   'charArray',
-#   [
-#     2,
-#     'ii'
-#   ]
-# ];
-# $VAR3 = [
-#   29,
-#   '42'
-# ];
-# $VAR4 = [
-#   2,
-#   'charStr'
-# ];
-
-
-					if (scalar @{$list_to_print}>1) {
-						$ast = [1,'print-list',[27,@{$list_to_print}]];
-					} else {
-						$ast = [1,'print-list',@{$list_to_print}];
-					}
-	return $ast;
 }
 # -----------------------------------------------------------------------------
 sub add_to_C_build_sources {
