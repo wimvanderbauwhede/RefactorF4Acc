@@ -3094,7 +3094,7 @@ sub __parse_sub_func_prog_decls {
 	} else {
 		error( 'Unrecognised subroutine declaration in '.$Sf->{'Source'}.': '.$line);
 	}
-#	croak Dumper $info if $name eq 'gzwrit';
+
     $Sf->{'Signature'}=$info->{'Signature'};
 	return ( $Sf, $line, $info );
 }    # END of __parse_sub_func_prog_decls()

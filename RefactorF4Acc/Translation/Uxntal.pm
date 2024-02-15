@@ -1580,8 +1580,9 @@ sub _emit_print_from_ast { my ($stref,$f,$line,$info,$elt) = @_;
 	my $code = $elt->[0];
 	if ($code == 2 or $code == 10) { # A scalar, but can be an unindexed string or array
 		my $var_name = $elt->[1];
-		my $wordsz = $stref->{'Subroutines'}{$f}{'WordSizes'}{$var_name};
+		# my $wordsz = $stref->{'Subroutines'}{$f}{'WordSizes'}{$var_name};
 		my $decl = get_var_record_from_set($Sf->{'Vars'},$var_name);
+		my $type = $decl->{'Type'};
 		if ($code == 2 and $decl->{'ArrayOrScalar'} eq 'Array') {
 			error("Printing an array is currently unsupported");
 		}
@@ -1613,10 +1614,13 @@ sub _emit_print_from_ast { my ($stref,$f,$line,$info,$elt) = @_;
 		}
 	}
 	elsif ($code == 1 ) {
-		my $var_name = $elt->[1];
+		my $fname = $elt->[1];
 		# This is a function, need to get its return type
 		# TODO
-	} 
+		my $return_type = $stref->{'Subroutines'}{$fname}{'Signature'}{'ReturnType'};
+		my $return_type_attr = $stref->{'Subroutines'}{$fname}{'Signature'}{'ReturnTypeAttr'};
+		# I am assuming the return type can only be integer(kind=2), character, string or boolean
+	}
 	elsif ($code>=29) {
 		my $const_type = $code;
 		my $const = $elt->[1];
