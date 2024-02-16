@@ -511,11 +511,26 @@ Instead of the nice but cumbersome approach we had until now, from now on it is 
 				if (ref($ast->[2][1]) eq 'ARRAY' and $ast->[2][1][1] eq '*') {
 					my @list_to_print = @{$ast->[2]};
 					shift @list_to_print; shift @list_to_print;
-					croak Dumper @list_to_print;
-					$ast = _emit_list_print_Uxntal($stref,$f,$line,$info,\@list_to_print);
+					# croak Dumper @list_to_print;
+					$c_line = _emit_list_print_Uxntal($stref,$f,$line,$info,\@list_to_print);
 
+				} else {
+					$c_line = _emit_expression_Uxntal($ast,$stref, $f, $info);
 				}
-				$c_line = _emit_expression_Uxntal($ast,$stref, $f, $info);
+			} elsif (exists $info->{'WriteCall'}) {
+				my $call_ast = $info->{'IOCall'}{'Args'}{'AST'};
+				my $iolist_ast = $info->{'IOList'}{'AST'};
+				croak 'WRITE: '.Dumper($call_ast,$iolist_ast);
+				# This is really complicated.
+				# The first arg can be an integer, a variable or '*'
+				# other args can be named or not (fmt=, advance=)
+				# Formats must be parsed to see if it is a list or not
+
+				# write( *, fmt="(A1)",advance='no')
+				# write( *, "(i2.2,a)",advance='no')
+				# write( csu, fmt="(z2.2,A1)")
+				# write( cs,"(A1)")
+				# write(0,*)
 			} else {
 				say 'TODO: IOCall '.Dumper( $info->{'IOCall'}{'Args'}{'AST'})."\nIOList ".Dumper($info->{'IOList'}{'AST'});
 			}
@@ -1552,7 +1567,7 @@ sub isStrCmp { my ($ast, $stref, $f,$info) =@_;
 # 	&d ( a* c1 c2 b* -- f )
 # 		NIP2 POP2r EQU JMP2r
 
-
+# returns the Uxntal string with the print instructions
 sub _emit_list_print_Uxntal { my ($stref,$f,$line,$info,$list_to_print) = @_;
 	my $Sf = $stref->{'Subroutines'}{$f};
 # so for every elt in the list, we must work out if it is
@@ -1574,7 +1589,7 @@ sub _emit_list_print_Uxntal { my ($stref,$f,$line,$info,$list_to_print) = @_;
 	return $line_Uxntal;
 
 }
-
+# returns the print function to be used: print-char, print-int etc
 sub _emit_print_from_ast { my ($stref,$f,$line,$info,$elt) = @_;
 	my $Sf = $stref->{'Subroutines'}{$f};
 	my $code = $elt->[0];

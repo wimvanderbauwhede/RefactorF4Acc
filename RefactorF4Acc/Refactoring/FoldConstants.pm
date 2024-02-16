@@ -212,7 +212,7 @@ sub fold_constants_no_iters {
                             $info->{'ParsedParDecl'}{'Attributes'}{'Dim'}=$pv_dims;
                         }
                     } else {
-                        warning("Could not constant-fold DIMENSION on line\n$line\nin subroutine $f");
+                        warning("Could not constant-fold DIMENSION on line\n\t\t$line\n\tin subroutine $f");
                     }
                 }
                 if ($decl->{'Type'} eq 'character') { 
