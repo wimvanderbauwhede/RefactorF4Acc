@@ -51,7 +51,7 @@ our @sigils = ('(', '&', '$', 'ADD', 'SUB', 'MUL', 'DIV', 'mod', 'pow', '=', '@'
 #                27   28
                ,',', '(/',
 # Constants
-#                29        30      31         32           33         34             35       36
+#                29         30      31         32           33         34             35       36
                ,'integer', 'real', 'logical', 'character', 'complex', 'PlaceHolder', 'Label', 'BLANK'
               );
 
@@ -520,19 +520,63 @@ Instead of the nice but cumbersome approach we had until now, from now on it is 
 			} elsif (exists $info->{'WriteCall'}) {
 				my $call_ast = $info->{'IOCall'}{'Args'}{'AST'};
 				my $iolist_ast = $info->{'IOList'}{'AST'};
-				croak 'WRITE: '.Dumper($call_ast,$iolist_ast);
+				say 'WRITE: IOCall Args:'.Dumper($call_ast),'IOList:',Dumper($iolist_ast);
 				# This is really complicated.
 				# The first arg can be an integer, a variable or '*'
+				# If it's zero, it's STDERR, so we need #19 instead of #18
+
 				# other args can be named or not (fmt=, advance=)
 				# Formats must be parsed to see if it is a list or not
+				# They are stored as placeholders
 
-				# write( *, fmt="(A1)",advance='no')
-				# write( *, "(i2.2,a)",advance='no')
-				# write( csu, fmt="(z2.2,A1)")
-				# write( cs,"(A1)")
-				# write(0,*)
+				# write(0,*) ii-1,charArray(ii-1),42,charStr
+				# IOCall Args:$VAR1 = [ 1, 'write', [
+				# 	27, [ 29(int), '0' ], [ 32(char), '*' ]
+				# ]
+				# ];
+				# IOList:$VAR1 = [
+				# 27, [ 4(-), [ 2($), 'ii' ], [ 29(int), '1' ] ],
+				# [ 10(@), 'charArray', [ 4(-), [ 2, 'ii' ], [ 29, '1' ] ] ], [ 29, '42' ], [ 2, 'charStr' ]
+				# ];
+
+				# write( *, fmt="(A1)",advance='no') '#'
+				# IOCall Args:$VAR1 = [ 1, 'write', [
+				# 	27, [ 32(char), '*' ], [ 34(Ph), '__PH2__' ],
+				# 	[
+				# 	9(=),
+				# 	[ 2($), 'advance' ], [ 34(Ph), '__PH0__' ]
+				# 	]
+				# ]
+				# ];
+				# IOList:$VAR1 = [ 34(Ph), '__PH1__' ];
+
+				# write( *, "(i2.2,a)",advance='no') 42,'x'
+				# IOCall Args:$VAR1 = [ 1, 'write', [
+				# 	27, [ 32(char), '*' ], [ 34(Ph), '__PH2__' ],
+				# 	[
+				# 	9(=),
+				# 	[ 2($), 'advance' ], [ 34(Ph), '__PH0__' ]
+				# 	]
+				# ]
+				# ];
+				# IOList:$VAR1 = [ 27, [ 29, '42' ], [ 34, '__PH1__' ] ];
+
+				# write( csu, fmt="(z2.2,A1)") 42,'x'
+				# IOCall Args:$VAR1 = [ 1(&), 'write', [
+				# 	27(,), [ 2($), 'csu' ], [ 34(Ph), '__PH1__' ]
+				# ]
+				# ];
+				# IOList:$VAR1 = [ 27, [ 29, '42' ], [ 34, '__PH0__' ] ];
+
+				# write( cs,"(A2)") '0x'
+				# IOCall Args:$VAR1 = [ 1, 'write', [
+				# 	27, [ 2, 'cs' ], [ 34, '__PH1__' ]
+				# ]
+				# ];
+				# IOList:$VAR1 = [ 34, '__PH0__' ];
 			} else {
 				say 'TODO: IOCall '.Dumper( $info->{'IOCall'}{'Args'}{'AST'})."\nIOList ".Dumper($info->{'IOList'}{'AST'});
+
 			}
 		}
 		elsif (exists $info->{'If'} and not exists $info->{'IfThen'} ) {
@@ -1670,6 +1714,94 @@ sub _emit_print_from_ast { my ($stref,$f,$line,$info,$elt) = @_;
 	else {
 		error('Unsupported type in print statement: '.$sigils[$code]);
 	}
+}
+# -----------------------------------------------------------------------------
+
+sub _analyse_write_call { my ($stref,$f,$info)=@_;
+	my $call_args_ast = $info->{'IOCall'}{'Args'}{'AST'};
+	my $iolist_ast = $info->{'IOList'}{'AST'};
+
+	# This is really complicated.
+	# The first arg can be an integer, a variable or '*'
+	# If it's zero, it's STDERR, so we need #19 instead of #18
+
+	# other args can be named or not (fmt=, advance=)
+	# Formats must be parsed to see if it is a list or not
+	# They are stored as placeholders
+
+	if ($call_args_ast->[0]==27) {
+		shift @{$call_args_ast};
+		# Now we have the actual arg list
+		for my $arg (@{$call_args_ast}) {
+			# all of these will be tagged
+			# tags can be
+			# 29 : if 0, this is STDERR; I assume 1 is STDOUT, needs to check
+			# 32: char: if *, means it's like print *
+			# 34: PlaceHolder, this is the string with the format (`fmt=` is removed)
+			# 9: =, check what is next, it should be [2,$attr]
+			# Most common $attr is advance; the value will be a PlaceHolder
+		}
+	}
+	else { # single element
+
+	}
+
+	# write(0,*) ii-1,charArray(ii-1),42,charStr
+	# [ 29(int), '0' ], [ 32(char), '*' ]
+
+	# write( *, fmt="(A1)",advance='no') '#'
+	#  [ 32(char), '*' ], [ 34(Ph), '__PH2__' ],
+	# 	[ 9(=), [ 2($), 'advance' ], [ 34(Ph), '__PH0__' ] 
+
+	# write( *, "(i2.2,a)",advance='no') 42,'x'
+	# [ 32(char), '*' ], [ 34(Ph), '__PH2__' ],
+	# [ 9(=), [ 2($), 'advance' ], [ 34(Ph), '__PH0__' ] 
+
+	# write( csu, fmt="(z2.2,A1)") 42,'x'
+	# [ 2($), 'csu' ], [ 34(Ph), '__PH1__' ]
+
+	# write( cs,"(A2)") '0x'
+	# [ 2($), 'cs' ], [ 34(Ph), '__PH1__' ]
+
+				# write(0,*) ii-1,charArray(ii-1),42,charStr
+				# IOCall Args: [
+				# 	27, [ 29(int), '0' ], [ 32(char), '*' ]
+				# ]
+
+				# IOList:$VAR1 = [
+				# 27, [ 4(-), [ 2($), 'ii' ], [ 29(int), '1' ] ],
+				# [ 10(@), 'charArray', [ 4(-), [ 2, 'ii' ], [ 29, '1' ] ] ], [ 29, '42' ], [ 2, 'charStr' ]
+				# ];
+
+				# write( *, fmt="(A1)",advance='no') '#'
+				# IOCall Args: [
+				# 	27, [ 32(char), '*' ], [ 34(Ph), '__PH2__' ],
+				# 	[ 9(=), [ 2($), 'advance' ], [ 34(Ph), '__PH0__' ] ]
+				# ]
+
+				# IOList:$VAR1 = [ 34(Ph), '__PH1__' ];
+
+				# write( *, "(i2.2,a)",advance='no') 42,'x'
+				# IOCall Args: [
+				# 	27, [ 32(char), '*' ], [ 34(Ph), '__PH2__' ],
+				# 	[ 9(=), [ 2($), 'advance' ], [ 34(Ph), '__PH0__' ] ]
+				# ]
+
+				# IOList:$VAR1 = [ 27, [ 29, '42' ], [ 34, '__PH1__' ] ];
+
+				# write( csu, fmt="(z2.2,A1)") 42,'x'
+				# IOCall Args:$VAR1 = [
+				# 	27, [ 2($), 'csu' ], [ 34(Ph), '__PH1__' ]
+				# ]
+
+				# IOList:$VAR1 = [ 27, [ 29, '42' ], [ 34, '__PH0__' ] ];
+
+				# write( cs,"(A2)") '0x'
+				# IOCall Args: [
+				# 	27, [ 2, 'cs' ], [ 34, '__PH1__' ]
+				# ]
+
+				# IOList:$VAR1 = [ 34, '__PH0__' ];
 }
 # -----------------------------------------------------------------------------
 sub add_to_C_build_sources {
