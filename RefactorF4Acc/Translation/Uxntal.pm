@@ -520,7 +520,7 @@ Instead of the nice but cumbersome approach we had until now, from now on it is 
 			} elsif (exists $info->{'WriteCall'}) {
 				my $call_ast = $info->{'IOCall'}{'Args'}{'AST'};
 				my $iolist_ast = $info->{'IOList'}{'AST'};
-				say 'WRITE: IOCall Args:'.Dumper($call_ast),'IOList:',Dumper($iolist_ast);
+				# say 'WRITE: IOCall Args:'.Dumper($call_ast),'IOList:',Dumper($iolist_ast);
 				_analyse_write_call($stref,$f,$info);
 				# This is really complicated.
 				# The first arg can be an integer, a variable or '*'
@@ -1719,21 +1719,27 @@ sub _emit_print_from_ast { my ($stref,$f,$line,$info,$elt) = @_;
 # -----------------------------------------------------------------------------
 
 sub _analyse_write_call { my ($stref,$f,$info)=@_;
-	my $call_args_ast = $info->{'IOCall'}{'Args'}{'AST'};
+	my $call_args_ast = $info->{'IOCall'}{'Args'}{'AST'}[2];
 	my $iolist_ast = $info->{'IOList'}{'AST'};
 
 	# This is really complicated.
 	# The first arg can be an integer, a variable or '*'
 	# If it's zero, it's STDERR, so we need #19 instead of #18
+	# If it's a variable, we are copying into a string, which is not DEO at all
+	# If it's advance=no it means no newline, that bit is easy
+	# And then there is the format, which tells us which print action we need to do
 
 	# other args can be named or not (fmt=, advance=)
 	# Formats must be parsed to see if it is a list or not
 	# They are stored as placeholders
-
+	my $print_call='';
+	my $unit='';
+	my $advance='yes';
 	if ($call_args_ast->[0]==27) {
 		shift @{$call_args_ast};
 		# Now we have the actual arg list
-		for my $arg (@{$call_args_ast}) {
+
+		for my $arg_ast (@{$call_args_ast}) {
 			# all of these will be tagged
 			# tags can be
 			# 29 : if 0, this is STDERR; I assume 1 is STDOUT, needs to check
@@ -1741,10 +1747,28 @@ sub _analyse_write_call { my ($stref,$f,$info)=@_;
 			# 34: PlaceHolder, this is the string with the format (`fmt=` is removed)
 			# 9: =, check what is next, it should be [2,$attr]
 			# Most common $attr is advance; the value will be a PlaceHolder
+			my $attr = __analyse_write_call_arg($stref,$f,$info,$arg_ast);
+			if ($attr->[0] eq 'fmt') {
+				$print_call = __parse_fmt($attr->[1])
+			}
+			elsif ($attr->[0] eq 'unit') {
+				$unit = $attr->[1];
+				if ($unit eq 'STDERR') {
+					$print_call.='-stderr';
+				}
+				elsif ($unit ne 'STDOUT') { # so must be a var
+					$print_call=~s/print/memwrite/;
+				}
+			}
+			elsif ($attr->[0] eq 'advance') {
+				$advance=$attr->[1];
+			} else {
+				error("Unsupported WRITE call syntax: ".Dumper($info));
+			}
 		}
 	}
 	else { # single element
-		__analyse_write_call_arg($stref,$f,$info,$call_args_ast);
+		my $attr = __analyse_write_call_arg($stref,$f,$info,$call_args_ast);
 	}
 
 	# write(0,*) ii-1,charArray(ii-1),42,charStr
@@ -1805,6 +1829,7 @@ sub _analyse_write_call { my ($stref,$f,$info)=@_;
 				# IOList:$VAR1 = [ 34, '__PH0__' ];
 }
 # -----------------------------------------------------------------------------
+# This call returns unit, fmt or advance. Could in principle return any attribute
 sub __analyse_write_call_arg { my ($stref,$f,$info,$arg) = @_;
 	# all of these will be tagged
 	my $tag = $arg->[0];
@@ -1813,16 +1838,18 @@ sub __analyse_write_call_arg { my ($stref,$f,$info,$arg) = @_;
 		# 29 : if 0, this is STDERR; otherwise it means a file but I will not support this
 		if ($arg_val==0) {
 			# STDERR
+			return ['unit','STDERR'];
 		} else {
 			error("WRITE only supported with unit=0, unit=* or a variable");
 		}
 		# "The standard logical units 0, 5, and 6 are preconnected to Solaris as stderr, stdin, and stdout"
 		# it looks like for gfortran on Linux, 0 is also stderr
-	} 
+	}
 	elsif ($tag == 32) {
 		# 32: char: if *, means it's like print *
 		if ($arg_val eq '*') {
 			# like print *
+			return ['unit','STDOUT'];
 		} else {
 			error("WRITE only supported with unit=0, unit=* or a variable");
 		}
@@ -1830,7 +1857,10 @@ sub __analyse_write_call_arg { my ($stref,$f,$info,$arg) = @_;
 	elsif ($tag == 34) {
 		# 34: PlaceHolder, this is the string with the format (`fmt=` is removed)
 		my $fmt_str = $info->{'PlaceHolders'}{$arg_val};
-		die Dumper $fmt_str;
+		$fmt_str=~s/^[\"\']\(//;
+		$fmt_str=~s/\)[\'\"]$//;
+		# say "FMT=$fmt_str";
+		return ['fmt',$fmt_str];
 	}
 	elsif ($tag == 9) {
 		# 9: =, check what is next, it should be [2,$attr]
@@ -1841,15 +1871,58 @@ sub __analyse_write_call_arg { my ($stref,$f,$info,$arg) = @_;
 				my $attr_val = $arg->[2];
 				if ($attr_val->[0] == 34) {
 					my $attr_val_str =  $info->{'PlaceHolders'}{$attr_val->[1]};
-					die Dumper $attr_val_str;
+					$attr_val_str=~s/^[\"\']//;
+					$attr_val_str=~s/[\"\']$//;
+					return [ 'advance',$attr_val_str];
 				}
-
 			}
 		}
+	}
+	elsif ($tag == 2) {
+		# must be a variable
+		my $unit_var = 	$arg_val;
+		return ['unit',$unit_var];
 	} else {
 		die "Unknown arg type: ".Dumper($arg);
 	}
-}
+} # END of __analyse_write_call_arg
+# -----------------------------------------------------------------------------
+# returs a list of the types to be printed.
+# I only support I, A, L and Z. 
+# For A, if it is >1 it is a string, else a character.
+# What I return is the list of required print calls
+sub __parse_fmt { my ($fmt_str) = @_;
+
+	my @chunks = split(/\s*,\s*/,$fmt_str);
+	for my $chunk (@chunks) {
+		my $c=uc(substr($chunk,0,1));
+		if ( $c eq 'I' ) {
+			return 'print-int'
+		}
+		elsif ( $c eq 'Z' ) {
+			return 'print-hex'
+		}
+		elsif ( $c eq 'L' ) {
+			return 'print-bool'
+		}
+		elsif ( $c eq 'A' ) {
+			my $nchars=substr($chunk,1);
+			$nchars=~s/\.\d+$//;
+			if ($nchars==1) {
+				return 'print-char';
+			}
+			elsif ($nchars>1) {
+				return 'print-string';
+			} else {
+				die "Problem with FMT $chunk\n";
+			}
+		}
+		else {
+			die "Unsupported FMT: $chunk\n";
+		}
+	}
+
+} # END of __parse_fmt
 # -----------------------------------------------------------------------------
 sub add_to_C_build_sources {
     ( my $f, my $stref ) = @_;
