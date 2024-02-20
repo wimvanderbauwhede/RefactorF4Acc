@@ -521,6 +521,7 @@ Instead of the nice but cumbersome approach we had until now, from now on it is 
 				my $call_ast = $info->{'IOCall'}{'Args'}{'AST'};
 				my $iolist_ast = $info->{'IOList'}{'AST'};
 				say 'WRITE: IOCall Args:'.Dumper($call_ast),'IOList:',Dumper($iolist_ast);
+				_analyse_write_call($stref,$f,$info);
 				# This is really complicated.
 				# The first arg can be an integer, a variable or '*'
 				# If it's zero, it's STDERR, so we need #19 instead of #18
@@ -1743,7 +1744,7 @@ sub _analyse_write_call { my ($stref,$f,$info)=@_;
 		}
 	}
 	else { # single element
-
+		__analyse_write_call_arg($stref,$f,$info,$call_args_ast);
 	}
 
 	# write(0,*) ii-1,charArray(ii-1),42,charStr
@@ -1802,6 +1803,52 @@ sub _analyse_write_call { my ($stref,$f,$info)=@_;
 				# ]
 
 				# IOList:$VAR1 = [ 34, '__PH0__' ];
+}
+# -----------------------------------------------------------------------------
+sub __analyse_write_call_arg { my ($stref,$f,$info,$arg) = @_;
+	# all of these will be tagged
+	my $tag = $arg->[0];
+	my $arg_val = $arg->[1];
+	if ($tag == 29) {
+		# 29 : if 0, this is STDERR; otherwise it means a file but I will not support this
+		if ($arg_val==0) {
+			# STDERR
+		} else {
+			error("WRITE only supported with unit=0, unit=* or a variable");
+		}
+		# "The standard logical units 0, 5, and 6 are preconnected to Solaris as stderr, stdin, and stdout"
+		# it looks like for gfortran on Linux, 0 is also stderr
+	} 
+	elsif ($tag == 32) {
+		# 32: char: if *, means it's like print *
+		if ($arg_val eq '*') {
+			# like print *
+		} else {
+			error("WRITE only supported with unit=0, unit=* or a variable");
+		}
+	}
+	elsif ($tag == 34) {
+		# 34: PlaceHolder, this is the string with the format (`fmt=` is removed)
+		my $fmt_str = $info->{'PlaceHolders'}{$arg_val};
+		die Dumper $fmt_str;
+	}
+	elsif ($tag == 9) {
+		# 9: =, check what is next, it should be [2,$attr]
+		# Most common $attr is advance; the value will be a PlaceHolder
+		if (ref($arg_val) eq 'ARRAY' and $arg_val->[0] == 2) {
+			my $attr = $arg_val->[1];
+			if ($attr eq 'advance') {
+				my $attr_val = $arg->[2];
+				if ($attr_val->[0] == 34) {
+					my $attr_val_str =  $info->{'PlaceHolders'}{$attr_val->[1]};
+					die Dumper $attr_val_str;
+				}
+
+			}
+		}
+	} else {
+		die "Unknown arg type: ".Dumper($arg);
+	}
 }
 # -----------------------------------------------------------------------------
 sub add_to_C_build_sources {
