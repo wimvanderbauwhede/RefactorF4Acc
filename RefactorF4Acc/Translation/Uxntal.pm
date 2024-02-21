@@ -515,13 +515,30 @@ Instead of the nice but cumbersome approach we had until now, from now on it is 
 					$c_line = _emit_list_print_Uxntal($stref,$f,$line,$info,\@list_to_print);
 
 				} else {
-					$c_line = _emit_expression_Uxntal($ast,$stref, $f, $info);
+					my $fmt_ast = $ast->[2][1];
+					if ($fmt_ast->[0]==29) {
+						error("Unsupported: PRINT with label arg: $line",0,'ERROR');
+					}
+					my $print_fmt = __analyse_write_call_arg($stref,$f,$info,$fmt_ast,0);
+					my $print_call_list = __parse_fmt($print_fmt->[1]);
+					my $call_arg_list = $ast->[2]; shift @{$call_arg_list};shift @{$call_arg_list};
+					if (scalar @{$print_call_list} != scalar @{$call_arg_list}) {
+						die Dumper($print_call_list,$call_arg_list);
+					}
+					$c_line='';
+					for my $arg_ast (@{$call_arg_list}) {
+						my $print_call = shift @{$print_call_list};
+						$c_line.= _emit_expression_Uxntal($arg_ast,$stref, $f, $info).' '.$print_call."\n";	
+					}
+					# die $c_line;
+					# $c_line = _emit_expression_Uxntal($ast,$stref, $f, $info);
 				}
 			} elsif (exists $info->{'WriteCall'}) {
 				my $call_ast = $info->{'IOCall'}{'Args'}{'AST'};
 				my $iolist_ast = $info->{'IOList'}{'AST'};
 				# say 'WRITE: IOCall Args:'.Dumper($call_ast),'IOList:',Dumper($iolist_ast);
-				_analyse_write_call($stref,$f,$info);
+				my ($print_calls, $unit, $advance) = _analyse_write_call($stref,$f,$info);
+				warn Dumper($print_calls, $unit, $advance);
 				# This is really complicated.
 				# The first arg can be an integer, a variable or '*'
 				# If it's zero, it's STDERR, so we need #19 instead of #18
@@ -928,8 +945,12 @@ sub __substitute_PlaceHolders_Uxntal { my ($expr_str,$info) = @_;
 			$ph_str=~s/^[\']/\"/;
 			$expr_str=~s/$ph/$ph_str/;
 		}
-	my $len = toRawHex(length($expr_str)-1,2);
-	$expr_str = "{ $len $expr_str } STH2r";
+		my $len = toRawHex(length($expr_str)-1,2);
+		if ($len==1) {
+			$expr_str = toHex(ord(substr($expr_str,0,1)),1);
+		} else {
+			$expr_str = "{ $len $expr_str } STH2r";
+		}
 	}
 	return $expr_str;
 } # END of __substitute_PlaceHolders
@@ -1732,13 +1753,13 @@ sub _analyse_write_call { my ($stref,$f,$info)=@_;
 	# other args can be named or not (fmt=, advance=)
 	# Formats must be parsed to see if it is a list or not
 	# They are stored as placeholders
-	my $print_call='';
+	my $print_calls=[];
 	my $unit='';
 	my $advance='yes';
 	if ($call_args_ast->[0]==27) {
 		shift @{$call_args_ast};
 		# Now we have the actual arg list
-
+		my $i=0;
 		for my $arg_ast (@{$call_args_ast}) {
 			# all of these will be tagged
 			# tags can be
@@ -1747,18 +1768,13 @@ sub _analyse_write_call { my ($stref,$f,$info)=@_;
 			# 34: PlaceHolder, this is the string with the format (`fmt=` is removed)
 			# 9: =, check what is next, it should be [2,$attr]
 			# Most common $attr is advance; the value will be a PlaceHolder
-			my $attr = __analyse_write_call_arg($stref,$f,$info,$arg_ast);
+			my $attr = __analyse_write_call_arg($stref,$f,$info,$arg_ast,$i);
+			++$i;
 			if ($attr->[0] eq 'fmt') {
-				$print_call = __parse_fmt($attr->[1])
+				$print_calls = __parse_fmt($attr->[1]);
 			}
 			elsif ($attr->[0] eq 'unit') {
 				$unit = $attr->[1];
-				if ($unit eq 'STDERR') {
-					$print_call.='-stderr';
-				}
-				elsif ($unit ne 'STDOUT') { # so must be a var
-					$print_call=~s/print/memwrite/;
-				}
 			}
 			elsif ($attr->[0] eq 'advance') {
 				$advance=$attr->[1];
@@ -1768,9 +1784,16 @@ sub _analyse_write_call { my ($stref,$f,$info)=@_;
 		}
 	}
 	else { # single element
-		my $attr = __analyse_write_call_arg($stref,$f,$info,$call_args_ast);
+		my $attr = __analyse_write_call_arg($stref,$f,$info,$call_args_ast,0);
+	}
+	if ($unit eq 'STDERR') {
+		$print_calls = [map {$_.='-stderr'} @{$print_calls}];
+	}
+	elsif ($unit ne 'STDOUT') { # so must be a var
+		$print_calls = [map {$_=~s/print/memwrite/;$_} @{$print_calls}];
 	}
 
+	return ($print_calls, $unit, $advance);
 	# write(0,*) ii-1,charArray(ii-1),42,charStr
 	# [ 29(int), '0' ], [ 32(char), '*' ]
 
@@ -1830,7 +1853,7 @@ sub _analyse_write_call { my ($stref,$f,$info)=@_;
 }
 # -----------------------------------------------------------------------------
 # This call returns unit, fmt or advance. Could in principle return any attribute
-sub __analyse_write_call_arg { my ($stref,$f,$info,$arg) = @_;
+sub __analyse_write_call_arg { my ($stref,$f,$info,$arg,$i) = @_;
 	# all of these will be tagged
 	my $tag = $arg->[0];
 	my $arg_val = $arg->[1];
@@ -1847,9 +1870,13 @@ sub __analyse_write_call_arg { my ($stref,$f,$info,$arg) = @_;
 	}
 	elsif ($tag == 32) {
 		# 32: char: if *, means it's like print *
-		if ($arg_val eq '*') {
-			# like print *
-			return ['unit','STDOUT'];
+		if ($arg_val eq '*' ) {
+			if ($i==0){
+				return ['unit','STDOUT'];
+			}
+			elsif ($i==1) {
+				return ['fmt','*'];
+			}
 		} else {
 			error("WRITE only supported with unit=0, unit=* or a variable");
 		}
@@ -1894,34 +1921,42 @@ sub __analyse_write_call_arg { my ($stref,$f,$info,$arg) = @_;
 sub __parse_fmt { my ($fmt_str) = @_;
 
 	my @chunks = split(/\s*,\s*/,$fmt_str);
+	my $print_calls=[];
 	for my $chunk (@chunks) {
 		my $c=uc(substr($chunk,0,1));
 		if ( $c eq 'I' ) {
-			return 'print-int'
+			push @{$print_calls}, 'print-int';
 		}
 		elsif ( $c eq 'Z' ) {
-			return 'print-hex'
+			push @{$print_calls}, 'print-hex';
 		}
 		elsif ( $c eq 'L' ) {
-			return 'print-bool'
+			push @{$print_calls}, 'print-bool';
 		}
 		elsif ( $c eq 'A' ) {
-			my $nchars=substr($chunk,1);
-			$nchars=~s/\.\d+$//;
-			if ($nchars==1) {
-				return 'print-char';
-			}
-			elsif ($nchars>1) {
-				return 'print-string';
+			if (uc($chunk) eq 'A') {
+				push @{$print_calls}, 'print-string';
 			} else {
-				die "Problem with FMT $chunk\n";
+				my $nchars=substr($chunk,1);
+				$nchars=~s/\.\d+$//;
+				if ($nchars==1) {
+					push @{$print_calls}, 'print-char';
+				}
+				elsif ($nchars>1) {
+					push @{$print_calls}, 'print-string';
+				} else {
+					die "Problem with FMT $chunk\n";
+				}
 			}
+		}
+		elsif ( $c eq '*' ) {
+			push @{$print_calls}, 'print-list';
 		}
 		else {
 			die "Unsupported FMT: $chunk\n";
 		}
 	}
-
+	return $print_calls;
 } # END of __parse_fmt
 # -----------------------------------------------------------------------------
 sub add_to_C_build_sources {
