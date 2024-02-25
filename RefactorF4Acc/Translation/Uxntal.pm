@@ -506,39 +506,71 @@ Instead of the nice but cumbersome approach we had until now, from now on it is 
 		}
 		elsif (exists $info->{'IOCall'}) {
 			if (exists $info->{'PrintCall'}) {
-				my $ast = $info->{'IOCall'}{'Args'}{'AST'};
-				# list-oriented print
-				if (ref($ast->[2][1]) eq 'ARRAY' and $ast->[2][1][1] eq '*') {
-					my @list_to_print = @{$ast->[2]};
-					shift @list_to_print; shift @list_to_print;
-					# croak Dumper @list_to_print;
-					$c_line = _emit_list_print_Uxntal($stref,$f,$line,$info,\@list_to_print);
+				$c_line = __emit_list_based_print_write($stref,$f,$line,$info, '*','yes');
+				# my $ast = $info->{'IOCall'}{'Args'}{'AST'};
+				# # list-oriented print
+				# if (ref($ast->[2][1]) eq 'ARRAY' and $ast->[2][1][1] eq '*') {
+				# 	my @list_to_print = @{$ast->[2]};
+				# 	shift @list_to_print; shift @list_to_print;
+				# 	# croak Dumper @list_to_print;
+				# 	$c_line = _emit_list_print_Uxntal($stref,$f,$line,$info,\@list_to_print);
 
-				} else {
-					my $fmt_ast = $ast->[2][1];
-					if ($fmt_ast->[0]==29) {
-						error("Unsupported: PRINT with label arg: $line",0,'ERROR');
-					}
-					my $print_fmt = __analyse_write_call_arg($stref,$f,$info,$fmt_ast,0);
-					my $print_call_list = __parse_fmt($print_fmt->[1]);
-					my $call_arg_list = $ast->[2]; shift @{$call_arg_list};shift @{$call_arg_list};
-					if (scalar @{$print_call_list} != scalar @{$call_arg_list}) {
-						die Dumper($print_call_list,$call_arg_list);
-					}
-					$c_line='';
-					for my $arg_ast (@{$call_arg_list}) {
-						my $print_call = shift @{$print_call_list};
-						$c_line.= _emit_expression_Uxntal($arg_ast,$stref, $f, $info).' '.$print_call."\n";	
-					}
-					# die $c_line;
-					# $c_line = _emit_expression_Uxntal($ast,$stref, $f, $info);
-				}
+				# } else {
+				# 	my $fmt_ast = $ast->[2][1];
+				# 	if ($fmt_ast->[0]==29) {
+				# 		error("Unsupported: PRINT with label arg: $line",0,'ERROR');
+				# 	}
+				# 	my $print_fmt = __analyse_write_call_arg($stref,$f,$info,$fmt_ast,0);
+				# 	my $print_call_list = __parse_fmt($print_fmt->[1]);
+				# 	my $call_arg_list = $ast->[2]; shift @{$call_arg_list};shift @{$call_arg_list};
+				# 	if (scalar @{$print_call_list} != scalar @{$call_arg_list}) {
+				# 		die Dumper($print_call_list,$call_arg_list);
+				# 	}
+				# 	$c_line='';
+				# 	for my $arg_ast (@{$call_arg_list}) {
+				# 		my $print_call = shift @{$print_call_list};
+				# 		$c_line.= _emit_expression_Uxntal($arg_ast,$stref, $f, $info).' '.$print_call."\n";	
+				# 	}
+				# 	# die $c_line;
+				# 	# $c_line = _emit_expression_Uxntal($ast,$stref, $f, $info);
+				# }
 			} elsif (exists $info->{'WriteCall'}) {
 				my $call_ast = $info->{'IOCall'}{'Args'}{'AST'};
 				my $iolist_ast = $info->{'IOList'}{'AST'};
 				# say 'WRITE: IOCall Args:'.Dumper($call_ast),'IOList:',Dumper($iolist_ast);
 				my ($print_calls, $unit, $advance) = _analyse_write_call($stref,$f,$info);
-				warn Dumper($print_calls, $unit, $advance);
+				if (scalar @{$print_calls} == 1 and 
+					(
+						$print_calls->[0] eq 'print-list' or
+						$print_calls->[0] eq 'print-list-stderr'
+					)
+				) {
+					$c_line = __emit_list_based_print_write($stref,$f,$line,$info, $unit,$advance);
+				} else {
+					# if ($unit eq 'STDOUT' or $unit eq 'STDERR') {
+						my $c_line = '';
+						my $maybe_str = ($unit eq 'STDOUT' or $unit eq 'STDERR')? '' : ";$unit ";
+						my $idx=1;
+						for my $print_call (@{$print_calls}) {
+							my $arg_ast = [];
+							if ($iolist_ast->[0] == 27) {
+								# warn "$line: $print_call: ".Dumper($iolist_ast->[$idx++]);
+								$arg_ast = $iolist_ast->[$idx++];
+							} else {
+								# warn "$line: $print_call: ".Dumper($iolist_ast);
+								$arg_ast = $iolist_ast;
+							}
+							my $arg_exp_Uxntal = _emit_expression_Uxntal($arg_ast,$stref, $f, $info);
+							if ($arg_exp_Uxntal=~/\#\d+/ and $print_call=~/string/) {
+								$print_call=~s/string/char/;
+							}
+							$c_line.= $arg_exp_Uxntal.' '.$maybe_str.$print_call."\n";
+						}
+						warn $c_line;
+					# } else {
+					# 	carp 'TODO STRING:'.Dumper($unit, $advance, $print_calls, $iolist_ast);
+					# }
+				}
 				# This is really complicated.
 				# The first arg can be an integer, a variable or '*'
 				# If it's zero, it's STDERR, so we need #19 instead of #18
@@ -1634,7 +1666,7 @@ sub isStrCmp { my ($ast, $stref, $f,$info) =@_;
 # 		NIP2 POP2r EQU JMP2r
 
 # returns the Uxntal string with the print instructions
-sub _emit_list_print_Uxntal { my ($stref,$f,$line,$info,$list_to_print) = @_;
+sub _emit_list_print_Uxntal { my ($stref,$f,$line,$info,$unit,$advance,$list_to_print) = @_;
 	my $Sf = $stref->{'Subroutines'}{$f};
 # so for every elt in the list, we must work out if it is
 #  - an integer
@@ -1646,18 +1678,27 @@ sub _emit_list_print_Uxntal { my ($stref,$f,$line,$info,$list_to_print) = @_;
 
 	my $line_Uxntal = '';
 	for my $elt ( @{$list_to_print} ) {
-		my $print_fn_Uxntal = _emit_print_from_ast($stref,$f,$line,$info,$elt);
+		my $print_fn_Uxntal = _emit_print_from_ast($stref,$f,$line,$info,$unit,$elt);
 
 		my $arg_to_print_Uxntal =  _emit_expression_Uxntal($elt,$stref, $f, $info);
 		$line_Uxntal .= "$arg_to_print_Uxntal $print_fn_Uxntal"
 	}
-	$line_Uxntal .= '#0a #18 DEO';
+	if ($advance eq 'yes') {
+		if ($unit eq 'STDOUT') {
+			$line_Uxntal .= '#0a #18 DEO';
+		}
+		elsif ($unit eq 'STDERR') {
+			$line_Uxntal .= '#0a #19 DEO';
+		}
+	}
 	return $line_Uxntal;
 
-}
+} # END of _emit_list_print_Uxntal
+
 # returns the print function to be used: print-char, print-int etc
-sub _emit_print_from_ast { my ($stref,$f,$line,$info,$elt) = @_;
+sub _emit_print_from_ast { my ($stref,$f,$line,$info,$unit,$elt) = @_;
 	my $Sf = $stref->{'Subroutines'}{$f};
+	my $suffix = $unit eq 'STDERR' ? '-stderr' : '';
 	my $code = $elt->[0];
 	if ($code == 2 or $code == 10) { # A scalar, but can be an unindexed string or array
 		my $var_name = $elt->[1];
@@ -1669,29 +1710,29 @@ sub _emit_print_from_ast { my ($stref,$f,$line,$info,$elt) = @_;
 		}
 		if ( $decl->{'Type'} eq 'character') {
 			if( $code == 2 and $decl->{'Attr'}!~/len/) {
-				return 'print-char';
+				return 'print-char'.$suffix;
 			}
 			elsif( $code == 10 and $decl->{'ArrayOrScalar'} eq 'Array') {
 				my $dims =  $decl->{'Dim'};
 				my $ndims = scalar @{$dims};
 				if ($ndims==0 ) {
-					return 'print-string';
+					return 'print-string'.$suffix;
 				} else {
 				# an indexed array of characters, so print a char
-					return 'print-char';
+					return 'print-char'.$suffix;
 				}
 			}
 			elsif( $code == 10 and $decl->{'ArrayOrScalar'} eq 'Scalar') {
 				die "Code says array but decls says Scalar:".Dumper( $elt);
 			} else {
-				return 'print-string';
+				return 'print-string'.$suffix;
 			}
 		}
 		if ( $decl->{'Type'} eq 'integer') {
-			return 'print-int';
+			return 'print-int'.$suffix;
 		}
 		if ( $decl->{'Type'} eq 'logical') {
-			return 'print-bool';
+			return 'print-bool'.$suffix;
 		}
 	}
 	elsif ($code == 1 ) {
@@ -1706,13 +1747,13 @@ sub _emit_print_from_ast { my ($stref,$f,$line,$info,$elt) = @_;
 		my $const_type = $code;
 		my $const = $elt->[1];
 		if ($const_type == 29 ) {
-			return 'print-int';
+			return 'print-int'.$suffix;
 		}
 		elsif ($const_type == 31 ) {
-			return 'print-bool';
+			return 'print-bool'.$suffix;
 		}
 		elsif ($const_type == 32 ) {
-			return 'print-char';
+			return 'print-char'.$suffix;
 		}
 		elsif ($const_type == 34 ) {
 			die("Placeholder in print statement\n");
@@ -1722,13 +1763,13 @@ sub _emit_print_from_ast { my ($stref,$f,$line,$info,$elt) = @_;
 		}
 	}
 	elsif ($code>=3 and $code<=6) {
-		return 'print-int';
+		return 'print-int'.$suffix;
 	}
 	elsif ($code==7 or $code==8) {
 		die("TODO: printing of ".$sigils[$code]."\n");
 	}
 	elsif ($code>=15 and $code<=26) {
-		return 'print-bool';
+		return 'print-bool'.$suffix;
 	}
 	elsif ($code==13) {
 		die("TODO: printing of string concatenation expression\n");
@@ -1736,7 +1777,7 @@ sub _emit_print_from_ast { my ($stref,$f,$line,$info,$elt) = @_;
 	else {
 		error('Unsupported type in print statement: '.$sigils[$code]);
 	}
-}
+} # END of _emit_print_from_ast
 # -----------------------------------------------------------------------------
 
 sub _analyse_write_call { my ($stref,$f,$info)=@_;
@@ -1850,7 +1891,7 @@ sub _analyse_write_call { my ($stref,$f,$info)=@_;
 				# ]
 
 				# IOList:$VAR1 = [ 34, '__PH0__' ];
-}
+} # END of _analyse_write_call
 # -----------------------------------------------------------------------------
 # This call returns unit, fmt or advance. Could in principle return any attribute
 sub __analyse_write_call_arg { my ($stref,$f,$info,$arg,$i) = @_;
@@ -1958,6 +1999,38 @@ sub __parse_fmt { my ($fmt_str) = @_;
 	}
 	return $print_calls;
 } # END of __parse_fmt
+
+sub __emit_list_based_print_write { my ($stref,$f,$line,$info,$unit, $advance) = @_;
+	my $ast = $info->{'IOCall'}{'Args'}{'AST'};
+	my $c_line = '';
+	# list-oriented print
+	if (ref($ast->[2][1]) eq 'ARRAY' and $ast->[2][1][1] eq '*') {
+		my @list_to_print = @{$ast->[2]};
+		shift @list_to_print; shift @list_to_print;
+		# croak Dumper @list_to_print;
+		$c_line = _emit_list_print_Uxntal($stref,$f,$line,$info,$unit, $advance,\@list_to_print);
+
+	} else {
+		my $fmt_ast = $ast->[2][1];
+		if ($fmt_ast->[0]==29) {
+			error("Unsupported: PRINT with label arg: $line",0,'ERROR');
+		}
+		my $print_fmt = __analyse_write_call_arg($stref,$f,$info,$fmt_ast,0);
+		my $print_call_list = __parse_fmt($print_fmt->[1]);
+		my $call_arg_list = $ast->[2]; shift @{$call_arg_list};shift @{$call_arg_list};
+		if (scalar @{$print_call_list} != scalar @{$call_arg_list}) {
+			die Dumper($print_call_list,$call_arg_list);
+		}
+		$c_line='';
+		for my $arg_ast (@{$call_arg_list}) {
+			my $print_call = shift @{$print_call_list};
+			$c_line.= _emit_expression_Uxntal($arg_ast,$stref, $f, $info).' '.$print_call."\n";	
+		}
+	}
+	return $c_line;
+} # END of __emit_list_based_print_write
+
+
 # -----------------------------------------------------------------------------
 sub add_to_C_build_sources {
     ( my $f, my $stref ) = @_;
