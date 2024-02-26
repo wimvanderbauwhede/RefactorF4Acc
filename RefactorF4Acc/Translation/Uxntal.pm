@@ -3,6 +3,7 @@ use v5.10;
 
 use RefactorF4Acc::Config;
 use RefactorF4Acc::Utils;
+use RefactorF4Acc::Utils::Functional qw( max );
 use RefactorF4Acc::F95SpecWords qw( %F95_intrinsic_functions %F95_intrinsic_subroutine_sigs );
 use RefactorF4Acc::Analysis::ArgumentIODirs qw( determine_argument_io_direction_rec );
 use RefactorF4Acc::Refactoring::Helpers qw( stateful_pass stateful_pass_inplace pass_wrapper_subs_in_module update_arg_var_decl_sourcelines get_annotated_sourcelines);
@@ -70,6 +71,7 @@ my $lib_lines = [
     'JMP2r',
 
 '@print-char #18 DEO JMP2r',
+'@print-char-stderr #19 DEO JMP2r',
 
 '( a bool is a byte; prints `t` or `f` )
 @print-bool
@@ -78,38 +80,53 @@ DUP ,&true JCN
 &true
 #74 #18 DEO JMP2r
 ',
+'( a bool is a byte; prints `t` or `f` )
+@print-bool-stderr
+DUP ,&true JCN
+#66 #19 DEO JMP2r
+&true
+#74 #19 DEO JMP2r
+',
 
 '( this assumes 2-byte integers )
-@print-int
+@print-int #18 write-int
+@print-int-stderr #19 write-int
+
+@write-int ( w* unit -- )
+STH
 DUP2
 DUP2 #2710  LTH2 ,&d2 JCN
-#2710 DIV2 DUP #30 ADD #18 DEO
+#2710 DIV2 DUP #30 ADD STHrk DEO
 #2710 MUL2 SUB2
 DUP2
 &d2
 DUP2 #03e8  LTH2 ,&d3 JCN
-#03e8 DIV2 DUP #30 ADD #18 DEO
+#03e8 DIV2 DUP #30 ADD STHrk DEO
 #03e8 MUL2 SUB2
 DUP2
 &d3
 DUP2 #0064  LTH2 ,&d4 JCN
-#0064 DIV2 DUP #30 ADD #18 DEO
+#0064 DIV2 DUP #30 ADD STHrk DEO
 #0064 MUL2 SUB2
 DUP2
 &d4
-#000a DIV2 DUP #30 ADD #18 DEO
-#000a MUL2 SUB2 #30 ADD #18 DEO POP
+#000a DIV2 DUP #30 ADD STHrk DEO
+#000a MUL2 SUB2 #30 ADD STHrk DEO POP
 JMP2r
 ',
 
 '( this assumes a string with structure `{ 0006 "hello 0a } STH2r` )
-@print-str ( {str}* -- )
+@print-string ( {str}* -- ) #18 write-string
+@print-string-stderr ( {str}* -- ) #19 write-string
+
+@write-string ( {str}* unit -- )
+	STH
     DUP2 LDA2 ( str len )
     SWP2 ( len str )
     INC2 INC2 DUP2  ( len str+2 str+2 )
     ROT2 ADD2 SWP2 ( str+2+len str+2 )
     &l ( -- )
-    LDAk .Console/write DEO
+    LDAk STHrk DEO
         INC2 GTH2k ?&l
         POP2 POP2 JMP2r
 ',
@@ -506,6 +523,7 @@ Instead of the nice but cumbersome approach we had until now, from now on it is 
 		}
 		elsif (exists $info->{'IOCall'}) {
 			if (exists $info->{'PrintCall'}) {
+				say "PRINT: $line";
 				$c_line = __emit_list_based_print_write($stref,$f,$line,$info, '*','yes');
 				# my $ast = $info->{'IOCall'}{'Args'}{'AST'};
 				# # list-oriented print
@@ -534,11 +552,12 @@ Instead of the nice but cumbersome approach we had until now, from now on it is 
 				# 	# die $c_line;
 				# 	# $c_line = _emit_expression_Uxntal($ast,$stref, $f, $info);
 				# }
-			} elsif (exists $info->{'WriteCall'}) {
+			} elsif (exists $info->{'WriteCall'}) { 
 				my $call_ast = $info->{'IOCall'}{'Args'}{'AST'};
 				my $iolist_ast = $info->{'IOList'}{'AST'};
 				# say 'WRITE: IOCall Args:'.Dumper($call_ast),'IOList:',Dumper($iolist_ast);
-				my ($print_calls, $unit, $advance) = _analyse_write_call($stref,$f,$info);
+				say "WRITE: $line";
+				my ($print_calls, $offsets, $unit, $advance) = _analyse_write_call($stref,$f,$info);
 				if (scalar @{$print_calls} == 1 and 
 					(
 						$print_calls->[0] eq 'print-list' or
@@ -546,12 +565,14 @@ Instead of the nice but cumbersome approach we had until now, from now on it is 
 					)
 				) {
 					$c_line = __emit_list_based_print_write($stref,$f,$line,$info, $unit,$advance);
-				} else {
+				} else { 
 					# if ($unit eq 'STDOUT' or $unit eq 'STDERR') {
 						my $c_line = '';
 						my $maybe_str = ($unit eq 'STDOUT' or $unit eq 'STDERR')? '' : ";$unit ";
 						my $idx=1;
 						for my $print_call (@{$print_calls}) {
+							carp $line.Dumper($offsets,$idx-1);
+							my $maybe_offset= $maybe_str ne '' ? toHex( $offsets->[$idx-1],2).' ADD2 ' : '';
 							my $arg_ast = [];
 							if ($iolist_ast->[0] == 27) {
 								# warn "$line: $print_call: ".Dumper($iolist_ast->[$idx++]);
@@ -564,7 +585,7 @@ Instead of the nice but cumbersome approach we had until now, from now on it is 
 							if ($arg_exp_Uxntal=~/\#\d+/ and $print_call=~/string/) {
 								$print_call=~s/string/char/;
 							}
-							$c_line.= $arg_exp_Uxntal.' '.$maybe_str.$print_call."\n";
+							$c_line.= $arg_exp_Uxntal.' '.$maybe_str.$maybe_offset.$print_call."\n";
 						}
 						warn $c_line;
 					# } else {
@@ -1608,6 +1629,7 @@ sub toUxntalType {
 }    # END of toUxntalType()
 
 sub toHex { my ($n,$sz) = @_;
+croak if not defined $n;
 	my $szx2 = $sz*2;
 	return sprintf("#%0${szx2}x",$n);
 }
@@ -1795,6 +1817,7 @@ sub _analyse_write_call { my ($stref,$f,$info)=@_;
 	# Formats must be parsed to see if it is a list or not
 	# They are stored as placeholders
 	my $print_calls=[];
+	my $offsets=[];
 	my $unit='';
 	my $advance='yes';
 	if ($call_args_ast->[0]==27) {
@@ -1812,7 +1835,7 @@ sub _analyse_write_call { my ($stref,$f,$info)=@_;
 			my $attr = __analyse_write_call_arg($stref,$f,$info,$arg_ast,$i);
 			++$i;
 			if ($attr->[0] eq 'fmt') {
-				$print_calls = __parse_fmt($attr->[1]);
+				($print_calls,$offsets) = __parse_fmt($attr->[1]);
 			}
 			elsif ($attr->[0] eq 'unit') {
 				$unit = $attr->[1];
@@ -1827,6 +1850,7 @@ sub _analyse_write_call { my ($stref,$f,$info)=@_;
 	else { # single element
 		my $attr = __analyse_write_call_arg($stref,$f,$info,$call_args_ast,0);
 	}
+
 	if ($unit eq 'STDERR') {
 		$print_calls = [map {$_.='-stderr'} @{$print_calls}];
 	}
@@ -1834,7 +1858,7 @@ sub _analyse_write_call { my ($stref,$f,$info)=@_;
 		$print_calls = [map {$_=~s/print/memwrite/;$_} @{$print_calls}];
 	}
 
-	return ($print_calls, $unit, $advance);
+	return ($print_calls, $offsets, $unit, $advance);
 	# write(0,*) ii-1,charArray(ii-1),42,charStr
 	# [ 29(int), '0' ], [ 32(char), '*' ]
 
@@ -1963,28 +1987,38 @@ sub __parse_fmt { my ($fmt_str) = @_;
 
 	my @chunks = split(/\s*,\s*/,$fmt_str);
 	my $print_calls=[];
+	my $offsets=[0];
+	my $offset=0;
 	for my $chunk (@chunks) {
 		my $c=uc(substr($chunk,0,1));
+		my $nchars=substr($chunk,1);
+		$nchars=~s/\.\d+$//;
 		if ( $c eq 'I' ) {
 			push @{$print_calls}, 'print-int';
+			$offset+=max(2,$nchars);
 		}
 		elsif ( $c eq 'Z' ) {
 			push @{$print_calls}, 'print-hex';
+			$offset+=max(1,$nchars);
 		}
 		elsif ( $c eq 'L' ) {
 			push @{$print_calls}, 'print-bool';
+			$offset+=max(1,$nchars);
 		}
 		elsif ( $c eq 'A' ) {
 			if (uc($chunk) eq 'A') {
 				push @{$print_calls}, 'print-string';
+				# offset is unknown
+				# set it totally ad-hoc to 8
+				$offset+=8;
 			} else {
-				my $nchars=substr($chunk,1);
-				$nchars=~s/\.\d+$//;
 				if ($nchars==1) {
 					push @{$print_calls}, 'print-char';
+					$offset+=max(1,$nchars);
 				}
 				elsif ($nchars>1) {
 					push @{$print_calls}, 'print-string';
+					$offset+=max(1,$nchars);
 				} else {
 					die "Problem with FMT $chunk\n";
 				}
@@ -1996,8 +2030,9 @@ sub __parse_fmt { my ($fmt_str) = @_;
 		else {
 			die "Unsupported FMT: $chunk\n";
 		}
+		push @{$offsets},$offset;
 	}
-	return $print_calls;
+	return ($print_calls,$offsets);
 } # END of __parse_fmt
 
 sub __emit_list_based_print_write { my ($stref,$f,$line,$info,$unit, $advance) = @_;
@@ -2016,7 +2051,7 @@ sub __emit_list_based_print_write { my ($stref,$f,$line,$info,$unit, $advance) =
 			error("Unsupported: PRINT with label arg: $line",0,'ERROR');
 		}
 		my $print_fmt = __analyse_write_call_arg($stref,$f,$info,$fmt_ast,0);
-		my $print_call_list = __parse_fmt($print_fmt->[1]);
+		my ($print_call_list, $offsets) = __parse_fmt($print_fmt->[1]);
 		my $call_arg_list = $ast->[2]; shift @{$call_arg_list};shift @{$call_arg_list};
 		if (scalar @{$print_call_list} != scalar @{$call_arg_list}) {
 			die Dumper($print_call_list,$call_arg_list);
