@@ -525,33 +525,7 @@ Instead of the nice but cumbersome approach we had until now, from now on it is 
 			if (exists $info->{'PrintCall'}) {
 				say "PRINT: $line";
 				$c_line = __emit_list_based_print_write($stref,$f,$line,$info, '*','yes');
-				# my $ast = $info->{'IOCall'}{'Args'}{'AST'};
-				# # list-oriented print
-				# if (ref($ast->[2][1]) eq 'ARRAY' and $ast->[2][1][1] eq '*') {
-				# 	my @list_to_print = @{$ast->[2]};
-				# 	shift @list_to_print; shift @list_to_print;
-				# 	# croak Dumper @list_to_print;
-				# 	$c_line = _emit_list_print_Uxntal($stref,$f,$line,$info,\@list_to_print);
-
-				# } else {
-				# 	my $fmt_ast = $ast->[2][1];
-				# 	if ($fmt_ast->[0]==29) {
-				# 		error("Unsupported: PRINT with label arg: $line",0,'ERROR');
-				# 	}
-				# 	my $print_fmt = __analyse_write_call_arg($stref,$f,$info,$fmt_ast,0);
-				# 	my $print_call_list = __parse_fmt($print_fmt->[1]);
-				# 	my $call_arg_list = $ast->[2]; shift @{$call_arg_list};shift @{$call_arg_list};
-				# 	if (scalar @{$print_call_list} != scalar @{$call_arg_list}) {
-				# 		die Dumper($print_call_list,$call_arg_list);
-				# 	}
-				# 	$c_line='';
-				# 	for my $arg_ast (@{$call_arg_list}) {
-				# 		my $print_call = shift @{$print_call_list};
-				# 		$c_line.= _emit_expression_Uxntal($arg_ast,$stref, $f, $info).' '.$print_call."\n";	
-				# 	}
-				# 	# die $c_line;
-				# 	# $c_line = _emit_expression_Uxntal($ast,$stref, $f, $info);
-				# }
+				say "UXNTAL: $c_line";
 			} elsif (exists $info->{'WriteCall'}) { 
 				my $call_ast = $info->{'IOCall'}{'Args'}{'AST'};
 				my $iolist_ast = $info->{'IOList'}{'AST'};
@@ -565,14 +539,17 @@ Instead of the nice but cumbersome approach we had until now, from now on it is 
 					)
 				) {
 					$c_line = __emit_list_based_print_write($stref,$f,$line,$info, $unit,$advance);
+					say "UXNTAL SINGLE WRITE: $c_line";
 				} else { 
 					# if ($unit eq 'STDOUT' or $unit eq 'STDERR') {
 						my $c_line = '';
 						my $maybe_str = ($unit eq 'STDOUT' or $unit eq 'STDERR')? '' : ";$unit ";
 						my $idx=1;
 						for my $print_call (@{$print_calls}) {
-							carp $line.Dumper($offsets,$idx-1);
-							my $maybe_offset= $maybe_str ne '' ? toHex( $offsets->[$idx-1],2).' ADD2 ' : '';
+							my $maybe_offset= $maybe_str ne '' ? 
+							$offsets->[$idx-1] == 0 
+								? ''
+								: toHex( $offsets->[$idx-1],2).' ADD2 ' : '';
 							my $arg_ast = [];
 							if ($iolist_ast->[0] == 27) {
 								# warn "$line: $print_call: ".Dumper($iolist_ast->[$idx++]);
@@ -585,66 +562,13 @@ Instead of the nice but cumbersome approach we had until now, from now on it is 
 							if ($arg_exp_Uxntal=~/\#\d+/ and $print_call=~/string/) {
 								$print_call=~s/string/char/;
 							}
-							$c_line.= $arg_exp_Uxntal.' '.$maybe_str.$maybe_offset.$print_call."\n";
+							$c_line.= $arg_exp_Uxntal.' '.$maybe_str.$maybe_offset.$print_call." ";
 						}
-						warn $c_line;
+						say "UXNTAL: $c_line";
 					# } else {
 					# 	carp 'TODO STRING:'.Dumper($unit, $advance, $print_calls, $iolist_ast);
 					# }
 				}
-				# This is really complicated.
-				# The first arg can be an integer, a variable or '*'
-				# If it's zero, it's STDERR, so we need #19 instead of #18
-
-				# other args can be named or not (fmt=, advance=)
-				# Formats must be parsed to see if it is a list or not
-				# They are stored as placeholders
-
-				# write(0,*) ii-1,charArray(ii-1),42,charStr
-				# IOCall Args:$VAR1 = [ 1, 'write', [
-				# 	27, [ 29(int), '0' ], [ 32(char), '*' ]
-				# ]
-				# ];
-				# IOList:$VAR1 = [
-				# 27, [ 4(-), [ 2($), 'ii' ], [ 29(int), '1' ] ],
-				# [ 10(@), 'charArray', [ 4(-), [ 2, 'ii' ], [ 29, '1' ] ] ], [ 29, '42' ], [ 2, 'charStr' ]
-				# ];
-
-				# write( *, fmt="(A1)",advance='no') '#'
-				# IOCall Args:$VAR1 = [ 1, 'write', [
-				# 	27, [ 32(char), '*' ], [ 34(Ph), '__PH2__' ],
-				# 	[
-				# 	9(=),
-				# 	[ 2($), 'advance' ], [ 34(Ph), '__PH0__' ]
-				# 	]
-				# ]
-				# ];
-				# IOList:$VAR1 = [ 34(Ph), '__PH1__' ];
-
-				# write( *, "(i2.2,a)",advance='no') 42,'x'
-				# IOCall Args:$VAR1 = [ 1, 'write', [
-				# 	27, [ 32(char), '*' ], [ 34(Ph), '__PH2__' ],
-				# 	[
-				# 	9(=),
-				# 	[ 2($), 'advance' ], [ 34(Ph), '__PH0__' ]
-				# 	]
-				# ]
-				# ];
-				# IOList:$VAR1 = [ 27, [ 29, '42' ], [ 34, '__PH1__' ] ];
-
-				# write( csu, fmt="(z2.2,A1)") 42,'x'
-				# IOCall Args:$VAR1 = [ 1(&), 'write', [
-				# 	27(,), [ 2($), 'csu' ], [ 34(Ph), '__PH1__' ]
-				# ]
-				# ];
-				# IOList:$VAR1 = [ 27, [ 29, '42' ], [ 34, '__PH0__' ] ];
-
-				# write( cs,"(A2)") '0x'
-				# IOCall Args:$VAR1 = [ 1, 'write', [
-				# 	27, [ 2, 'cs' ], [ 34, '__PH1__' ]
-				# ]
-				# ];
-				# IOList:$VAR1 = [ 34, '__PH0__' ];
 			} else {
 				say 'TODO: IOCall '.Dumper( $info->{'IOCall'}{'Args'}{'AST'})."\nIOList ".Dumper($info->{'IOList'}{'AST'});
 
@@ -1703,7 +1627,7 @@ sub _emit_list_print_Uxntal { my ($stref,$f,$line,$info,$unit,$advance,$list_to_
 		my $print_fn_Uxntal = _emit_print_from_ast($stref,$f,$line,$info,$unit,$elt);
 
 		my $arg_to_print_Uxntal =  _emit_expression_Uxntal($elt,$stref, $f, $info);
-		$line_Uxntal .= "$arg_to_print_Uxntal $print_fn_Uxntal"
+		$line_Uxntal .= "$arg_to_print_Uxntal $print_fn_Uxntal "
 	}
 	if ($advance eq 'yes') {
 		if ($unit eq 'STDOUT') {
@@ -1859,62 +1783,6 @@ sub _analyse_write_call { my ($stref,$f,$info)=@_;
 	}
 
 	return ($print_calls, $offsets, $unit, $advance);
-	# write(0,*) ii-1,charArray(ii-1),42,charStr
-	# [ 29(int), '0' ], [ 32(char), '*' ]
-
-	# write( *, fmt="(A1)",advance='no') '#'
-	#  [ 32(char), '*' ], [ 34(Ph), '__PH2__' ],
-	# 	[ 9(=), [ 2($), 'advance' ], [ 34(Ph), '__PH0__' ] 
-
-	# write( *, "(i2.2,a)",advance='no') 42,'x'
-	# [ 32(char), '*' ], [ 34(Ph), '__PH2__' ],
-	# [ 9(=), [ 2($), 'advance' ], [ 34(Ph), '__PH0__' ] 
-
-	# write( csu, fmt="(z2.2,A1)") 42,'x'
-	# [ 2($), 'csu' ], [ 34(Ph), '__PH1__' ]
-
-	# write( cs,"(A2)") '0x'
-	# [ 2($), 'cs' ], [ 34(Ph), '__PH1__' ]
-
-				# write(0,*) ii-1,charArray(ii-1),42,charStr
-				# IOCall Args: [
-				# 	27, [ 29(int), '0' ], [ 32(char), '*' ]
-				# ]
-
-				# IOList:$VAR1 = [
-				# 27, [ 4(-), [ 2($), 'ii' ], [ 29(int), '1' ] ],
-				# [ 10(@), 'charArray', [ 4(-), [ 2, 'ii' ], [ 29, '1' ] ] ], [ 29, '42' ], [ 2, 'charStr' ]
-				# ];
-
-				# write( *, fmt="(A1)",advance='no') '#'
-				# IOCall Args: [
-				# 	27, [ 32(char), '*' ], [ 34(Ph), '__PH2__' ],
-				# 	[ 9(=), [ 2($), 'advance' ], [ 34(Ph), '__PH0__' ] ]
-				# ]
-
-				# IOList:$VAR1 = [ 34(Ph), '__PH1__' ];
-
-				# write( *, "(i2.2,a)",advance='no') 42,'x'
-				# IOCall Args: [
-				# 	27, [ 32(char), '*' ], [ 34(Ph), '__PH2__' ],
-				# 	[ 9(=), [ 2($), 'advance' ], [ 34(Ph), '__PH0__' ] ]
-				# ]
-
-				# IOList:$VAR1 = [ 27, [ 29, '42' ], [ 34, '__PH1__' ] ];
-
-				# write( csu, fmt="(z2.2,A1)") 42,'x'
-				# IOCall Args:$VAR1 = [
-				# 	27, [ 2($), 'csu' ], [ 34(Ph), '__PH1__' ]
-				# ]
-
-				# IOList:$VAR1 = [ 27, [ 29, '42' ], [ 34, '__PH0__' ] ];
-
-				# write( cs,"(A2)") '0x'
-				# IOCall Args: [
-				# 	27, [ 2, 'cs' ], [ 34, '__PH1__' ]
-				# ]
-
-				# IOList:$VAR1 = [ 34, '__PH0__' ];
 } # END of _analyse_write_call
 # -----------------------------------------------------------------------------
 # This call returns unit, fmt or advance. Could in principle return any attribute
@@ -2036,7 +1904,14 @@ sub __parse_fmt { my ($fmt_str) = @_;
 } # END of __parse_fmt
 
 sub __emit_list_based_print_write { my ($stref,$f,$line,$info,$unit, $advance) = @_;
-	my $ast = $info->{'IOCall'}{'Args'}{'AST'};
+# carp Dumper $info->{'IOCall'}{'Args'}{'AST'};
+	my $ast =  $info->{'IO'} eq 'print' 
+		? $info->{'IOCall'}{'Args'}{'AST'}
+		:  [1,'write',[27,[32,'*'],@{ $info->{'IOList'}{'AST'} }[
+			1 .. 
+			scalar  @{ $info->{'IOList'}{'AST'} } - 1
+			] ] ]
+		;
 	my $c_line = '';
 	# list-oriented print
 	if (ref($ast->[2][1]) eq 'ARRAY' and $ast->[2][1][1] eq '*') {
