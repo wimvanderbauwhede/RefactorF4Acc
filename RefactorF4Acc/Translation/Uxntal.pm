@@ -526,13 +526,13 @@ Instead of the nice but cumbersome approach we had until now, from now on it is 
 				say "PRINT: $line";
 				$c_line = __emit_list_based_print_write($stref,$f,$line,$info, '*','yes');
 				say "UXNTAL: $c_line";
-			} elsif (exists $info->{'WriteCall'}) { 
+			} elsif (exists $info->{'WriteCall'}) {
 				my $call_ast = $info->{'IOCall'}{'Args'}{'AST'};
 				my $iolist_ast = $info->{'IOList'}{'AST'};
 				# say 'WRITE: IOCall Args:'.Dumper($call_ast),'IOList:',Dumper($iolist_ast);
 				say "WRITE: $line";
 				my ($print_calls, $offsets, $unit, $advance) = _analyse_write_call($stref,$f,$info);
-				if (scalar @{$print_calls} == 1 and 
+				if (scalar @{$print_calls} == 1 and
 					(
 						$print_calls->[0] eq 'print-list' or
 						$print_calls->[0] eq 'print-list-stderr'
@@ -540,14 +540,14 @@ Instead of the nice but cumbersome approach we had until now, from now on it is 
 				) {
 					$c_line = __emit_list_based_print_write($stref,$f,$line,$info, $unit,$advance);
 					say "UXNTAL SINGLE WRITE: $c_line";
-				} else { 
+				} else {
 					# if ($unit eq 'STDOUT' or $unit eq 'STDERR') {
 						my $c_line = '';
 						my $maybe_str = ($unit eq 'STDOUT' or $unit eq 'STDERR')? '' : ";$unit ";
 						my $idx=1;
 						for my $print_call (@{$print_calls}) {
-							my $maybe_offset= $maybe_str ne '' ? 
-							$offsets->[$idx-1] == 0 
+							my $maybe_offset= $maybe_str ne '' ?
+							$offsets->[$idx-1] == 0
 								? ''
 								: toHex( $offsets->[$idx-1],2).' ADD2 ' : '';
 							my $arg_ast = [];
@@ -1759,7 +1759,7 @@ sub _analyse_write_call { my ($stref,$f,$info)=@_;
 			my $attr = __analyse_write_call_arg($stref,$f,$info,$arg_ast,$i);
 			++$i;
 			if ($attr->[0] eq 'fmt') {
-				($print_calls,$offsets) = __parse_fmt($attr->[1]);
+				($print_calls,$offsets) = __parse_fmt($attr->[1],$info);
 			}
 			elsif ($attr->[0] eq 'unit') {
 				$unit = $attr->[1];
@@ -1848,19 +1848,25 @@ sub __analyse_write_call_arg { my ($stref,$f,$info,$arg,$i) = @_;
 } # END of __analyse_write_call_arg
 # -----------------------------------------------------------------------------
 # returs a list of the types to be printed.
-# I only support I, A, L and Z. 
+# I only support I, A, L and Z.
 # For A, if it is >1 it is a string, else a character.
 # What I return is the list of required print calls
-sub __parse_fmt { my ($fmt_str) = @_;
+# w.m means a width of w characters, showing m digits
+# w>m is an error
+# w<m pads upfront with spaces
+# if the field is too small, a string of w `*`s is returned
+sub __parse_fmt { my ($fmt_str,$info) = @_;
 
 	my @chunks = split(/\s*,\s*/,$fmt_str);
 	my $print_calls=[];
 	my $offsets=[0];
 	my $offset=0;
+	croak 'INFO:',Dumper($info->{'IOList'}{'AST'});
 	for my $chunk (@chunks) {
 		my $c=uc(substr($chunk,0,1));
 		my $nchars=substr($chunk,1);
-		$nchars=~s/\.\d+$//;
+		$nchars=~s/\.(\d+)$//;
+		my $ndigits = $1 // $nchars;
 		if ( $c eq 'I' ) {
 			push @{$print_calls}, 'print-int';
 			$offset+=max(2,$nchars);
@@ -1905,10 +1911,10 @@ sub __parse_fmt { my ($fmt_str) = @_;
 
 sub __emit_list_based_print_write { my ($stref,$f,$line,$info,$unit, $advance) = @_;
 # carp Dumper $info->{'IOCall'}{'Args'}{'AST'};
-	my $ast =  $info->{'IO'} eq 'print' 
+	my $ast =  $info->{'IO'} eq 'print'
 		? $info->{'IOCall'}{'Args'}{'AST'}
 		:  [1,'write',[27,[32,'*'],@{ $info->{'IOList'}{'AST'} }[
-			1 .. 
+			1 ..
 			scalar  @{ $info->{'IOList'}{'AST'} } - 1
 			] ] ]
 		;
@@ -1934,7 +1940,7 @@ sub __emit_list_based_print_write { my ($stref,$f,$line,$info,$unit, $advance) =
 		$c_line='';
 		for my $arg_ast (@{$call_arg_list}) {
 			my $print_call = shift @{$print_call_list};
-			$c_line.= _emit_expression_Uxntal($arg_ast,$stref, $f, $info).' '.$print_call."\n";	
+			$c_line.= _emit_expression_Uxntal($arg_ast,$stref, $f, $info).' '.$print_call."\n";
 		}
 	}
 	return $c_line;
