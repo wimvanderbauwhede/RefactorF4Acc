@@ -548,7 +548,7 @@ Instead of the nice but cumbersome approach we had until now, from now on it is 
 						for my $print_call (@{$print_calls}) {
 							my $maybe_offset= $maybe_str ne '' ?
 							$offsets->[$idx-1] == 0
-								? ''
+								? ' #0002 ADD2 ' # because the first two bytes of a string are its length
 								: toHex( $offsets->[$idx-1],2).' ADD2 ' : '';
 							my $arg_ast = [];
 							if ($iolist_ast->[0] == 27) {
@@ -1855,18 +1855,35 @@ sub __analyse_write_call_arg { my ($stref,$f,$info,$arg,$i) = @_;
 # w>m is an error
 # w<m pads upfront with spaces
 # if the field is too small, a string of w `*`s is returned
+# I am not going to do this.
+# I will simply use m and ignore w
 sub __parse_fmt { my ($fmt_str,$info) = @_;
 
 	my @chunks = split(/\s*,\s*/,$fmt_str);
 	my $print_calls=[];
 	my $offsets=[0];
 	my $offset=0;
-	croak 'INFO:',Dumper($info->{'IOList'}{'AST'});
+	my $chunk_idx=1;
 	for my $chunk (@chunks) {
 		my $c=uc(substr($chunk,0,1));
 		my $nchars=substr($chunk,1);
-		$nchars=~s/\.(\d+)$//;
-		my $ndigits = $1 // $nchars;
+		if ($nchars=~/^\d\.(\d)$/) {
+			$nchars=$1;
+		} elsif ($nchars=~/^(\d)$/) {
+			$nchars=$1;
+		} else {
+			# croak 'INFO:',Dumper($info->{'IOList'}{'AST'},$info->{'PlaceHolders'});
+			if ($info->{'IOList'}{'AST'}[0]==27) {
+				# more than one argument
+				my $val_ast = $info->{'IOList'}{'AST'}[$chunk_idx];
+				$nchars = __get_len_from_AST($val_ast,$info->{'PlaceHolders'});
+
+			} else {
+				my $val_ast = $info->{'IOList'}{'AST'}[0];
+				$nchars = __get_len_from_AST($val_ast,$info->{'PlaceHolders'});
+			}
+		}
+		# warn "NCHARS: $nchars";
 		if ( $c eq 'I' ) {
 			push @{$print_calls}, 'print-int';
 			$offset+=max(2,$nchars);
@@ -1905,10 +1922,32 @@ sub __parse_fmt { my ($fmt_str,$info) = @_;
 			die "Unsupported FMT: $chunk\n";
 		}
 		push @{$offsets},$offset;
+		$chunk_idx++;
 	}
 	return ($print_calls,$offsets);
 } # END of __parse_fmt
 
+sub __get_len_from_AST { my ($val_ast, $phs) = @_;
+#                29         30      31         32           33         34             35       36
+#              ,'integer', 'real', 'logical', 'character', 'complex', 'PlaceHolder', 'Label', 'BLANK'
+	if ($val_ast->[0] == 29) {
+		return length($val_ast->[1].'');
+	} elsif ($val_ast->[0] == 30) {
+		return length($val_ast->[1].'');
+	} elsif ($val_ast->[0] == 31) {
+		return 1;
+	} elsif ($val_ast->[0] == 32) {
+		return 1;
+	} elsif ($val_ast->[0] == 33) {
+		return length($val_ast->[1].'');
+	} elsif ($val_ast->[0] == 34) {
+		return length($phs->{$val_ast->[1]});
+	} elsif ($val_ast->[0] == 35) {
+		return length($val_ast->[1].'');
+	} elsif ($val_ast->[0] == 36) {
+		return length($val_ast->[1].'');
+	}
+}
 sub __emit_list_based_print_write { my ($stref,$f,$line,$info,$unit, $advance) = @_;
 # carp Dumper $info->{'IOCall'}{'Args'}{'AST'};
 	my $ast =  $info->{'IO'} eq 'print'
