@@ -59,7 +59,7 @@ our @sigils = ('(', '&', '$', 'ADD', 'SUB', 'MUL', 'DIV', 'mod', 'pow', '=', '@'
 # TODO This needs to be changed so that only the used functions are emitted
 my $lib_lines = [
 	'( TODO LIBRARIES )',
-
+	'~../../../uxntal-libs/fmt-print.tal',
 	'( now obsolete )',
 	'@print-list',
     'ROT ROT SWP',
@@ -89,8 +89,8 @@ DUP ,&true JCN
 ',
 
 '( this assumes 2-byte integers )
-@print-int #18 write-int
-@print-int-stderr #19 write-int
+( @print-int #18 write-int
+@print-int-stderr #19 write-int )
 
 @write-int ( w* unit -- )
 STH
@@ -197,7 +197,7 @@ sub translate_module_decls_to_Uxntal { (my $stref, my $mod_name) = @_;
 
     my $pass_emit_module_declarations = sub { (my $annline, my $state)=@_;
         (my $line,my $info)=@{$annline};
-		say "MOD LINE: <$line>";
+		# say "MOD LINE: <$line>";
         my $c_line=$line;
         (my $stref, my $mod_name, my $pass_state)=@{$state};
         my $skip=1;
@@ -409,7 +409,7 @@ Instead of the nice but cumbersome approach we had until now, from now on it is 
 # --------------------------------------------------------------------------------------------
 	my $pass_translate_to_Uxntal = sub { (my $annline, my $state)=@_;
 		(my $line,my $info)=@{$annline};
-		my $c_line=$line;
+		my $c_line="( TODO $line )";
 		(my $stref, my $f, my $pass_state)=@{$state};
         my $id = $info->{'LineID'};
 		my $skip=0;
@@ -523,14 +523,14 @@ Instead of the nice but cumbersome approach we had until now, from now on it is 
 		}
 		elsif (exists $info->{'IOCall'}) {
 			if (exists $info->{'PrintCall'}) {
-				say "PRINT: $line";
+				# say "PRINT: $line";
 				$c_line = __emit_list_based_print_write($stref,$f,$line,$info, '*','yes');
-				say "UXNTAL: $c_line";
+				# say "UXNTAL: $c_line";
 			} elsif (exists $info->{'WriteCall'}) {
 				my $call_ast = $info->{'IOCall'}{'Args'}{'AST'};
 				my $iolist_ast = $info->{'IOList'}{'AST'};
 				# say 'WRITE: IOCall Args:'.Dumper($call_ast),'IOList:',Dumper($iolist_ast);
-				say "WRITE: $line";
+				# say "WRITE: $line";
 				my ($print_calls, $offsets, $unit, $advance) = _analyse_write_call($stref,$f,$info);
 				if (scalar @{$print_calls} == 1 and
 					(
@@ -539,11 +539,13 @@ Instead of the nice but cumbersome approach we had until now, from now on it is 
 					)
 				) {
 					$c_line = __emit_list_based_print_write($stref,$f,$line,$info, $unit,$advance);
-					say "UXNTAL SINGLE WRITE: $c_line";
+					# say "UXNTAL SINGLE WRITE: $c_line";
 				} else {
 					# if ($unit eq 'STDOUT' or $unit eq 'STDERR') {
-						my $c_line = '';
-						my $maybe_str = ($unit eq 'STDOUT' or $unit eq 'STDERR')? '' : ";$unit ";
+						$c_line = '';
+						my $maybe_str = ($unit eq 'STDOUT' or $unit eq 'STDERR')? '' : 
+						_emit_expression_Uxntal([32,$unit],$stref, $f, $info);
+						# ";$unit ";
 						my $idx=1;
 						for my $print_call (@{$print_calls}) {
 							my $maybe_offset= $maybe_str ne '' ?
@@ -564,13 +566,13 @@ Instead of the nice but cumbersome approach we had until now, from now on it is 
 							}
 							$c_line.= $arg_exp_Uxntal.' '.$maybe_str.$maybe_offset.$print_call." ";
 						}
-						say "UXNTAL: $c_line";
+						# say "UXNTAL: $c_line";
 					# } else {
 					# 	carp 'TODO STRING:'.Dumper($unit, $advance, $print_calls, $iolist_ast);
 					# }
 				}
 			} else {
-				say 'TODO: IOCall '.Dumper( $info->{'IOCall'}{'Args'}{'AST'})."\nIOList ".Dumper($info->{'IOList'}{'AST'});
+				croak 'TODO: IOCall '.Dumper( $info->{'IOCall'}{'Args'}{'AST'})."\nIOList ".Dumper($info->{'IOList'}{'AST'});
 
 			}
 		}
@@ -1252,7 +1254,7 @@ sub _emit_expression_Uxntal { my ($ast, $stref, $f, $info)=@_;
 						croak 'MODULE PAR: _'.$exp;
 					}
 					else {
-						return ';'.$f.'_'.$exp.' LDA' . ($wordsz==1 ? '' : '2' );#.' ( LOCAL ) ';
+						return ';'.$f.'_'.$exp.' LDA' . ($wordsz==1 ? '' : '2' ).' ';#.' ( LOCAL ) ';
 					}
 				} else { # not local variables
 					if ($exp eq '.true.') {
