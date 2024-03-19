@@ -963,8 +963,8 @@ sub _emit_assignment_Uxntal { (my $stref, my $f, my $info, my $pass_state)=@_;
 
 	# my $rline = $info->{'Indent'}.$lhs.' = '.$rhs_stripped;
 	my $lhs_post = $lhs;
-	$lhs_post =~s/LDA$/STA/;
-	$lhs_post =~s/LDA2$/STA2/;
+	$lhs_post =~s/LDA\s*$/STA /;
+	$lhs_post =~s/LDA2\s*$/STA2 /;
 
 	my $rline = $info->{'Indent'} . $rhs_stripped . ' ( = ) '. $lhs_post;
 	if (exists $info->{'If'}) {
