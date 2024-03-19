@@ -548,10 +548,11 @@ Instead of the nice but cumbersome approach we had until now, from now on it is 
 						# ";$unit ";
 						my $idx=1;
 						for my $print_call (@{$print_calls}) {
-							my $maybe_offset= $maybe_str ne '' ?
-							$offsets->[$idx-1] == 0
-								? ' #0002 ADD2 ' # because the first two bytes of a string are its length
-								: toHex( $offsets->[$idx-1],2).' ADD2 ' : '';
+							my $maybe_offset= $maybe_str ne '' 
+								? $offsets->[$idx-1] == 0
+									? '' 
+									: toHex( $offsets->[$idx-1],2).' ADD2 ' 
+								: '';
 							my $arg_ast = [];
 							if ($iolist_ast->[0] == 27) {
 								# warn "$line: $print_call: ".Dumper($iolist_ast->[$idx++]);
