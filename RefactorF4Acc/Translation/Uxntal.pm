@@ -90,7 +90,7 @@ DUP ,&true JCN
 
 '( this assumes 2-byte integers )
 ( @print-int #18 write-int
-@print-int-stderr #19 write-int )
+@print-int-stderr #19 !write-int )
 
 @write-int ( w* unit -- )
 STH
@@ -116,8 +116,8 @@ JMP2r
 ',
 
 '( this assumes a string with structure `{ 0006 "hello 0a } STH2r` )
-@print-string ( {str}* -- ) #18 write-string
-@print-string-stderr ( {str}* -- ) #19 write-string
+@print-string ( {str}* -- ) #18 !write-string
+@print-string-stderr ( {str}* -- ) #19 !write-string
 
 @write-string ( {str}* unit -- )
 	STH
@@ -128,7 +128,9 @@ JMP2r
     &l ( -- )
     LDAk STHrk DEO
         INC2 GTH2k ?&l
-        POP2 POP2 JMP2r
+        POP2 POP2 
+	POPr
+JMP2r
 ',
 
 '@len LDA2 JMP2r'
@@ -1985,7 +1987,13 @@ sub __emit_list_based_print_write { my ($stref,$f,$line,$info,$unit, $advance) =
 			$c_line.= _emit_expression_Uxntal($arg_ast,$stref, $f, $info).' '.$print_call."\n";
 		}
 	}
-	return $c_line;
+	if ($unit eq 'STDERR') {
+		return $c_line . ' #0a #19 DEO';
+	}
+	else {
+		return $c_line . ' #0a #18 DEO';
+	}
+
 } # END of __emit_list_based_print_write
 
 
