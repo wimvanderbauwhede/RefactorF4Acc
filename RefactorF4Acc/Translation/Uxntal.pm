@@ -883,9 +883,10 @@ sub _emit_var_decl_Uxntal { (my $stref,my $f,my $info,my $var)=@_;
 		# croak "$subset $f ". Dumper( $decl) if $var eq 'funktalGlobalCharArray';
 		my $dim= $array  ? __C_array_size($decl->{'Dim'}) : 1;
 		my $ftype = $decl->{'Type'};
+		my $strlen=0;
 		if ($ftype eq 'character') {
 			if (exists $decl->{'Attr'} and $decl->{'Attr'} ne '') {
-				my $strlen = $decl->{'Attr'};
+				$strlen = $decl->{'Attr'};
 				$strlen=~s/len=//;
 				$strlen=~s/^\(//;
 				$strlen=~s/\)$//;
@@ -894,7 +895,7 @@ sub _emit_var_decl_Uxntal { (my $stref,my $f,my $info,my $var)=@_;
 			}
 		}
 		my $fkind = $decl->{'Attr'};
-		if (ref ($ftype) eq 'HASH') {
+		if (ref($ftype) eq 'HASH') {
 			if (exists $ftype->{'Kind'}) {
 				$fkind = $ftype->{'Kind'};
 			}
@@ -909,10 +910,18 @@ sub _emit_var_decl_Uxntal { (my $stref,my $f,my $info,my $var)=@_;
 			croak "$f $var ".Dumper($decl);
 		}
 		# toUxntalType($ftype,$fkind)*$dim;
-		my $padding = toRawHex($sz*$dim,2);
-		$padding =~s/^0+//;
-		my $c_var_decl =  '@'.$f.'_'.$var.' $'. $padding;
-		return ($stref,$c_var_decl);
+		if (($ftype eq 'character') and ($strlen >1)) {
+			my $len = toRawHex($strlen,2);
+			my $padding = $len;
+			$padding =~s/^0+//;
+			my $c_var_decl = '@'.$f.'_'.$var.' '.$len.' $'. $padding;
+			return ($stref,$c_var_decl);
+		} else {
+			my $padding = toRawHex($sz*$dim,2);
+			$padding =~s/^0+//;
+			my $c_var_decl = '@'.$f.'_'.$var.' $'. $padding;
+			return ($stref,$c_var_decl);
+		}
 	}
 } # END of _emit_var_decl_Uxntal
 
@@ -1040,7 +1049,7 @@ sub _emit_expression_Uxntal { my ($ast, $stref, $f, $info)=@_;
 	my $Sf = $stref->{'Subroutines'}{$f};
 
     if (ref($ast) eq 'ARRAY') {
-        if (scalar @{$ast}==3) {
+        if (scalar @{$ast}==3) { # e.g. ['@','v',['$','i']]
 			# Uxn does not have pow or mod so these would have to be functions
 			if ($ast->[0] == 8) { # eq '^'
 				(my $op, my $arg1, my $arg2) = @{$ast};
@@ -1112,17 +1121,17 @@ sub _emit_expression_Uxntal { my ($ast, $stref, $f, $info)=@_;
 								my $decl = get_var_record_from_set($stref->{'Subroutines'}{$f}{'Vars'},$name);
 								if ($decl->{'ArrayOrScalar'} eq 'Array') {
 									my $dims =  $decl->{'Dim'};
-									my $maybe_amp = $has_slices ? '&' : '';
+									# my $maybe_amp = $has_slices ? '&' : '';
 									my $ndims = scalar @{$dims};
 
-									my @ranges=();
-									my @lower_bounds=();
-									for my $boundspair (@{$dims}) {
-										(my $lb, my $hb)=@{$boundspair };
-										push @ranges, "(($hb - $lb )+1)";
-										push @lower_bounds, $lb;
-									}
-									if ($ndims==1) {
+									# my @ranges=();
+									# my @lower_bounds=();
+									# for my $boundspair (@{$dims}) {
+									# 	(my $lb, my $hb)=@{$boundspair };
+									# 	push @ranges, "(($hb - $lb )+1)";
+									# 	push @lower_bounds, $lb;
+									# }
+									if ($ndims==1) { # access to a 1-D array, v(i)
 										return ';'.$qual_vname.($is_arg? ' LDA2': '').' '.$args_lst[0].' ADD2 LDA'.($wordsz==1?'':'2');
 									} elsif ($ndims==0 and $decl->{'Type'} eq 'character') {
 										my $cb = _emit_expression_Uxntal($ast->[2][1], $stref, $f,$info);
@@ -1212,6 +1221,7 @@ sub _emit_expression_Uxntal { my ($ast, $stref, $f, $info)=@_;
 					my $sz=2;
 					if ($exp=~s/_([1248])$//) { $sz=$1}
 					$exp = toHex($exp,$sz);
+					# croak "CONST EXP: $exp";
 				}
 				my $mvar = $ast->[1]; # Why is this not $exp?
 				# croak "PROBLEM: $mvar <> $exp " if $mvar ne $exp;
@@ -1246,18 +1256,28 @@ sub _emit_expression_Uxntal { my ($ast, $stref, $f, $info)=@_;
 						# If the variable in question is 'Out' or 'InOut' we should use the pointer
 
 					}
-
-					if ( in_nested_set($Sf,'Parameters',$exp)) {
+					croak "$mvar $exp" if $mvar ne $exp;
+					if ( in_nested_set($Sf,'Parameters',$mvar)) {
 						# What is lacking here is a check in the container.
-						return $f.'_'.$exp;
+						return $f.'_'.$mvar;
 					}
 
-					elsif ( in_nested_set($Sf,'ModuleParameters',$exp)) {
+					elsif ( in_nested_set($Sf,'ModuleParameters',$mvar)) {
 						# What is lacking here is a check in the container.
-						croak 'MODULE PAR: _'.$exp;
+						croak 'MODULE PAR: _'.$mvar;
 					}
 					else {
-						return ';'.$f.'_'.$exp.' LDA' . ($wordsz==1 ? '' : '2' ).' ';#.' ( LOCAL ) ';
+						# But if the variable is a string, we should not do LDA
+						# and if it is not a var, there should not be LDA either
+						# if ($mvar =~ /^[a-zA-Z_]/) {
+						my $qual_vname = $f.'_'.$mvar;
+						my $subset = in_nested_set($Sf,'Vars',$mvar);
+						my $decl = get_var_record_from_set($Sf->{$subset},$mvar);
+						if (isString($decl) or isArray($decl)) {
+							return ';'.$qual_vname.' ';
+						} else {
+							return ';'.$f.'_'.$mvar.' LDA' . ($wordsz==1 ? '' : '2' ).' ';#.' ( LOCAL ) ';
+						}
 					}
 				} else { # not local variables
 					if ($exp eq '.true.') {
@@ -1996,7 +2016,22 @@ sub __emit_list_based_print_write { my ($stref,$f,$line,$info,$unit, $advance) =
 
 } # END of __emit_list_based_print_write
 
+sub isArray { my ($rec) = @_;
+		return ($rec->{'ArrayOrScalar'} eq 'Array') ? 1 : 0;
+}
 
+sub isString { my ($rec) = @_;
+
+	my $is_array = $rec->{'ArrayOrScalar'} eq 'Array';
+	my $is_string = 0;
+	if (not $is_array  and $rec->{'Type'} eq 'character') {
+		if ($rec->{'Attr'}=~/len=(.+?)/) {
+			my $len = $1;
+			$is_string = $len ne '1';
+		}
+	}
+	return $is_string
+}
 # -----------------------------------------------------------------------------
 sub add_to_C_build_sources {
     ( my $f, my $stref ) = @_;
