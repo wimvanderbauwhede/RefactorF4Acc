@@ -115,25 +115,25 @@ DUP2
 JMP2r
 ',
 
-'( this assumes a string with structure `{ 0006 "hello 0a } STH2r` )
-@print-string ( {str}* -- ) #18 !write-string
-@print-string-stderr ( {str}* -- ) #19 !write-string
+# '( this assumes a string with structure `{ 0006 "hello 0a } STH2r` )
+# @print-string ( {str}* -- ) #18 !write-string
+# @print-string-stderr ( {str}* -- ) #19 !write-string
 
-@write-string ( {str}* unit -- )
-	STH
-    DUP2 LDA2 ( str len )
-    SWP2 ( len str )
-    INC2 INC2 DUP2  ( len str+2 str+2 )
-    ROT2 ADD2 SWP2 ( str+2+len str+2 )
-    &l ( -- )
-    LDAk STHrk DEO
-        INC2 GTH2k ?&l
-        POP2 POP2 
-	POPr
-JMP2r
-',
+# @write-string ( {str}* unit -- )
+# 	STH
+#     DUP2 LDA2 ( str len )
+#     SWP2 ( len str )
+#     INC2 INC2 DUP2  ( len str+2 str+2 )
+#     ROT2 ADD2 SWP2 ( str+2+len str+2 )
+#     &l ( -- )
+#     LDAk STHrk DEO
+#         INC2 GTH2k ?&l
+#         POP2 POP2 
+# 	POPr
+# JMP2r
+# ',
 
-'@len LDA2 JMP2r'
+# '@len LDA2 JMP2r'
 
 
 ];
@@ -977,6 +977,9 @@ sub _emit_assignment_Uxntal { (my $stref, my $f, my $info, my $pass_state)=@_;
 	my $lhs_post = $lhs;
 	$lhs_post =~s/LDA\s*$/STA /;
 	$lhs_post =~s/LDA2\s*$/STA2 /;
+	if ($lhs_post !~/STA/) {
+		$lhs_post .= ' STA2 ( must be string! ) ';
+	}
 
 	my $rline = $info->{'Indent'} . $rhs_stripped . ' ( = ) '. $lhs_post;
 	if (exists $info->{'If'}) {
@@ -1639,6 +1642,7 @@ sub isStrCmp { my ($ast, $stref, $f,$info) =@_;
 # returns the Uxntal string with the print instructions
 sub _emit_list_print_Uxntal { my ($stref,$f,$line,$info,$unit,$advance,$list_to_print) = @_;
 	my $Sf = $stref->{'Subroutines'}{$f};
+	my $port = ($unit eq 'STDERR') ? '#19' : '#18';
 # so for every elt in the list, we must work out if it is
 #  - an integer
 # - a character
@@ -1652,7 +1656,7 @@ sub _emit_list_print_Uxntal { my ($stref,$f,$line,$info,$unit,$advance,$list_to_
 		my $print_fn_Uxntal = _emit_print_from_ast($stref,$f,$line,$info,$unit,$elt);
 
 		my $arg_to_print_Uxntal =  _emit_expression_Uxntal($elt,$stref, $f, $info);
-		$line_Uxntal .= "$arg_to_print_Uxntal $print_fn_Uxntal "
+		$line_Uxntal .= "$arg_to_print_Uxntal $print_fn_Uxntal #20 $port DEO ( , )\n"
 	}
 	if ($advance eq 'yes') {
 		if ($unit eq 'STDOUT') {
@@ -1975,6 +1979,7 @@ sub __get_len_from_AST { my ($val_ast, $phs) = @_;
 }
 sub __emit_list_based_print_write { my ($stref,$f,$line,$info,$unit, $advance) = @_;
 # carp Dumper $info->{'IOCall'}{'Args'}{'AST'};
+my $port = $unit eq 'STDERR' ? '#19' : '#18';
 	my $ast =  $info->{'IO'} eq 'print'
 		? $info->{'IOCall'}{'Args'}{'AST'}
 		:  [1,'write',[27,[32,'*'],@{ $info->{'IOList'}{'AST'} }[
@@ -2004,15 +2009,15 @@ sub __emit_list_based_print_write { my ($stref,$f,$line,$info,$unit, $advance) =
 		$c_line='';
 		for my $arg_ast (@{$call_arg_list}) {
 			my $print_call = shift @{$print_call_list};
-			$c_line.= _emit_expression_Uxntal($arg_ast,$stref, $f, $info).' '.$print_call."\n";
+			$c_line.= _emit_expression_Uxntal($arg_ast,$stref, $f, $info).' '.$print_call. " #20 $port DEO"."\n";
 		}
 	}
-	if ($unit eq 'STDERR') {
-		return $c_line . ' #0a #19 DEO';
-	}
-	else {
-		return $c_line . ' #0a #18 DEO';
-	}
+	# if ($unit eq 'STDERR') {
+		return $c_line . " #0a $port DEO";
+	# }
+	# else {
+	# 	return $c_line . ' #0a #18 DEO'."  ( unit: <$unit> ) ";
+	# }
 
 } # END of __emit_list_based_print_write
 
