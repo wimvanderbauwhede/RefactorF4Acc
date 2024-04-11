@@ -531,7 +531,8 @@ sub in_nested_set { (my $set, my $set_key, my $var)=@_;
     }
 } # END of in_nested_set
 
-# For a set with subsets, this get the var records from all subsets
+# For a set with subsets, this gets the var records from all subsets
+# returns a set
 #our $indent=1;
 sub get_vars_from_set { (my $set)=@_;
     my $vars={};

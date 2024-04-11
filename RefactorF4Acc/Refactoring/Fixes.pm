@@ -1290,11 +1290,11 @@ sub __has_module_level_declaration { my ($stref,$f,$var)=@_;
 				__check_for_decl_in_used_modules($stref,$f,$mod_name,$var);
 			}
 		}
-	} 
+	}
 		my $nested_set = in_nested_set($stref->{'Subroutines'}{$f}, 'Vars', $var);
 		if (not defined $nested_set) { croak "$f $var" }
 		return ('',$nested_set);
-	
+
 
 } # __has_module_level_declaration
 
