@@ -25,11 +25,11 @@ I think the read only matters if it is
 - an in(out) arg of a routine that has out args that are subsequently used
 But 
 
-subroutine fib(n,nfib)
+recursive subroutine fib(n,nfib)
 	integer, intent(in) :: n
 	integer, intent(out) :: nfib
-	integer :: nm1, nm2
-	if (<1) then 
+	integer :: nm1, nm2, m
+	if (n<1) then 
 		nfib = 1
 	else
 		call fib(n-1,nm1)
@@ -48,13 +48,31 @@ _link_writes_to_reads() in Analysis::ArrayAccessPatterns has something like this
 "The 'Links' table lists all input args on which an output arg depends."
 
 * What I need here is: given the out or inout arguments of a recursive call, does any out or inout argument depend on them via a link *after* the call
+* But is this also not the case for variables that are not used as args? Yes, this is for any local variable and presumably any inout arg as these can also be used for rw. But it only matters if they are used, i.e. an out or inout depends on them or they are used as in or inout to an IO call; or in fact maybe any other call, because the call could modify a global variable.
+
 * And this should include subroutine calls, not just assignments.
+
+
+
 For and assignment, we check:
-- if the RHS an inout or out from the recursive call? If so, add it to the links entry for the LHS
+- Add any var to the links entry for the LHS UNLESS it had been written to already
 - is it a var in the links table? Also add an entry for the LHS
 - If the LHS is an (in)out arg, we are done: it's not tail recursive
-- if we have a subroutine call, if any of the ins or inouts is an out or inout from a recursive call, then any out or inout needs to be added to the links table; if any of these outs or inouts is an (in)out arg, we are done.
-- When we reach the end, if there is any entry in the links table for an (in)out arg, it's not tail recursive
+For subroutine calls: call f(in1, inout2, inout3, out4,in5, out6) is equivalent to
+out6 = f6(in1,inout2, inout3, in5)
+out4 = f4(in1,inout2, inout3, in5)
+inout3 = f3(in1,inout2, inout3, in5)
+inout2 = f2(in1,inout2, inout3, in5)
+In other words, all outs and inouts are assumed to depend on all ins and inout
+
+So I go trough all AnnLines and for each Assignment or SubroutineCall I check for the vars used as (in)out args of the recursive call. If there is more than one recursive call, it starts from the first and the others are treated as ordinary calls.
+
+The result should be a table with, for any var use as a key, a set of vars on which it depends.
+
+What about vars that depend on themselves? 
+v = v+x 
+this is still a read before write and we can skip v on the RHS
+
 =cut
 
 use vars qw( $VERSION );
