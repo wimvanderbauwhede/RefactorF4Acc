@@ -66,32 +66,99 @@ inout2 = f2(in1,inout2, inout3, in5)
 In other words, all outs and inouts are assumed to depend on all ins and inout
 
 So I go trough all AnnLines and for each Assignment or SubroutineCall I check for the vars used as (in)out args of the recursive call. If there is more than one recursive call, it starts from the first and the others are treated as ordinary calls.
-
+=cut 
 # preliminary: create a set of all local vars and args in the subroutine
-
-my %all_args_local_vars = ( %{ $stref->{'Subroutines'}{$csub}{'DeclaredOrigLocalVars'}{'Set'} },
+sub analyse_recursion($stref,$f){
+	my %all_args_local_vars = ( %{ $stref->{'Subroutines'}{$csub}{'DeclaredOrigLocalVars'}{'Set'} },
 					%{ $stref->{'Subroutines'}{$csub}{'DeclaredOrigArgs'}{'Set'} } );
 
 # Crucially, we need a "written before read test". The rhs value must be a global or constant, otherwise it is a dependency.
-my $links={};
-for my $annline ( @annlines ) {
-	(my $line,my $info) = @{$annline};
-	if (exists $info->{'Assignment'}) {
+# Now, this is a little more complicated: suppose we have a variable that is not a constant, but it is set to a constant anywhere upstream.
+# Then we should mark that var as const until it is set to a non-constant. I think it means we put it in $dependency_free, and remove it if needed.
+
+
+# But if we encounter this, then the lhs can be removed from the vars to check. So I need a set $dependency_free.
+
+	my $pass_analyse_recursion = sub($annline,$state) {
+		(my $line,my $info)=@{$annline};
+		if ($state->{'AfterRecursiveCall'} == -1) {
+			$state->{'AfterRecursiveCall'} = 1;
+		}
+
+		if (exists $info->{'Assignment'}) {
 		# find RHS vars that are local or args
-		# link them up with LHS vars that are local or args:
-		$links->{$lhs_var}{$rhs_var}=1|2|3|4; 1= array arg 2= scalar arg 3 = array local 4 = scalar local
+			my $lhs_var = $info->{'Lhs'}{'VarName'} ;
+			for my $rhs_var (@{ $info->{'Rhs'}{'Vars'}{'List'} } ) {
+				if (exists $all_args_local_vars->{$rhs_var} and not exists $state->{'DependencyFree'}{$rhs_var}) {
+					$state->{'Links'}{$lhs_var}{$rhs_var}=1; # TODO different categories
+				}
+			}
+			if (not exists $state->{'Links'}{$lhs_var}) {
+				$state->{'DependencyFree'}{$lhs_var} = 1;
+			} else {
+				if (_isOutArg($stref,$f,$lhs_var)) {
+					$state->{'Used'}{$lhs_var}=1;
+					$state->{'TailCall'}=0;
+				}
+			}
+		}
+		elsif (exists $info->{'If'}) {
+			for my $var (@{$info->{'Cond'}{'Vars'}{'List'}}) {
+				if (exists $all_args_local_vars->{$var} and not exists $state->{'DependencyFree'}{$var}) {
+					# This means the variable is used after a recursive call
+					$state->{'Used'}{$var}=1;
+					$state->{'TailCall'}=0;
+				}
+			}
+		}
+		elsif (exists $info->{'Do'} ) {
+			if (scalar @{$info->{'Do'}{'Range'}{'Vars'}}>0 ) {
+				for my $var (@{$info->{'Do'}{'Range'}{'Vars'}}) {
+					if (exists $all_args_local_vars->{$var} and not exists $state->{'DependencyFree'}{$var}) {
+						# This means the variable is used after a recursive call
+						$state->{'Used'}{$var}=1;
+						$state->{'TailCall'}=0;
+					}
+				}
+			}
+		}
+		elsif (exists $info->{'SubroutineCall'}) {
+			my $csubname =  $info->{'SubroutineCall'}{'Name'};
+			if ($csubname eq $f) {
+				if ($state->{'AfterRecursiveCall'} == 0) {
+					$state->{'AfterRecursiveCall'} = -1;
+				}
+			}
+			my @in_args = (); # contains the inouts as well
+			my @out_args = (); # contains the inouts as well
+			for my $sig_arg (sort keys %{ $info->{'SubroutineCall'}{'ArgMap'} }) {
+				my $call_arg = $info->{'SubroutineCall'}{'ArgMap'}{$sig_arg};
+				if( _isOutArg($stref,$f,$sig_arg) and exists $all_args_local_vars->{$call_arg} ) {
+					push @out_args,$call_arg;
+				}
+				if( _isInArg($stref,$f,$sig_arg) and exists $all_args_local_vars->{$call_arg} ) {
+					push @in_args,$call_arg;
+				}
+			}
 
-	}
-	elsif (exists $info->{'If'}) {
-		
-	}
-	elsif (exists $info->{'SubroutineCall'}) {
-		
-	}
+		}
 
 
-}
 
+	
+
+		return ([$annline],$state);
+	};
+
+	my $state={'Links'=>{},'DependencyFree'=>{},'AfterRecursiveCall'=>0,'Used'=>{},'TailCall'=>1}; 
+ 	($stref,$state) = stateful_pass_inplace($stref,$f,$pass_analyse_recursion, $state,'pass_analyse_recursion' . __LINE__  ) ;
+	 
+
+
+	return $stref;
+} # END of analyse_recursion
+
+=pod 
 The result should be a table with, for any var use as a key, a set of vars on which it depends.
 
 What about vars that depend on themselves? 
@@ -132,7 +199,7 @@ use Exporter;
 
 
 # -----------------------------------------------------------------------------
-sub analyse_recursion { (my $stref, my $f)=@_;
+sub analyse_recursion_NOGOOD { (my $stref, my $f)=@_;
 
 		my @all_args_local_vars =  sort ( keys %{
             get_vars_from_set($stref->{'Subroutines'}{ $f }{'Args'})
@@ -272,6 +339,12 @@ my $pass_check_reads_writes = sub { (my $annline, my $reads_writes)=@_;
 	 return $reads_writes;
 } # END of __check_reads_writes
 
+sub _isOutArg($stref,$f,$arg){
+	return $stref->{'Subroutines'}{$f}{'DeclaredOrigArgs'}{'Set'}{$arg}{'IODir'} =~/(?:in)?out/i ? 1 : 0
+}
 
+sub _isInArg($stref,$f,$arg){
+	return $stref->{'Subroutines'}{$f}{'DeclaredOrigArgs'}{'Set'}{$arg}{'IODir'} =~/in(?:out)?/i ? 1 : 0
+}
 
 1;
