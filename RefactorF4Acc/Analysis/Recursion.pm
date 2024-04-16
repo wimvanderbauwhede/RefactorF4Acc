@@ -4,6 +4,36 @@ package RefactorF4Acc::Analysis::Recursion;
 #   (c) 2024 Wim Vanderbauwhede <Wim.Vanderbauwhede@Glasgow.ac.uk>
 #
 
+use vars qw( $VERSION );
+$VERSION = "5.1.0";
+
+use warnings;
+use warnings FATAL => qw(uninitialized);
+use strict;
+
+use v5.20;
+use feature qw(signatures);
+no warnings qw(experimental::signatures);
+
+# use RefactorF4Acc::Config;
+# use RefactorF4Acc::Utils;
+# use RefactorF4Acc::F95SpecWords qw( %F95_assoc_intrinsic_functions );
+# use RefactorF4Acc::Utils::Functional;
+# use RefactorF4Acc::Refactoring::FoldConstants qw( fold_constants );
+# use RefactorF4Acc::Analysis::VarAccessAnalysis qw( analyseAllVarAccesses );
+# use RefactorF4Acc::Parser::Expressions qw( _traverse_ast_with_stateful_action );
+use Carp;
+use Data::Dumper;
+# use Storable qw( dclone );
+
+use Exporter;
+
+@RefactorF4Acc::Analysis::Recursion::ISA = qw(Exporter);
+
+@RefactorF4Acc::Analysis::Recursion::EXPORT_OK = qw(
+    analyse_recursion
+);
+
 =pod
 Analyse a subroutine to determine if it is tail recursive or not.
 
@@ -69,8 +99,8 @@ So I go trough all AnnLines and for each Assignment or SubroutineCall I check fo
 =cut 
 # preliminary: create a set of all local vars and args in the subroutine
 sub analyse_recursion($stref,$f){
-	my %all_args_local_vars = ( %{ $stref->{'Subroutines'}{$csub}{'DeclaredOrigLocalVars'}{'Set'} },
-					%{ $stref->{'Subroutines'}{$csub}{'DeclaredOrigArgs'}{'Set'} } );
+	my $all_args_local_vars = { %{ $stref->{'Subroutines'}{$f}{'DeclaredOrigLocalVars'}{'Set'} },
+					%{ $stref->{'Subroutines'}{$f}{'DeclaredOrigArgs'}{'Set'} } };
 
 # Crucially, we need a "written before read test". The rhs value must be a global or constant, otherwise it is a dependency.
 # Now, this is a little more complicated: suppose we have a variable that is not a constant, but it is set to a constant anywhere upstream.
@@ -86,19 +116,28 @@ sub analyse_recursion($stref,$f){
 		}
 
 		if (exists $info->{'Assignment'}) {
-		# find RHS vars that are local or args
+			# find RHS vars that are local or args
 			my $lhs_var = $info->{'Lhs'}{'VarName'} ;
 			for my $rhs_var (@{ $info->{'Rhs'}{'Vars'}{'List'} } ) {
 				if (exists $all_args_local_vars->{$rhs_var} and not exists $state->{'DependencyFree'}{$rhs_var}) {
 					$state->{'Links'}{$lhs_var}{$rhs_var}=1; # TODO different categories
 				}
 			}
+			# If the RHS has no local vars or args, or they are dependency-free, the LHS is also dependency-free
 			if (not exists $state->{'Links'}{$lhs_var}) {
 				$state->{'DependencyFree'}{$lhs_var} = 1;
 			} else {
-				if (_isOutArg($stref,$f,$lhs_var)) {
-					$state->{'Used'}{$lhs_var}=1;
-					$state->{'TailCall'}=0;
+				# If there are links
+				if ($state->{'AfterRecursiveCall'} == 1) {
+					# If the LHS is an out arg, and there are links, then we're done
+					if (_isOutArg($stref,$f,$lhs_var)) {
+						$state->{'Used'}{$lhs_var}=1;
+						$state->{'TailCall'}=0;
+						say "LINE $line: $lhs_var is used in $f after recursive call, so not a tail call";
+					}
+				} else {
+					# Only links after the recursive call make sense
+					delete $state->{'Links'}{$lhs_var};
 				}
 			}
 		}
@@ -108,6 +147,7 @@ sub analyse_recursion($stref,$f){
 					# This means the variable is used after a recursive call
 					$state->{'Used'}{$var}=1;
 					$state->{'TailCall'}=0;
+					say "LINE $line: $var is used in $f after recursive call, so not a tail call";
 				}
 			}
 		}
@@ -118,6 +158,7 @@ sub analyse_recursion($stref,$f){
 						# This means the variable is used after a recursive call
 						$state->{'Used'}{$var}=1;
 						$state->{'TailCall'}=0;
+						say "LINE $line: $var is used in $f after recursive call, so not a tail call";
 					}
 				}
 			}
@@ -129,32 +170,62 @@ sub analyse_recursion($stref,$f){
 					$state->{'AfterRecursiveCall'} = -1;
 				}
 			}
-			my @in_args = (); # contains the inouts as well
-			my @out_args = (); # contains the inouts as well
-			for my $sig_arg (sort keys %{ $info->{'SubroutineCall'}{'ArgMap'} }) {
-				my $call_arg = $info->{'SubroutineCall'}{'ArgMap'}{$sig_arg};
-				if( _isOutArg($stref,$f,$sig_arg) and exists $all_args_local_vars->{$call_arg} ) {
-					push @out_args,$call_arg;
+			if ($state->{'AfterRecursiveCall'} == 1) {
+				my @in_args = (); # contains the inouts as well
+				my @out_args = (); # contains the inouts as well
+				for my $sig_arg (sort keys %{ $info->{'SubroutineCall'}{'ArgMap'} }) {
+					my $call_arg = $info->{'SubroutineCall'}{'ArgMap'}{$sig_arg};
+
+					if ($info->{'SubroutineCall'}{'Args'}{'Set'}{$call_arg}{'Type'} eq 'Expr') {
+						my $ast = $info->{'SubroutineCall'}{'Args'}{'Set'}{$call_arg}{'AST'};
+						my $vars = get_vars_from_expression( $ast, {} );
+						for my $expr_var (sort keys %{$vars}) {
+							if( _isOutArg($stref,$f,$sig_arg) and exists $all_args_local_vars->{$expr_var} ) {
+								push @out_args,$expr_var;
+							}
+							if( _isInArg($stref,$f,$sig_arg) and exists $all_args_local_vars->{$expr_var} ) {
+								push @in_args,$expr_var;
+							}
+						}
+					} else {
+						if( _isOutArg($stref,$f,$sig_arg) and exists $all_args_local_vars->{$call_arg} ) {
+							push @out_args,$call_arg;
+						}
+						if( _isInArg($stref,$f,$sig_arg) and exists $all_args_local_vars->{$call_arg} ) {
+							push @in_args,$call_arg;
+						}
+					}
+
 				}
-				if( _isInArg($stref,$f,$sig_arg) and exists $all_args_local_vars->{$call_arg} ) {
-					push @in_args,$call_arg;
+				# Any input arg to a subroutine call is Used
+				for my $in_arg (@in_args) {
+					$state->{'Used'}{$in_arg}=1;
+					$state->{'TailCall'}=0;
+					say "LINE $line: $in_arg is used in call to $csubname in $f after recursive call, so not a tail call";
+				}
+				for my $out_arg( @out_args) {
+					# Any output arg of the caller is Used.
+					if (_isOutArg($stref,$f,$out_arg) ) {
+						$state->{'Used'}{$out_arg}=1;
+						$state->{'TailCall'}=0;
+						say "LINE $line: $out_arg is an Out arg of $f used in call to $csubname in $f after recursive call, so not a tail call";
+					} else {
+						# Other vars go in the Links table.
+						for my $in_arg (@in_args) {
+							$state->{'Links'}{$out_arg}{$in_arg}=1;
+						}
+					}
 				}
 			}
-
 		}
-
-
-
-	
 
 		return ([$annline],$state);
 	};
 
 	my $state={'Links'=>{},'DependencyFree'=>{},'AfterRecursiveCall'=>0,'Used'=>{},'TailCall'=>1}; 
  	($stref,$state) = stateful_pass_inplace($stref,$f,$pass_analyse_recursion, $state,'pass_analyse_recursion' . __LINE__  ) ;
-	 
 
-
+	# We check here. If TailCall is still 1, we need to look at Links
 	return $stref;
 } # END of analyse_recursion
 
@@ -166,178 +237,6 @@ v = v+x
 this is still a read before write and we can skip v on the RHS
 
 =cut
-
-use vars qw( $VERSION );
-$VERSION = "5.1.0";
-
-use warnings;
-use warnings FATAL => qw(uninitialized);
-use strict;
-
-use v5.20;
-use feature qw(signatures);
-no warnings qw(experimental::signatures);
-
-use RefactorF4Acc::Config;
-use RefactorF4Acc::Utils;
-use RefactorF4Acc::F95SpecWords qw( %F95_assoc_intrinsic_functions );
-use RefactorF4Acc::Utils::Functional;
-use RefactorF4Acc::Refactoring::FoldConstants qw( fold_constants );
-use RefactorF4Acc::Analysis::VarAccessAnalysis qw( analyseAllVarAccesses );
-use RefactorF4Acc::Parser::Expressions qw( _traverse_ast_with_stateful_action );
-use Carp;
-use Data::Dumper;
-use Storable qw( dclone );
-
-use Exporter;
-
-@RefactorF4Acc::Analysis::Recursion::ISA = qw(Exporter);
-
-@RefactorF4Acc::Analysis::Recursion::EXPORT_OK = qw(
-    analyse_recursion
-);
-
-
-# -----------------------------------------------------------------------------
-sub analyse_recursion_NOGOOD { (my $stref, my $f)=@_;
-
-		my @all_args_local_vars =  sort ( keys %{
-            get_vars_from_set($stref->{'Subroutines'}{ $f }{'Args'})
-        },
-        keys %{
-            get_vars_from_set($stref->{'Subroutines'}{ $f }{'OrigLocalVars'})
-        }
-        );
-
-        my $is_non_tail_recursive = 0;
-		for my $var (@all_args_local_vars) {
-			for my $csub_info (@call_sequence) {
-				my $csub = $csub_info->{'Name'};
-				my $csub_argmap = $csub_info->{'ArgMap'};
-				# I use the ArgMap, which is SigArg => CallArg
-				# So for a given CallArg, I must find the corresponding SigArg(s); in principle there can me more than one.
-				# my $csub_args = $stref->{'Subroutines'}{ $csub }{'DeclaredOrigArgs'}{'Set'};
-				my $sig_args = find_keys_for_value($csub_argmap,$var);
-				for my $sig_arg (@{$sig_args}) {
-					# See if $sig_arg was written to before it was read.
-					# If it was read first, we need to keep it, else we don't need it for this subroutine
-					my $written_before_read = __check_written_before_read($sig_arg, $stref, $csub);
-					if (not $written_before_read) {
-						$vars_to_keep->{$var}=1;
-						last;
-					}
-					# As soon as we need to keep it for one subroutine, we can stop as we can't remove it.
-					# However, if the csub arg is inout, and we have a write-before-read, then any subsequent sub call can be ignored
-					# This is not the case if the csub arg is just in -- but I think we can't write to an in argument
-				}
-			}
-			my $written_before_read = __check_written_before_read($var, $stref, $f);
-			# say "KEEP: $var $written_before_read";
-			if (not $written_before_read) {
-				$vars_to_keep->{$var}=1;
-			}
-		}
-    return $is_non_tail_recursive;
-}
-
-sub _check_written_before_read { my ($in_arg, $stref, $f)=@_;
-
-	my $reads_writes=__check_reads_writes($in_arg, $stref, $f);
-
-	my $written_before_read = 0;
-	for my $rw (@{$reads_writes}) {
-		if ($rw eq 'w') {
-			$written_before_read=1;
-		}
-		last;
-	}
-	return $written_before_read;
-} # END of __check_written_before_read
-
-
-sub _check_read_before_written { my ($in_arg, $stref, $f)=@_;
-
-	my $reads_writes=__check_reads_writes($in_arg, $stref, $f);
-
-	my $read_before_written = 0;
-	for my $rw (@{$reads_writes}) {
-		if ($rw eq 'r') {
-			$read_before_written=1;
-		}
-		last;
-	}
-	return $read_before_written;
-} # END of __check_read_before_written
-
-sub _check_read_only { my ($in_arg, $stref, $f)=@_;
-
-	my $reads_writes=__check_reads_writes($in_arg, $stref, $f);
-
-	my $read_only = 1;
-	for my $rw (@{$reads_writes}) {
-		if ($rw eq 'w') {
-			$read_only=0;
-			last;
-		}
-	}
-	return $read_only;
-} # END of __check_read_only
-
-
-sub __check_reads_writes {  my ($arg, $stref, $f)=@_;
-
-# In practice we will not have IO calls in the kernels
-# Nor will we have subroutines calls
-# Function calls on RHS are OK
-# So all we need to check is Assignments, If, Do and Case
-# As per the F95 spec, CaseVals are constants
-my $pass_check_reads_writes = sub { (my $annline, my $reads_writes)=@_;
-		(my $line,my $info)=@{$annline};
-
-		if (exists $info->{'Assignment'} ) {
-
-			if (exists $info->{'Rhs'}{'Vars'}{'Set'}{$arg
-				}) {
-					 # $arg is Read
-					 push @{$reads_writes},'r';
-				 }
-			if ($info->{'Lhs'}{'VarName'} eq $arg
-			) {
-					 # $arg is Written
-					 push @{$reads_writes},'w';
-			}
-		}
-		elsif (exists $info->{'If'} ) {
-			if (exists $info->{'Cond'}{'Vars'}{'Set'}{$arg
-		}) {
-				# $arg is Read
-				push @{$reads_writes},'r';
-			}
-		}
-		elsif (exists $info->{'CaseVar'} ) {
-			if ($info->{'CaseVar'} eq $arg) {
-				# $arg is Read
-				push @{$reads_writes},'r';
-			}
-		}
-		elsif (exists $info->{'Do'} ) {
-			if (scalar @{$info->{'Do'}{'Range'}{'Vars'}}>0 ) {
-				for my $var (@{$info->{'Do'}{'Range'}{'Vars'}}) {
-					if ($arg eq $var) {
-						# $arg is Read
-						push @{$reads_writes},'r';
-					}
-				}
-			}
-		}
-
-		return ([$annline],$reads_writes);
-	};
-
-	my $reads_writes=[]; # sequence of 'r' and 'w'. And yes, I could use 0/1
- 	($stref,$reads_writes) = stateful_pass_inplace($stref,$f,$pass_check_reads_writes, $reads_writes,'pass_check_reads_writes' . __LINE__  ) ;
-	 return $reads_writes;
-} # END of __check_reads_writes
 
 sub _isOutArg($stref,$f,$arg){
 	return $stref->{'Subroutines'}{$f}{'DeclaredOrigArgs'}{'Set'}{$arg}{'IODir'} =~/(?:in)?out/i ? 1 : 0
