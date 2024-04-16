@@ -67,6 +67,31 @@ In other words, all outs and inouts are assumed to depend on all ins and inout
 
 So I go trough all AnnLines and for each Assignment or SubroutineCall I check for the vars used as (in)out args of the recursive call. If there is more than one recursive call, it starts from the first and the others are treated as ordinary calls.
 
+# preliminary: create a set of all local vars and args in the subroutine
+
+my %all_args_local_vars = ( %{ $stref->{'Subroutines'}{$csub}{'DeclaredOrigLocalVars'}{'Set'} },
+					%{ $stref->{'Subroutines'}{$csub}{'DeclaredOrigArgs'}{'Set'} } );
+
+# Crucially, we need a "written before read test". The rhs value must be a global or constant, otherwise it is a dependency.
+my $links={};
+for my $annline ( @annlines ) {
+	(my $line,my $info) = @{$annline};
+	if (exists $info->{'Assignment'}) {
+		# find RHS vars that are local or args
+		# link them up with LHS vars that are local or args:
+		$links->{$lhs_var}{$rhs_var}=1|2|3|4; 1= array arg 2= scalar arg 3 = array local 4 = scalar local
+
+	}
+	elsif (exists $info->{'If'}) {
+		
+	}
+	elsif (exists $info->{'SubroutineCall'}) {
+		
+	}
+
+
+}
+
 The result should be a table with, for any var use as a key, a set of vars on which it depends.
 
 What about vars that depend on themselves? 
