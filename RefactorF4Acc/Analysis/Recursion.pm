@@ -15,13 +15,15 @@ use v5.20;
 use feature qw(signatures);
 no warnings qw(experimental::signatures);
 
-# use RefactorF4Acc::Config;
+use RefactorF4Acc::Config;
 # use RefactorF4Acc::Utils;
 # use RefactorF4Acc::F95SpecWords qw( %F95_assoc_intrinsic_functions );
 # use RefactorF4Acc::Utils::Functional;
 # use RefactorF4Acc::Refactoring::FoldConstants qw( fold_constants );
 # use RefactorF4Acc::Analysis::VarAccessAnalysis qw( analyseAllVarAccesses );
-# use RefactorF4Acc::Parser::Expressions qw( _traverse_ast_with_stateful_action );
+use RefactorF4Acc::Parser::Expressions qw( get_vars_from_expression );
+use RefactorF4Acc::Refactoring::Helpers qw( stateful_pass_inplace stateless_pass_inplace );
+
 use Carp;
 use Data::Dumper;
 # use Storable qw( dclone );
@@ -36,6 +38,17 @@ use Exporter;
 
 =pod
 Analyse a subroutine to determine if it is tail recursive or not.
+
+This is currently not strong enough because a mutual recursion is not detected, only direct recursion
+TODO!
+To handle this, what we need is build a call chain and detect a loop. We do this somewhere. In fact, we do this in three modules:
+
+Analysis::Globals::_identify_inherited_exglobs_to_rename()
+Analysis::Globals::_rename_inherited_exglobs()
+Analysis::Arguments::determine_ExGlobArgs()
+Analysis::ArgumentIODirs::determine_argument_io_direction_rec()
+
+
 
 Tail recursive means that the recursive call is the last call in the subroutine. But it seems to me that
 
@@ -99,6 +112,13 @@ So I go trough all AnnLines and for each Assignment or SubroutineCall I check fo
 =cut 
 # preliminary: create a set of all local vars and args in the subroutine
 sub analyse_recursion($stref,$f){
+	say '=' x 80;
+	say  "analyse_recursion($f)";
+
+	$stref->{'CallStack'}=[];
+	$stref = check_recursive_call_chain( $stref, $f);
+if (not exists $stref->{'Subroutines'}{$f}{'Recursion'} or $stref->{'Subroutines'}{$f}{'Recursion'} ne 'CallChain') {
+
 	my $all_args_local_vars = { %{ $stref->{'Subroutines'}{$f}{'DeclaredOrigLocalVars'}{'Set'} },
 					%{ $stref->{'Subroutines'}{$f}{'DeclaredOrigArgs'}{'Set'} } };
 
@@ -112,6 +132,7 @@ sub analyse_recursion($stref,$f){
 	my $pass_analyse_recursion = sub($annline,$state) {
 		(my $line,my $info)=@{$annline};
 		if ($state->{'AfterRecursiveCall'} == -1) {
+			say "After a recursive call";
 			$state->{'AfterRecursiveCall'} = 1;
 		}
 
@@ -133,7 +154,7 @@ sub analyse_recursion($stref,$f){
 					if (_isOutArg($stref,$f,$lhs_var)) {
 						$state->{'Used'}{$lhs_var}=1;
 						$state->{'TailCall'}=0;
-						say "LINE $line: $lhs_var is used in $f after recursive call, so not a tail call";
+						say "$f: LINE $line: $lhs_var is used after recursive call, so not a tail call";
 					}
 				} else {
 					# Only links after the recursive call make sense
@@ -141,13 +162,13 @@ sub analyse_recursion($stref,$f){
 				}
 			}
 		}
-		elsif (exists $info->{'If'}) {
+		elsif (exists $info->{'If'} and $state->{'AfterRecursiveCall'} == 1) {
 			for my $var (@{$info->{'Cond'}{'Vars'}{'List'}}) {
 				if (exists $all_args_local_vars->{$var} and not exists $state->{'DependencyFree'}{$var}) {
 					# This means the variable is used after a recursive call
 					$state->{'Used'}{$var}=1;
 					$state->{'TailCall'}=0;
-					say "LINE $line: $var is used in $f after recursive call, so not a tail call";
+					say "$f: LINE $line: $var is used after recursive call, so not a tail call";
 				}
 			}
 		}
@@ -158,7 +179,7 @@ sub analyse_recursion($stref,$f){
 						# This means the variable is used after a recursive call
 						$state->{'Used'}{$var}=1;
 						$state->{'TailCall'}=0;
-						say "LINE $line: $var is used in $f after recursive call, so not a tail call";
+						say "$f: LINE $line: $var is used after recursive call, so not a tail call";
 					}
 				}
 			}
@@ -167,6 +188,7 @@ sub analyse_recursion($stref,$f){
 			my $csubname =  $info->{'SubroutineCall'}{'Name'};
 			if ($csubname eq $f) {
 				if ($state->{'AfterRecursiveCall'} == 0) {
+					say "$f: LINE $line: Found a recursive call";
 					$state->{'AfterRecursiveCall'} = -1;
 				}
 			}
@@ -201,14 +223,14 @@ sub analyse_recursion($stref,$f){
 				for my $in_arg (@in_args) {
 					$state->{'Used'}{$in_arg}=1;
 					$state->{'TailCall'}=0;
-					say "LINE $line: $in_arg is used in call to $csubname in $f after recursive call, so not a tail call";
+					say "$f: LINE $line: $in_arg is used in call to $csubname after recursive call, so not a tail call";
 				}
 				for my $out_arg( @out_args) {
 					# Any output arg of the caller is Used.
 					if (_isOutArg($stref,$f,$out_arg) ) {
 						$state->{'Used'}{$out_arg}=1;
 						$state->{'TailCall'}=0;
-						say "LINE $line: $out_arg is an Out arg of $f used in call to $csubname in $f after recursive call, so not a tail call";
+						say "$f: LINE $line: $out_arg is an Out arg of $f used in call to $csubname after recursive call, so not a tail call";
 					} else {
 						# Other vars go in the Links table.
 						for my $in_arg (@in_args) {
@@ -226,6 +248,16 @@ sub analyse_recursion($stref,$f){
  	($stref,$state) = stateful_pass_inplace($stref,$f,$pass_analyse_recursion, $state,'pass_analyse_recursion' . __LINE__  ) ;
 
 	# We check here. If TailCall is still 1, we need to look at Links
+	if ($state->{'TailCall'}==0) {
+		$stref->{'Subroutines'}{$f}{'Recursion'}='General';
+	} else {
+		say Dumper($state->{'Links'});
+	}
+	if ($state->{'AfterRecursiveCall'} == 0) {
+		$stref->{'Subroutines'}{$f}{'Recursion'}='No';
+	}
+	}
+	say "$f: ".$stref->{'Subroutines'}{$f}{'Recursion'}." recursion";
 	return $stref;
 } # END of analyse_recursion
 
@@ -239,11 +271,60 @@ this is still a read before write and we can skip v on the RHS
 =cut
 
 sub _isOutArg($stref,$f,$arg){
-	return $stref->{'Subroutines'}{$f}{'DeclaredOrigArgs'}{'Set'}{$arg}{'IODir'} =~/(?:in)?out/i ? 1 : 0
+	if (exists $stref->{'Subroutines'}{$f}{'DeclaredOrigArgs'}{'Set'}{$arg}) {
+		return $stref->{'Subroutines'}{$f}{'DeclaredOrigArgs'}{'Set'}{$arg}{'IODir'} =~/(?:in)?out/i ? 1 : 0
+	} else {
+		return 0
+	}
 }
 
 sub _isInArg($stref,$f,$arg){
-	return $stref->{'Subroutines'}{$f}{'DeclaredOrigArgs'}{'Set'}{$arg}{'IODir'} =~/in(?:out)?/i ? 1 : 0
+	if (exists $stref->{'Subroutines'}{$f}{'DeclaredOrigArgs'}{'Set'}{$arg}) {
+		return $stref->{'Subroutines'}{$f}{'DeclaredOrigArgs'}{'Set'}{$arg}{'IODir'} =~/in(?:out)?/i ? 1 : 0
+	} else {
+		return 0
+	}
 }
+
+# We do a recusive descent for all called subroutines, and for the leaves we do the analysis
+sub check_recursive_call_chain( $stref, $f) {
+local $V=1;
+    my $c;
+    if ($V) {
+        $c = (defined $stref->{'Counter'}) ? $stref->{'Counter'} : 0;
+        print "\t" x $c, $f, "\n";
+    }
+
+    push @{ $stref->{'CallStack'} }, $f;
+    my %subs = map {$_=>1} @{ $stref->{'CallStack'} }; 
+
+    my $Sf = $stref->{'Subroutines'}{$f};
+
+    if (exists $Sf->{'CalledSubs'}{'List'} and scalar @{$Sf->{'CalledSubs'}{'List'}} > 0) {
+        for my $called_sub_or_entry (@{$Sf->{'CalledSubs'}{'List'}}) {
+            my $calledsub = $called_sub_or_entry;
+            if (exists $stref->{'Entries'}{$called_sub_or_entry}) {
+                $calledsub = $stref->{'Entries'}{$called_sub_or_entry};
+            }
+            next if exists $stref->{'ExternalSubroutines'}{$calledsub};    # Don't descend into external subs
+            if (exists $subs{$calledsub}) {
+                # if (not exists $stref->{'Subroutines'}{$calledsub}{'Recursive'}) {
+				if ($calledsub ne $f) {
+					say "$f: Recursive call chain ($calledsub)".Dumper($stref->{'CallStack'});
+					$stref->{'Subroutines'}{$calledsub}{'Recursion'} = 'CallChain';
+					return $stref;
+                }
+				next;
+			}
+            $stref->{'Counter'}++ if $V;
+            $stref = check_recursive_call_chain($stref, $calledsub);
+            $stref->{'Counter'}-- if $V;
+        }
+    }
+    print "\t" x $c, "--------\n" if $V;
+
+    pop  @{ $stref->{'CallStack'} };
+    return $stref;
+} # END of check_recursive_call_chain()
 
 1;

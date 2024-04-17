@@ -62,13 +62,11 @@ sub _identify_inherited_exglobs_to_rename {
 	    {
 	        for my $csub ( @{ $Sf->{'CalledSubs'}{'List'} }) {
 				if (exists $subs{$csub}) {
-				# say "WARNING: _identify_inherited_exglobs_to_rename: LOOP for $csub: ".join(', ', @{ $stref->{'CallStack'} }) if $W;
-				if (not exists $stref->{'Subroutines'}{$csub}{'Recursive'}) {
-					warning( "CALL LOOP for $csub in $f. This does not conform to the ANSI X3.9-1978 standard, proceed at your peril!" ,1);
-					warning( '<'.join(', ', @{ $stref->{'CallStack'} }).'>', 2);
-				}
-				# croak Dumper sort keys %{$stref->{'Subroutines'}{$csub}};
-				next;
+					if (not exists $stref->{'Subroutines'}{$csub}{'Recursive'}) {
+						warning( "CALL LOOP for $csub in $f. This does not conform to the ANSI X3.9-1978 standard, proceed at your peril!" ,1);
+						warning( '<'.join(', ', @{ $stref->{'CallStack'} }).'>', 2);
+					}
+					next;
 				}
 	       		say "CALL TO  $csub from $f" if $V;
 	            $stref = _identify_inherited_exglobs_to_rename($stref, $csub );

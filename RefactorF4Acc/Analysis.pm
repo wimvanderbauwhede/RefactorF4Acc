@@ -19,9 +19,9 @@ use RefactorF4Acc::Analysis::Globals qw( rename_exglobs_if_required );
 use RefactorF4Acc::Refactoring::Helpers qw( get_f95_var_decl );
 use RefactorF4Acc::Refactoring::BlockData qw( add_BLOCK_DATA_call_after_last_VarDecl );
 use RefactorF4Acc::Refactoring::Functions qw(add_function_var_decls_from_calls );
-# WORK IN PROGRESS
-use RefactorF4Acc::Analysis::CommonBlocks qw( analyse_common_blocks );
 
+use RefactorF4Acc::Analysis::CommonBlocks qw( analyse_common_blocks );
+use RefactorF4Acc::Analysis::Recursion qw( analyse_recursion );
 #
 #   (c) 2010-2017 Wim Vanderbauwhede <wim@dcs.gla.ac.uk>
 #
@@ -230,7 +230,17 @@ sub analyse_all {
 
 	}
 
-# ================================================================================================================================
+# Analyse for recursion. Need to refine this and extend to mutual recursion
+
+	for my $f ( keys %{ $stref->{'Subroutines'} } ) {
+		next if $f eq '';
+		if (exists $stref->{'Entries'}{$f}) {
+			next;
+		}
+		$stref = analyse_recursion( $stref, $f );
+
+	}
+# ==============================================================================================================
 	$stref = analyse_common_blocks($stref);
 # croak Dumper($stref->{'Subroutines'}{'genmap'}{ExGlobArgs});
 # carp 'OCC5d:'.$stref->{'Subroutines'}{'genmap'}{DeclaredCommonVars}{Set}{w1}{Type};
