@@ -117,64 +117,53 @@ sub analyse_recursion($stref,$f){
 
 	$stref->{'CallStack'}=[];
 	$stref = check_recursive_call_chain( $stref, $f);
-if (not exists $stref->{'Subroutines'}{$f}{'Recursion'} or $stref->{'Subroutines'}{$f}{'Recursion'} ne 'CallChain') {
+	if (not exists $stref->{'Subroutines'}{$f}{'Recursion'} or $stref->{'Subroutines'}{$f}{'Recursion'} ne 'Call-chain') {
 
-	my $all_args_local_vars = { %{ $stref->{'Subroutines'}{$f}{'DeclaredOrigLocalVars'}{'Set'} },
-					%{ $stref->{'Subroutines'}{$f}{'DeclaredOrigArgs'}{'Set'} } };
+		my $all_args_local_vars = { %{ $stref->{'Subroutines'}{$f}{'DeclaredOrigLocalVars'}{'Set'} },
+						%{ $stref->{'Subroutines'}{$f}{'DeclaredOrigArgs'}{'Set'} } };
 
-# Crucially, we need a "written before read test". The rhs value must be a global or constant, otherwise it is a dependency.
-# Now, this is a little more complicated: suppose we have a variable that is not a constant, but it is set to a constant anywhere upstream.
-# Then we should mark that var as const until it is set to a non-constant. I think it means we put it in $dependency_free, and remove it if needed.
+	# Crucially, we need a "written before read test". The rhs value must be a global or constant, otherwise it is a dependency.
+	# Now, this is a little more complicated: suppose we have a variable that is not a constant, but it is set to a constant anywhere upstream.
+	# Then we should mark that var as const until it is set to a non-constant. I think it means we put it in $dependency_free, and remove it if needed.
 
 
-# But if we encounter this, then the lhs can be removed from the vars to check. So I need a set $dependency_free.
+	# But if we encounter this, then the lhs can be removed from the vars to check. So I need a set $dependency_free.
 
-	my $pass_analyse_recursion = sub($annline,$state) {
-		(my $line,my $info)=@{$annline};
-		if ($state->{'AfterRecursiveCall'} == -1) {
-			say "After a recursive call";
-			$state->{'AfterRecursiveCall'} = 1;
-		}
-
-		if (exists $info->{'Assignment'}) {
-			# find RHS vars that are local or args
-			my $lhs_var = $info->{'Lhs'}{'VarName'} ;
-			for my $rhs_var (@{ $info->{'Rhs'}{'Vars'}{'List'} } ) {
-				if (exists $all_args_local_vars->{$rhs_var} and not exists $state->{'DependencyFree'}{$rhs_var}) {
-					$state->{'Links'}{$lhs_var}{$rhs_var}=1; # TODO different categories
-				}
+		my $pass_analyse_recursion = sub($annline,$state) {
+			(my $line,my $info)=@{$annline};
+			if ($state->{'AfterRecursiveCall'} == -1) {
+				say "After a recursive call";
+				$state->{'AfterRecursiveCall'} = 1;
 			}
-			# If the RHS has no local vars or args, or they are dependency-free, the LHS is also dependency-free
-			if (not exists $state->{'Links'}{$lhs_var}) {
-				$state->{'DependencyFree'}{$lhs_var} = 1;
-			} else {
-				# If there are links
-				if ($state->{'AfterRecursiveCall'} == 1) {
-					# If the LHS is an out arg, and there are links, then we're done
-					if (_isOutArg($stref,$f,$lhs_var)) {
-						$state->{'Used'}{$lhs_var}=1;
-						$state->{'TailCall'}=0;
-						say "$f: LINE $line: $lhs_var is used after recursive call, so not a tail call";
+
+			if (exists $info->{'Assignment'}) {
+				# find RHS vars that are local or args
+				my $lhs_var = $info->{'Lhs'}{'VarName'} ;
+				for my $rhs_var (@{ $info->{'Rhs'}{'Vars'}{'List'} } ) {
+					if (exists $all_args_local_vars->{$rhs_var} and not exists $state->{'DependencyFree'}{$rhs_var}) {
+						$state->{'Links'}{$lhs_var}{$rhs_var}=1; # TODO different categories
 					}
+				}
+				# If the RHS has no local vars or args, or they are dependency-free, the LHS is also dependency-free
+				if (not exists $state->{'Links'}{$lhs_var}) {
+					$state->{'DependencyFree'}{$lhs_var} = 1;
 				} else {
-					# Only links after the recursive call make sense
-					delete $state->{'Links'}{$lhs_var};
+					# If there are links
+					if ($state->{'AfterRecursiveCall'} == 1) {
+						# If the LHS is an out arg, and there are links, then we're done
+						if (_isOutArg($stref,$f,$lhs_var)) {
+							$state->{'Used'}{$lhs_var}=1;
+							$state->{'TailCall'}=0;
+							say "$f: LINE $line: $lhs_var is used after recursive call, so not a tail call";
+						}
+					} else {
+						# Only links after the recursive call make sense
+						delete $state->{'Links'}{$lhs_var};
+					}
 				}
 			}
-		}
-		elsif (exists $info->{'If'} and $state->{'AfterRecursiveCall'} == 1) {
-			for my $var (@{$info->{'Cond'}{'Vars'}{'List'}}) {
-				if (exists $all_args_local_vars->{$var} and not exists $state->{'DependencyFree'}{$var}) {
-					# This means the variable is used after a recursive call
-					$state->{'Used'}{$var}=1;
-					$state->{'TailCall'}=0;
-					say "$f: LINE $line: $var is used after recursive call, so not a tail call";
-				}
-			}
-		}
-		elsif (exists $info->{'Do'} ) {
-			if (scalar @{$info->{'Do'}{'Range'}{'Vars'}}>0 ) {
-				for my $var (@{$info->{'Do'}{'Range'}{'Vars'}}) {
+			elsif (exists $info->{'If'} and $state->{'AfterRecursiveCall'} == 1) {
+				for my $var (@{$info->{'Cond'}{'Vars'}{'List'}}) {
 					if (exists $all_args_local_vars->{$var} and not exists $state->{'DependencyFree'}{$var}) {
 						# This means the variable is used after a recursive call
 						$state->{'Used'}{$var}=1;
@@ -183,79 +172,94 @@ if (not exists $stref->{'Subroutines'}{$f}{'Recursion'} or $stref->{'Subroutines
 					}
 				}
 			}
-		}
-		elsif (exists $info->{'SubroutineCall'}) {
-			my $csubname =  $info->{'SubroutineCall'}{'Name'};
-			if ($csubname eq $f) {
-				if ($state->{'AfterRecursiveCall'} == 0) {
-					say "$f: LINE $line: Found a recursive call";
-					$state->{'AfterRecursiveCall'} = -1;
-				}
-			}
-			if ($state->{'AfterRecursiveCall'} == 1) {
-				my @in_args = (); # contains the inouts as well
-				my @out_args = (); # contains the inouts as well
-				for my $sig_arg (sort keys %{ $info->{'SubroutineCall'}{'ArgMap'} }) {
-					my $call_arg = $info->{'SubroutineCall'}{'ArgMap'}{$sig_arg};
-
-					if ($info->{'SubroutineCall'}{'Args'}{'Set'}{$call_arg}{'Type'} eq 'Expr') {
-						my $ast = $info->{'SubroutineCall'}{'Args'}{'Set'}{$call_arg}{'AST'};
-						my $vars = get_vars_from_expression( $ast, {} );
-						for my $expr_var (sort keys %{$vars}) {
-							if( _isOutArg($stref,$f,$sig_arg) and exists $all_args_local_vars->{$expr_var} ) {
-								push @out_args,$expr_var;
-							}
-							if( _isInArg($stref,$f,$sig_arg) and exists $all_args_local_vars->{$expr_var} ) {
-								push @in_args,$expr_var;
-							}
-						}
-					} else {
-						if( _isOutArg($stref,$f,$sig_arg) and exists $all_args_local_vars->{$call_arg} ) {
-							push @out_args,$call_arg;
-						}
-						if( _isInArg($stref,$f,$sig_arg) and exists $all_args_local_vars->{$call_arg} ) {
-							push @in_args,$call_arg;
+			elsif (exists $info->{'Do'} ) {
+				if (scalar @{$info->{'Do'}{'Range'}{'Vars'}}>0 ) {
+					for my $var (@{$info->{'Do'}{'Range'}{'Vars'}}) {
+						if (exists $all_args_local_vars->{$var} and not exists $state->{'DependencyFree'}{$var}) {
+							# This means the variable is used after a recursive call
+							$state->{'Used'}{$var}=1;
+							$state->{'TailCall'}=0;
+							say "$f: LINE $line: $var is used after recursive call, so not a tail call";
 						}
 					}
+				}
+			}
+			elsif (exists $info->{'SubroutineCall'}) {
+				my $csubname =  $info->{'SubroutineCall'}{'Name'};
+				if ($csubname eq $f) {
+					if ($state->{'AfterRecursiveCall'} == 0) {
+						say "$f: LINE $line: Found a recursive call";
+						$state->{'AfterRecursiveCall'} = -1;
+					}
+				}
+				if ($state->{'AfterRecursiveCall'} == 1) {
+					my @in_args = (); # contains the inouts as well
+					my @out_args = (); # contains the inouts as well
+					for my $sig_arg (sort keys %{ $info->{'SubroutineCall'}{'ArgMap'} }) {
+						my $call_arg = $info->{'SubroutineCall'}{'ArgMap'}{$sig_arg};
 
-				}
-				# Any input arg to a subroutine call is Used
-				for my $in_arg (@in_args) {
-					$state->{'Used'}{$in_arg}=1;
-					$state->{'TailCall'}=0;
-					say "$f: LINE $line: $in_arg is used in call to $csubname after recursive call, so not a tail call";
-				}
-				for my $out_arg( @out_args) {
-					# Any output arg of the caller is Used.
-					if (_isOutArg($stref,$f,$out_arg) ) {
-						$state->{'Used'}{$out_arg}=1;
+						if ($info->{'SubroutineCall'}{'Args'}{'Set'}{$call_arg}{'Type'} eq 'Expr') {
+							my $ast = $info->{'SubroutineCall'}{'Args'}{'Set'}{$call_arg}{'AST'};
+							my $vars = get_vars_from_expression( $ast, {} );
+							for my $expr_var (sort keys %{$vars}) {
+								if( _isOutArg($stref,$f,$sig_arg) and exists $all_args_local_vars->{$expr_var} ) {
+									push @out_args,$expr_var;
+								}
+								if( _isInArg($stref,$f,$sig_arg) and exists $all_args_local_vars->{$expr_var} ) {
+									push @in_args,$expr_var;
+								}
+							}
+						} else {
+							if( _isOutArg($stref,$f,$sig_arg) and exists $all_args_local_vars->{$call_arg} ) {
+								push @out_args,$call_arg;
+							}
+							if( _isInArg($stref,$f,$sig_arg) and exists $all_args_local_vars->{$call_arg} ) {
+								push @in_args,$call_arg;
+							}
+						}
+
+					}
+					# Any input arg to a subroutine call is Used
+					for my $in_arg (@in_args) {
+						$state->{'Used'}{$in_arg}=1;
 						$state->{'TailCall'}=0;
-						say "$f: LINE $line: $out_arg is an Out arg of $f used in call to $csubname after recursive call, so not a tail call";
-					} else {
-						# Other vars go in the Links table.
-						for my $in_arg (@in_args) {
-							$state->{'Links'}{$out_arg}{$in_arg}=1;
+						say "$f: LINE $line: $in_arg is used in call to $csubname after recursive call, so not a tail call";
+					}
+					for my $out_arg( @out_args) {
+						# Any output arg of the caller is Used.
+						if (_isOutArg($stref,$f,$out_arg) ) {
+							$state->{'Used'}{$out_arg}=1;
+							$state->{'TailCall'}=0;
+							say "$f: LINE $line: $out_arg is an Out arg of $f used in call to $csubname after recursive call, so not a tail call";
+						} else {
+							# Other vars go in the Links table.
+							for my $in_arg (@in_args) {
+								$state->{'Links'}{$out_arg}{$in_arg}=1;
+							}
 						}
 					}
 				}
 			}
+
+			return ([$annline],$state);
+		};
+
+		my $state={'Links'=>{},'DependencyFree'=>{},'AfterRecursiveCall'=>0,'Used'=>{},'TailCall'=>1}; 
+		($stref,$state) = stateful_pass_inplace($stref,$f,$pass_analyse_recursion, $state,'pass_analyse_recursion' . __LINE__  ) ;
+
+		# We check here. If TailCall is still 1, we need to look at Links
+		if ($state->{'TailCall'}==0) {
+			$stref->{'Subroutines'}{$f}{'Recursion'}='General';
+		} else {
+			if (not keys %{$state->{'Links'}} ) {
+				$stref->{'Subroutines'}{$f}{'Recursion'}='Tail';
+			} else {
+				say Dumper($state->{'Links'});
+			}
 		}
-
-		return ([$annline],$state);
-	};
-
-	my $state={'Links'=>{},'DependencyFree'=>{},'AfterRecursiveCall'=>0,'Used'=>{},'TailCall'=>1}; 
- 	($stref,$state) = stateful_pass_inplace($stref,$f,$pass_analyse_recursion, $state,'pass_analyse_recursion' . __LINE__  ) ;
-
-	# We check here. If TailCall is still 1, we need to look at Links
-	if ($state->{'TailCall'}==0) {
-		$stref->{'Subroutines'}{$f}{'Recursion'}='General';
-	} else {
-		say Dumper($state->{'Links'});
-	}
-	if ($state->{'AfterRecursiveCall'} == 0) {
-		$stref->{'Subroutines'}{$f}{'Recursion'}='No';
-	}
+		if ($state->{'AfterRecursiveCall'} == 0) {
+			$stref->{'Subroutines'}{$f}{'Recursion'}='No';
+		}
 	}
 	say "$f: ".$stref->{'Subroutines'}{$f}{'Recursion'}." recursion";
 	return $stref;
@@ -310,8 +314,8 @@ local $V=1;
             if (exists $subs{$calledsub}) {
                 # if (not exists $stref->{'Subroutines'}{$calledsub}{'Recursive'}) {
 				if ($calledsub ne $f) {
-					say "$f: Recursive call chain ($calledsub)".Dumper($stref->{'CallStack'});
-					$stref->{'Subroutines'}{$calledsub}{'Recursion'} = 'CallChain';
+					say "$f: Recursive call chain ($calledsub)\n".Dumper($stref->{'CallStack'});
+					$stref->{'Subroutines'}{$calledsub}{'Recursion'} = 'Call-chain';
 					return $stref;
                 }
 				next;

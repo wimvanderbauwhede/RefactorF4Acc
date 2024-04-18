@@ -238,8 +238,8 @@ sub analyse_all {
 			next;
 		}
 		$stref = analyse_recursion( $stref, $f );
-
 	}
+	say "DONE analyse_recursion()";
 # ==============================================================================================================
 	$stref = analyse_common_blocks($stref);
 # croak Dumper($stref->{'Subroutines'}{'genmap'}{ExGlobArgs});

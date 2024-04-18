@@ -287,7 +287,8 @@ sub eval_expression_with_parameters { (my $expr_str,my $info, my $stref, my $f, 
 		$evaled_expr_str=~s/\/\//./g;
 		my $expr_val=eval($evaled_expr_str);
 		# croak "EXPR <$expr_str> TO EVAL: $evaled_expr_str => $expr_val".Dumper($info) if $expr_str_no_ph =~/CONCAT/;
-		if ($info->{'ParsedParDecl'}{'TypeTup'}{'Type'} eq 'character') {
+		# carp Dumper($evaled_expr_str,$info);
+		if (exists $info->{'ParsedParDecl'} and $info->{'ParsedParDecl'}{'TypeTup'}{'Type'} eq 'character') {
 			if ($err) {
 				error("$expr_str does not reduce to an integer");
 			}
