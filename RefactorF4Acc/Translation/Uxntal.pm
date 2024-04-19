@@ -1,5 +1,7 @@
 package RefactorF4Acc::Translation::Uxntal;
-use v5.10;
+use v5.20;
+use feature qw(signatures);
+no warnings qw(experimental::signatures);
 
 use RefactorF4Acc::Config;
 use RefactorF4Acc::Utils;
@@ -234,7 +236,7 @@ sub translate_module_decls_to_Uxntal { (my $stref, my $mod_name) = @_;
     return $stref;
 } # END of translate_module_decls_to_Uxntal
 
-sub translate_sub_to_Uxntal {  (my $stref, my $f, my $ocl) = @_;
+sub translate_sub_to_Uxntal( $stref, $f, $ocl ){
 
 =info
 	# First we collect info. What we need to know is:
@@ -261,50 +263,9 @@ Instead of the nice but cumbersome approach we had until now, from now on it is 
 - A parameter used as arg should be passed by value
 
 =cut
+	$stref = _get_word_sizes($stref,$f);
+	$stref = _pointer_analysis($stref,$f);
 	my $Sf = $stref->{'Subroutines'}{$f};
-
-	for my $var (@{$Sf->{'AllVarsAndPars'}{'List'}}) {
-
-		my $subset = in_nested_set($Sf,'Vars',$var);
-		if ($subset eq '') {
-			croak "$f $var";
-		}
-		my $decl = get_var_record_from_set($Sf->{$subset},$var);
-
-		my $wordsz=0;
-		my $type = $decl->{'Type'};
-		if ($type eq 'integer') {
-			# carp Dumper $decl;
-			my $kind = $decl->{'Attr'};
-			$kind=~s/kind\s*=\s*//;
-			$kind=~s/^\s*\(\s*//;
-			$kind=~s/\s*\)\s*$//;
-			$kind*=1;
-			if ($kind>2) {
-				die "Integers must be 8-bit or 16-bit: $var in $f is $kind\n";
-			}
-			$wordsz=$kind;
-		}
-		elsif ($type eq 'logical') {
-			$wordsz=1;
-		}
-		elsif ($type eq 'character') {
-				if (exists $decl->{'Attr'} and $decl->{'Attr'} ne '' and $decl->{'Attr'}!~/len=1/) {
-					# It's a string, not a character, so we store the address, not the value.
-					# croak('WRONG! Need to disambiguate between the pointer and the value!');
-					$wordsz=2;
-				} else {
-					$wordsz=1;
-				}
-		} else {
-			die "Supported types are integer, character and logical: $var in $f is $type\n";
-		}
-		$Sf->{'WordSizes'}{$var} = $wordsz;
-		# carp Dumper($decl) if $var eq 'funktalGlobalCharArray';
-		if (exists $decl->{'ModuleName'}) {
-			$stref->{'Modules'}{$decl->{'ModuleName'}}{'WordSizes'}{$var} = $wordsz;
-		}
-	}
 
 	my $annlines = get_annotated_sourcelines( $stref, $f );
 
@@ -742,6 +703,188 @@ Instead of the nice but cumbersome approach we had until now, from now on it is 
 
 } # END of translate_sub_to_Uxntal()
 
+sub _get_word_sizes($stref,$f){
+	my $Sf = $stref->{'Subroutines'}{$f};
+
+	for my $var (@{$Sf->{'AllVarsAndPars'}{'List'}}) {
+
+		my $subset = in_nested_set($Sf,'Vars',$var);
+		if ($subset eq '') {
+			croak "$f $var";
+		}
+		my $decl = get_var_record_from_set($Sf->{$subset},$var);
+
+		my $wordsz=0;
+		my $type = $decl->{'Type'};
+		if ($type eq 'integer') {
+			# carp Dumper $decl;
+			my $kind = $decl->{'Attr'};
+			$kind=~s/kind\s*=\s*//;
+			$kind=~s/^\s*\(\s*//;
+			$kind=~s/\s*\)\s*$//;
+			$kind*=1;
+			if ($kind>2) {
+				die "Integers must be 8-bit or 16-bit: $var in $f is $kind\n";
+			}
+			$wordsz=$kind;
+		}
+		elsif ($type eq 'logical') {
+			$wordsz=1;
+		}
+		elsif ($type eq 'character') {
+				if (exists $decl->{'Attr'} and $decl->{'Attr'} ne '' and $decl->{'Attr'}!~/len=1/) {
+					# It's a string, not a character, so we store the address, not the value.
+					# croak('WRONG! Need to disambiguate between the pointer and the value!');
+					$wordsz=2;
+				} else {
+					$wordsz=1;
+				}
+		} else {
+			die "Supported types are integer, character and logical: $var in $f is $type\n";
+		}
+		$Sf->{'WordSizes'}{$var} = $wordsz;
+		# carp Dumper($decl) if $var eq 'funktalGlobalCharArray';
+		if (exists $decl->{'ModuleName'}) {
+			$stref->{'Modules'}{$decl->{'ModuleName'}}{'WordSizes'}{$var} = $wordsz;
+		}
+	}
+	return $stref;
+} # END of _get_word_sizes
+
+# WV20240419 I think this should be obsolete, or at least, what we need is determine if we pass by value or by reference.
+# So: an array or string is always an address
+# when we pass them as arg to a subroutine, we store the address as a pointer, so we need to dereference
+# a scalar is always a value
+# when we pass them as arg to a subroutine, we store the value
+# So the analysis we need is:
+    # if var is array or string
+	# 	if var is arg
+	# 		passed by reference, so 
+	# 			ref addr STA2
+	# 			addr LDA2 [idx ADD2] LDA(2)
+	# 	else
+	# 		not passed, so 
+	# 			val addr [idx ADD2] STA(2)
+	# 			addr [idx ADD2] LDA(2)
+	# else
+	# 	if var is arg
+	# 		passed by value, so 
+	# 			val addr STA(2)
+	# 			addr LDA(2)
+	# 	else
+	# 		not passed, so
+	# 			val addr STA(2)
+	# 			addr LDA(2)
+
+
+sub _pointer_analysis($stref,$f) {
+
+	my $Sf = $stref->{'Subroutines'}{$f};
+
+	my $annlines = get_annotated_sourcelines( $stref, $f );
+
+	# This analysis only looks at args, local vars and local parameters. We need to include globals
+	# Or maybe not, as pointer analysis is not necessary for Uxntal.
+	# We populate $state->{'Pointers'} and $state->{'WordSizes'} but the latter is not used as
+	# $Sf->{'WordSizes'} is populated above;
+	my $pass_pointer_analysis = sub { my ($annline,$state) = @_;
+		my ($line, $info) = @{$annline};
+
+		if (exists $info->{'Signature'} ) {
+			$state->{'Args'} = { map { $_=>1 } @{$info->{'Signature'}{'Args'}{'List'}}};
+		}
+		elsif (exists $info->{'VarDecl'} ) {
+			my $var = $info->{'VarDecl'}{'Name'};
+			if (exists $state->{'Args'}{$var} ) {
+				$state->{'Pointers'}{$var}='*'; # means should be treated as a pointer
+			} else {
+				$state->{'Pointers'}{$var}=''; # means should be treated as a scalar, i.e. LDA
+				$state->{'LocalVars'}{$var}=1;
+			}
+			my $wordsz=0;
+			my $type = $info->{'ParsedVarDecl'}{'TypeTup'}{'Type'};
+			if ($type eq 'integer') {
+				my $kind = $info->{'ParsedVarDecl'}{'TypeTup'}{'Kind'};
+				if ($kind>2) {
+					die "Integers must be 8-bit or 16-bit: $var in $f is $kind\n";
+				}
+				$wordsz=$kind;
+			}
+			elsif ($type eq 'logical') {
+				$wordsz=1;
+			}
+			elsif ($type eq 'character') {
+					$wordsz=1;
+			} else {
+				die "Supported types are integer, character and logical: $var in $f is $type\n";
+			}
+			$state->{'WordSizes'}{$var}=$wordsz;
+		}
+		elsif ( exists $info->{'ParamDecl'} ) {
+			my $var = $info->{'ParamDecl'}{'Var'};
+			$state->{'Pointers'}{$var}='';
+			$state->{'Parameters'}{$var}=1;
+			my $wordsz=0;
+			my $type = $info->{'ParsedParDecl'}{'TypeTup'}{'Type'};
+			if ($type eq 'integer') {
+				my $kind = $info->{'ParsedParDecl'}{'TypeTup'}{'Kind'};
+				if ($kind>2) {
+					die "Integers must be 8-bit or 16-bit: $var in $f is $kind\n";
+				}
+				$wordsz=$kind;
+			} elsif ($type eq 'logical') {
+				$wordsz=1;
+			} elsif ($type eq 'character') {
+				$wordsz=1;
+			} else {
+				die "Supported types are integer, character and logical: $var in $f is $type\n";
+			}
+			$state->{'WordSizes'}{$var}=$wordsz;
+		}
+		# FIXME: this is because of the presence of an empty $info->{'SubroutineCall'} record.
+		elsif (exists $info->{'SubroutineCall'} and exists $info->{'SubroutineCall'}{'Name'}) {
+			my $fname =  $info->{'SubroutineCall'}{'Name'};
+			if (not exists $F95_intrinsic_functions{$fname} ) {
+				for my $call_arg_expr_str (@{$info->{'SubroutineCall'}{'Args'}{'List'}}) {
+					my $call_arg = ($info->{'SubroutineCall'}{'Args'}{'Set'}{$call_arg_expr_str}{'Type'} eq 'Scalar'
+					or $info->{'SubroutineCall'}{'Args'}{'Set'}{$call_arg_expr_str}{'Type'} eq 'Const'
+					or $info->{'SubroutineCall'}{'Args'}{'Set'}{$call_arg_expr_str}{'Type'} eq 'Expr'
+					) ? $info->{'SubroutineCall'}{'Args'}{'Set'}{$call_arg_expr_str}{'Expr'}
+					: $info->{'SubroutineCall'}{'Args'}{'Set'}{$call_arg_expr_str}{'Arg'};
+
+					if (exists $state->{'LocalVars'}{$call_arg}) {
+						$state->{'Pointers'}{$call_arg}='*';
+					}
+					elsif (exists $state->{'Parameters'}{$call_arg}) {
+						$state->{'Pointers'}{$call_arg}='&';
+						# carp 'TODO: a const scalar passed as arg: ',$call_arg_expr_str ;
+					}
+				}
+			}
+		}
+		elsif ( exists $info->{'FunctionCalls'} ) {
+			for my $entry (@{$info->{'FunctionCalls'}}) {
+				my $fname =  $entry->{'Name'};
+				if (not exists $F95_intrinsic_functions{$fname} ) {
+					# We assume intrinsics take values not pointers
+					for my $arg (sort keys %{$entry->{'Args'}}) {
+						if (exists $state->{'LocalVars'}{$arg}) {
+							$state->{'Pointers'}{$arg}='*';
+						}
+					}
+				}
+			}
+		}
+
+		return ([[$line,$info]],$state)
+	};
+
+	my $pass_state = {'Pointers'=>{},'Args' =>{},'LocalVars' =>{}, 'Parameters'=>{}, 'WordSizes'=>{}};
+	(my $new_annlines_,$pass_state) = stateful_pass($annlines,$pass_pointer_analysis,$pass_state,"pass_pointer_analysis($f)");
+	$Sf->{'Pointers'} = $pass_state->{'Pointers'};
+	return $stref;
+
+} # END of _pointer_analysis
 
 sub _emit_Uxntal_code { (my $stref, my $module_name, my $ocl)=@_;
  	map {say $_ } @{$stref->{'TranslatedCode'}} if $V;

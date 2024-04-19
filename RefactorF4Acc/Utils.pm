@@ -52,6 +52,10 @@ use Exporter;
     &get_kernel_and_module_names
     &get_block_id
     &is_array_decl
+    &is_arg
+    &is_array
+    &is_string
+    &is_array_or_string
     &warning
     &error
     &coderef_to_subname
@@ -698,6 +702,34 @@ sub coderef_to_subname { my ($coderef) = @_;
     my $cv = svref_2object ( $coderef );
     my $gv = $cv->GV;
     return $gv->NAME;
+}
+
+sub is_arg {my ($stref,$f,$var) =@_;
+	if ( in_nested_set($stref->{'Subroutines'}{$f},'Args',$var)) {
+		return 1;
+	} else {
+		return 0;
+	}
+}
+sub is_array { my ($stref,$f,$var) = @_;
+	my $decl =  get_var_record_from_set($stref->{'Subroutines'}{$f}{'Vars'},$var) ;
+	my $isArray = $decl->{'ArrayOrScalar'} eq 'Array';
+    return $isArray;
+}
+sub is_string { my ($stref,$f,$var) = @_;
+	my $decl =  get_var_record_from_set($stref->{'Subroutines'}{$f}{'Vars'},$var) ;
+	my $ftype = $decl->{'Type'};
+	my $fkind = $decl->{'Attr'};
+	my $isString = ($decl->{'Type'} eq 'character' and (exists $decl->{'Attr'} and ($decl->{'Attr'} !~/len\s*=\s*1/)));
+    return $isString;
+}
+sub is_array_or_string { my ($stref,$f,$var) = @_;
+	my $decl =  get_var_record_from_set($stref->{'Subroutines'}{$f}{'Vars'},$var) ;
+	my $ftype = $decl->{'Type'};
+	my $fkind = $decl->{'Attr'};
+	my $isArray = $decl->{'ArrayOrScalar'} eq 'Array';
+	my $isString = ($decl->{'Type'} eq 'character' and (exists $decl->{'Attr'} and ($decl->{'Attr'} !~/len\s*=\s*1/)));
+    return ($isArray or $isString);
 }
 
 1;
