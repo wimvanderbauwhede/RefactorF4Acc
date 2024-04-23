@@ -732,13 +732,13 @@ sub _get_word_sizes($stref,$f){
 			$wordsz=1;
 		}
 		elsif ($type eq 'character') {
-				if (exists $decl->{'Attr'} and $decl->{'Attr'} ne '' and $decl->{'Attr'}!~/len=1/) {
-					# It's a string, not a character, so we store the address, not the value.
-					# croak('WRONG! Need to disambiguate between the pointer and the value!');
-					$wordsz=2;
-				} else {
+				# if (exists $decl->{'Attr'} and $decl->{'Attr'} ne '' and $decl->{'Attr'}!~/len=1/) {
+				# 	# It's a string, not a character, so we store the address, not the value.
+				# 	# croak('WRONG! Need to disambiguate between the pointer and the value!');
+				# 	$wordsz=2;
+				# } else {
 					$wordsz=1;
-				}
+				# }
 		} else {
 			die "Supported types are integer, character and logical: $var in $f is $type\n";
 		}
@@ -751,7 +751,7 @@ sub _get_word_sizes($stref,$f){
 	return $stref;
 } # END of _get_word_sizes
 
-# WV20240419 I think this should be obsolete, or at least, what we need is determine if we pass by value or by reference.
+# WV20240419 I think this should be obsolete, or at least, what we need is determine if we pass by value or by reference. We should keep the WordSizes analysis
 # So: an array or string is always an address
 # when we pass them as arg to a subroutine, we store the address as a pointer, so we need to dereference
 # a scalar is always a value
@@ -776,6 +776,90 @@ sub _get_word_sizes($stref,$f){
 	# 			val addr STA(2)
 	# 			addr LDA(2)
 
+# What we need to add here is the case of stack-based allocation
+sub _var_access($stref,$f,$var,$access,$idx) {
+	my $Sf = $stref->{'Subroutines'}{$f};
+	my $wordsz = $Sf->{'WordSizes'}{$var} == 2 ? '2' : '';
+	my $uxntal_code = '';
+    if  (is_array_or_string($stref,$f,$var)) {
+	 	if (is_arg($stref,$f,$var)) {
+			# 		passed by reference, so 
+			if ($access eq 'ST') {
+			# 			ref 
+				$uxntal_code = "$var STA2"
+			} else {
+				return "$var LDA2 $idx ADD2 LDA$wordsz"
+			}
+		} else {
+			# 		not passed, so
+			if ($access eq 'ST') {
+			# 			val 
+				$uxntal_code = "$var $idx ADD2 STA$wordsz";
+			} else {
+				$uxntal_code = 	"$var $idx ADD2 LDA$wordsz";
+			}
+		}
+	} else {
+		if (is_arg($stref,$f,$var)) {
+		# 		passed by value, so 
+			if ($access eq 'ST') {
+					# val 
+				$uxntal_code = "$var STA$wordsz";
+			} else {
+				$uxntal_code = "$var LDA$wordsz";
+			}
+		} else {
+		# 		not passed, so
+			if ($access eq 'ST') {
+				# val 
+				$uxntal_code = "$var STA$wordsz";
+			} else {
+				$uxntal_code = "$var LDA$wordsz";
+			}
+		}
+	}
+	return $uxntal_code;
+} # END of _var_access()
+
+sub __stack_access($stref,$f,$var) {
+	my $Sf = $stref->{'Subroutines'}{$f};
+	my $offset = $Sf->{'StackOffset'}{$var};
+	my $uxntal_code = '';
+	return ".fp LDZ2 $offset ADD2";
+}
+
+sub _stack_allocation($stref,$f,$var) {
+	my $Sf = $stref->{'Subroutines'}{$f};
+	my $wordsz = $Sf->{'WordSizes'}{$var} == 2 ? '2' : '';
+	my $uxntal_code = '';
+    if  (is_array_or_string($stref,$f,$var)) {
+	 	if (is_arg($stref,$f,$var)) {
+			# 		passed by reference, so
+				my $offset = $Sf->{'CurrentOffset'};
+				$Sf->{'CurrentOffset'} += 2;
+				$Sf->{'StackOffset'}{$var}= $offset;
+				$uxntal_code = "$var ".__stack_access($stref,$f,$var)." STA2";
+		} else {
+			# 		not passed, so
+				my $subset = in_nested_set( $Sf, 'DeclaredOrigLocalVars', $var );
+				my $decl = get_var_record_from_set($Sf->{$subset},$var);
+				my $dim =  __C_array_size($decl->{'Dim'});
+				my $offset = $Sf->{'CurrentOffset'};
+				$Sf->{'CurrentOffset'} += $dim*$wordsz;
+				$Sf->{'StackOffset'}{$var}= $offset;
+				$uxntal_code = "( allocated $dim*$wordsz at $offset )";
+		}
+	} else {
+		if (is_arg($stref,$f,$var)) {
+		# 		passed by value, so 
+				$uxntal_code = "TODO";
+		} else {
+		# 		not passed, so
+				$uxntal_code = "TODO";
+		}
+	}
+	return $uxntal_code;
+} # END of _stack_allocation()
 
 sub _pointer_analysis($stref,$f) {
 
