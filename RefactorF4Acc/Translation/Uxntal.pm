@@ -777,26 +777,30 @@ sub _get_word_sizes($stref,$f){
 	# 			addr LDA(2)
 
 # What we need to add here is the case of stack-based allocation
-sub _var_access($stref,$f,$var,$access,$idx) {
+# The name needs to be unique. The neatest way is to use child labels.
+# But at the moment I am putting the alloc before the def
+# So let's keep that for now
+sub _var_access_static($stref,$f,$var,$access,$idx) {
 	my $Sf = $stref->{'Subroutines'}{$f};
-	my $wordsz = $Sf->{'WordSizes'}{$var} == 2 ? '2' : '';
+	my $short_mode = $Sf->{'WordSizes'}{$var} == 2 ? '2' : '';
 	my $uxntal_code = '';
+	my $fq_var = $f.'_'.$var;
     if  (is_array_or_string($stref,$f,$var)) {
 	 	if (is_arg($stref,$f,$var)) {
 			# 		passed by reference, so 
 			if ($access eq 'ST') {
 			# 			ref 
-				$uxntal_code = "$var STA2"
+				$uxntal_code = "$fq_var STA2"
 			} else {
-				return "$var LDA2 $idx ADD2 LDA$wordsz"
+				return "$fq_var LDA2 $idx ADD2 LDA$short_mode"
 			}
 		} else {
 			# 		not passed, so
 			if ($access eq 'ST') {
 			# 			val 
-				$uxntal_code = "$var $idx ADD2 STA$wordsz";
+				$uxntal_code = "$fq_var $idx ADD2 STA$short_mode";
 			} else {
-				$uxntal_code = 	"$var $idx ADD2 LDA$wordsz";
+				$uxntal_code = 	"$fq_var $idx ADD2 LDA$short_mode";
 			}
 		}
 	} else {
@@ -804,33 +808,81 @@ sub _var_access($stref,$f,$var,$access,$idx) {
 		# 		passed by value, so 
 			if ($access eq 'ST') {
 					# val 
-				$uxntal_code = "$var STA$wordsz";
+				$uxntal_code = "$fq_var STA$short_mode";
 			} else {
-				$uxntal_code = "$var LDA$wordsz";
+				$uxntal_code = "$fq_var LDA$short_mode";
 			}
 		} else {
 		# 		not passed, so
 			if ($access eq 'ST') {
 				# val 
-				$uxntal_code = "$var STA$wordsz";
+				$uxntal_code = "$fq_var STA$short_mode";
 			} else {
-				$uxntal_code = "$var LDA$wordsz";
+				$uxntal_code = "$fq_var LDA$short_mode";
 			}
 		}
 	}
 	return $uxntal_code;
-} # END of _var_access()
+} # END of _var_access_static()
 
+sub _var_access_stack($stref,$f,$var,$access,$idx) {
+	my $Sf = $stref->{'Subroutines'}{$f};
+	my $short_mode = $Sf->{'WordSizes'}{$var} == 2 ? '2' : '';
+	my $uxntal_code = '';
+    if  (is_array_or_string($stref,$f,$var)) {
+	 	if (is_arg($stref,$f,$var)) {
+			# 		passed by reference, so 
+			if ($access eq 'ST') {
+			# 			ref 
+				$uxntal_code = __stack_access($stref,$f,$var)." STA2"
+			} else {
+				return __stack_access($stref,$f,$var)." LDA2 $idx ADD2 LDA$short_mode"
+			}
+		} else {
+			# 		not passed, so
+			if ($access eq 'ST') {
+			# 			val 
+				$uxntal_code = __stack_access($stref,$f,$var)." $idx ADD2 STA$short_mode";
+			} else {
+				$uxntal_code = 	__stack_access($stref,$f,$var)."$ $idx ADD2 LDA$short_mode";
+			}
+		}
+	} else {
+		if (is_arg($stref,$f,$var)) {
+		# 		passed by value, so 
+			if ($access eq 'ST') {
+					# val 
+				$uxntal_code = __stack_access($stref,$f,$var)." STA$short_mode";
+			} else {
+				$uxntal_code = __stack_access($stref,$f,$var)." LDA$short_mode";
+			}
+		} else {
+		# 		not passed, so
+			if ($access eq 'ST') {
+				# val 
+				$uxntal_code = __stack_access($stref,$f,$var)." STA$short_mode";
+			} else {
+				$uxntal_code = __stack_access($stref,$f,$var)." LDA$short_mode";
+			}
+		}
+	}
+	return $uxntal_code;
+} # END of _var_access_stack()
+
+# This returns the address of the var on the stack
 sub __stack_access($stref,$f,$var) {
 	my $Sf = $stref->{'Subroutines'}{$f};
 	my $offset = $Sf->{'StackOffset'}{$var};
 	my $uxntal_code = '';
 	return ".fp LDZ2 $offset ADD2";
-}
+} # END of _stack_access()
 
+# We call this for every variable declaration
+# But I think storing the arguments should be a separate call. 
+# 
 sub _stack_allocation($stref,$f,$var) {
 	my $Sf = $stref->{'Subroutines'}{$f};
-	my $wordsz = $Sf->{'WordSizes'}{$var} == 2 ? '2' : '';
+	my $wordsz = $Sf->{'WordSizes'}{$var} ;
 	my $uxntal_code = '';
     if  (is_array_or_string($stref,$f,$var)) {
 	 	if (is_arg($stref,$f,$var)) {
@@ -838,7 +890,6 @@ sub _stack_allocation($stref,$f,$var) {
 				my $offset = $Sf->{'CurrentOffset'};
 				$Sf->{'CurrentOffset'} += 2;
 				$Sf->{'StackOffset'}{$var}= $offset;
-				$uxntal_code = "$var ".__stack_access($stref,$f,$var)." STA2";
 		} else {
 			# 		not passed, so
 				my $subset = in_nested_set( $Sf, 'DeclaredOrigLocalVars', $var );
@@ -852,14 +903,33 @@ sub _stack_allocation($stref,$f,$var) {
 	} else {
 		if (is_arg($stref,$f,$var)) {
 		# 		passed by value, so 
-				$uxntal_code = "TODO";
+				my $offset = $Sf->{'CurrentOffset'};
+				$Sf->{'CurrentOffset'} += $wordsz;
+				$Sf->{'StackOffset'}{$var}= $offset;
+				$uxntal_code = "( allocated $wordsz at $offset )";
 		} else {
 		# 		not passed, so
-				$uxntal_code = "TODO";
+				my $offset = $Sf->{'CurrentOffset'};
+				$Sf->{'CurrentOffset'} += $wordsz;
+				$Sf->{'StackOffset'}{$var}= $offset;
+				$uxntal_code = "( allocated $wordsz at $offset )";
 		}
 	}
 	return $uxntal_code;
 } # END of _stack_allocation()
+
+# Every arg is stored on the stack. 
+sub _store_arg_on_stack($stref,$f,$arg) {
+	my $Sf = $stref->{'Subroutines'}{$f};
+	my $short_mode = $Sf->{'WordSizes'}{$arg} == 2 ? '2' : '';
+	my $uxntal_code = '';
+    if  (is_array_or_string($stref,$f,$arg)) {
+		$uxntal_code = __stack_access($stref,$f,$arg)." STA2";
+	} else {
+		$uxntal_code = __stack_access($stref,$f,$arg)." STA$short_mode";
+	}
+	return $uxntal_code;
+} # END of _store_arg_on_stack()
 
 sub _pointer_analysis($stref,$f) {
 
@@ -1049,18 +1119,18 @@ sub _emit_arg_decl_Uxntal { (my $stref,my $f,my $arg, my $name)=@_;
 	my $uxntal_arg_store = ';'.$name.'_'.$arg.' STA'.(__nBytes($word_sz, $isArray, $isString)==1?'':'2');
 	my $uxntal_write_arg = $iodir eq 'out' or $iodir eq 'inout' ? 1 : 0 ;
 	return ($stref,$uxntal_arg_decl,$uxntal_arg_store, $uxntal_write_arg);
-}
-sub __nBytes { my ($wordSz, $isArray, $isString) = @_;
-# If the arg is an array, 2 bytes
-# If the arg is a scalar, wordSz
-# If the arg is a string, 2 bytes
-if ($isArray or $isString) {
-	return 2;
-} else {
-	return $wordSz;
-}
+} # END of _emit_arg_decl_Uxntal()
 
-}
+sub __nBytes { my ($wordSz, $isArray, $isString) = @_;
+	# If the arg is an array, 2 bytes
+	# If the arg is a scalar, wordSz
+	# If the arg is a string, 2 bytes
+	if ($isArray or $isString) {
+		return 2;
+	} else {
+		return $wordSz;
+	}
+} # END of __nBytes
 
 sub _emit_var_decl_Uxntal { (my $stref,my $f,my $info,my $var)=@_;
 	my $sub_or_module = sub_func_incl_mod( $f, $stref );
