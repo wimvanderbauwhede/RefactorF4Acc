@@ -751,6 +751,19 @@ sub _get_word_sizes($stref,$f){
 	return $stref;
 } # END of _get_word_sizes
 
+sub _var_access($stref,$f,$var,$access,$idx) {
+	my $Sf = $stref->{'Subroutines'}{$f};
+	if (exists $Sf->{'Recursion'}) {
+		if ($Sf->{'Recursion'} eq 'No' or $Sf->{'Recursion'} eq 'Tail' ) {
+			return _var_access_static($stref,$f,$var,$access,$idx);
+		} else {
+			return _var_access_stack($stref,$f,$var,$access,$idx);
+		}
+	} else {
+		return _var_access_static($stref,$f,$var,$access,$idx);
+	}
+}
+
 # WV20240419 I think this should be obsolete, or at least, what we need is determine if we pass by value or by reference. We should keep the WordSizes analysis
 # So: an array or string is always an address
 # when we pass them as arg to a subroutine, we store the address as a pointer, so we need to dereference
@@ -1349,19 +1362,20 @@ sub _emit_expression_Uxntal { my ($ast, $stref, $f, $info)=@_;
 	my $Sf = $stref->{'Subroutines'}{$f};
 
     if (ref($ast) eq 'ARRAY') {
-        if (scalar @{$ast}==3) { # e.g. ['@','v',['$','i']]
+        if (scalar @{$ast}==3) { # three elements, e.g. ['@','v',['$','i']] 
 			# Uxn does not have pow or mod so these would have to be functions
+			# TODO these are not implemented yet
 			if ($ast->[0] == 8) { # eq '^'
 				(my $op, my $arg1, my $arg2) = @{$ast};
 				$ast = [1,'pow',[27,$arg1,$arg2] ] ;
 			}
-			elsif ($ast->[0] == 7) { # eq '%'
+			elsif ($ast->[0] == 7) { # eq '%', mod
 				(my $op, my $arg1, my $arg2) = @{$ast};
 				$ast = [1,'mod',[27,$arg1,$arg2] ] ;
 			}
             if ($ast->[0] == 1 or $ast->[0] ==10) { #  array access 10=='@' or function call 1=='&'
                 (my $opcode, my $name, my $args) =@{$ast};
-				if ($ast->[0] == 1 and $ast->[1] eq 'int') {
+				if ($ast->[0] == 1 and $ast->[1] eq 'int') { # just remove it
 					# [1,'int',['(', $arg, $sz]]
 					my $uxn_ast = $ast->[2][1];
 					return _emit_expression_Uxntal($uxn_ast, $stref, $f,$info);
@@ -1377,10 +1391,10 @@ sub _emit_expression_Uxntal { my ($ast, $stref, $f, $info)=@_;
 						my @args_lst=();
 						my $has_slices=0;
 						if($args->[0] == 27) { # ','
-						# more than one arg
+							# more than one arg
 							for my $idx (1 .. scalar @{$args}-1) {
 								my $arg = $args->[$idx];
-								my $is_slice = $arg->[0] == 12;
+								my $is_slice = $arg->[0] == 12; # ':'
 								push @args_lst, _emit_expression_Uxntal($arg, $stref, $f,$info) unless $is_slice;
 								$has_slices ||= $is_slice;
 							}
@@ -1390,7 +1404,8 @@ sub _emit_expression_Uxntal { my ($ast, $stref, $f, $info)=@_;
 							# return "$name("._emit_expression_Uxntal($args, $stref, $f).')';
 						}
 
-						if ($ast->[0]==10) { # An array access; but also a string access?
+						if ($ast->[0]==10) { # '@', an array access; but also a string access?
+							# If I did this right, this should simply be the _var_access function
 							# In Uxntal, an array access is ;array $idx ADD2 LDA2 and if $idx is a scalar, I assume it's $idx LDA2, because we use shorts everywhere.
 							my $var_name = $ast->[1];
 							my $wordsz = $stref->{'Subroutines'}{$f}{'WordSizes'}{$var_name};
@@ -1887,6 +1902,11 @@ sub toRawHex { my ($n,$sz) = @_;
 	return sprintf("%0${szx2}x",$n);
 }
 
+
+# iter DUP #00 SWP ( iter 00 iter )
+# ;$strn ADD2 LDA ( iter strn[iter] )
+# SWP #00 SWP ( strn[iter] 00 iter )
+# cb SUB2 ;substr_$id ADD2 STA ( strn[iter] substr_$id[cb-iter] )
 
 sub genSubstr { my ($strn, $cb,$ce, $len,$id) = @_;
 	if ($cb eq $ce) { # -1 to go to base-0 but +2 because of the length field, so +1
