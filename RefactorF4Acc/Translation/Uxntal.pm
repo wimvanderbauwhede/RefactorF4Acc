@@ -751,6 +751,7 @@ sub _get_word_sizes($stref,$f){
 	return $stref;
 } # END of _get_word_sizes
 
+# $idx is in Uxntal format
 sub _var_access($stref,$f,$var,$access,$idx) {
 	my $Sf = $stref->{'Subroutines'}{$f};
 	if (exists $Sf->{'Recursion'}) {
@@ -793,27 +794,31 @@ sub _var_access($stref,$f,$var,$access,$idx) {
 # The name needs to be unique. The neatest way is to use child labels.
 # But at the moment I am putting the alloc before the def
 # So let's keep that for now
+
+# With { } STH2r strings, the string variable would always store an address. 
+# So the question is if using those inline strings is the right thing to do.
 sub _var_access_static($stref,$f,$var,$access,$idx) {
 	my $Sf = $stref->{'Subroutines'}{$f};
 	my $short_mode = $Sf->{'WordSizes'}{$var} == 2 ? '2' : '';
 	my $uxntal_code = '';
 	my $fq_var = $f.'_'.$var;
+	my $idx_expr = ($idx eq '#0000') ? '' : "$idx ADD2 ";
     if  (is_array_or_string($stref,$f,$var)) {
 	 	if (is_arg($stref,$f,$var)) {
 			# 		passed by reference, so 
 			if ($access eq 'ST') {
 			# 			ref 
-				$uxntal_code = "$fq_var STA2"
+				$uxntal_code = "$fq_var STA2" # store a pointer
 			} else {
-				return "$fq_var LDA2 $idx ADD2 LDA$short_mode"
+				$uxntal_code =  "$fq_var LDA2 $idx_expr LDA$short_mode" # load a pointer, index, load the value
 			}
 		} else {
 			# 		not passed, so
 			if ($access eq 'ST') {
 			# 			val 
-				$uxntal_code = "$fq_var $idx ADD2 STA$short_mode";
+				$uxntal_code = "$fq_var $idx_expr STA$short_mode"; # index, store the value
 			} else {
-				$uxntal_code = 	"$fq_var $idx ADD2 LDA$short_mode";
+				$uxntal_code = 	"$fq_var $idx_expr LDA$short_mode"; # index, load the value
 			}
 		}
 	} else {
@@ -842,6 +847,7 @@ sub _var_access_stack($stref,$f,$var,$access,$idx) {
 	my $Sf = $stref->{'Subroutines'}{$f};
 	my $short_mode = $Sf->{'WordSizes'}{$var} == 2 ? '2' : '';
 	my $uxntal_code = '';
+	my $idx_expr = ($idx eq '#0000') ? '' : "$idx ADD2 ";
     if  (is_array_or_string($stref,$f,$var)) {
 	 	if (is_arg($stref,$f,$var)) {
 			# 		passed by reference, so 
@@ -849,15 +855,15 @@ sub _var_access_stack($stref,$f,$var,$access,$idx) {
 			# 			ref 
 				$uxntal_code = __stack_access($stref,$f,$var)." STA2"
 			} else {
-				return __stack_access($stref,$f,$var)." LDA2 $idx ADD2 LDA$short_mode"
+				return __stack_access($stref,$f,$var)." LDA2 $idx_expr LDA$short_mode"
 			}
 		} else {
 			# 		not passed, so
 			if ($access eq 'ST') {
 			# 			val 
-				$uxntal_code = __stack_access($stref,$f,$var)." $idx ADD2 STA$short_mode";
+				$uxntal_code = __stack_access($stref,$f,$var)." $idx_expr STA$short_mode";
 			} else {
-				$uxntal_code = 	__stack_access($stref,$f,$var)."$ $idx ADD2 LDA$short_mode";
+				$uxntal_code = 	__stack_access($stref,$f,$var)."$ $idx_expr LDA$short_mode";
 			}
 		}
 	} else {
@@ -1358,7 +1364,7 @@ sub _emit_ifbranch_end_Uxntal { my ($id, $state) = @_;
 # @: array
 
 
-sub _emit_expression_Uxntal { my ($ast, $stref, $f, $info)=@_;
+sub _emit_expression_Uxntal ($ast, $stref, $f, $info) {
 	my $Sf = $stref->{'Subroutines'}{$f};
 
     if (ref($ast) eq 'ARRAY') {
@@ -1388,19 +1394,19 @@ sub _emit_expression_Uxntal { my ($ast, $stref, $f, $info)=@_;
 
                 if (@{$args}) {
 					if ($args->[0] != 14 ) { # NOT ')('
-						my @args_lst=();
+						my @args_lst_Uxntal=();
 						my $has_slices=0;
 						if($args->[0] == 27) { # ','
 							# more than one arg
 							for my $idx (1 .. scalar @{$args}-1) {
 								my $arg = $args->[$idx];
 								my $is_slice = $arg->[0] == 12; # ':'
-								push @args_lst, _emit_expression_Uxntal($arg, $stref, $f,$info) unless $is_slice;
+								push @args_lst_Uxntal, _emit_expression_Uxntal($arg, $stref, $f,$info) unless $is_slice;
 								$has_slices ||= $is_slice;
 							}
 						} else {
 							# only one arg
-							$args_lst[0] = _emit_expression_Uxntal($args, $stref, $f,$info);
+							$args_lst_Uxntal[0] = _emit_expression_Uxntal($args, $stref, $f,$info);
 							# return "$name("._emit_expression_Uxntal($args, $stref, $f).')';
 						}
 
@@ -1447,7 +1453,7 @@ sub _emit_expression_Uxntal { my ($ast, $stref, $f, $info)=@_;
 									# 	push @lower_bounds, $lb;
 									# }
 									if ($ndims==1) { # access to a 1-D array, v(i)
-										return ';'.$qual_vname.($is_arg? ' LDA2': '').' '.$args_lst[0].' ADD2 LDA'.($wordsz==1?'':'2');
+										return ';'.$qual_vname.($is_arg? ' LDA2': '').' '.$args_lst_Uxntal[0].' ADD2 LDA'.($wordsz==1?'':'2');
 									} elsif ($ndims==0 and $decl->{'Type'} eq 'character') {
 										my $cb = _emit_expression_Uxntal($ast->[2][1], $stref, $f,$info);
 										my $ce = _emit_expression_Uxntal($ast->[2][2], $stref, $f,$info);
@@ -1478,9 +1484,9 @@ sub _emit_expression_Uxntal { my ($ast, $stref, $f, $info)=@_;
 							}
 						} else { # A subroutine access.
 							if ($name ne 'achar') {
-								return join(' ',@args_lst).' '.$name;
+								return join(' ',@args_lst_Uxntal).' '.$name;
 							} else {
-								return join(' ',@args_lst);
+								return join(' ',@args_lst_Uxntal);
 							}
 						}
 					} else { #  ')(', e.g. f(x)(y)
@@ -1655,23 +1661,23 @@ sub _emit_expression_Uxntal { my ($ast, $stref, $f, $info)=@_;
                 return $v.' '.$sigils[$opcode] ;
             } elsif ($opcode == 27) { # ','
                 croak Dumper($ast) if $DBG; # WHY is this here?
-                my @args_lst=();
+                my @args_lst_Uxntal=();
                 for my $arg (@{$exp}) {
-                    push @args_lst, _emit_expression_Uxntal($arg, $stref, $f,$info);
+                    push @args_lst_Uxntal, _emit_expression_Uxntal($arg, $stref, $f,$info);
                 }
-                return join(',',@args_lst);
+                return join(',',@args_lst_Uxntal);
             } else {
                 croak 'BOOM! '.Dumper($ast).$opcode  if $DBG;
             }
         } elsif (scalar @{$ast} > 3) {
 
             if($ast->[0] == 27) { # ','
-                my @args_lst=();
+                my @args_lst_Uxntal=();
                 for my $idx (1 .. scalar @{$ast}-1) {
                     my $arg = $ast->[$idx];
-                    push @args_lst, _emit_expression_Uxntal($arg, $stref, $f,$info);
+                    push @args_lst_Uxntal, _emit_expression_Uxntal($arg, $stref, $f,$info);
                 }
-                return join(',',@args_lst);
+                return join(',',@args_lst_Uxntal);
             } else {
                 croak Dumper($ast) if $DBG;
             }
