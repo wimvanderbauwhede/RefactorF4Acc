@@ -236,7 +236,7 @@ sub translate_module_decls_to_Uxntal { (my $stref, my $mod_name) = @_;
     return $stref;
 } # END of translate_module_decls_to_Uxntal
 
-sub translate_sub_to_Uxntal( $stref, $f, $ocl ){
+sub translate_sub_to_Uxntal( $stref, $f){
 
 =info
 	# First we collect info. What we need to know is:
@@ -465,6 +465,7 @@ Instead of the nice but cumbersome approach we had until now, from now on it is 
 		}
 
 		if (exists $info->{'Assignment'} ) {
+			# say "Assignment line: $line";
 			($c_line,$pass_state) = _emit_assignment_Uxntal($stref, $f, $info,$pass_state) ;
 		}
 		elsif (exists $info->{'SubroutineCall'} and not exists $info->{'IOCall'}) {
@@ -802,23 +803,23 @@ sub _var_access_static($stref,$f,$var,$access,$idx) {
 	my $short_mode = $Sf->{'WordSizes'}{$var} == 2 ? '2' : '';
 	my $uxntal_code = '';
 	my $fq_var = $f.'_'.$var;
-	my $idx_expr = ($idx eq '#0000') ? '' : "$idx ADD2 ";
+	my $idx_expr = defined $idx ? ($idx eq '#0000') ? '' : "$idx ADD2 " : '';
     if  (is_array_or_string($stref,$f,$var)) {
 	 	if (is_arg($stref,$f,$var)) {
 			# 		passed by reference, so 
 			if ($access eq 'ST') {
 			# 			ref 
-				$uxntal_code = "$fq_var STA2" # store a pointer
+				$uxntal_code = ";$fq_var STA2" # store a pointer
 			} else {
-				$uxntal_code =  "$fq_var LDA2 $idx_expr LDA$short_mode" # load a pointer, index, load the value
+				$uxntal_code =  ";$fq_var LDA2 $idx_expr LDA$short_mode" # load a pointer, index, load the value
 			}
 		} else {
 			# 		not passed, so
 			if ($access eq 'ST') {
 			# 			val 
-				$uxntal_code = "$fq_var $idx_expr STA$short_mode"; # index, store the value
+				$uxntal_code = ";$fq_var $idx_expr STA$short_mode"; # index, store the value
 			} else {
-				$uxntal_code = 	"$fq_var $idx_expr LDA$short_mode"; # index, load the value
+				$uxntal_code = 	";$fq_var $idx_expr LDA$short_mode"; # index, load the value
 			}
 		}
 	} else {
@@ -826,17 +827,17 @@ sub _var_access_static($stref,$f,$var,$access,$idx) {
 		# 		passed by value, so 
 			if ($access eq 'ST') {
 					# val 
-				$uxntal_code = "$fq_var STA$short_mode";
+				$uxntal_code = ";$fq_var STA$short_mode";
 			} else {
-				$uxntal_code = "$fq_var LDA$short_mode";
+				$uxntal_code = ";$fq_var LDA$short_mode";
 			}
 		} else {
 		# 		not passed, so
 			if ($access eq 'ST') {
 				# val 
-				$uxntal_code = "$fq_var STA$short_mode";
+				$uxntal_code = ";$fq_var STA$short_mode";
 			} else {
-				$uxntal_code = "$fq_var LDA$short_mode";
+				$uxntal_code = ";$fq_var LDA$short_mode";
 			}
 		}
 	}
@@ -892,8 +893,9 @@ sub _var_access_stack($stref,$f,$var,$access,$idx) {
 sub __stack_access($stref,$f,$var) {
 	my $Sf = $stref->{'Subroutines'}{$f};
 	my $offset = $Sf->{'StackOffset'}{$var};
+	my $offset_hex = toHex($offset,2);
 	my $uxntal_code = '';
-	return ".fp LDZ2 $offset ADD2";
+	return ".fp LDZ2 $offset_hex ADD2";
 } # END of _stack_access()
 
 # We call this for every variable declaration
@@ -1264,8 +1266,21 @@ sub __substitute_PlaceHolders_Uxntal { my ($expr_str,$info) = @_;
 
 
 sub _emit_assignment_Uxntal { (my $stref, my $f, my $info, my $pass_state)=@_;
-
+	my $rhs_ast =  $info->{'Rhs'}{'ExpressionAST'};
 	my $lhs_ast =  $info->{'Lhs'}{'ExpressionAST'};
+	if ($rhs_ast->[0] == 34) { # it's a string assignment
+		# string assignment
+		# This must become lhs_uxntal ;fqn_rhs_uxntal memcopy-string
+		my $rline = _emit_expression_Uxntal($rhs_ast,$stref,$f,$info).' ;'.$f.'_'.$lhs_ast->[1].' memwrite-string';
+		return ($rline,$pass_state);
+	}
+# I think here we should do ST for lhs and LD for rhs, and it should be correct;
+# But we need to check if it is an array/string access expressions, i.e. 10, or not.
+	if ($lhs_ast->[0] == 10) {
+		croak 'ARRAY or STRING access: '.Dumper($lhs_ast);
+	} else {
+		croak 'SCALAR access: '.Dumper($lhs_ast);
+	}
 	my $lhs = _emit_expression_Uxntal($lhs_ast,$stref,$f,$info);
 
 	my $lhs_stripped = $lhs;
@@ -1277,7 +1292,6 @@ sub _emit_assignment_Uxntal { (my $stref, my $f, my $info, my $pass_state)=@_;
 	$lhs_stripped=~s/^\(([^\(\)]+)\)/$1/;
 	$lhs_stripped=$indent.$lhs_stripped;
 
-	my $rhs_ast =  $info->{'Rhs'}{'ExpressionAST'};
 	my $rhs = _emit_expression_Uxntal($rhs_ast,$stref,$f,$info);
 
 	my $rhs_stripped = $rhs;
