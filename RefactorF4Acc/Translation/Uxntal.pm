@@ -130,7 +130,7 @@ JMP2r
 #     &l ( -- )
 #     LDAk STHrk DEO
 #         INC2 GTH2k ?&l
-#         POP2 POP2 
+#         POP2 POP2
 # 	POPr
 # JMP2r
 # ',
@@ -507,15 +507,15 @@ Instead of the nice but cumbersome approach we had until now, from now on it is 
 				} else {
 					# if ($unit eq 'STDOUT' or $unit eq 'STDERR') {
 						$c_line = '';
-						my $maybe_str = ($unit eq 'STDOUT' or $unit eq 'STDERR')? '' : 
+						my $maybe_str = ($unit eq 'STDOUT' or $unit eq 'STDERR')? '' :
 						_emit_expression_Uxntal([32,$unit],$stref, $f, $info);
 						# ";$unit ";
 						my $idx=1;
 						for my $print_call (@{$print_calls}) {
-							my $maybe_offset= $maybe_str ne '' 
+							my $maybe_offset= $maybe_str ne ''
 								? $offsets->[$idx-1] == 0
-									? '' 
-									: toHex( $offsets->[$idx-1],2).' ADD2 ' 
+									? ''
+									: toHex( $offsets->[$idx-1],2).' ADD2 '
 								: '';
 							my $arg_ast = [];
 							if ($iolist_ast->[0] == 27) {
@@ -774,16 +774,16 @@ sub _var_access($stref,$f,$var,$access,$idx) {
 # So the analysis we need is:
     # if var is array or string
 	# 	if var is arg
-	# 		passed by reference, so 
+	# 		passed by reference, so
 	# 			ref addr STA2
 	# 			addr LDA2 [idx ADD2] LDA(2)
 	# 	else
-	# 		not passed, so 
+	# 		not passed, so
 	# 			val addr [idx ADD2] STA(2)
 	# 			addr [idx ADD2] LDA(2)
 	# else
 	# 	if var is arg
-	# 		passed by value, so 
+	# 		passed by value, so
 	# 			val addr STA(2)
 	# 			addr LDA(2)
 	# 	else
@@ -796,27 +796,28 @@ sub _var_access($stref,$f,$var,$access,$idx) {
 # But at the moment I am putting the alloc before the def
 # So let's keep that for now
 
-# With { } STH2r strings, the string variable would always store an address. 
+# With { } STH2r strings, the string variable would always store an address.
 # So the question is if using those inline strings is the right thing to do.
 sub _var_access_static($stref,$f,$var,$access,$idx) {
 	my $Sf = $stref->{'Subroutines'}{$f};
 	my $short_mode = $Sf->{'WordSizes'}{$var} == 2 ? '2' : '';
 	my $uxntal_code = '';
-	my $fq_var = $f.'_'.$var;
+	# my $fq_var = $f.'_'.$var;
+	my $fq_var = __create_fq_varname($stref,$f,$var);
 	my $idx_expr = defined $idx ? ($idx eq '#0000') ? '' : "$idx ADD2 " : '';
     if  (is_array_or_string($stref,$f,$var)) {
 	 	if (is_arg($stref,$f,$var)) {
-			# 		passed by reference, so 
+			# 		passed by reference
 			if ($access eq 'ST') {
-			# 			ref 
-				$uxntal_code = ";$fq_var STA2" # store a pointer
+			# 			ref
+				$uxntal_code = ";$fq_var LDA2 $idx_expr STA$short_mode" # load a pointer, index, store the value
 			} else {
 				$uxntal_code =  ";$fq_var LDA2 $idx_expr LDA$short_mode" # load a pointer, index, load the value
 			}
 		} else {
 			# 		not passed, so
 			if ($access eq 'ST') {
-			# 			val 
+			# 			val
 				$uxntal_code = ";$fq_var $idx_expr STA$short_mode"; # index, store the value
 			} else {
 				$uxntal_code = 	";$fq_var $idx_expr LDA$short_mode"; # index, load the value
@@ -824,9 +825,9 @@ sub _var_access_static($stref,$f,$var,$access,$idx) {
 		}
 	} else {
 		if (is_arg($stref,$f,$var)) {
-		# 		passed by value, so 
+		# 		passed by value, so
 			if ($access eq 'ST') {
-					# val 
+					# val
 				$uxntal_code = ";$fq_var STA$short_mode";
 			} else {
 				$uxntal_code = ";$fq_var LDA$short_mode";
@@ -834,7 +835,7 @@ sub _var_access_static($stref,$f,$var,$access,$idx) {
 		} else {
 		# 		not passed, so
 			if ($access eq 'ST') {
-				# val 
+				# val
 				$uxntal_code = ";$fq_var STA$short_mode";
 			} else {
 				$uxntal_code = ";$fq_var LDA$short_mode";
@@ -851,9 +852,9 @@ sub _var_access_stack($stref,$f,$var,$access,$idx) {
 	my $idx_expr = ($idx eq '#0000') ? '' : "$idx ADD2 ";
     if  (is_array_or_string($stref,$f,$var)) {
 	 	if (is_arg($stref,$f,$var)) {
-			# 		passed by reference, so 
+			# 		passed by reference, so
 			if ($access eq 'ST') {
-			# 			ref 
+			# 			ref
 				$uxntal_code = __stack_access($stref,$f,$var)." STA2"
 			} else {
 				return __stack_access($stref,$f,$var)." LDA2 $idx_expr LDA$short_mode"
@@ -861,7 +862,7 @@ sub _var_access_stack($stref,$f,$var,$access,$idx) {
 		} else {
 			# 		not passed, so
 			if ($access eq 'ST') {
-			# 			val 
+			# 			val
 				$uxntal_code = __stack_access($stref,$f,$var)." $idx_expr STA$short_mode";
 			} else {
 				$uxntal_code = 	__stack_access($stref,$f,$var)."$ $idx_expr LDA$short_mode";
@@ -869,9 +870,9 @@ sub _var_access_stack($stref,$f,$var,$access,$idx) {
 		}
 	} else {
 		if (is_arg($stref,$f,$var)) {
-		# 		passed by value, so 
+		# 		passed by value, so
 			if ($access eq 'ST') {
-					# val 
+					# val
 				$uxntal_code = __stack_access($stref,$f,$var)." STA$short_mode";
 			} else {
 				$uxntal_code = __stack_access($stref,$f,$var)." LDA$short_mode";
@@ -879,7 +880,7 @@ sub _var_access_stack($stref,$f,$var,$access,$idx) {
 		} else {
 		# 		not passed, so
 			if ($access eq 'ST') {
-				# val 
+				# val
 				$uxntal_code = __stack_access($stref,$f,$var)." STA$short_mode";
 			} else {
 				$uxntal_code = __stack_access($stref,$f,$var)." LDA$short_mode";
@@ -899,8 +900,8 @@ sub __stack_access($stref,$f,$var) {
 } # END of _stack_access()
 
 # We call this for every variable declaration
-# But I think storing the arguments should be a separate call. 
-# 
+# But I think storing the arguments should be a separate call.
+#
 sub _stack_allocation($stref,$f,$var) {
 	my $Sf = $stref->{'Subroutines'}{$f};
 	my $wordsz = $Sf->{'WordSizes'}{$var} ;
@@ -923,7 +924,7 @@ sub _stack_allocation($stref,$f,$var) {
 		}
 	} else {
 		if (is_arg($stref,$f,$var)) {
-		# 		passed by value, so 
+		# 		passed by value, so
 				my $offset = $Sf->{'CurrentOffset'};
 				$Sf->{'CurrentOffset'} += $wordsz;
 				$Sf->{'StackOffset'}{$var}= $offset;
@@ -939,7 +940,7 @@ sub _stack_allocation($stref,$f,$var) {
 	return $uxntal_code;
 } # END of _stack_allocation()
 
-# Every arg is stored on the stack. 
+# Every arg is stored on the stack.
 sub _store_arg_on_stack($stref,$f,$arg) {
 	my $Sf = $stref->{'Subroutines'}{$f};
 	my $short_mode = $Sf->{'WordSizes'}{$arg} == 2 ? '2' : '';
@@ -951,6 +952,28 @@ sub _store_arg_on_stack($stref,$f,$arg) {
 	}
 	return $uxntal_code;
 } # END of _store_arg_on_stack()
+
+sub __create_fq_varname($stref,$f,$var_name) {
+	my $Sf = $stref->{'Subroutines'}{$f};
+	my $decl = get_var_record_from_set($Sf->{'ModuleVars'},$var_name);
+	my $fq_varname = $f.'_'.$var_name;
+	if (defined $decl) {
+		my $mod_name ='';
+		if (exists $decl->{'ModuleName'}) {
+			$mod_name = $decl->{'ModuleName'};
+		}
+		if ($mod_name ne '') {
+			$fq_varname = $mod_name.'_'.$var_name;
+			# if (not exists $stref->{'Uxntal'}{'Globals'}{'Set'}{$fq_varname}) {
+			# 	$stref->{'Uxntal'}{'Globals'}{'Set'}{$fq_varname} = 1;
+			# 	($stref, my $global_var_decl)= _emit_var_decl_Uxntal($stref,$mod_name,$info,$var_name);
+			# 	push @{$stref->{'Uxntal'}{'Globals'}{'List'}},$global_var_decl ;
+			# }
+		}
+	}
+	return $fq_varname;
+}
+
 
 sub _pointer_analysis($stref,$f) {
 
@@ -1277,9 +1300,22 @@ sub _emit_assignment_Uxntal { (my $stref, my $f, my $info, my $pass_state)=@_;
 # I think here we should do ST for lhs and LD for rhs, and it should be correct;
 # But we need to check if it is an array/string access expressions, i.e. 10, or not.
 	if ($lhs_ast->[0] == 10) {
-		croak 'ARRAY or STRING access: '.Dumper($lhs_ast);
+
+		my $var = $lhs_ast->[1];
+		my $idx = _emit_expression_Uxntal($lhs_ast->[2],$stref,$f,$info);
+		say "LHS $var($idx)";
+		my $lhs_str = _var_access($stref,$f,$var,'ST',$idx);
+		my $rhs_str = _emit_expression_Uxntal($rhs_ast,$stref,$f,$info);
+		my $rline = "$rhs_str $lhs_str";
+		return ($rline,$pass_state);
+		# croak 'ARRAY or STRING access: '.Dumper($lhs_ast,$rhs_ast,$rline);
 	} else {
-		croak 'SCALAR access: '.Dumper($lhs_ast);
+		my $var = $lhs_ast->[1];
+		my $lhs_str = _var_access($stref,$f,$var,'ST',undef);
+		my $rhs_str = _emit_expression_Uxntal($rhs_ast,$stref,$f,$info);
+		my $rline = "$rhs_str $lhs_str";
+		# return ($rline,$pass_state);
+		croak 'SCALAR access: '.Dumper($lhs_ast,$rhs_ast,$rline);
 	}
 	my $lhs = _emit_expression_Uxntal($lhs_ast,$stref,$f,$info);
 
@@ -1382,7 +1418,7 @@ sub _emit_expression_Uxntal ($ast, $stref, $f, $info) {
 	my $Sf = $stref->{'Subroutines'}{$f};
 
     if (ref($ast) eq 'ARRAY') {
-        if (scalar @{$ast}==3) { # three elements, e.g. ['@','v',['$','i']] 
+        if (scalar @{$ast}==3) { # three elements, e.g. ['@','v',['$','i']]
 			# Uxn does not have pow or mod so these would have to be functions
 			# TODO these are not implemented yet
 			if ($ast->[0] == 8) { # eq '^'

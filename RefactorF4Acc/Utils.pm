@@ -705,6 +705,7 @@ sub coderef_to_subname { my ($coderef) = @_;
 }
 
 sub is_arg {my ($stref,$f,$var) =@_;
+    if ($stref->{'Subroutines'}{$f}{'Program'}) { return 0 };
 	if ( in_nested_set($stref->{'Subroutines'}{$f},'Args',$var)) {
 		return 1;
 	} else {
