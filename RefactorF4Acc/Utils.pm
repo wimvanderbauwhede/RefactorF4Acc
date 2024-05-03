@@ -705,12 +705,15 @@ sub coderef_to_subname { my ($coderef) = @_;
 }
 
 sub is_arg {my ($stref,$f,$var) =@_;
-    if ($stref->{'Subroutines'}{$f}{'Program'}) { return 0 };
-	if ( in_nested_set($stref->{'Subroutines'}{$f},'Args',$var)) {
-		return 1;
-	} else {
-		return 0;
-	}
+    my $Sf = $stref->{'Subroutines'}{$f};
+    if ($Sf->{'Program'}) { return 0 } else {
+        return in_nested_set($Sf,'DeclaredOrigArgs',$var) eq 'DeclaredOrigArgs' ? 1 : 0;
+    }
+	# if ( in_nested_set($stref->{'Subroutines'}{$f},'Args',$var)) {
+	# 	return 1;
+	# } else {
+	# 	return 0;
+	# }
 }
 sub is_array { my ($stref,$f,$var) = @_;
 	my $decl =  get_var_record_from_set($stref->{'Subroutines'}{$f}{'Vars'},$var) ;
