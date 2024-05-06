@@ -753,16 +753,16 @@ sub _get_word_sizes($stref,$f){
 } # END of _get_word_sizes
 
 # $idx is in Uxntal format
-sub _var_access($stref,$f,$var,$access,$idx) {
+sub _var_access($stref,$f,$info,$var,$idx,$access) {
 	my $Sf = $stref->{'Subroutines'}{$f};
 	if (exists $Sf->{'Recursion'}) {
 		if ($Sf->{'Recursion'} eq 'No' or $Sf->{'Recursion'} eq 'Tail' ) {
-			return _var_access_static($stref,$f,$var,$access,$idx);
+			return _var_access_static($stref,$f,$info,$var,$idx,$access);
 		} else {
-			return _var_access_stack($stref,$f,$var,$access,$idx);
+			return _var_access_stack($stref,$f,$info,$var,$idx,$access);
 		}
 	} else {
-		return _var_access_static($stref,$f,$var,$access,$idx);
+		return _var_access_static($stref,$f,$info,$var,$idx,$access);
 	}
 } # END of _var_access
 
@@ -798,7 +798,15 @@ sub _var_access($stref,$f,$var,$access,$idx) {
 
 # With { } STH2r strings, the string variable would always store an address.
 # So the question is if using those inline strings is the right thing to do.
-sub _var_access_static($stref,$f,$var,$access,$idx) {
+# TODO
+# If I want to incorporate string access in here, I need the full ast because 
+# $idx is a pair
+# Of course once I do that, I might as well get te var from the ast
+# ['@',$var,[',',@idx_exprs]]
+# ['@',$var,[':',$idx_expr_b,$idx_expr_e]] # This can be an array slice OR a string access
+# ['@',$var,$idx_expr]
+# ['$',$var]
+sub _var_access_static($stref,$f,$info,$var,$idx,$access) {
 	my $Sf = $stref->{'Subroutines'}{$f};
 	my $short_mode = $Sf->{'WordSizes'}{$var} == 2 ? '2' : '';
 	my $uxntal_code = '';
@@ -845,7 +853,7 @@ sub _var_access_static($stref,$f,$var,$access,$idx) {
 	return $uxntal_code;
 } # END of _var_access_static()
 
-sub _var_access_stack($stref,$f,$var,$access,$idx) {
+sub _var_access_stack($stref,$f,$info,$var,$idx,$access) {
 	my $Sf = $stref->{'Subroutines'}{$f};
 	my $short_mode = $Sf->{'WordSizes'}{$var} == 2 ? '2' : '';
 	my $uxntal_code = '';
@@ -975,6 +983,19 @@ sub __create_fq_varname($stref,$f,$var_name) {
 	return $fq_varname;
 } # END of __create_fq_varname
 
+sub __string_access($stref,$f,$info,$var_name,$ast){
+	my $Sf = $stref->{'Subroutines'}{$f};
+	my $strn = __create_fq_varname($stref,$f,$var_name);
+	my $decl = get_var_record_from_set($Sf->{'Vars'},$var_name);
+	my $cb = _emit_expression_Uxntal($ast->[2][1], $stref, $f,$info);
+	my $ce = _emit_expression_Uxntal($ast->[2][2], $stref, $f,$info);
+	my $id=$info->{'LineID'};
+	if($decl->{'Attr'}!~/len/) {
+		croak 'String with index>1 but the type is character', Dumper $ast;
+	}
+	my $len = $decl->{'Attr'};$len=~s/len=//;
+	return genSubstr($strn, $cb,$ce, $len, $id);
+}
 
 sub _pointer_analysis($stref,$f) {
 
@@ -1305,14 +1326,14 @@ sub _emit_assignment_Uxntal { (my $stref, my $f, my $info, my $pass_state)=@_;
 		my $var = $lhs_ast->[1];
 		my $idx = _emit_expression_Uxntal($lhs_ast->[2],$stref,$f,$info);
 		say "LHS $var($idx)";
-		my $lhs_str = _var_access($stref,$f,$var,'ST',$idx);
+		my $lhs_str = _var_access($stref,$f,$info,$var,$idx,'ST');
 		my $rhs_str = _emit_expression_Uxntal($rhs_ast,$stref,$f,$info);
 		my $rline = "$rhs_str $lhs_str";
 		return ($rline,$pass_state);
 		# croak 'ARRAY or STRING access: '.Dumper($lhs_ast,$rhs_ast,$rline);
 	} else {
 		my $var = $lhs_ast->[1];
-		my $lhs_str = _var_access($stref,$f,$var,'ST',undef);
+		my $lhs_str = _var_access($stref,$f,$info,$var,undef,'ST');
 		my $rhs_str = _emit_expression_Uxntal($rhs_ast,$stref,$f,$info);
 		my $rline = "$rhs_str $lhs_str";
 		# return ($rline,$pass_state);
@@ -1843,16 +1864,16 @@ sub _emit_expression_Uxntal_OFF ($ast, $stref, $f, $info) {
 									}
 								} elsif ( $decl->{'Type'} eq 'character') {
 									# Although the AST says '10', decls says it's a scalar
-										my $strn= (exists $decl->{'ModuleName'} ? $decl->{'ModuleName'} :$f).'_'.$ast->[1];
-										# croak "ALLOW FOR MODULE GLOBALS HERE!";
-										my $cb = _emit_expression_Uxntal($ast->[2][1], $stref, $f,$info);
-										my $ce = _emit_expression_Uxntal($ast->[2][2], $stref, $f,$info);
-										my $id=$info->{'LineID'};
-										if($decl->{'Attr'}!~/len/) {
-											croak 'String with index>1 but the type is character', Dumper $ast;
-										}
-										my $len = $decl->{'Attr'};$len=~s/len=//;
-										return genSubstr($strn, $cb,$ce, $len, $id);
+									my $strn= (exists $decl->{'ModuleName'} ? $decl->{'ModuleName'} :$f).'_'.$ast->[1];
+									# croak "ALLOW FOR MODULE GLOBALS HERE!";
+									my $cb = _emit_expression_Uxntal($ast->[2][1], $stref, $f,$info);
+									my $ce = _emit_expression_Uxntal($ast->[2][2], $stref, $f,$info);
+									my $id=$info->{'LineID'};
+									if($decl->{'Attr'}!~/len/) {
+										croak 'String with index>1 but the type is character', Dumper $ast;
+									}
+									my $len = $decl->{'Attr'};$len=~s/len=//;
+									return genSubstr($strn, $cb,$ce, $len, $id);
 								} else { # Although the AST says '10', decls says it's a scalar
 									croak Dumper $ast,$decl;
 								}
