@@ -799,13 +799,13 @@ sub _var_access($stref,$f,$info,$var,$idx,$access) {
 # With { } STH2r strings, the string variable would always store an address.
 # So the question is if using those inline strings is the right thing to do.
 # TODO
-# If I want to incorporate string access in here, I need the full ast because 
+# If I want to incorporate string access in here, I need the full ast because
 # $idx is a pair
-# Of course once I do that, I might as well get te var from the ast
-# ['@',$var,[',',@idx_exprs]]
-# ['@',$var,[':',$idx_expr_b,$idx_expr_e]] # This can be an array slice OR a string access
-# ['@',$var,$idx_expr]
-# ['$',$var]
+# Of course once I do that, I might as well get the var from the ast
+# ['@',$var,[',',@idx_exprs]] : 10, 3 args, last arg is array has 27
+# ['@',$var,[':',$idx_expr_b,$idx_expr_e]] # This can be an array slice OR a string access : 10, 3 args, last arg is array has 12
+# ['@',$var,$idx_expr] : 10, 3 args, last arg is scalar
+# ['$',$var] : 2, 2 args,
 sub _var_access_static($stref,$f,$info,$var,$idx,$access) {
 	my $Sf = $stref->{'Subroutines'}{$f};
 	my $short_mode = $Sf->{'WordSizes'}{$var} == 2 ? '2' : '';
@@ -852,6 +852,35 @@ sub _var_access_static($stref,$f,$info,$var,$idx,$access) {
 	}
 	return $uxntal_code;
 } # END of _var_access_static()
+
+sub __unpack_ast($ast) {
+	if (ref($ast) eq 'ARRAY' and scalar @{$ast} >= 2) {
+		# ['@',$var,[',',@idx_exprs]] : 10, 3 args, last arg is array has 27
+		# ['@',$var,[':',$idx_expr_b,$idx_expr_e]] # This can be an array slice OR a string access : 10, 3 args, last arg is array has 12
+		# ['@',$var,$idx_expr] : 10, 3 args, last arg is scalar
+		# ['$',$var] : 2, 2 args,
+		my $var = $ast->[1];
+		if ($ast->[0] == 10) {
+			if (scalar @{$ast} == 2) {
+# TODO
+				
+			} else {
+				error('Array access AST must have 3 items: '.Dumper($ast));
+			}
+		} elsif ($ast->[0] == 2) {
+			if (scalar @{$ast} == 2) {
+# TODO
+
+			} else {
+				error('Scalar AST must have 2 items: '.Dumper($ast));
+			}
+		} else {
+			error('AST must be an @ or $: '.Dumper($ast));
+		}
+	} else {
+		error('AST must be a list: '.Dumper($ast));
+	}
+}
 
 sub _var_access_stack($stref,$f,$info,$var,$idx,$access) {
 	my $Sf = $stref->{'Subroutines'}{$f};
