@@ -798,6 +798,17 @@ sub _var_access($stref,$f,$info,$var,$idx,$access) {
 
 # With { } STH2r strings, the string variable would always store an address.
 # So the question is if using those inline strings is the right thing to do.
+# I think we handle this as follows:
+# TODO
+# an assignment of a string to a var means:
+# 	If the var is locally declared (and therefore allocated) we do a strcpy
+# 	If the var is an arg, we simply copy the address
+# an assignment of a string var to another string var (no indexing)
+# 	if it is an arg, it's by reference
+# 	if it is a local, we do a strcpy I think
+# an assignment of a array var to another array
+#	if it is an arg, it's by reference
+# 	if it is a local, we do a array copy I think
 # TODO
 # If I want to incorporate string access in here, I need the full ast because
 # $idx is a pair
@@ -814,22 +825,26 @@ sub _var_access_static($stref,$f,$info,$var,$idx,$access) {
 	my $fq_var = __create_fq_varname($stref,$f,$var);
 	my $idx_expr = defined $idx ? ($idx eq '#0000') ? '' : "$idx ADD2 " : '';
     if  (is_array_or_string($stref,$f,$var)) {
-	 	if (is_arg($stref,$f,$var)) {
-			# 		passed by reference
-			if ($access eq 'ST') {
-			# 			ref
-				$uxntal_code = ";$fq_var LDA2 $idx_expr STA$short_mode" # load a pointer, index, store the value
+		if (is_array($stref,$f,$var)) {
+			if (is_arg($stref,$f,$var)) {
+				# 		passed by reference
+				if ($access eq 'ST') {
+				# 			ref
+					$uxntal_code = ";$fq_var LDA2 $idx_expr STA$short_mode" # load a pointer, index, store the value
+				} else {
+					$uxntal_code =  ";$fq_var LDA2 $idx_expr LDA$short_mode" # load a pointer, index, load the value
+				}
 			} else {
-				$uxntal_code =  ";$fq_var LDA2 $idx_expr LDA$short_mode" # load a pointer, index, load the value
+				# 		not passed, so
+				if ($access eq 'ST') {
+				# 			val
+					$uxntal_code = ";$fq_var $idx_expr STA$short_mode"; # index, store the value
+				} else {
+					$uxntal_code = 	";$fq_var $idx_expr LDA$short_mode"; # index, load the value
+				}
 			}
-		} else {
-			# 		not passed, so
-			if ($access eq 'ST') {
-			# 			val
-				$uxntal_code = ";$fq_var $idx_expr STA$short_mode"; # index, store the value
-			} else {
-				$uxntal_code = 	";$fq_var $idx_expr LDA$short_mode"; # index, load the value
-			}
+		} else { # must be a string 
+			# TODO
 		}
 	} else {
 		if (is_arg($stref,$f,$var)) {
@@ -860,27 +875,26 @@ sub __unpack_ast($ast) {
 		# ['@',$var,$idx_expr] : 10, 3 args, last arg is scalar
 		# ['$',$var] : 2, 2 args,
 		my $var = $ast->[1];
+		my $idxs = [];
 		if ($ast->[0] == 10) {
-			if (scalar @{$ast} == 2) {
+			if (scalar @{$ast} == 3) {
 # TODO
-				
+				$idxs=$ast->[2]; # is still an ast here, probably keep it that way
 			} else {
 				error('Array access AST must have 3 items: '.Dumper($ast));
 			}
 		} elsif ($ast->[0] == 2) {
-			if (scalar @{$ast} == 2) {
-# TODO
-
-			} else {
+			if (scalar @{$ast} != 2) {
 				error('Scalar AST must have 2 items: '.Dumper($ast));
 			}
 		} else {
 			error('AST must be an @ or $: '.Dumper($ast));
 		}
+		return [$var,$idxs];
 	} else {
 		error('AST must be a list: '.Dumper($ast));
 	}
-}
+} # END of __unpack_ast
 
 sub _var_access_stack($stref,$f,$info,$var,$idx,$access) {
 	my $Sf = $stref->{'Subroutines'}{$f};
@@ -1344,7 +1358,7 @@ sub _emit_assignment_Uxntal { (my $stref, my $f, my $info, my $pass_state)=@_;
 	my $lhs_ast =  $info->{'Lhs'}{'ExpressionAST'};
 	if ($rhs_ast->[0] == 34) { # it's a string assignment
 		# string assignment
-		# This must become lhs_uxntal ;fqn_rhs_uxntal memcopy-string
+		# This must become lhs_uxntal ;fqn_rhs_uxntal memwrite-string
 		my $rline = _emit_expression_Uxntal($rhs_ast,$stref,$f,$info).' ;'.$f.'_'.$lhs_ast->[1].' memwrite-string';
 		return ($rline,$pass_state);
 	}
