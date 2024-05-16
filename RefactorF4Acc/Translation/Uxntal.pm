@@ -800,12 +800,12 @@ sub _var_access($stref,$f,$info,$var,$idx,$access) {
 # So the question is if using those inline strings is the right thing to do.
 # I think we handle this as follows:
 # TODO
-# an assignment of a string to a var means:
+# an assignment of a string literal to a var means:
 # 	If the var is locally declared (and therefore allocated) we do a strcpy
 # 	If the var is an arg, we simply copy the address
 # an assignment of a string var to another string var (no indexing)
+# 	if it is a local, we do a strcpy
 # 	if it is an arg, it's by reference
-# 	if it is a local, we do a strcpy I think
 # an assignment of a array var to another array
 #	if it is an arg, it's by reference
 # 	if it is a local, we do a array copy I think
@@ -817,6 +817,14 @@ sub _var_access($stref,$f,$info,$var,$idx,$access) {
 # ['@',$var,[':',$idx_expr_b,$idx_expr_e]] # This can be an array slice OR a string access : 10, 3 args, last arg is array has 12
 # ['@',$var,$idx_expr] : 10, 3 args, last arg is scalar
 # ['$',$var] : 2, 2 args,
+# WV 2024-05-12 Maybe I should do this differently: 'ST' always means an assignment, so maybe I should split var_access in read and write?
+# If read
+# If single word (i.e. '$', 2): ";$fq_var LD$wordsz"
+# If slice and string, then it is a substring, and it split var_access in read and write?
+# If it's read, and it's a single word, then it's just an LD
+# But if it is a slice, then it is a substring, and it will need a memwrite-string
+# In other words, it is either read or assign: even an OUT arg must be assigned somewhere.
+# And except for the memwrite-string and memwrite-array, having a read access function still makes sense.
 sub _var_access_static($stref,$f,$info,$var,$idx,$access) {
 	my $Sf = $stref->{'Subroutines'}{$f};
 	my $short_mode = $Sf->{'WordSizes'}{$var} == 2 ? '2' : '';
@@ -843,7 +851,7 @@ sub _var_access_static($stref,$f,$info,$var,$idx,$access) {
 					$uxntal_code = 	";$fq_var $idx_expr LDA$short_mode"; # index, load the value
 				}
 			}
-		} else { # must be a string 
+		} else { # must be a string
 			# TODO
 		}
 	} else {
@@ -868,18 +876,180 @@ sub _var_access_static($stref,$f,$info,$var,$idx,$access) {
 	return $uxntal_code;
 } # END of _var_access_static()
 
-sub __unpack_ast($ast) {
+sub _var_access_read_static($stref,$f,$info,$ast) {
+	my ($var,$idxs,$idx_expr_type) = __unpack_var_access_ast($ast);
+	my $Sf = $stref->{'Subroutines'}{$f};
+	my $short_mode = $Sf->{'WordSizes'}{$var} == 2 ? '2' : '';
+	my $uxntal_code = '';
+	# my $fq_var = $f.'_'.$var;
+	my $fq_var = __create_fq_varname($stref,$f,$var);
+    if  (is_array($stref,$f,$var) and $idx_expr_type == 1) {
+		my $idx = _emit_expression_Uxntal($idxs,$stref,$f,$info);
+		my $idx_expr = defined $idx ? ($idx eq '#0000') ? '' : 
+		"$idx ".( $short_mode ? ' #0002 MUL2 ': '') .' ADD2 ' : '';
+		if (is_arg($stref,$f,$var)) {
+			# 		passed by reference
+				$uxntal_code =  ";$fq_var LDA2 $idx_expr LDA$short_mode" # load a pointer, index, load the value
+		} else {
+			# 		not passed, so
+				$uxntal_code = 	";$fq_var $idx_expr LDA$short_mode"; # index, load the value
+		}
+	} elsif  (is_array($stref,$f,$var) and $idx_expr_type == 2) {
+		error('Array slice is not yet supported: '.Dumper($ast));
+	} elsif  (is_string($stref,$f,$var) and $idx_expr_type == 2) {
+		my $idx_expr_b = _emit_expression_Uxntal($idxs->[1], $stref, $f,$info);
+		my $idx_expr_e = _emit_expression_Uxntal($idxs->[2], $stref, $f,$info);
+		if ($idx_expr_b eq $idx_expr_e) { # access a single character, so return a byte as value
+			my $idx_expr =  ($idx_expr_b eq '#0000') ? '' : "$idx_expr_b ADD2 ";
+			if (is_arg($stref,$f,$var)) {
+				$uxntal_code =  ";$fq_var LDA2 $idx_expr LDA" # load a pointer, index, load the value
+			} else { # a local string
+				$uxntal_code =  ";$fq_var $idx_expr LDA" # load a pointer, index, load the value
+			}
+		} else {
+			# extract a substring
+			my $decl = get_var_record_from_set($Sf->{'Vars'},$var);
+			my $id=$info->{'LineID'};
+			if($decl->{'Attr'}!~/len/) {
+				croak 'String with index>1 but the type is character', Dumper $ast;
+			}
+			my $len = $decl->{'Attr'};$len=~s/len=//;
+			$uxntal_code = genSubstr($fq_var, $idx_expr_b,$idx_expr_e, $len, $id);
+
+		}
+	} elsif  (is_array_or_string($stref,$f,$var) and $idx_expr_type == 0) {
+		# the array or string itself, likely as argument to a function
+		if (is_arg($stref,$f,$var)) { # for example f(s) then s will be a pointer which will store the argument.
+			$uxntal_code =  ";$fq_var LDA2";
+		} else { # s is a local string, so we simple pass the address
+			$uxntal_code =  ";$fq_var";
+		}
+	} else {
+		if (is_arg($stref,$f,$var)) {
+		# 		passed by value, so
+				$uxntal_code = ";$fq_var LDA$short_mode";
+		} else {
+		# 		not passed, so
+				$uxntal_code = ";$fq_var LDA$short_mode";
+		}
+	}
+	return $uxntal_code;
+} # END of _var_access_read_static()
+=pod
+So we have:
+
+READ means the RHS of an assignment, or anywhere in an expression, or a subroutine argument
+ARG
+    SCALAR
+    ARRAY
+    STRING
+    ARRAY INDEX
+    STRING SLICE
+    ARRAY SLICE
+LOCAL
+    SCALAR
+    ARRAY
+    STRING
+    ARRAY INDEX
+    STRING SLICE
+    ARRAY SLICE
+
+ASSIGN
+The RHS is via read, except for array and string slices AND for array and string assignments
+ARG
+    SCALAR:  f(v) where v is an (in)out and we have v=expr
+	Which means v *must* be a pointer, so we have <expr> ;v LDA2 STA$wordsz
+    ARRAY => copy
+    STRING => copy
+    ARRAY INDEX <expr> ;s LDA2 $idx_expr ADD2 STA$wordsz
+	STRING INDEX <expr> ;s LDA2 $idx_expr ADD2 STA
+    STRING SLICE => copy
+    ARRAY SLICE => copy
+LOCAL
+    SCALAR:  v=expr
+	Which means v is an addr, so we have <expr> ;v STA$wordsz
+    ARRAY  => copy
+    STRING => copy
+    ARRAY INDEX <expr> ;s $idx_expr ADD2 STA$wordsz
+	STRING INDEX <expr> ;s $idx_expr ADD2 STA
+    STRING SLICE => copy
+    ARRAY SLICE => copy
+=cut
+sub _var_access_assign_static($stref,$f,$info,$ast) {
+	my ($var,$idxs,$idx_expr_type) = __unpack_var_access_ast($ast);
+	my $Sf = $stref->{'Subroutines'}{$f};
+	my $short_mode = $Sf->{'WordSizes'}{$var} == 2 ? '2' : '';
+	my $uxntal_code = '';
+	# my $fq_var = $f.'_'.$var;
+	my $fq_var = __create_fq_varname($stref,$f,$var);
+	my $rhs_expr_str = 'TODO';
+    if  (is_array($stref,$f,$var) and $idx_expr_type == 1) {
+		my $idx = _emit_expression_Uxntal($idxs,$stref,$f,$info);
+		my $idx_expr = defined $idx ? ($idx eq '#0000') ? '' : "$idx ".( $short_mode ? ' #0002 MUL2 ': '') .' ADD2 ' : '';
+		if (is_arg($stref,$f,$var)) {
+			# 		passed by reference
+				$uxntal_code =  "$rhs_expr_str ;$fq_var LDA2 $idx_expr STA$short_mode" # load a pointer, index, load the value
+		} else {
+			# 		not passed, so
+				$uxntal_code = 	"$rhs_expr_str  ;$fq_var $idx_expr STA$short_mode"; # index, load the value
+		}
+	} elsif  (is_array($stref,$f,$var) and $idx_expr_type == 2) {
+		error('Array slice is not yet supported: '.Dumper($ast));
+	} elsif  (is_string($stref,$f,$var) and $idx_expr_type == 2) {
+		my $idx_expr_b = _emit_expression_Uxntal($idxs->[1], $stref, $f,$info);
+		my $idx_expr_e = _emit_expression_Uxntal($idxs->[2], $stref, $f,$info);
+		if ($idx_expr_b eq $idx_expr_e) { # access a single character, so return a byte as value
+			my $idx_expr =  ($idx_expr_b eq '#0000') ? '' : "$idx_expr_b ADD2 ";
+			if (is_arg($stref,$f,$var)) {
+				$uxntal_code =  "$rhs_expr_str ;$fq_var LDA2 $idx_expr STA" # load a pointer, index, load the value
+			} else { # a local string
+				$uxntal_code =  "$rhs_expr_str ;$fq_var $idx_expr STA" # load a pointer, index, load the value
+			}
+		} else {
+# TODO
+			# my $decl = get_var_record_from_set($Sf->{'Vars'},$var);
+			# my $id=$info->{'LineID'};
+			# if($decl->{'Attr'}!~/len/) {
+			# 	croak 'String with index>1 but the type is character', Dumper $ast;
+			# }
+			# my $len = $decl->{'Attr'};$len=~s/len=//;
+			# $uxntal_code = genSubstr($fq_var, $idx_expr_b,$idx_expr_e, $len, $id);
+		}
+	} elsif  (is_array_or_string($stref,$f,$var) and $idx_expr_type == 0) {
+		# the array or string itself, likely as argument to a function
+		if (is_arg($stref,$f,$var)) { # for example f(s) then s will be a pointer which will store the argument.
+			$uxntal_code =  ";$fq_var LDA2";
+		} else { # s is a local string, so we simple pass the address
+			$uxntal_code =  ";$fq_var";
+		}
+	} else {
+		if (is_arg($stref,$f,$var)) {
+		# 		passed by value, so
+				$uxntal_code = ";$fq_var LDA$short_mode";
+		} else {
+		# 		not passed, so
+				$uxntal_code = ";$fq_var LDA$short_mode";
+		}
+	}
+	return $uxntal_code;
+} # END of _var_access_assign_static()
+
+sub __unpack_var_access_ast($ast) {
 	if (ref($ast) eq 'ARRAY' and scalar @{$ast} >= 2) {
 		# ['@',$var,[',',@idx_exprs]] : 10, 3 args, last arg is array has 27
 		# ['@',$var,[':',$idx_expr_b,$idx_expr_e]] # This can be an array slice OR a string access : 10, 3 args, last arg is array has 12
 		# ['@',$var,$idx_expr] : 10, 3 args, last arg is scalar
 		# ['$',$var] : 2, 2 args,
+		my $idx_expr_type = 0; # 0 = no index | 1 = scalar | 2 = slice | 3 = multi-dim
 		my $var = $ast->[1];
 		my $idxs = [];
 		if ($ast->[0] == 10) {
 			if (scalar @{$ast} == 3) {
-# TODO
 				$idxs=$ast->[2]; # is still an ast here, probably keep it that way
+				$idx_expr_type = $idxs->[0] == 27 ? 3 : $idxs->[0] == 12 ? 2 : 1;
+				if ($idx_expr_type == 3) {
+					error('Multi-dimensional arrays are not supported: '.Dumper($ast));
+				}
 			} else {
 				error('Array access AST must have 3 items: '.Dumper($ast));
 			}
@@ -890,11 +1060,59 @@ sub __unpack_ast($ast) {
 		} else {
 			error('AST must be an @ or $: '.Dumper($ast));
 		}
-		return [$var,$idxs];
+		return ($var,$idxs,$idx_expr_type);
 	} else {
 		error('AST must be a list: '.Dumper($ast));
 	}
-} # END of __unpack_ast
+} # END of __unpack_var_access_ast
+
+
+# We need to catch the cases where we have a RHS that is not a string. For example, it can be a character:
+# s(i:i) = c
+# s(i:i) = "c" => a character literal, this should be $lhs_idx_expr_type == 0 but that is not enough
+# s(i:j) = "hello, " // w => This is assumed to return a temporary string and we start at the first char
+# # So must check the RHS and consider the following cases:
+# - a var, which can be a string or a character scalar (anything else is an error)
+# - a character literal (or a string literal of length 1)
+# - a string literal
+# - an expression
+
+sub _copy_substr($stref, $f, $info, $lhs_ast, $rhs_ast) {
+	# extract a substring and copy
+	# unpack the asts
+	my ($lhs_var,$lhs_idxs,$lhs_idx_expr_type) = __unpack_var_access_ast($lhs_ast);
+	my ($rhs_var,$rhs_idxs,$rhs_idx_expr_type) = __unpack_var_access_ast($rhs_ast);
+	my $uxntal_code = '';
+	if ($lhs_idx_expr_type == 2 and $rhs_idx_expr_type == 2) { # both are slices
+		# get the slice index expressions
+		my $lhs_idx_expr_b = _emit_expression_Uxntal($lhs_idxs->[1], $stref, $f,$info);
+		my $lhs_idx_expr_e = _emit_expression_Uxntal($lhs_idxs->[2], $stref, $f,$info);
+		my $rhs_idx_expr_b = _emit_expression_Uxntal($rhs_idxs->[1], $stref, $f,$info);
+		my $rhs_idx_expr_e = _emit_expression_Uxntal($rhs_idxs->[2], $stref, $f,$info);
+
+		if ($lhs_idx_expr_b eq $lhs_idx_expr_e and $rhs_idx_expr_b eq $rhs_idx_expr_e) {
+		# simplyfied case of s_to(b1:b1) = s_from(b2:b2)
+    		$uxntal_code = ";rhs_var $rhs_idx_expr_b ADD2 LDA ;lhs_var $lhs_idx_expr_b ADD2 STA"
+		} else { # It is not possible to tell at compile time if these are compatible.
+			# So to avoid overwriting, we use the LHS slice
+			# TODO
+			# s_to(b1:e1)=s_from(b2:e2) 
+		}
+	} elsif ($lhs_idx_expr_type == 2 and $rhs_idx_expr_type == 0) {
+		# this is a special case of the above where we start the RHS string at 0
+			# TODO
+			# s_to(b:e)=s_from where s_from is of length e-b
+	} elsif ($lhs_idx_expr_type == 0 and $rhs_idx_expr_type == 2) {
+		# I think here we must put in a safeguarding condition that e-b should be < length
+			# TODO
+			# s_to=s_from(b:e) where s_to is of length e-b
+	} else {
+		error('Unsupported index expression: '.Dumper($lhs_ast,$rhs_ast));
+	}
+	return $uxntal_code;
+
+}
+
 
 sub _var_access_stack($stref,$f,$info,$var,$idx,$access) {
 	my $Sf = $stref->{'Subroutines'}{$f};
@@ -2355,9 +2573,19 @@ sub toRawHex { my ($n,$sz) = @_;
 # cb SUB2 ;substr_$id ADD2 STA ( strn[iter] substr_$id[cb-iter] )
 
 sub genSubstr { my ($strn, $cb,$ce, $len,$id) = @_;
-	if ($cb eq $ce) { # -1 to go to base-0 but +2 because of the length field, so +1
+	if ($cb eq $ce) { # return a single character. This is by value
+        # -1 to go to base-0 but +2 because of the length field, so +1
 		return $cb . ' INC2 ;'.$strn.' LDA2 ( STRING ) ADD2 LDA'
 	} else {
+        # return an actual substring.
+# What this does is allocate space for the substring and return the address, so it's by reference.
+# If the substring is the argument of a function of operator, that is the right thing to do
+# If it is the RHS of an assignment, then we need a memwrite-string of the substring of this length.
+# This means that for a var access which is an assignment, we need to pass in the LHS as an address.
+# I think that any LHS is *always* an address. So x = 42 is ;x #002a STA2;
+# But array and string slices are a special case: suppose
+# s(4:8)="hello"
+# Then what we need is a memwrite-string starting at 4
 		my $cbb = $cb; $cbb=~s/^\#00//;$cbb='#'.$cbb;
 		my $ceb = $ce; $ceb=~s/^\#00//;$ceb='#'.$ceb;
 		return
@@ -2906,3 +3134,5 @@ __attribute__((always_inline)) inline unsigned int F4D2C(
 
 
 #endif
+
+
