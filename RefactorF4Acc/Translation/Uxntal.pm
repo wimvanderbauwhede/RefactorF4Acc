@@ -1076,6 +1076,10 @@ sub __unpack_var_access_ast($ast) {
 # - a character literal (or a string literal of length 1)
 # - a string literal
 # - an expression
+# In particular, if it is a function call, we need to get the return type
+# string operator expressions can only be '//' but as the args can be expressions themselves, I need to see about the size of each arg. In practice I think it can't be done:
+# a substr can have a runtime length, so there is no way to know the length of the concatenation operation
+# But the operator is not magical, it essentially assumes static strings.
 
 sub _copy_substr($stref, $f, $info, $lhs_ast, $rhs_ast) {
 	# extract a substring and copy
