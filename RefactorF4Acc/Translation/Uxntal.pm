@@ -487,7 +487,8 @@ Instead of the nice but cumbersome approach we had until now, from now on it is 
 		}
 		elsif (exists $info->{'IOCall'}) {
 			if (exists $info->{'PrintCall'}) {
-				# say "PRINT: $line";
+				say "PRINT: $line";
+				say Dumper $info;
 				$c_line = __emit_list_based_print_write($stref,$f,$line,$info, '*','yes');
 				# say "UXNTAL: $c_line";
 			} elsif (exists $info->{'WriteCall'}) {
@@ -1601,8 +1602,8 @@ sub _emit_assignment_Uxntal { (my $stref, my $f, my $info, my $pass_state)=@_;
 		my $lhs_str = _var_access($stref,$f,$info,$var,undef,'ST');
 		my $rhs_str = _emit_expression_Uxntal($rhs_ast,$stref,$f,$info);
 		my $rline = "$rhs_str $lhs_str";
-		# return ($rline,$pass_state);
-		croak 'SCALAR access: '.Dumper($lhs_ast,$rhs_ast,$rline);
+		return ($rline,$pass_state);
+		# croak 'SCALAR access: '.Dumper($lhs_ast,$rhs_ast,$rline);
 	}
 	my $lhs = _emit_expression_Uxntal($lhs_ast,$stref,$f,$info);
 
@@ -1786,7 +1787,7 @@ sub _emit_expression_Uxntal ($ast, $stref, $f, $info) {
 								if ($ndims==1) { # access to a 1-D array, v(i)
 									# return ';'.$qual_vname.($is_arg? ' LDA2': '').' '.$args_lst_Uxntal[0].' ADD2 LDA'.($wordsz==1?'':'2');
 									my $idx = $args_lst_Uxntal[0];
-									return _var_access($stref,$f,$var_name,'LD',$idx);
+									return _var_access($stref,$f,$info,$var_name,'LD',$idx);
 								} elsif ($ndims==0 and $decl->{'Type'} eq 'character') {
 									croak('This must go into var_access! TODO');
 									my $cb = _emit_expression_Uxntal($ast->[2][1], $stref, $f,$info);
@@ -2576,7 +2577,7 @@ sub toRawHex { my ($n,$sz) = @_;
 # SWP #00 SWP ( strn[iter] 00 iter )
 # cb SUB2 ;substr_$id ADD2 STA ( strn[iter] substr_$id[cb-iter] )
 
-sub genSubstr { my ($strn, $cb,$ce, $len,$id) = @_;
+sub genSubstr { my ($strn, $cb, $ce, $len, $id) = @_;
 	if ($cb eq $ce) { # return a single character. This is by value
         # -1 to go to base-0 but +2 because of the length field, so +1
 		return $cb . ' INC2 ;'.$strn.' LDA2 ( STRING ) ADD2 LDA'
@@ -2598,7 +2599,7 @@ sub genSubstr { my ($strn, $cb,$ce, $len,$id) = @_;
 		'  ;substr_'.$id.' ADD2 STA'  . "\n" .
 		'  JMP2r'  . "\n" .
 		'} STH2r '.$ceb.' '.$cbb.' range-map'  . "\n" .
-		'{ @substr_'.$id.' $'.toRawHex($len+1,1).' } STH2r';
+		'{ '.toRawHex($len,2).' @substr_'.$id.' $'.toRawHex($len,1).' } STH2r'; # string with a 2-byte length field
 	}
 }
 
