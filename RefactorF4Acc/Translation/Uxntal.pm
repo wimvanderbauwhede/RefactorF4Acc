@@ -1706,7 +1706,7 @@ sub _emit_expression_Uxntal ($ast, $stref, $f, $info) {
 	my $Sf = $stref->{'Subroutines'}{$f};
 
     if (ref($ast) eq 'ARRAY') {
-        if (scalar @{$ast}==3) { # three elements, e.g. ['@','v',['$','i']]
+        if (scalar @{$ast}==3) { # three elements, e.g. ['@','v',['$','i']] but also ['*',['integer',6],['integer',7]]
 			# Special cases
 			# Uxn does not have pow or mod so these would have to be functions
 			# TODO these are not implemented yet
@@ -1847,6 +1847,10 @@ sub _emit_expression_Uxntal ($ast, $stref, $f, $info) {
 				}
 				if (isStrCmp($ast, $stref, $f,$info)) {
 					return "$lv $rv scmp ( TODO: scmp for strings with length ) ";
+				} elsif ($opcode == 13) {
+					die "TODO: string concatenation";
+					# Only works for a total length of 256 characters
+					return "$lv $rv { 0100 $100 } STH2r concat";
 				} else {
                 	return "$lv $rv  ".($opcode != 27 ? $sigils[$opcode].'2' : ''); # FIXME, needs refining
 				}
@@ -2743,6 +2747,7 @@ sub _emit_print_from_ast { my ($stref,$f,$line,$info,$unit,$elt) = @_;
 		return 'print-bool'.$suffix;
 	}
 	elsif ($code==13) {
+		# I guess this should be a print-string of the string returned by the concatenation operation
 		die("TODO: printing of string concatenation expression\n");
 	}
 	else {
