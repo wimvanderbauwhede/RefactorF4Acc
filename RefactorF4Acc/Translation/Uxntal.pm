@@ -1109,8 +1109,24 @@ sub _copy_substr($stref, $f, $info, $lhs_ast, $rhs_ast) {
 			# s_to(b:e)=s_from where s_from is of length e-b
 	} elsif ($lhs_idx_expr_type == 0 and $rhs_idx_expr_type == 2) {
 		# I think here we must put in a safeguarding condition that e-b should be < length
-			# TODO
-			# s_to=s_from(b:e) where s_to is of length e-b
+		# TODO
+		# s_to=s_from(b:e) where s_to is of length e-b
+		if ($rhs_ast->[0] == 2 or $rhs_ast->[0] == 32) { # it's a scalar or constant. Should check if it is a byte, really; but could just be unsafe
+			# $lhs_ast = ['@',$s,[':',$i_expr]
+			my $rhs_Uxntal_expr = _emit_expression_Uxntal ($rhs_ast, $stref, $f, $info);
+			my $idx_expr = _emit_expression_Uxntal ($lhs_ast->[2][1], $stref, $f, $info);
+			$uxntal_code = $rhs_Uxntal_expr.' ;'.$lhs_ast->[1].' '. $idx_expr.' ADD2 #0002 ADD2 STA';
+		}
+		elsif ($rhs_ast->[0] == 34) { # a PlaceHolder, so it's a string
+			# This is a full string copy
+			# so the RHS is just the string
+			# the LHS is the slice; we use the LHS value
+		}
+		elsif ($rhs_ast->[0] == 1) { # a function call
+			# get the return type of the function
+			my $sig = $stref->{'Subroutines'}{$rhs_ast->[1]}{'Signature'};
+			croak Dumper($sig);
+		}
 	} else {
 		error('Unsupported index expression: '.Dumper($lhs_ast,$rhs_ast));
 	}
@@ -1569,6 +1585,10 @@ sub __substitute_PlaceHolders_Uxntal { my ($expr_str,$info) = @_;
 		if ($len==1) {
 			$expr_str = toHex(ord(substr($expr_str,0,1)),1);
 		} else {
+			# replace space and nl by their ascii code
+			# ' ' => ' 20 "'
+			$expr_str =~s/\s/ 20 \"/g;
+			$expr_str =~s/\n/ 0a \"/g;
 			$expr_str = "{ $len $expr_str } STH2r";
 		}
 	}
@@ -1848,7 +1868,7 @@ sub _emit_expression_Uxntal ($ast, $stref, $f, $info) {
 				if (isStrCmp($ast, $stref, $f,$info)) {
 					return "$lv $rv scmp ( TODO: scmp for strings with length ) ";
 				} elsif ($opcode == 13) {
-					die "TODO: string concatenation";
+					# die "TODO: string concatenation";
 					# Only works for a total length of 256 characters
 					return "$lv $rv { 0100 $100 } STH2r concat";
 				} else {
