@@ -62,6 +62,12 @@ our @sigils = ('(', '&', '$', 'ADD', 'SUB', 'MUL', 'DIV', 'mod', 'pow', '=', '@'
 my $lib_lines = [
 	'( TODO LIBRARIES )',
 	'~../../../uxntal-libs/fmt-print.tal',
+	'~../../../uxntal-libs/string.tal',
+	'~../../../uxntal-libs/range-map-fold-lib.tal',
+	'@min',
+	'OVR2 OVR2 LTH2 #00 SWP DUP2 #0001 SWP2 SUB2',
+	'ROT2 MUL2 ROT2 ROT2 MUL2 ADD2',
+	'JMP2r',
 	'( now obsolete )',
 	'@print-list',
     'ROT ROT SWP',
@@ -72,50 +78,9 @@ my $lib_lines = [
     '#0a #18 DEO',
     'JMP2r',
 
-'@print-char #18 DEO JMP2r',
-'@print-char-stderr #19 DEO JMP2r',
 
-'( a bool is a byte; prints `t` or `f` )
-@print-bool
-DUP ,&true JCN
-#66 #18 DEO JMP2r
-&true
-#74 #18 DEO JMP2r
-',
-'( a bool is a byte; prints `t` or `f` )
-@print-bool-stderr
-DUP ,&true JCN
-#66 #19 DEO JMP2r
-&true
-#74 #19 DEO JMP2r
-',
 
-'( this assumes 2-byte integers )
-( @print-int #18 write-int
-@print-int-stderr #19 !write-int )
 
-@write-int ( w* unit -- )
-STH
-DUP2
-DUP2 #2710  LTH2 ,&d2 JCN
-#2710 DIV2 DUP #30 ADD STHrk DEO
-#2710 MUL2 SUB2
-DUP2
-&d2
-DUP2 #03e8  LTH2 ,&d3 JCN
-#03e8 DIV2 DUP #30 ADD STHrk DEO
-#03e8 MUL2 SUB2
-DUP2
-&d3
-DUP2 #0064  LTH2 ,&d4 JCN
-#0064 DIV2 DUP #30 ADD STHrk DEO
-#0064 MUL2 SUB2
-DUP2
-&d4
-#000a DIV2 DUP #30 ADD STHrk DEO
-#000a MUL2 SUB2 #30 ADD STHrk DEO POP
-JMP2r
-',
 
 # '( this assumes a string with structure `{ 0006 "hello 0a } STH2r` )
 # @print-string ( {str}* -- ) #18 !write-string
@@ -301,8 +266,10 @@ Instead of the nice but cumbersome approach we had until now, from now on it is 
 			}
 			elsif ($type eq 'character') {
 					$wordsz=1;
+			} elsif ($type =~/^character\(/) {
+					$wordsz=2;
 			} else {
-				die "Supported types are integer, character and logical: $var in $f is $type\n";
+				die "Supported types are integer, character, string and logical: $var in $f is $type\n";
 			}
 			$state->{'WordSizes'}{$var}=$wordsz;
 		}
@@ -322,8 +289,10 @@ Instead of the nice but cumbersome approach we had until now, from now on it is 
 				$wordsz=1;
 			} elsif ($type eq 'character') {
 				$wordsz=1;
+			} elsif ($type =~/^character\(/) {
+					$wordsz=2;
 			} else {
-				die "Supported types are integer, character and logical: $var in $f is $type\n";
+				die "Supported types are integer, character, string and logical: $var in $f is $type\n";
 			}
 			$state->{'WordSizes'}{$var}=$wordsz;
 		}
@@ -741,8 +710,10 @@ sub _get_word_sizes($stref,$f){
 				# } else {
 					$wordsz=1;
 				# }
+		} elsif ($type =~/^character\(/) {
+				$wordsz=2;
 		} else {
-			die "Supported types are integer, character and logical: $var in $f is $type\n";
+			die "Supported types are integer, character, string and logical: $var in $f is $type\n";
 		}
 		$Sf->{'WordSizes'}{$var} = $wordsz;
 		# carp Dumper($decl) if $var eq 'funktalGlobalCharArray';
@@ -1097,21 +1068,23 @@ sub _copy_substr($stref, $f, $info, $lhs_ast, $rhs_ast) {
 
 		if ($lhs_idx_expr_b eq $lhs_idx_expr_e and $rhs_idx_expr_b eq $rhs_idx_expr_e) {
 		# simplyfied case of s_to(b1:b1) = s_from(b2:b2)
-    		$uxntal_code = ";rhs_var $rhs_idx_expr_b ADD2 LDA ;lhs_var $lhs_idx_expr_b ADD2 STA"
+    		$uxntal_code = ";$rhs_var $rhs_idx_expr_b ADD2 LDA ;$lhs_var $lhs_idx_expr_b ADD2 STA"
 		} else { # It is not possible to tell at compile time if these are compatible.
 			# So to avoid overwriting, we use the LHS slice
-			# TODO
 			# s_to(b1:e1)=s_from(b2:e2) 
+			# So this is a strncpy where we copy e1-b1+1 bytes from the RHS starting at b2 to LHS starting at b1
+			$uxntal_code = ";$rhs_var $rhs_idx_expr_b ADD2 ;$lhs_var $lhs_idx_expr_b ADD2 $lhs_idx_expr_e $lhs_idx_expr_b SUB2 INC2 strncpy";
 		}
 	} elsif ($lhs_idx_expr_type == 2 and $rhs_idx_expr_type == 0) {
 		# this is a special case of the above where we start the RHS string at 0
-			# TODO
+		my $lhs_idx_expr_b = _emit_expression_Uxntal($lhs_idxs->[1], $stref, $f,$info);
+		my $lhs_idx_expr_e = _emit_expression_Uxntal($lhs_idxs->[2], $stref, $f,$info);
+		if ($rhs_ast->[0] == 2 and is_string($stref,$f,$rhs_var)) { # a scalar, so a string-type variable, and it is a string
+			$uxntal_code = ";$rhs_var ;$lhs_var $lhs_idx_expr_b ADD2 $lhs_idx_expr_e $lhs_idx_expr_b SUB2 INC2 strncpy";
 			# s_to(b:e)=s_from where s_from is of length e-b
-	} elsif ($lhs_idx_expr_type == 0 and $rhs_idx_expr_type == 2) {
-		# I think here we must put in a safeguarding condition that e-b should be < length
-		# TODO
 		# s_to=s_from(b:e) where s_to is of length e-b
-		if ($rhs_ast->[0] == 2 or $rhs_ast->[0] == 32) { # it's a scalar or constant. Should check if it is a byte, really; but could just be unsafe
+		} 
+		elsif (($rhs_ast->[0] == 2 and is_character($stref,$f,$rhs_var)) or $rhs_ast->[0] == 32) { # it's a character-type scalar or a character constant.
 			# $lhs_ast = ['@',$s,[':',$i_expr]
 			my $rhs_Uxntal_expr = _emit_expression_Uxntal ($rhs_ast, $stref, $f, $info);
 			my $idx_expr = _emit_expression_Uxntal ($lhs_ast->[2][1], $stref, $f, $info);
@@ -1121,12 +1094,34 @@ sub _copy_substr($stref, $f, $info, $lhs_ast, $rhs_ast) {
 			# This is a full string copy
 			# so the RHS is just the string
 			# the LHS is the slice; we use the LHS value
+			# So we copy ce-cb+1 bytes from the RHS to the LHS, starting at position cb
+			# <rhs-string> ;lhs_str <cb> ADD2 <ce-cb+1> strncpy
+			my $rhs_Uxntal_expr = _emit_expression_Uxntal ($rhs_ast, $stref, $f, $info);
+			if ($lhs_idx_expr_b eq $lhs_idx_expr_e ) {
+				# simplyfied case of s_to(b1:b1) = "X"
+				$uxntal_code = "$rhs_Uxntal_expr #0002 ADD2 LDA ;$lhs_var $lhs_idx_expr_b ADD2 STA"
+			} else { # It is not possible to tell at compile time if these are compatible.
+				# So to avoid overwriting, we use the LHS slice
+				$uxntal_code = "$rhs_Uxntal_expr ;$lhs_var $lhs_idx_expr_b ADD2 $lhs_idx_expr_e $lhs_idx_expr_b SUB2 INC2 strncpy";
+			}
 		}
 		elsif ($rhs_ast->[0] == 1) { # a function call
 			# get the return type of the function
 			my $sig = $stref->{'Subroutines'}{$rhs_ast->[1]}{'Signature'};
 			croak Dumper($sig);
 		}
+	} elsif ($lhs_idx_expr_type == 0 and $rhs_idx_expr_type == 2) {
+		my $rhs_idx_expr_b = _emit_expression_Uxntal($rhs_idxs->[1], $stref, $f,$info);
+		my $rhs_idx_expr_e = _emit_expression_Uxntal($rhs_idxs->[2], $stref, $f,$info);
+
+		# I think here we must put in a safeguarding condition that e-b should be < length
+		# Or we could just copy length bytes
+		# So: if e-b+1 < length, use e-b+1 else use length
+		# lhs_len = ;$lhs_var LDA2
+		# rhs_len = $rhs_idx_expr_e $rhs_idx_expr_b SUB2 INC2
+		# $rhs_idx_expr_e $rhs_idx_expr_b SUB2 INC2 ;$lhs_var LDA2 min
+		$uxntal_code = ";$rhs_var $rhs_idx_expr_b ADD2 ;$lhs_var $rhs_idx_expr_e $rhs_idx_expr_b SUB2 INC2 ;$lhs_var LDA2 min strncpy";
+
 	} else {
 		error('Unsupported index expression: '.Dumper($lhs_ast,$rhs_ast));
 	}
@@ -1316,9 +1311,11 @@ sub _pointer_analysis($stref,$f) {
 				$wordsz=1;
 			}
 			elsif ($type eq 'character') {
-					$wordsz=1;
+				$wordsz=1;
+			} elsif ($type =~/^character\(/) {
+				$wordsz=2;
 			} else {
-				die "Supported types are integer, character and logical: $var in $f is $type\n";
+				die "Supported types are integer, character, string and logical: $var in $f is $type\n";
 			}
 			$state->{'WordSizes'}{$var}=$wordsz;
 		}
@@ -1338,8 +1335,10 @@ sub _pointer_analysis($stref,$f) {
 				$wordsz=1;
 			} elsif ($type eq 'character') {
 				$wordsz=1;
+			} elsif ($type =~/^character\(/) {
+				$wordsz=2;
 			} else {
-				die "Supported types are integer, character and logical: $var in $f is $type\n";
+				die "Supported types are integer, character, string and logical: $var in $f is $type\n";
 			}
 			$state->{'WordSizes'}{$var}=$wordsz;
 		}
@@ -1870,7 +1869,7 @@ sub _emit_expression_Uxntal ($ast, $stref, $f, $info) {
 				} elsif ($opcode == 13) {
 					# die "TODO: string concatenation";
 					# Only works for a total length of 256 characters
-					return "$lv $rv { 0100 $100 } STH2r concat";
+					return "$lv $rv { 0100 \$100 } STH2r concat";
 				} else {
                 	return "$lv $rv  ".($opcode != 27 ? $sigils[$opcode].'2' : ''); # FIXME, needs refining
 				}
@@ -2840,7 +2839,7 @@ sub __analyse_write_call_arg { my ($stref,$f,$info,$arg,$i) = @_;
 	# all of these will be tagged
 	my $tag = $arg->[0];
 	my $arg_val = $arg->[1];
-	if ($tag == 29) {
+	if ($tag == 29) { # integer
 		# 29 : if 0, this is STDERR; otherwise it means a file but I will not support this
 		if ($arg_val==0) {
 			# STDERR
@@ -2851,7 +2850,7 @@ sub __analyse_write_call_arg { my ($stref,$f,$info,$arg,$i) = @_;
 		# "The standard logical units 0, 5, and 6 are preconnected to Solaris as stderr, stdin, and stdout"
 		# it looks like for gfortran on Linux, 0 is also stderr
 	}
-	elsif ($tag == 32) {
+	elsif ($tag == 32) { # character
 		# 32: char: if *, means it's like print *
 		if ($arg_val eq '*' ) {
 			if ($i==0){
