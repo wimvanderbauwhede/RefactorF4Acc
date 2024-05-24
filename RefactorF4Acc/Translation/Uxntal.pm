@@ -886,7 +886,7 @@ sub _var_access_read_static($stref,$f,$info,$ast) {
 				croak 'String with index>1 but the type is character', Dumper $ast;
 			}
 			my $len = $decl->{'Attr'};$len=~s/len=//;
-			$uxntal_code = genSubstr($fq_var, $idx_expr_b,$idx_expr_e, $len, $id);
+			$uxntal_code = __gen_substr(';'.$fq_var.(is_arg($stref,$f,$var)?' LDA2':''), $idx_expr_b,$idx_expr_e, $len, $id);
 
 		}
 	} elsif  (is_array_or_string($stref,$f,$var) and $idx_expr_type == 0) {
@@ -978,14 +978,15 @@ sub _var_access_assign_static($stref,$f,$info,$ast) {
 				$uxntal_code =  "$rhs_expr_str ;$fq_var $idx_expr STA" # load a pointer, index, load the value
 			}
 		} else {
-# TODO
+			croak "TODO";
+			# TODO
 			# my $decl = get_var_record_from_set($Sf->{'Vars'},$var);
 			# my $id=$info->{'LineID'};
 			# if($decl->{'Attr'}!~/len/) {
 			# 	croak 'String with index>1 but the type is character', Dumper $ast;
 			# }
 			# my $len = $decl->{'Attr'};$len=~s/len=//;
-			# $uxntal_code = genSubstr($fq_var, $idx_expr_b,$idx_expr_e, $len, $id);
+			# $uxntal_code = __gen_substr(';'.$fq_var, $idx_expr_b,$idx_expr_e, $len, $id);
 		}
 	} elsif  (is_array_or_string($stref,$f,$var) and $idx_expr_type == 0) {
 		# the array or string itself, likely as argument to a function
@@ -1129,8 +1130,8 @@ sub _copy_substr($stref, $f, $info, $lhs_ast, $rhs_ast) {
 
 }
 
-
-sub _var_access_stack($stref,$f,$info,$var,$idx,$access) {
+sub _var_access_assign_stack($stref,$f,$info,$var,$idx,$access) {
+	croak 'TODO!';
 	my $Sf = $stref->{'Subroutines'}{$f};
 	my $short_mode = $Sf->{'WordSizes'}{$var} == 2 ? '2' : '';
 	my $uxntal_code = '';
@@ -1173,7 +1174,67 @@ sub _var_access_stack($stref,$f,$info,$var,$idx,$access) {
 		}
 	}
 	return $uxntal_code;
-} # END of _var_access_stack()
+} # END of _var_access_assign_stack()
+
+sub _var_access_read_stack($stref,$f,$info,$ast) {
+	my ($var,$idxs,$idx_expr_type) = __unpack_var_access_ast($ast);
+	my $Sf = $stref->{'Subroutines'}{$f};
+	my $short_mode = $Sf->{'WordSizes'}{$var} == 2 ? '2' : '';
+	my $uxntal_code = '';
+    if  (is_array($stref,$f,$var) and $idx_expr_type == 1) {
+		my $idx = _emit_expression_Uxntal($idxs,$stref,$f,$info);
+		my $idx_expr = defined $idx ? ($idx eq '#0000') ? '' : 
+		"$idx ".( $short_mode ? ' #0002 MUL2 ': '') .' ADD2 ' : '';
+	 	if (is_arg($stref,$f,$var)) {
+			# 		passed by reference, so
+				$uxntal_code = __stack_access($stref,$f,$var)." LDA2 $idx_expr LDA$short_mode"
+		} else {
+			# 		not passed, so
+				$uxntal_code = 	__stack_access($stref,$f,$var)." $idx_expr LDA$short_mode";
+		}
+	} elsif  (is_array($stref,$f,$var) and $idx_expr_type == 2) {
+		error('Array slice is not yet supported: '.Dumper($ast));
+	} elsif  (is_string($stref,$f,$var) and $idx_expr_type == 2) {
+		my $idx_expr_b = _emit_expression_Uxntal($idxs->[1], $stref, $f,$info);
+		my $idx_expr_e = _emit_expression_Uxntal($idxs->[2], $stref, $f,$info);
+		if ($idx_expr_b eq $idx_expr_e) { # access a single character, so return a byte as value
+			my $idx_expr =  ($idx_expr_b eq '#0000') ? '' : "$idx_expr_b ADD2 ";
+			if (is_arg($stref,$f,$var)) {
+				$uxntal_code =  __stack_access($stref,$f,$var)." LDA2 $idx_expr LDA" # load a pointer, index, load the value
+			} else { # a local string
+				$uxntal_code =  __stack_access($stref,$f,$var)." $idx_expr LDA" # load a pointer, index, load the value
+			}
+		} else {
+			# extract a substring
+			my $decl = get_var_record_from_set($Sf->{'Vars'},$var);
+			my $id=$info->{'LineID'};
+			if($decl->{'Attr'}!~/len/) {
+				croak 'String with index>1 but the type is character', Dumper $ast;
+			}
+			my $len = $decl->{'Attr'};$len=~s/len=//;
+			# TODO: CHECK: Why no distinction with is_arg here?
+			$uxntal_code = __gen_substr( 
+				__stack_access($stref,$f,$var) .(is_arg($stref,$f,$var)?' LDA2':'')
+				, $idx_expr_b,$idx_expr_e, $len, $id);
+		}
+	} elsif  (is_array_or_string($stref,$f,$var) and $idx_expr_type == 0) {
+		# the array or string itself, likely as argument to a function
+		if (is_arg($stref,$f,$var)) { # for example f(s) then s will be a pointer which will store the argument.
+			$uxntal_code =  __stack_access($stref,$f,$var)." LDA2";
+		} else { # s is a local string, so we simple pass the address
+			$uxntal_code =  __stack_access($stref,$f,$var);
+		}
+	} else {
+		if (is_arg($stref,$f,$var)) {
+		# 		passed by value, so
+				$uxntal_code = __stack_access($stref,$f,$var)." LDA$short_mode";
+		} else {
+		# 		not passed, so
+				$uxntal_code = __stack_access($stref,$f,$var)." LDA$short_mode";
+		}
+	}
+	return $uxntal_code;
+} # END of _var_access_read_stack()
 
 # This returns the address of the var on the stack
 sub __stack_access($stref,$f,$var) {
@@ -1271,7 +1332,7 @@ sub __string_access($stref,$f,$info,$var_name,$ast){
 		croak 'String with index>1 but the type is character', Dumper $ast;
 	}
 	my $len = $decl->{'Attr'};$len=~s/len=//;
-	return genSubstr($strn, $cb,$ce, $len, $id);
+	return __gen_substr(';'.$strn, $cb,$ce, $len, $id);
 }
 
 sub _pointer_analysis($stref,$f) {
@@ -1594,7 +1655,7 @@ sub __substitute_PlaceHolders_Uxntal { my ($expr_str,$info) = @_;
 	return $expr_str;
 } # END of __substitute_PlaceHolders
 
-
+# TODO use _var_access_assign !
 sub _emit_assignment_Uxntal { (my $stref, my $f, my $info, my $pass_state)=@_;
 	my $rhs_ast =  $info->{'Rhs'}{'ExpressionAST'};
 	my $lhs_ast =  $info->{'Lhs'}{'ExpressionAST'};
@@ -1813,7 +1874,7 @@ sub _emit_expression_Uxntal ($ast, $stref, $f, $info) {
 									my $ce = _emit_expression_Uxntal($ast->[2][2], $stref, $f,$info);
 									my $id=$info->{'LineID'};
 									my $len = $decl->{'Attr'};$len=~s/len=//;
-									return genSubstr($qual_vname.($is_arg? ' LDA2': ''), $cb,$ce, $len, $id);
+									return __gen_substr(';'.$qual_vname.($is_arg? ' LDA2': ''), $cb,$ce, $len, $id);
 									# I think I should have a streq function and maybe a substr function
 									# we should be able to use a range-fold for this
 									# <chars> ;fl <cb> <ce> streq
@@ -1831,7 +1892,7 @@ sub _emit_expression_Uxntal ($ast, $stref, $f, $info) {
 										croak 'String with index>1 but the type is character', Dumper $ast;
 									}
 									my $len = $decl->{'Attr'};$len=~s/len=//;
-									return genSubstr($strn, $cb,$ce, $len, $id);
+									return __gen_substr(';'.$strn, $cb,$ce, $len, $id);
 							} else { # Although the AST says '10', decls says it's a scalar
 								croak Dumper $ast,$decl;
 							}
@@ -2144,7 +2205,7 @@ sub _emit_expression_Uxntal_OFF ($ast, $stref, $f, $info) {
 										my $ce = _emit_expression_Uxntal($ast->[2][2], $stref, $f,$info);
 										my $id=$info->{'LineID'};
 										my $len = $decl->{'Attr'};$len=~s/len=//;
-										return genSubstr($qual_vname.($is_arg? ' LDA2': ''), $cb,$ce, $len, $id);
+										return __gen_substr(';'.$qual_vname.($is_arg? ' LDA2': ''), $cb,$ce, $len, $id);
 										# I think I should have a streq function and maybe a substr function
 										# we should be able to use a range-fold for this
 										# <chars> ;fl <cb> <ce> streq
@@ -2162,7 +2223,7 @@ sub _emit_expression_Uxntal_OFF ($ast, $stref, $f, $info) {
 										croak 'String with index>1 but the type is character', Dumper $ast;
 									}
 									my $len = $decl->{'Attr'};$len=~s/len=//;
-									return genSubstr($strn, $cb,$ce, $len, $id);
+									return __gen_substr(';'.$strn, $cb,$ce, $len, $id);
 								} else { # Although the AST says '10', decls says it's a scalar
 									croak Dumper $ast,$decl;
 								}
@@ -2600,10 +2661,11 @@ sub toRawHex { my ($n,$sz) = @_;
 # SWP #00 SWP ( strn[iter] 00 iter )
 # cb SUB2 ;substr_$id ADD2 STA ( strn[iter] substr_$id[cb-iter] )
 
-sub genSubstr { my ($strn, $cb, $ce, $len, $id) = @_;
+# $str_addr is an absolute Uxntal address,  ;v ;&v or a raw address
+sub __gen_substr { my ($str_addr, $cb, $ce, $len, $id) = @_;
 	if ($cb eq $ce) { # return a single character. This is by value
         # -1 to go to base-0 but +2 because of the length field, so +1
-		return $cb . ' INC2 ;'.$strn.' LDA2 ( STRING ) ADD2 LDA'
+		return $cb . ' INC2 '.$str_addr.' LDA2 ( STRING ) ADD2 LDA'
 	} else {
         # return an actual substring.
 # What this does is allocate space for the substring and return the address, so it's by reference.
@@ -2617,14 +2679,14 @@ sub genSubstr { my ($strn, $cb, $ce, $len, $id) = @_;
 		my $cbb = $cb; $cbb=~s/^\#00//;$cbb='#'.$cbb;
 		my $ceb = $ce; $ceb=~s/^\#00//;$ceb='#'.$ceb;
 		return
-		'{ DUP #00 SWP ;'.$strn.' ADD2 LDA' . "\n" .
+		'{ DUP #00 SWP '.$str_addr.' ADD2 LDA' . "\n" .
 		'  SWP #00 SWP '.$cb.' SUB2' . "\n" .
 		'  ;substr_'.$id.' ADD2 STA'  . "\n" .
 		'  JMP2r'  . "\n" .
 		'} STH2r '.$ceb.' '.$cbb.' range-map'  . "\n" .
 		'{ '.toRawHex($len,2).' @substr_'.$id.' $'.toRawHex($len,1).' } STH2r'; # string with a 2-byte length field
 	}
-}
+} # END of __gen_substr
 
 sub isStrCmp { my ($ast, $stref, $f,$info) =@_;
 	my $lhs_name = $ast->[1][0] == 10 ? $ast->[1][1] : '';
