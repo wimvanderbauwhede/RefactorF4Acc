@@ -725,7 +725,7 @@ sub _get_word_sizes($stref,$f){
 } # END of _get_word_sizes
 
 # $idx is in Uxntal format
-sub _var_access($stref,$f,$info,$var,$idx,$access) {
+sub OBSOLETE_var_access($stref,$f,$info,$var,$idx,$access) {
 	my $Sf = $stref->{'Subroutines'}{$f};
 	if (exists $Sf->{'Recursion'}) {
 		if ($Sf->{'Recursion'} eq 'No' or $Sf->{'Recursion'} eq 'Tail' ) {
@@ -737,6 +737,20 @@ sub _var_access($stref,$f,$info,$var,$idx,$access) {
 		return _var_access_static($stref,$f,$info,$var,$idx,$access);
 	}
 } # END of _var_access
+
+sub __use_stack($stref,$f) {
+	my $Sf = $stref->{'Subroutines'}{$f};
+	if (exists $Sf->{'Recursion'}) {
+		if ($Sf->{'Recursion'} eq 'No' or $Sf->{'Recursion'} eq 'Tail' ) {
+			return 0;
+		} else {
+			return 1;
+		}
+	} else {
+		return 0;
+	}
+} # END of __use_stack
+
 
 # WV20240419 I think this should be obsolete, or at least, what we need is determine if we pass by value or by reference. We should keep the WordSizes analysis
 # So: an array or string is always an address
@@ -797,7 +811,7 @@ sub _var_access($stref,$f,$info,$var,$idx,$access) {
 # But if it is a slice, then it is a substring, and it will need a memwrite-string
 # In other words, it is either read or assign: even an OUT arg must be assigned somewhere.
 # And except for the memwrite-string and memwrite-array, having a read access function still makes sense.
-sub _var_access_static($stref,$f,$info,$var,$idx,$access) {
+sub OBSOLETE_var_access_static($stref,$f,$info,$var,$idx,$access) {
 	my $Sf = $stref->{'Subroutines'}{$f};
 	my $short_mode = $Sf->{'WordSizes'}{$var} == 2 ? '2' : '';
 	my $uxntal_code = '';
@@ -848,14 +862,13 @@ sub _var_access_static($stref,$f,$info,$var,$idx,$access) {
 	return $uxntal_code;
 } # END of _var_access_static()
 
-sub _var_access_read_static($stref,$f,$info,$ast) {
+sub OBSOLETE_var_access_read_static($stref,$f,$info,$ast) {
 	my ($var,$idxs,$idx_expr_type) = __unpack_var_access_ast($ast);
 	my $Sf = $stref->{'Subroutines'}{$f};
 	my $short_mode = $Sf->{'WordSizes'}{$var} == 2 ? '2' : '';
 	my $uxntal_code = '';
-	# my $fq_var = $f.'_'.$var;
 	my $fq_var = __create_fq_varname($stref,$f,$var);
-    if  (is_array($stref,$f,$var) and $idx_expr_type == 1) {
+    if (is_array($stref,$f,$var) and $idx_expr_type == 1) {
 		my $idx = _emit_expression_Uxntal($idxs,$stref,$f,$info);
 		my $idx_expr = defined $idx ? ($idx eq '#0000') ? '' : 
 		"$idx ".( $short_mode ? ' #0002 MUL2 ': '') .' ADD2 ' : '';
@@ -907,6 +920,67 @@ sub _var_access_read_static($stref,$f,$info,$ast) {
 	}
 	return $uxntal_code;
 } # END of _var_access_read_static()
+
+sub _var_access_read($stref,$f,$info,$ast) {
+	my ($var,$idxs,$idx_expr_type) = __unpack_var_access_ast($ast);
+	my $Sf = $stref->{'Subroutines'}{$f};
+	my $short_mode = $Sf->{'WordSizes'}{$var} == 2 ? '2' : '';
+	my $uxntal_code = '';
+	my $use_stack = __use_stack($stref,$f);
+	my $var_access = $use_stack ? __stack_access($stref,$f,$var) : ';'. __create_fq_varname($stref,$f,$var);
+    if (is_array($stref,$f,$var) and $idx_expr_type == 1) {
+		my $idx = _emit_expression_Uxntal($idxs,$stref,$f,$info);
+		my $idx_expr = defined $idx ? ($idx eq '#0000') ? '' : 
+		"$idx ".( $short_mode ? ' #0002 MUL2 ': '') .' ADD2 ' : '';
+		if (is_arg($stref,$f,$var)) {
+			# 		passed by reference
+				$uxntal_code =  "$var_access LDA2 $idx_expr LDA$short_mode" # load a pointer, index, load the value
+		} else {
+			# 		not passed, so
+				$uxntal_code = 	"$var_access $idx_expr LDA$short_mode"; # index, load the value
+		}
+	} elsif  (is_array($stref,$f,$var) and $idx_expr_type == 2) {
+		error('Array slice is not yet supported: '.Dumper($ast));
+	} elsif  (is_string($stref,$f,$var) and $idx_expr_type == 2) {
+		my $idx_expr_b = _emit_expression_Uxntal($idxs->[1], $stref, $f,$info);
+		my $idx_expr_e = _emit_expression_Uxntal($idxs->[2], $stref, $f,$info);
+		if ($idx_expr_b eq $idx_expr_e) { # access a single character, so return a byte as value
+			my $idx_expr =  ($idx_expr_b eq '#0000') ? '' : "$idx_expr_b ADD2 ";
+			if (is_arg($stref,$f,$var)) {
+				$uxntal_code =  "$var_access LDA2 $idx_expr LDA" # load a pointer, index, load the value
+			} else { # a local string
+				$uxntal_code =  "$var_access $idx_expr LDA" # load a pointer, index, load the value
+			}
+		} else {
+			# extract a substring
+			my $decl = get_var_record_from_set($Sf->{'Vars'},$var);
+			my $id=$info->{'LineID'};
+			if($decl->{'Attr'}!~/len/) {
+				croak 'String with index>1 but the type is character', Dumper $ast;
+			}
+			my $len = $decl->{'Attr'};$len=~s/len=//;
+			$uxntal_code = __gen_substr($var_access.(is_arg($stref,$f,$var)?' LDA2':''), $idx_expr_b,$idx_expr_e, $len, $id);
+
+		}
+	} elsif  (is_array_or_string($stref,$f,$var) and $idx_expr_type == 0) {
+		# the array or string itself, likely as argument to a function
+		if (is_arg($stref,$f,$var)) { # for example f(s) then s will be a pointer which will store the argument.
+			$uxntal_code =  "$var_access LDA2";
+		} else { # s is a local string, so we simple pass the address
+			$uxntal_code =  "$var_access";
+		}
+	} else {
+		if (is_arg($stref,$f,$var)) {
+		# 		passed by value, so
+				$uxntal_code = "$var_access LDA$short_mode";
+		} else {
+		# 		not passed, so
+				$uxntal_code = "$var_access LDA$short_mode";
+		}
+	}
+	return $uxntal_code;
+} # END of _var_access_read()
+
 =pod
 So we have:
 
@@ -947,7 +1021,68 @@ LOCAL
     STRING SLICE => copy
     ARRAY SLICE => copy
 =cut
-sub _var_access_assign_static($stref,$f,$info,$ast) {
+sub _var_access_assign($stref,$f,$info,$ast) {
+	IN PROGRESS
+	my ($var,$idxs,$idx_expr_type) = __unpack_var_access_ast($ast);
+	my $Sf = $stref->{'Subroutines'}{$f};
+	my $short_mode = $Sf->{'WordSizes'}{$var} == 2 ? '2' : '';
+	my $uxntal_code = '';
+	my $use_stack = __use_stack($stref,$f);
+	my $var_access = $use_stack ? __stack_access($stref,$f,$var) : ';'. __create_fq_varname($stref,$f,$var);
+	my $rhs_expr_str = 'TODO';
+    if  (is_array($stref,$f,$var) and $idx_expr_type == 1) {
+		my $idx = _emit_expression_Uxntal($idxs,$stref,$f,$info);
+		my $idx_expr = defined $idx ? ($idx eq '#0000') ? '' : "$idx ".( $short_mode ? ' #0002 MUL2 ': '') .' ADD2 ' : '';
+		if (is_arg($stref,$f,$var)) {
+			# 		passed by reference
+				$uxntal_code =  "$rhs_expr_str $var_access LDA2 $idx_expr STA$short_mode" # load a pointer, index, load the value
+		} else {
+			# 		not passed, so
+				$uxntal_code = 	"$rhs_expr_str  $var_access $idx_expr STA$short_mode"; # index, load the value
+		}
+	} elsif  (is_array($stref,$f,$var) and $idx_expr_type == 2) {
+		error('Array slice is not yet supported: '.Dumper($ast));
+	} elsif  (is_string($stref,$f,$var) and $idx_expr_type == 2) {
+		my $idx_expr_b = _emit_expression_Uxntal($idxs->[1], $stref, $f,$info);
+		my $idx_expr_e = _emit_expression_Uxntal($idxs->[2], $stref, $f,$info);
+		if ($idx_expr_b eq $idx_expr_e) { # access a single character, so return a byte as value
+			my $idx_expr =  ($idx_expr_b eq '#0000') ? '' : "$idx_expr_b ADD2 ";
+			if (is_arg($stref,$f,$var)) {
+				$uxntal_code =  "$rhs_expr_str $var_access LDA2 $idx_expr STA" # load a pointer, index, load the value
+			} else { # a local string
+				$uxntal_code =  "$rhs_expr_str $var_access $idx_expr STA" # load a pointer, index, load the value
+			}
+		} else {
+			croak "TODO";
+			# TODO
+			# my $decl = get_var_record_from_set($Sf->{'Vars'},$var);
+			# my $id=$info->{'LineID'};
+			# if($decl->{'Attr'}!~/len/) {
+			# 	croak 'String with index>1 but the type is character', Dumper $ast;
+			# }
+			# my $len = $decl->{'Attr'};$len=~s/len=//;
+			# $uxntal_code = __gen_substr(';'.$fq_var, $idx_expr_b,$idx_expr_e, $len, $id);
+		}
+	} elsif  (is_array_or_string($stref,$f,$var) and $idx_expr_type == 0) {
+		# the array or string itself, likely as argument to a function
+		if (is_arg($stref,$f,$var)) { # for example f(s) then s will be a pointer which will store the argument.
+			$uxntal_code =  "$var_access LDA2";
+		} else { # s is a local string, so we simple pass the address
+			$uxntal_code =  "$var_access";
+		}
+	} else {
+		if (is_arg($stref,$f,$var)) {
+		# 		passed by value, so
+				$uxntal_code = "$var_access LDA$short_mode";
+		} else {
+		# 		not passed, so
+				$uxntal_code = "$var_access LDA$short_mode";
+		}
+	}
+	return $uxntal_code;
+} # END of _var_access_assign()
+
+sub OBSOLETE_var_access_assign_static($stref,$f,$info,$ast) {
 	my ($var,$idxs,$idx_expr_type) = __unpack_var_access_ast($ast);
 	my $Sf = $stref->{'Subroutines'}{$f};
 	my $short_mode = $Sf->{'WordSizes'}{$var} == 2 ? '2' : '';
@@ -1005,7 +1140,7 @@ sub _var_access_assign_static($stref,$f,$info,$ast) {
 		}
 	}
 	return $uxntal_code;
-} # END of _var_access_assign_static()
+} # END of OBSOLETE_var_access_assign_static()
 
 sub __unpack_var_access_ast($ast) {
 	if (ref($ast) eq 'ARRAY' and scalar @{$ast} >= 2) {
@@ -1054,7 +1189,7 @@ sub __unpack_var_access_ast($ast) {
 # a substr can have a runtime length, so there is no way to know the length of the concatenation operation
 # But the operator is not magical, it essentially assumes static strings.
 
-sub _copy_substr($stref, $f, $info, $lhs_ast, $rhs_ast) {
+sub __copy_substr($stref, $f, $info, $lhs_ast, $rhs_ast) {
 	# extract a substring and copy
 	# unpack the asts
 	my ($lhs_var,$lhs_idxs,$lhs_idx_expr_type) = __unpack_var_access_ast($lhs_ast);
@@ -1128,9 +1263,9 @@ sub _copy_substr($stref, $f, $info, $lhs_ast, $rhs_ast) {
 	}
 	return $uxntal_code;
 
-}
+} # END of __copy_substr
 
-sub _var_access_assign_stack($stref,$f,$info,$var,$idx,$access) {
+sub OBSOLETE_var_access_assign_stack($stref,$f,$info,$var,$idx,$access) {
 	croak 'TODO!';
 	my $Sf = $stref->{'Subroutines'}{$f};
 	my $short_mode = $Sf->{'WordSizes'}{$var} == 2 ? '2' : '';
@@ -1176,12 +1311,13 @@ sub _var_access_assign_stack($stref,$f,$info,$var,$idx,$access) {
 	return $uxntal_code;
 } # END of _var_access_assign_stack()
 
-sub _var_access_read_stack($stref,$f,$info,$ast) {
+sub OBSOLETE_var_access_read_stack($stref,$f,$info,$ast) {
 	my ($var,$idxs,$idx_expr_type) = __unpack_var_access_ast($ast);
 	my $Sf = $stref->{'Subroutines'}{$f};
 	my $short_mode = $Sf->{'WordSizes'}{$var} == 2 ? '2' : '';
 	my $uxntal_code = '';
-    if  (is_array($stref,$f,$var) and $idx_expr_type == 1) {
+
+    if (is_array($stref,$f,$var) and $idx_expr_type == 1) {
 		my $idx = _emit_expression_Uxntal($idxs,$stref,$f,$info);
 		my $idx_expr = defined $idx ? ($idx eq '#0000') ? '' : 
 		"$idx ".( $short_mode ? ' #0002 MUL2 ': '') .' ADD2 ' : '';
