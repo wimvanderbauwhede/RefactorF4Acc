@@ -1025,7 +1025,8 @@ sub _var_access_assign($stref,$f,$info,$lhs_ast,$rhs_ast) {
 	IN PROGRESS
 	my ($var,$idxs,$idx_expr_type) = __unpack_var_access_ast($lhs_ast);
 	my $Sf = $stref->{'Subroutines'}{$f};
-	my $short_mode = $Sf->{'WordSizes'}{$var} == 2 ? '2' : '';
+	my $wordsz= $Sf->{'WordSizes'}{$var};
+	my $short_mode = $wordsz == 2 ? '2' : '';
 	my $uxntal_code = '';
 	my $use_stack = __use_stack($stref,$f);
 	my $var_access = $use_stack ? __stack_access($stref,$f,$var) : ';'. __create_fq_varname($stref,$f,$var);
@@ -1067,9 +1068,27 @@ sub _var_access_assign($stref,$f,$info,$lhs_ast,$rhs_ast) {
 	# 	}
 	} elsif  (is_array($stref,$f,$var) and $idx_expr_type == 0) {
 		# TODO
-		# array = rhs_expr 
+		# array = rhs_expr
+		my ($rhs_var,$idxs,$idx_expr_type) = __unpack_var_access_ast($lhs_ast);
+		if (is_array($stref,$f,$rhs_var)) {
+			my $decl = get_var_record_from_set($Sf->{'Vars'},$var);
+			my $dim =  __C_array_size($decl->{'Dim'});
+			my $array_length = $dim;
 		# if the rhs is also an array we need an array copy
+		# This is a range-map 
+		USE $var_access!
+		$uxntal_code = "{ ( iter ) ".($wordsz==2? '#0002 MUL2':'')." DUP2 $rhs_var ".
+			(is_arg($stref,$f,$rhs_var) ? 'LDA2 ' : '').
+			"ADD2 LDA$short_mode " .
+			( $short_mode==2 ? 'SWP2' : 'ROT ROT' )
+			. " $var ".
+			(is_arg($stref,$f,$var) ? 'LDA2 ' : '')
+			."ADD2 STA$short_mode JMP2r } STH2r".
+			 toHex($array_length-1,2) . ' #0000 range-map-short';
+		} else {
 		# if not, it is an error
+			error("LHS is an array but RHS isn't");
+		}
 		# So need to check if the rhs is an array
 		# the array or string itself, likely as argument to a function
 		if (is_arg($stref,$f,$var)) { # for example f(s) then s will be a pointer which will store the argument.
@@ -1078,8 +1097,8 @@ sub _var_access_assign($stref,$f,$info,$lhs_ast,$rhs_ast) {
 			$uxntal_code =  "$var_access";
 		}
 	} else {
-		# TODO, this should be a 
-		# v = <anything not a string> 
+		# TODO, this should be a
+		# v = <anything not a string>
 		if (is_arg($stref,$f,$var)) {
 		# 		passed by value, so
 				$uxntal_code = "$var_access LDA$short_mode";
