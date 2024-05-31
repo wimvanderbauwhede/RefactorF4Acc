@@ -3431,4 +3431,17 @@ In a call arg list, if it is a Scalar Out or InOut or an Array or String, genera
 __var_access does not actually load anything. So we can actually use it. So I guess, if it is an In, we can use _var_access_read;
 otherwise, we can use __var_access
 
+###########################################
+
+emit_expression takes an AST and emits it, so we should as much as possible use _var_access_read.
+This is the case for scalar vars, indexing into arrays and strings and "bare" arrays and strings
+So what mainly remains are operators and constants,
+and function calls.
+I should transform all non-pure functions into subroutines first
+But it turns out I never implemented that. 
+Next best thing is to have a variant of _emit_subroutine_call_expr_Uxntal for functions, and we use that when we encounter & in an expression AST
+So first step is to rework _emit_subroutine_call_expr_Uxntal
+
+my $maybe_characteristic = exists $info->{'Signature'}{'Characteristic'} ? $info->{'Signature'}{'Characteristic'}.' ' : '';
+
 =cut

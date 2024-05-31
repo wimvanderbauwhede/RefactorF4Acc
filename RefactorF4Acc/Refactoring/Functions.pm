@@ -192,14 +192,14 @@ end-function-stmt
 In other words, they are the same.
 
 * To convert a function definition to a subroutine definition:
-- Rename the output arg if it has the same name as the function
-- Add the output arg as the last arg of the function, intent Out
-- delete the Function attribute $stref->{'Subroutines'}{$f}{'Function'}
+    - Rename the output arg if it has the same name as the function
+    - Add the output arg as the last arg of the function, intent Out
+    - delete the Function attribute $stref->{'Subroutines'}{$f}{'Function'}
 * To convert a function call to a subroutine call:
-- Change the function call expression to a variable name by replacing '(', ')' and ',' with '_'
-- Declare this variable in the caller code unit. The type of this variable is the type of the return value, so maybe I should mark this.
-- Add the variable to the arg list of the function call
-- insert a line "CALL ..." before the expression containing the function call
+    - Change the function call expression to a variable name by replacing '(', ')' and ',' with '_'
+    - Declare this variable in the caller code unit. The type of this variable is the type of the return value, so maybe I should mark this.
+    - Add the variable to the arg list of the function call
+    - insert a line "CALL ..." before the expression containing the function call
 =cut
 
 
@@ -227,7 +227,6 @@ sub add_function_var_decls_from_calls {
 
     my $Sf = $stref->{'Subroutines'}{$f};
 
-    #   local $DBG= ;
     say "_add_function_var_decls_from_calls($f)" if $DBG;
 
     my $__add_function_var_decls_from_calls = sub {
@@ -238,9 +237,7 @@ sub add_function_var_decls_from_calls {
 
         if ( exists $info->{'FunctionCalls'} ) {
         	for my $fcall ( @{ $info->{'FunctionCalls'} } ) {
-        	   my $fname = $fcall->{'Name'};
-#                croak 	 Dumper $stref->{'Subroutines'}{$fname}{'Signature'};
-#								carp $fname  . Dumper($Sf->{'DeclaredOrigLocalVars'}{'Set'}{$fname}) if exists $Sf->{'DeclaredOrigLocalVars'}{'Set'}{$fname} ;
+        	    my $fname = $fcall->{'Name'};
                 if (
                 not exists $Sf->{'DeclaredOrigLocalVars'}{'Set'}{$fname}
                 and not exists $Sf->{'UndeclaredOrigLocalVars'}{'Set'}{$fname}) {

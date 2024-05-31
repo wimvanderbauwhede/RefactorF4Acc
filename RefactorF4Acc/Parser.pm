@@ -2995,8 +2995,12 @@ sub __parse_sub_func_prog_decls {
 		$Sf->{'OrigArgs'}{'List'} = [@args];
 		#		$Sf->{'OrigArgs'}{'Set'} = { map { $_ => 1 } @args };
 		# croak Dumper $Sf->{'OrigArgs'};
-        if ( $line =~ /(pure|elemental|recursive)\s+/ ) {
-        	$info->{'Signature'}{'Characteristic'} = $1;
+        if ( $line =~ /(pure|elemental|recursive)\s+/ ) { # it could be all three
+			for my $characteristic ('pure','elemental','recursive') {
+				if ( $line =~ /$characteristic\s/ ) { 
+        			$info->{'Signature'}{'Characteristic'}{$characteristic} = $characteristic;
+				}
+			}
         }
 		if ( $line =~ /function\s+/ ) {
 			$info->{'Signature'}{'Function'} = 1;
