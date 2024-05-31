@@ -5,7 +5,11 @@ use v5.30;
 use RefactorF4Acc::Config;
 use RefactorF4Acc::Utils;
 use RefactorF4Acc::Utils::Functional qw( max );
-use RefactorF4Acc::F95SpecWords qw( %F95_intrinsic_functions %F95_intrinsic_subroutine_sigs );
+use RefactorF4Acc::F95SpecWords qw( 
+	%F95_intrinsic_functions 
+	%F95_intrinsic_function_sigs
+	%F95_intrinsic_subroutine_sigs 
+	);
 use RefactorF4Acc::Analysis::ArgumentIODirs qw( determine_argument_io_direction_rec );
 use RefactorF4Acc::Refactoring::Helpers qw( stateful_pass stateful_pass_inplace pass_wrapper_subs_in_module update_arg_var_decl_sourcelines get_annotated_sourcelines);
 use RefactorF4Acc::Refactoring::Fixes qw(
@@ -1960,8 +1964,14 @@ sub _emit_expression_Uxntal ($ast, $stref, $f, $info) {
 				(my $op, my $arg1, my $arg2) = @{$ast};
 				$ast = [1,'mod',[27,$arg1,$arg2] ] ;
 			}
-			# Arrays and calls
-            if ($ast->[0] == 1 or $ast->[0] ==10) { #  array access 10=='@' or function call 1=='&'
+			# Function calls
+			if ($ast->[0] == 1 ) { # function call 1=='&'
+			# FIXME will not work, I want to pass the AST!
+				return _emit_function_call_expr_Uxntal($stref,$f,$info,$ast);
+
+			}
+			# Arrays 
+            elsif ($ast->[0] ==10) { #  array access 10=='@' 
                 (my $opcode, my $name, my $args) =@{$ast};
 				# Special cases
 				if ($ast->[0] == 1 and $ast->[1] eq 'int') { # just remove it
@@ -2114,7 +2124,7 @@ sub _emit_expression_Uxntal ($ast, $stref, $f, $info) {
 				# this is a list literal. The best approach is a lambda
                 return "{ $v } STH2r ( LIST LITERAL ) "; 
             } elsif ($opcode==2 or $opcode>28) {# eq '$' or constants
-croak "NEEDS FULL REWRITE: handle vars and constants separately";
+				croak "NEEDS FULL REWRITE: handle vars and constants separately";
 
 				$exp = __substitute_PlaceHolders_Uxntal($exp,$info) if $opcode == 34;
 				if ($opcode == 35) {
@@ -2662,7 +2672,7 @@ sub _emit_subroutine_call_expr_Uxntal($stref,$f,$line,$info){
 	# Otherwise we check if it is In or Out/InOut
 	# If In, we do _array_access_read, else we do __array_access
 	for my $sig_arg (@{$Ssubname->{'RefactoredArgs'}{'List'}}) {
-		$idx++;
+		$idx++; # So starts at 1, because 0 is the sigil
 		my $rec = $Ssubname->{'RefactoredArgs'}{'Set'}{$sig_arg};
 		my $call_arg_expr_str = $info->{'SubroutineCall'}{'ArgMap'}{$sig_arg} // $sig_arg;
 		my $call_arg_decl = get_var_record_from_set($Sf->{'Vars'},$call_arg_expr_str);
@@ -2689,6 +2699,66 @@ sub _emit_subroutine_call_expr_Uxntal($stref,$f,$line,$info){
 	return join("\n", @call_arg_expr_strs_Uxntal, $subname);
 
 } # END of _emit_subroutine_call_expr_Uxntal
+
+# This can also be used for function calls because there is no difference in the emitted expression
+sub _emit_function_call_expr_Uxntal($stref,$f,$info,$ast){
+	my @call_arg_expr_strs_Uxntal=();
+	my $subname = $ast->[1];#$info->{'SubroutineCall'}{'Name'}; 
+
+	if (exists $F95_intrinsic_function_sigs{$subname}) {
+		my $intent = 'in';
+		my @call_arg_asts = ();
+		if ($ast->[2][0] == 27) {
+			for my $idx (1 .. scalar @{$ast->[2]}-1) {
+				push @call_arg_asts, $ast->[2][$idx]
+			}
+		} else {
+			push @call_arg_asts, $ast->[2]
+		}
+		for my $call_arg_ast (@{call_arg_asts}) {
+			my $call_arg_expr_str = 
+			($call_arg_ast->[0] == 2 or $call_arg_ast->[0] == 10)
+			? $call_arg_ast->[1] : ''
+			push @call_arg_expr_strs_Uxntal, __emit_call_arg_Uxntal_expr($stref,$f,$info,$call_arg_expr_str);
+		}
+	} else {
+		my $Ssubname = $stref->{'Subroutines'}{$subname};
+		my $idx=0;
+		for my $sig_arg (@{$Ssubname->{'RefactoredArgs'}{'List'}}) {
+			$idx++; # So starts at 1, because 0 is the sigil
+			
+			my $intent = $Ssubname->{'RefactoredArgs'}{'Set'}{$sig_arg}{'IODir'};
+			
+			my $call_arg_expr_str = $info->{'SubroutineCall'}{'ArgMap'}{$sig_arg} // $sig_arg;
+			push @call_arg_expr_strs_Uxntal, __emit_call_arg_Uxntal_expr($stref,$f,$info,$call_arg_expr_str);
+		}
+	}
+
+	return join("\n", @call_arg_expr_strs_Uxntal, $subname);
+
+} # END of _emit_function_call_expr_Uxntal
+
+sub __emit_call_arg_Uxntal_expr($stref,$f,$info,$call_arg_expr_str){
+	my $Sf = $stref->{'Subroutines'}{$f};
+	my $call_arg_decl = get_var_record_from_set($Sf->{'Vars'},$call_arg_expr_str);
+	my $isParam = defined $call_arg_decl and exists $call_arg_decl->{'Parameter'};
+
+	my $isConstOrExpr = exists $info->{'SubroutineCall'}{'Args'}{'Set'}{$call_arg_expr_str} ?
+	(($info->{'SubroutineCall'}{'Args'}{'Set'}{$call_arg_expr_str}{'Type'} eq 'Const' )
+	or ($info->{'SubroutineCall'}{'Args'}{'Set'}{$call_arg_expr_str}{'Type'} eq 'Expr')
+	or $isParam)
+	: 0;
+	my $arg_expr_ast = $info->{'SubroutineCall'}{'ExpressionAST'}[0] == 27 ? $info->{'SubroutineCall'}{'ExpressionAST'}[$idx] : $info->{'SubroutineCall'}{'ExpressionAST'};
+	if ($isConstOrExpr) { # Not a var
+		return _emit_expression_Uxntal($arg_expr_ast, $stref, $f,$info);#.' ( CONST/EXPR ARG by VAL) ';
+	}
+	elsif (not is_array_or_string($stref,$f,$call_arg_expr_str) and $intent eq 'in' ) { # As Scalar var used as In
+		return _var_access_read($stref,$f,$info,$arg_expr_ast);#.' ( SCALAR IN ARG by VAL) ';
+	}
+	else { # A var, either nor scalar or scalar but used as Out or InOut
+		return __var_access($stref,$f,$arg_expr_ast);#.' ( ARG by REF) ';
+	}
+} # END of __emit_call_arg_Uxntal_expr
 
 sub _emit_subroutine_call_expr_Uxntal_OLD($stref,$f,$line,$info){
 	my @call_arg_expr_strs_Uxntal=();
@@ -2805,6 +2875,7 @@ sub _emit_subroutine_call_expr_Uxntal_OLD($stref,$f,$line,$info){
 
 
 sub __emit_intrinsic_subroutine_call_expr_Uxntal($stref,$f,$line,$info){
+	croak "SEE _emit_function_call_expr_Uxntal INSTEAD";
 	my $subname = $info->{'SubroutineCall'}{'Name'};
 	# my @arg_decls=();
 	# for my $arg_decl_str (@{ $F95_intrinsic_subroutine_sigs{$subname} }) {
