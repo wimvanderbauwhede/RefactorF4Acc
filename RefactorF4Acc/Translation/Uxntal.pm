@@ -1013,8 +1013,8 @@ sub _var_access_assign($stref,$f,$info,$lhs_ast,$rhs_ast) {
 
 	my ($var,$idxs,$idx_expr_type) = __unpack_var_access_ast($lhs_ast);
 	my $Sf = $stref->{'Subroutines'}{$f};
-	my $wordsz= $Sf->{'WordSizes'}{$var};
-	my $short_mode = $wordsz == 2 ? '2' : '';
+	my $word_sz= $Sf->{'WordSizes'}{$var};
+	my $short_mode = $word_sz == 2 ? '2' : '';
 	my $uxntal_code = '';
 	my $use_stack = __use_stack($stref,$f);
 	my $lhs_var_access = __var_access($stref,$f,$var);
@@ -1039,7 +1039,7 @@ sub _var_access_assign($stref,$f,$info,$lhs_ast,$rhs_ast) {
 			# This is a range-map 
 			my $rhs_var_access = __var_access($stref,$f,$rhs_var);
 			$uxntal_code = "{ ( iter ) ".
-				($wordsz==2? '#0002 MUL2':'')
+				($word_sz==2? '#0002 MUL2':'')
 				." DUP2 $rhs_var_access ADD2 LDA$short_mode " .
 				( $short_mode==2 ? 'SWP2' : 'ROT ROT' )
 				. " $lhs_var_access ADD2 STA$short_mode JMP2r } STH2r".
@@ -1327,7 +1327,7 @@ sub OBSOLETE_var_access_assign_stack($stref,$f,$info,$var,$idx,$access) {
 		}
 	}
 	return $uxntal_code;
-} # END of _var_access_assign_stack()
+} # END of OBSOLETE_var_access_assign_stack()
 
 sub OBSOLETE_var_access_read_stack($stref,$f,$info,$ast) {
 	my ($var,$idxs,$idx_expr_type) = __unpack_var_access_ast($ast);
@@ -1388,7 +1388,7 @@ sub OBSOLETE_var_access_read_stack($stref,$f,$info,$ast) {
 		}
 	}
 	return $uxntal_code;
-} # END of _var_access_read_stack()
+} # END of OBSOLETE_var_access_read_stack()
 
 # This returns the address of the var on the stack
 sub __stack_access($stref,$f,$var) {
@@ -2614,35 +2614,92 @@ while ($expr=~/\.(\w+)\./) {
 	return $expr;
 }
 #### #### #### #### END OF C TRANSLATION CODE #### #### #### ####
-
-
-sub _emit_subroutine_call_expr_Uxntal($stref,$f,$line,$info){
+# This can also be used for function calls because there is no difference in the emitted expression
+sub _emit_subroutine_call_expr_Uxntal_OLD($stref,$f,$line,$info){
 	my @call_arg_expr_strs_Uxntal=();
 	my $subname = $info->{'SubroutineCall'}{'Name'};
+	# This is only for local subroutines, so handle the others here
 	if (exists $info->{'SubroutineCall'}{'IsExternal'}) {
 		if ($subname eq 'exit') {
 			return 'BRK';
 		}
-		if (exists  $F95_intrinsic_subroutine_sigs{$subname}) {
+		elsif (exists  $F95_intrinsic_subroutine_sigs{$subname}) {
 			return __emit_intrinsic_subroutine_call_expr_Uxntal($stref,$f,$line,$info);
+		} else {
+			warning("Subroutine $subname is EXTERNAL in $f");
 		}
 	}
 	my $Ssubname = $stref->{'Subroutines'}{$subname};
 	my $Sf = $stref->{'Subroutines'}{$f};
-# What we need for every argument is IODir , ArrayOrScalar from the record
-# So we'd better loop over the List in the record.
+	# What we need for every argument is IODir , ArrayOrScalar from the record
+	# So we'd better loop over the List in the record.
 	#  "inout" args will occur in both places if required.
 	my @in_args=();
 	my @out_args=();
 	my $idx=0;
+	# emit Uxntal expr for each call arg
+	# If the argument is a variable
+	# If it is a string or array, we do __array_access
+	# Otherwise we check if it is In or Out/InOut
+	# If In, we do _array_access_read, else we do __array_access
 	for my $sig_arg (@{$Ssubname->{'RefactoredArgs'}{'List'}}) {
 		$idx++;
 		my $rec = $Ssubname->{'RefactoredArgs'}{'Set'}{$sig_arg};
 		my $call_arg_expr_str = $info->{'SubroutineCall'}{'ArgMap'}{$sig_arg} // $sig_arg;
 		my $call_arg_decl = get_var_record_from_set($Sf->{'Vars'},$call_arg_expr_str);
 		my $isParam = defined $call_arg_decl and exists $call_arg_decl->{'Parameter'};
-		# croak Dumper $call_arg_decl,$rec,$call_arg_expr_str if $call_arg_expr_str eq 'idx';
-		# say "$subname: $sig_arg => ";say $call_arg_expr_str;
+		my $intent = $rec->{'IODir'};
+
+		my $isConstOrExpr = exists $info->{'SubroutineCall'}{'Args'}{'Set'}{$call_arg_expr_str} ?
+		(($info->{'SubroutineCall'}{'Args'}{'Set'}{$call_arg_expr_str}{'Type'} eq 'Const' )
+		or ($info->{'SubroutineCall'}{'Args'}{'Set'}{$call_arg_expr_str}{'Type'} eq 'Expr')
+		or $isParam)
+		: 0;
+		my $arg_expr_ast = $info->{'SubroutineCall'}{'ExpressionAST'}[0] == 27 ? $info->{'SubroutineCall'}{'ExpressionAST'}[$idx] : $info->{'SubroutineCall'}{'ExpressionAST'};
+		if ($isConstOrExpr) { # Not a var
+			push @call_arg_expr_strs_Uxntal, _emit_expression_Uxntal($arg_expr_ast, $stref, $f,$info);#.' ( CONST/EXPR ARG by VAL) ';
+		}
+		elsif (not is_array_or_string($stref,$f,$call_arg_expr_str) and $intent eq 'in' ) { # As Scalar var used as In
+			push @call_arg_expr_strs_Uxntal, _var_access_read($stref,$f,$info,$arg_expr_ast);#.' ( SCALAR IN ARG by VAL) ';
+		}
+		else { # A var, either nor scalar or scalar but used as Out or InOut
+			push @call_arg_expr_strs_Uxntal, __var_access($stref,$f,$arg_expr_ast);#.' ( ARG by REF) ';
+		}
+	}
+
+	return join("\n", @call_arg_expr_strs_Uxntal, $subname);
+
+} # END of _emit_subroutine_call_expr_Uxntal
+
+sub _emit_subroutine_call_expr_Uxntal_OLD($stref,$f,$line,$info){
+	my @call_arg_expr_strs_Uxntal=();
+	my $subname = $info->{'SubroutineCall'}{'Name'};
+	# This is only for local subroutines, so handle the others here
+	if (exists $info->{'SubroutineCall'}{'IsExternal'}) {
+		if ($subname eq 'exit') {
+			return 'BRK';
+		}
+		elsif (exists  $F95_intrinsic_subroutine_sigs{$subname}) {
+			return __emit_intrinsic_subroutine_call_expr_Uxntal($stref,$f,$line,$info);
+		} else {
+			warning("Subroutine $subname is EXTERNAL in $f");
+		}
+	}
+	my $Ssubname = $stref->{'Subroutines'}{$subname};
+	my $Sf = $stref->{'Subroutines'}{$f};
+	# What we need for every argument is IODir , ArrayOrScalar from the record
+	# So we'd better loop over the List in the record.
+	#  "inout" args will occur in both places if required.
+	my @in_args=();
+	my @out_args=();
+	my $idx=0;
+	# emit Uxntal expr for each call arg
+	for my $sig_arg (@{$Ssubname->{'RefactoredArgs'}{'List'}}) {
+		$idx++;
+		my $rec = $Ssubname->{'RefactoredArgs'}{'Set'}{$sig_arg};
+		my $call_arg_expr_str = $info->{'SubroutineCall'}{'ArgMap'}{$sig_arg} // $sig_arg;
+		my $call_arg_decl = get_var_record_from_set($Sf->{'Vars'},$call_arg_expr_str);
+		my $isParam = defined $call_arg_decl and exists $call_arg_decl->{'Parameter'};
 		my $intent = $rec->{'IODir'};
 		my $isArray = $rec->{'ArrayOrScalar'} eq 'Array';
 		my $isString = 0;
@@ -2680,7 +2737,16 @@ sub _emit_subroutine_call_expr_Uxntal($stref,$f,$line,$info){
 			}
 		# }
 	}
+	# add the subroutine name to the list for convenience
 	push @call_arg_expr_strs_Uxntal, $subname;
+
+	# What this does is generate code for Out and InOut vars. I think this might actually be wrong:
+	# If we have s1(v_in,v_out) that would be e.g.
+	# ;v_in LDA ;v_out s1 and we have
+	# @s1 ;v_s1_out STA2 ;v_s1_in STA
+	# Then we do e.g. v_out = v_out * v_in
+	# ;v_s1_out LDA2 LDA ;v_s1_in LDA MUL ;v_s1_out LDA2 STA
+	# So there is nothing to do after the call
 	$idx=0;
 	for my $sig_arg (reverse @{$Ssubname->{'RefactoredArgs'}{'List'}}) {
 		$idx++;
@@ -2716,7 +2782,7 @@ sub _emit_subroutine_call_expr_Uxntal($stref,$f,$line,$info){
 
 	return join("\n", @call_arg_expr_strs_Uxntal);
 
-} # END of _emit_subroutine_call_expr_Uxntal
+} # END of _emit_subroutine_call_expr_Uxntal_OLD
 
 
 sub __emit_intrinsic_subroutine_call_expr_Uxntal($stref,$f,$line,$info){
