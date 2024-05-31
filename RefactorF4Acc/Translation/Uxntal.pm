@@ -2615,7 +2615,7 @@ while ($expr=~/\.(\w+)\./) {
 }
 #### #### #### #### END OF C TRANSLATION CODE #### #### #### ####
 # This can also be used for function calls because there is no difference in the emitted expression
-sub _emit_subroutine_call_expr_Uxntal_OLD($stref,$f,$line,$info){
+sub _emit_subroutine_call_expr_Uxntal($stref,$f,$line,$info){
 	my @call_arg_expr_strs_Uxntal=();
 	my $subname = $info->{'SubroutineCall'}{'Name'};
 	# This is only for local subroutines, so handle the others here
