@@ -1934,7 +1934,16 @@ sub _emit_ifbranch_end_Uxntal ($id, $state){
 # &: subroutine
 # @: array
 
+=pod
+The cases to consider are:
+- operators, recurse _emit_expression_Uxntal
+- literal constants (bool, number, character), emit in place
+- string constants, emit in place
+- variables, will always be _var_access_read()
+- function calls, is _emit_subroutine_call_expr_Uxntal
 
+
+=cut
 sub _emit_expression_Uxntal ($ast, $stref, $f, $info) {
 	my $Sf = $stref->{'Subroutines'}{$f};
 
@@ -2095,14 +2104,17 @@ sub _emit_expression_Uxntal ($ast, $stref, $f, $info) {
 			my $sigil = $sigils[$opcode];
 
             if ($opcode==0 ) { # eq '('
+				# When would this occur?
                 my $v = (ref($exp) eq 'ARRAY') ? _emit_expression_Uxntal($exp, $stref, $f,$info) : $exp;
-				# croak 'TODO: ( ... ) '.Dumper( $exp);
+				croak 'TODO: parens ( ... ) '.Dumper( $exp);
                 return "[ $v ]"; # FIXME, but of course this is valid Uxntal
             } elsif ($opcode==28 ) { # eq '(/'
-				croak 'TODO: (/ ... /) '.Dumper( $exp);
-                my $v = (ref($exp) eq 'ARRAY') ? _emit_expression_Uxntal($exp, $stref, $f,$info) : $exp;
-                return "[ $v ]"; # FIXME
+				# croak 'TODO: (/ ... /) '.Dumper( $exp);
+                my $v =  _emit_expression_Uxntal($exp, $stref, $f,$info);
+				# this is a list literal. The best approach is a lambda
+                return "{ $v } STH2r ( LIST LITERAL ) "; 
             } elsif ($opcode==2 or $opcode>28) {# eq '$' or constants
+croak "NEEDS FULL REWRITE: handle vars and constants separately";
 
 				$exp = __substitute_PlaceHolders_Uxntal($exp,$info) if $opcode == 34;
 				if ($opcode == 35) {
@@ -2228,9 +2240,18 @@ sub _emit_expression_Uxntal ($ast, $stref, $f, $info) {
 						}
 					}
 				}
-            } elsif ($opcode == 21 or $opcode == 4 or $opcode == 3) {# eq '.not.' '-'
-                my $v = (ref($exp) eq 'ARRAY') ? _emit_expression_Uxntal($exp, $stref, $f,$info) : $exp;
-                return $v.' '.$sigils[$opcode] ;
+            } elsif ($opcode == 21 or $opcode == 4 or $opcode == 3) {#  '.not.', '-' or '+'
+                my $v = _emit_expression_Uxntal($exp, $stref, $f,$info);
+				if ($opcode == 21 ) {
+                	return "$v not" ;
+				}
+				elsif($opcode == 4) {
+					# In principle we need to know the word size!
+					# But I will simply assume that all arithmetic is using shorts
+					return "#0000 $v SUB2";
+				} else {
+					return $v;
+				}
             } elsif ($opcode == 27) { # ','
                 croak Dumper($ast) if $DBG; # WHY is this here?
                 my @args_lst_Uxntal=();
@@ -2241,21 +2262,19 @@ sub _emit_expression_Uxntal ($ast, $stref, $f, $info) {
             } else {
                 croak 'BOOM! '.Dumper($ast).$opcode  if $DBG;
             }
-        } elsif (scalar @{$ast} > 3) {
-
-            if($ast->[0] == 27) { # ','
+        } elsif (scalar @{$ast} > 3 and $ast->[0] == 27) { # the ast is a comma-separated list ','
                 my @args_lst_Uxntal=();
                 for my $idx (1 .. scalar @{$ast}-1) {
                     my $arg = $ast->[$idx];
                     push @args_lst_Uxntal, _emit_expression_Uxntal($arg, $stref, $f,$info);
                 }
-                return join(',',@args_lst_Uxntal);
-            } else {
-                croak Dumper($ast) if $DBG;
-            }
-        }
+                return join(' ',@args_lst_Uxntal);
+        } else {
+			# Should not happen, an array with 0 or 1 elements or with more than 3 but not a comma-sep list
+			croak Dumper($ast) if $DBG;
+		}
     } else {
-		# Should not happen?
+		# This is fall-through if the expression is a literal
 		return $ast;
 	}
 } # END of _emit_expression_Uxntal
