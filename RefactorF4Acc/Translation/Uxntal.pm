@@ -2720,7 +2720,7 @@ sub _emit_subroutine_call_expr_Uxntal_OLD($stref,$f,$line,$info){
 		or ($info->{'SubroutineCall'}{'Args'}{'Set'}{$call_arg_expr_str}{'Type'} eq 'Expr')
 		or $isParam)
 		: 0;
-
+# TODO: use _var_access_read for Scalar In, __var_access for all other cases
 		# if ($intent eq 'in' or $intent eq 'inout') {
 			if ($isArray ) {
 				push @call_arg_expr_strs_Uxntal, ';'.$f.'_'.$call_arg_expr_str;#.' ( ARG by ADDR ) ';
@@ -3494,8 +3494,10 @@ So __var_access needs to distinguish for scalars between In or not In
 Furthermore, we need to distinguish between call args of a subroutine and access in the body
 In a call arg list, if it is a Scalar Out or InOut or an Array or String, generate the address, no load
 
-__var_access does not actually load anything. So we can actually use it. So I guess, if it is an In, we can use _var_access_read;
+__var_access does not actually load anything. So we can actually use it. 
+So if it is an In, we can use _var_access_read;
 otherwise, we can use __var_access
+
 
 ###########################################
 
@@ -3509,5 +3511,27 @@ Next best thing is to have a variant of _emit_subroutine_call_expr_Uxntal for fu
 So first step is to rework _emit_subroutine_call_expr_Uxntal
 
 my $maybe_characteristic = exists $info->{'Signature'}{'Characteristic'} ? $info->{'Signature'}{'Characteristic'}.' ' : '';
+
+Question is, if we have a variable that is an InOut, say we simply have
+
+subroutine inc(n)
+	integer, intent(InOut) :: n
+	n=n+1
+end subroutine inc
+
+program test_inc
+integer :: nn
+nn=1
+inc(nn)
+print *, nn
+end program test_inc
+
+#0001 ;nn STA2 ( _var_access_assign )
+;nn inc ( InOut in call, so it should *not* be _var_access_read )
+( So maybe I need _var_access_call 
+)
+
+;n LDA2 LDA2 INC2 ;n LDA2 STA2
+
 
 =cut
