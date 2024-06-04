@@ -708,7 +708,7 @@ sub _get_word_sizes($stref,$f){
 		elsif ($type eq 'logical') {
 			$wordsz=1;
 		}
-		elsif ($type eq 'character') {
+		elsif ($type eq 'character') { 
 				# if (exists $decl->{'Attr'} and $decl->{'Attr'} ne '' and $decl->{'Attr'}!~/len=1/) {
 				# 	# It's a string, not a character, so we store the address, not the value.
 				# 	# croak('WRONG! Need to disambiguate between the pointer and the value!');
@@ -957,11 +957,13 @@ sub _var_access_read($stref,$f,$info,$ast) {
 			$uxntal_code = __gen_substr($var_access, $idx_expr_b,$idx_expr_e, $len, $id);
 
 		}
-	} elsif  (is_array_or_string($stref,$f,$var) and $idx_expr_type == 0) {
+	} elsif (is_array_or_string($stref,$f,$var) and $idx_expr_type == 0) {
 		# the array or string itself, likely as argument to a function
-			$uxntal_code =  "$var_access";
+		$uxntal_code =  "$var_access";
+	} elsif  ($ast->[0] == 2) { # a scalar
+		$uxntal_code =  "$var_access LDA$short_mode";
 	} else {
-		croak('WRONG!');
+		croak('WRONG! <',Dumper($ast),'>');
 		if (is_arg($stref,$f,$var)) {
 		# 		passed by value, so
 				$uxntal_code = "$var_access LDA$short_mode";
@@ -1065,6 +1067,7 @@ sub _var_access_assign($stref,$f,$info,$lhs_ast,$rhs_ast) {
 sub __var_access($stref,$f,$var) {
 	my $use_stack = __use_stack($stref,$f);
 	my $decl =  get_var_record_from_set($stref->{'Subroutines'}{$f}{'Vars'},$var) ;
+	# carp("<$var>",Dumper $decl);
 	my $iodir = $decl->{'IODir'};
 	my $uxntal_write_arg = $iodir eq 'out' or $iodir eq 'inout' ? 1 : 0 ;
 
@@ -1148,6 +1151,7 @@ sub __unpack_var_access_ast($ast) {
 		# ['@',$var,[':',$idx_expr_b,$idx_expr_e]] # This can be an array slice OR a string access : 10, 3 args, last arg is array has 12
 		# ['@',$var,$idx_expr] : 10, 3 args, last arg is scalar
 		# ['$',$var] : 2, 2 args,
+		# [34,'__PH0__']
 		my $idx_expr_type = 0; # 0 = no index | 1 = scalar | 2 = slice | 3 = multi-dim
 		my $var = $ast->[1];
 		my $idxs = [];
@@ -1165,7 +1169,9 @@ sub __unpack_var_access_ast($ast) {
 			if (scalar @{$ast} != 2) {
 				error('Scalar AST must have 2 items: '.Dumper($ast));
 			}
+		} elsif ($ast->[0] == 34) { # String literal placeholder, but I don't have the $info to substitute it
 		} else {
+			croak Dumper $ast;
 			error('AST must be an @ or $: '.Dumper($ast));
 		}
 		return ($var,$idxs,$idx_expr_type);
@@ -1191,61 +1197,22 @@ sub __unpack_var_access_ast($ast) {
 
 sub __copy_substr($stref, $f, $info, $lhs_ast, $rhs_ast) {
 	# extract a substring and copy
+	# The RHS string can be a literal
+	my $uxntal_code = '';
 	# unpack the asts
 	my ($lhs_var,$lhs_idxs,$lhs_idx_expr_type) = __unpack_var_access_ast($lhs_ast);
-	my ($rhs_var,$rhs_idxs,$rhs_idx_expr_type) = __unpack_var_access_ast($rhs_ast);
-	my $lhs_var_access = __var_access($stref,$f,$lhs_var);
-	my $rhs_var_access = __var_access($stref,$f,$rhs_var);
-	my $uxntal_code = '';
-	if ($lhs_idx_expr_type == 2 and $rhs_idx_expr_type == 2) { 
-		# both are slices
-		# get the slice index expressions
-		my $lhs_idx_expr_b = _emit_expression_Uxntal($lhs_idxs->[1], $stref, $f,$info);
-		my $lhs_idx_expr_e = _emit_expression_Uxntal($lhs_idxs->[2], $stref, $f,$info);
-		my $rhs_idx_expr_b = _emit_expression_Uxntal($rhs_idxs->[1], $stref, $f,$info);
-		my $rhs_idx_expr_e = _emit_expression_Uxntal($rhs_idxs->[2], $stref, $f,$info);
-
-		if ($lhs_idx_expr_b eq $lhs_idx_expr_e and $rhs_idx_expr_b eq $rhs_idx_expr_e) {
-			# simplyfied case of s_to(b1:b1) = s_from(b2:b2)
-			# further simplified if b1 or b2 is 0: 
-			# s_to(b1:b1) = s_from(1:1)
-			# s_to(1:1) = s_from(b2:b2)
-			my $rhs_idx_expr =  ($rhs_idx_expr_b eq '#0000') ? '' : "$rhs_idx_expr_b ADD2 ";
-			my $lhs_idx_expr =  ($lhs_idx_expr_b eq '#0000') ? '' : "$lhs_idx_expr_b ADD2 ";
-    		$uxntal_code = "$rhs_var_access $rhs_idx_expr LDA $lhs_var_access $lhs_idx_expr STA"
-		} else { # It is not possible to tell at compile time if these are compatible.
-			# So to avoid overwriting, we use the LHS slice
-			# s_to(b1:e1) = s_from(b2:e2) 
-			# So this is a strncpy where we copy e1-b1+1 bytes from the RHS starting at b2 to LHS starting at b1
-			$uxntal_code = "$rhs_var_access $rhs_idx_expr_b ADD2 $lhs_var_access $lhs_idx_expr_b ADD2 $lhs_idx_expr_e $lhs_idx_expr_b SUB2 INC2 strncpy";
-		}
-	} elsif ($lhs_idx_expr_type == 2 and $rhs_idx_expr_type == 0) {
-		# this is a special case of the above where we start the RHS string at 0; LHS is a slice
-		# s1(i:j) = s2
-		my $lhs_idx_expr_b = _emit_expression_Uxntal($lhs_idxs->[1], $stref, $f,$info);
-		my $lhs_idx_expr_e = _emit_expression_Uxntal($lhs_idxs->[2], $stref, $f,$info);
-		if ($rhs_ast->[0] == 2 and is_string($stref,$f,$rhs_var)) { 
-			# RHS is a scalar, so a string-type variable, and it is a string
-			# s_to(b:e) = s_from where s_from is of length e-b
-			# s_to = s_from(b:e) where s_to is of length e-b
-			$uxntal_code = "$rhs_var_access $lhs_var_access $lhs_idx_expr_b ADD2 $lhs_idx_expr_e $lhs_idx_expr_b SUB2 INC2 strncpy";
-		} 
-		elsif (($rhs_ast->[0] == 2 and is_character($stref,$f,$rhs_var)) or $rhs_ast->[0] == 32) {
-			# it's a character-type scalar or a character constant.
-			# s_to(b:b) = 'c'
-			# $lhs_ast = ['@',$s,[':',$i_expr]
-			my $rhs_Uxntal_expr = _emit_expression_Uxntal ($rhs_ast, $stref, $f, $info);
-			my $idx_expr = _emit_expression_Uxntal ($lhs_ast->[2][1], $stref, $f, $info);
-			$uxntal_code = "$rhs_Uxntal_expr $lhs_var_access $idx_expr ADD2 #0002 ADD2 STA";
-		}
-		elsif ($rhs_ast->[0] == 34) { # a PlaceHolder, so it's a string
+	if ($rhs_ast->[0] == 34) { 
+		my $lhs_var_access = __var_access($stref,$f,$lhs_var);
+		my $rhs_Uxntal_expr = __substitute_PlaceHolders_Uxntal($rhs_ast->[1],$info);
+		if ($lhs_idx_expr_type == 2) {
 			# s_to(b1:e1) = "str"
 			# This is a full string copy
 			# so the RHS is just the string
 			# the LHS is the slice; we use the LHS value
 			# So we copy ce-cb+1 bytes from the RHS to the LHS, starting at position cb
 			# <rhs-string> ;lhs_str <cb> ADD2 <ce-cb+1> strncpy
-			my $rhs_Uxntal_expr = _emit_expression_Uxntal ($rhs_ast, $stref, $f, $info);
+			my $lhs_idx_expr_b = _emit_expression_Uxntal($lhs_idxs->[1], $stref, $f,$info);
+			my $lhs_idx_expr_e = _emit_expression_Uxntal($lhs_idxs->[2], $stref, $f,$info);
 			if ($lhs_idx_expr_b eq $lhs_idx_expr_e ) {
 				# simplyfied case of s_to(b1:b1) = "X"
 				my $lhs_idx_expr =  ($lhs_idx_expr_b eq '#0000') ? '' : "$lhs_idx_expr_b ADD2 ";
@@ -1254,34 +1221,84 @@ sub __copy_substr($stref, $f, $info, $lhs_ast, $rhs_ast) {
 				# So to avoid overwriting, we use the LHS slice
 				$uxntal_code = "$rhs_Uxntal_expr $lhs_var_access $lhs_idx_expr_b ADD2 $lhs_idx_expr_e $lhs_idx_expr_b SUB2 INC2 strncpy";
 			}
-		}
-		elsif ($rhs_ast->[0] == 1) { # a function call
-			# get the return type of the function
-			my $sig = $stref->{'Subroutines'}{$rhs_ast->[1]}{'Signature'};
-			croak Dumper($sig);
-		}
-	} elsif ($lhs_idx_expr_type == 0 and $rhs_idx_expr_type == 2) {
-		# RHS is a slice, LHS is a string variable
-		# s_to = s_from
-		my $rhs_idx_expr_b = _emit_expression_Uxntal($rhs_idxs->[1], $stref, $f,$info);
-		my $rhs_idx_expr_e = _emit_expression_Uxntal($rhs_idxs->[2], $stref, $f,$info);
-
-		# First, check for the special condition b==e
-		if ($rhs_idx_expr_b eq $rhs_idx_expr_e ) {
-			my $rhs_idx_expr =  ($rhs_idx_expr_b eq '#0000') ? '' : "$rhs_idx_expr_b ADD2 ";
-			$uxntal_code = "$rhs_var_access $rhs_idx_expr #0002 ADD2 LDA $lhs_var_access #0002 ADD2 STA";
-		} else {
-			# I think here we must put in a safeguarding condition that e-b should be < length
-			# Or we could just copy length bytes
-			# So: if e-b+1 < length, use e-b+1 else use length
-			# lhs_len = ;$lhs_var LDA2
-			# rhs_len = $rhs_idx_expr_e $rhs_idx_expr_b SUB2 INC2
-			# $rhs_idx_expr_e $rhs_idx_expr_b SUB2 INC2 ;$lhs_var LDA2 min
-			$uxntal_code = "$rhs_var_access $rhs_idx_expr_b ADD2 $lhs_var_access $rhs_idx_expr_e $rhs_idx_expr_b SUB2 INC2 ;$lhs_var LDA2 min strncpy";
+		} else { # We will assume that this is a character assignment
+			$uxntal_code = "$rhs_Uxntal_expr $lhs_var_access STA";
+			# croak "NOT a substr copy! ".Dumper($lhs_ast,$rhs_ast);
 		}
 
 	} else {
-		error('Unsupported index expression: '.Dumper($lhs_ast,$rhs_ast));
+		my ($rhs_var,$rhs_idxs,$rhs_idx_expr_type) = __unpack_var_access_ast($rhs_ast);
+		my $lhs_var_access = __var_access($stref,$f,$lhs_var);
+		my $rhs_var_access = __var_access($stref,$f,$rhs_var);
+		if ($lhs_idx_expr_type == 2 and $rhs_idx_expr_type == 2) { 
+			# both are slices
+			# get the slice index expressions
+			my $lhs_idx_expr_b = _emit_expression_Uxntal($lhs_idxs->[1], $stref, $f,$info);
+			my $lhs_idx_expr_e = _emit_expression_Uxntal($lhs_idxs->[2], $stref, $f,$info);
+			my $rhs_idx_expr_b = _emit_expression_Uxntal($rhs_idxs->[1], $stref, $f,$info);
+			my $rhs_idx_expr_e = _emit_expression_Uxntal($rhs_idxs->[2], $stref, $f,$info);
+
+			if ($lhs_idx_expr_b eq $lhs_idx_expr_e and $rhs_idx_expr_b eq $rhs_idx_expr_e) {
+				# simplyfied case of s_to(b1:b1) = s_from(b2:b2)
+				# further simplified if b1 or b2 is 0: 
+				# s_to(b1:b1) = s_from(1:1)
+				# s_to(1:1) = s_from(b2:b2)
+				my $rhs_idx_expr =  ($rhs_idx_expr_b eq '#0000') ? '' : "$rhs_idx_expr_b ADD2 ";
+				my $lhs_idx_expr =  ($lhs_idx_expr_b eq '#0000') ? '' : "$lhs_idx_expr_b ADD2 ";
+				$uxntal_code = "$rhs_var_access $rhs_idx_expr LDA $lhs_var_access $lhs_idx_expr STA"
+			} else { # It is not possible to tell at compile time if these are compatible.
+				# So to avoid overwriting, we use the LHS slice
+				# s_to(b1:e1) = s_from(b2:e2) 
+				# So this is a strncpy where we copy e1-b1+1 bytes from the RHS starting at b2 to LHS starting at b1
+				$uxntal_code = "$rhs_var_access $rhs_idx_expr_b ADD2 $lhs_var_access $lhs_idx_expr_b ADD2 $lhs_idx_expr_e $lhs_idx_expr_b SUB2 INC2 strncpy";
+			}
+		} elsif ($lhs_idx_expr_type == 2 and $rhs_idx_expr_type == 0) {
+			# this is a special case of the above where we start the RHS string at 0; LHS is a slice
+			# s1(i:j) = s2
+			my $lhs_idx_expr_b = _emit_expression_Uxntal($lhs_idxs->[1], $stref, $f,$info);
+			my $lhs_idx_expr_e = _emit_expression_Uxntal($lhs_idxs->[2], $stref, $f,$info);
+			if ($rhs_ast->[0] == 2 and is_string($stref,$f,$rhs_var)) { 
+				# RHS is a scalar, so a string-type variable, and it is a string
+				# s_to(b:e) = s_from where s_from is of length e-b
+				# s_to = s_from(b:e) where s_to is of length e-b
+				$uxntal_code = "$rhs_var_access $lhs_var_access $lhs_idx_expr_b ADD2 $lhs_idx_expr_e $lhs_idx_expr_b SUB2 INC2 strncpy";
+			} 
+			elsif (($rhs_ast->[0] == 2 and is_character($stref,$f,$rhs_var)) or $rhs_ast->[0] == 32) {
+				# it's a character-type scalar or a character constant.
+				# s_to(b:b) = 'c'
+				# $lhs_ast = ['@',$s,[':',$i_expr]
+				my $rhs_Uxntal_expr = _emit_expression_Uxntal ($rhs_ast, $stref, $f, $info);
+				my $idx_expr = _emit_expression_Uxntal ($lhs_ast->[2][1], $stref, $f, $info);
+				$uxntal_code = "$rhs_Uxntal_expr $lhs_var_access $idx_expr ADD2 #0002 ADD2 STA";
+			}
+			elsif ($rhs_ast->[0] == 1) { # a function call
+				# get the return type of the function
+				my $sig = $stref->{'Subroutines'}{$rhs_ast->[1]}{'Signature'};
+				croak Dumper($sig);
+			}
+		} elsif ($lhs_idx_expr_type == 0 and $rhs_idx_expr_type == 2) {
+			# RHS is a slice, LHS is a string variable
+			# s_to = s_from
+			my $rhs_idx_expr_b = _emit_expression_Uxntal($rhs_idxs->[1], $stref, $f,$info);
+			my $rhs_idx_expr_e = _emit_expression_Uxntal($rhs_idxs->[2], $stref, $f,$info);
+
+			# First, check for the special condition b==e
+			if ($rhs_idx_expr_b eq $rhs_idx_expr_e ) {
+				my $rhs_idx_expr =  ($rhs_idx_expr_b eq '#0000') ? '' : "$rhs_idx_expr_b ADD2 ";
+				$uxntal_code = "$rhs_var_access $rhs_idx_expr #0002 ADD2 LDA $lhs_var_access #0002 ADD2 STA";
+			} else {
+				# I think here we must put in a safeguarding condition that e-b should be < length
+				# Or we could just copy length bytes
+				# So: if e-b+1 < length, use e-b+1 else use length
+				# lhs_len = ;$lhs_var LDA2
+				# rhs_len = $rhs_idx_expr_e $rhs_idx_expr_b SUB2 INC2
+				# $rhs_idx_expr_e $rhs_idx_expr_b SUB2 INC2 ;$lhs_var LDA2 min
+				$uxntal_code = "$rhs_var_access $rhs_idx_expr_b ADD2 $lhs_var_access $rhs_idx_expr_e $rhs_idx_expr_b SUB2 INC2 ;$lhs_var LDA2 min strncpy";
+			}
+
+		} else {
+			error('Unsupported index expression: '.Dumper($lhs_ast,$rhs_ast));
+		}
 	}
 	return $uxntal_code;
 
@@ -1606,7 +1623,7 @@ sub _pointer_analysis($stref,$f) {
 
 } # END of _pointer_analysis
 
-sub _emit_Uxntal_code($stref, $module_name, $ocl){
+sub _emit_Uxntal_code($stref, $module_name){
  	map {say $_ } @{$stref->{'TranslatedCode'}} if $V;
 	# WV 2021-06-08 I use .cc so that this is ostensibly C++ code.
 	# This is because in pure C, the switch/case does not work with const int (!)
@@ -1817,6 +1834,9 @@ sub __substitute_PlaceHolders_Uxntal($expr_str,$info){
 sub _emit_assignment_Uxntal ($stref, $f, $info, $pass_state){
 	my $rhs_ast =  $info->{'Rhs'}{'ExpressionAST'};
 	my $lhs_ast =  $info->{'Lhs'}{'ExpressionAST'};
+	my $rline = _var_access_assign($stref,$f,$info,$lhs_ast,$rhs_ast);
+	return ($rline,$pass_state);
+
 	if ($rhs_ast->[0] == 34) { # it's a string assignment
 		# string assignment
 		# This must become lhs_uxntal ;fqn_rhs_uxntal memwrite-string
@@ -1872,7 +1892,7 @@ sub _emit_assignment_Uxntal ($stref, $f, $info, $pass_state){
 		$lhs_post .= ' STA2 ( must be string! ) ';
 	}
 
-	my $rline = $info->{'Indent'} . $rhs_stripped . ' ( = ) '. $lhs_post;
+	$rline = $info->{'Indent'} . $rhs_stripped . ' ( = ) '. $lhs_post;
 	if (exists $info->{'If'}) {
 		# croak 'TODO: If without Then', Dumper($info);
 		my $branch_id = $info->{'LineID'};
@@ -1951,8 +1971,6 @@ sub _emit_expression_Uxntal ($ast, $stref, $f, $info) {
 	my $Sf = $stref->{'Subroutines'}{$f};
 
     if (ref($ast) eq 'ARRAY') {
-		# WV 20240604 This is no longer practical because var access can be '@' or '$'
-		# So exclude '@' and '$'
 		my $opcode = $ast->[0];
 		if ( $opcode == 10 or $opcode == 2) { # variables, will always be _var_access_read()
 			return _var_access_read($stref,$f,$info,$ast);
@@ -2483,7 +2501,7 @@ sub _emit_function_call_expr_Uxntal($stref,$f,$info,$ast){
 	my $subname = $ast->[1];#$info->{'SubroutineCall'}{'Name'}; 
 
 	if (exists $F95_intrinsic_function_sigs{$subname}) {
-		my $intent = 'in';
+		# my $intent = 'in';
 		my @call_arg_asts = ();
 		if ($args->[0] == 27) { # 
 			for my $idx (1 .. scalar @{$args}-1) {
@@ -2492,11 +2510,13 @@ sub _emit_function_call_expr_Uxntal($stref,$f,$info,$ast){
 		} else {
 			push @call_arg_asts, $args;
 		}
+		my $idx=0;
 		for my $call_arg_ast (@{call_arg_asts}) {
+			$idx++;
 			my $call_arg_expr_str = 
 			($call_arg_ast->[0] == 2 or $call_arg_ast->[0] == 10)
 			? $call_arg_ast->[1] : '';
-			push @call_arg_expr_strs_Uxntal, __emit_call_arg_Uxntal_expr($stref,$f,$info,$call_arg_expr_str);
+			push @call_arg_expr_strs_Uxntal, __emit_call_arg_Uxntal_expr($stref,$f,$info,$call_arg_expr_str,$idx,'in');
 		}
 	} else {
 		my $Ssubname = $stref->{'Subroutines'}{$subname};
@@ -2505,7 +2525,7 @@ sub _emit_function_call_expr_Uxntal($stref,$f,$info,$ast){
 			$idx++; # So starts at 1, because 0 is the sigil
 			my $intent = $Ssubname->{'RefactoredArgs'}{'Set'}{$sig_arg}{'IODir'};
 			my $call_arg_expr_str = $info->{'SubroutineCall'}{'ArgMap'}{$sig_arg} // $sig_arg;
-			push @call_arg_expr_strs_Uxntal, __emit_call_arg_Uxntal_expr($stref,$f,$info,$call_arg_expr_str);
+			push @call_arg_expr_strs_Uxntal, __emit_call_arg_Uxntal_expr($stref,$f,$info,$call_arg_expr_str,$idx,$intent);
 		}
 	}
 
@@ -2513,7 +2533,7 @@ sub _emit_function_call_expr_Uxntal($stref,$f,$info,$ast){
 
 } # END of _emit_function_call_expr_Uxntal
 
-sub __emit_call_arg_Uxntal_expr($stref,$f,$info,$call_arg_expr_str){
+sub __emit_call_arg_Uxntal_expr($stref,$f,$info,$call_arg_expr_str,$idx,$intent){
 	my $Sf = $stref->{'Subroutines'}{$f};
 	my $call_arg_decl = get_var_record_from_set($Sf->{'Vars'},$call_arg_expr_str);
 	my $isParam = defined $call_arg_decl and exists $call_arg_decl->{'Parameter'};
