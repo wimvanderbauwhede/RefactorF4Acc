@@ -1036,30 +1036,34 @@ sub _var_access_assign($stref,$f,$info,$lhs_ast,$rhs_ast) {
 		$uxntal_code =  __copy_substr($stref, $f, $info, $lhs_ast, $rhs_ast)
 	} elsif  (is_array($stref,$f,$var) and $idx_expr_type == 0) {
 		# array = rhs_expr
-		my ($rhs_var,$idxs,$idx_expr_type) = __unpack_var_access_ast($lhs_ast);
-		if (is_array($stref,$f,$rhs_var)) {
-			my $decl = get_var_record_from_set($Sf->{'Vars'},$var);
-			my $dim =  __C_array_size($decl->{'Dim'});
-			my $array_length = $dim;
-			# if the rhs is also an array we need an array copy
-			# This is a range-map 
-			my $rhs_var_access = __var_access($stref,$f,$rhs_var);
-			$uxntal_code = "{ ( iter ) ".
-				($word_sz==2? '#0002 MUL2':'')
-				." DUP2 $rhs_var_access ADD2 LDA$short_mode " .
-				( $short_mode==2 ? 'SWP2' : 'ROT ROT' )
-				. " $lhs_var_access ADD2 STA$short_mode JMP2r } STH2r".
-				toHex($array_length-1,2) 
-				. ' #0000 range-map-short';
+		if ($rhs_ast->[0] == 28) {
+			croak Dumper _emit_expression_Uxntal($rhs_ast, $stref,$f, $info);
 		} else {
-		# if not, it is an error
-			error("LHS is an array but RHS isn't");
+			my ($rhs_var,$idxs,$idx_expr_type) = __unpack_var_access_ast($rhs_ast);
+			if (is_array($stref,$f,$rhs_var)) {
+				my $decl = get_var_record_from_set($Sf->{'Vars'},$var);
+				my $dim =  __C_array_size($decl->{'Dim'});
+				my $array_length = $dim;
+				# if the rhs is also an array we need an array copy
+				# This is a range-map 
+				my $rhs_var_access = __var_access($stref,$f,$rhs_var);
+				$uxntal_code = "{ ( iter ) ".
+					( $word_sz==2 ? '#0002 MUL2' : '')
+					." DUP2 $rhs_var_access ADD2 LDA$short_mode " .
+					( $short_mode==2 ? 'SWP2' : 'ROT ROT' )
+					. " $lhs_var_access ADD2 STA$short_mode JMP2r } STH2r ".
+					toHex($array_length-1,2) 
+					. ' #0000 range-map-short';
+			} else {
+			# if not, it is an error
+				error("LHS is an array but RHS isn't");
+			}
 		}
 	} else {
 		# TODO, this should be a
 		# v = <anything not a string>
 		my $rhs_expr_Uxntal = _emit_expression_Uxntal($rhs_ast,$stref,$f,$info);
-		$uxntal_code = "$rhs_expr_Uxntal $lhs_var_access STA$short_mode";
+		$uxntal_code = "$rhs_expr_Uxntal $lhs_var_access STA$short_mode ( scalar )";
 	}
 	return $uxntal_code;
 } # END of _var_access_assign()
@@ -1079,7 +1083,7 @@ sub __var_access($stref,$f,$var) {
 		)
 		.
 		(
-			is_arg($stref,$f,$var) and (is_array_or_string($stref,$f,$var) or $uxntal_write_arg)
+			(is_arg($stref,$f,$var) and (is_array_or_string($stref,$f,$var) or $uxntal_write_arg))
 			? ' LDA2' # passed by reference
 			: '' # not passed
 		);
@@ -1169,7 +1173,10 @@ sub __unpack_var_access_ast($ast) {
 			if (scalar @{$ast} != 2) {
 				error('Scalar AST must have 2 items: '.Dumper($ast));
 			}
-		} elsif ($ast->[0] == 34) { # String literal placeholder, but I don't have the $info to substitute it
+		# } elsif ($ast->[0] == 34) { # String literal placeholder, but I don't have the $info to substitute it
+
+		# } elsif ($ast->[0] == 28) { # Array constant
+
 		} else {
 			croak Dumper $ast;
 			error('AST must be an @ or $: '.Dumper($ast));
@@ -1991,6 +1998,9 @@ sub _emit_expression_Uxntal ($ast, $stref, $f, $info) {
 			} else {
 				return _emit_function_call_expr_Uxntal($stref,$f,$info,$ast);
 			}
+		}
+		elsif ($opcode == 28) {
+			croak _emit_expression_Uxntal($ast->[1], $stref, $f,$info);
 		}
 		elsif ($opcode > 28) { # literal constants (bool, number, character, string), emit in place
 			(my $opcode, my $exp) =@{$ast};

@@ -4565,7 +4565,7 @@ sub _parse_assignment {
 
 	my $rhs_ast = parse_expression( $rhs, $info, $stref, $f );
 	if ($array_constant==1) {
-		$rhs_ast->[1]='_OPEN_CONST_ARRAY_';
+		$rhs_ast->[0]=28; #'_OPEN_CONST_ARRAY_';
 	}
 
 		# say 'RHS_AST:'.$rhs.Dumper($rhs_ast ); die if $line=~/,kind=/;
