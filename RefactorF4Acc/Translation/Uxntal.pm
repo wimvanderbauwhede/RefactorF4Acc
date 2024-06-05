@@ -4,7 +4,7 @@ use v5.30;
 
 use RefactorF4Acc::Config;
 use RefactorF4Acc::Utils;
-use RefactorF4Acc::Utils::Functional qw( max );
+use RefactorF4Acc::Utils::Functional qw( min max );
 use RefactorF4Acc::F95SpecWords qw( 
 	%F95_intrinsic_functions 
 	%F95_intrinsic_function_sigs
@@ -1218,10 +1218,10 @@ sub __copy_substr($stref, $f, $info, $lhs_ast, $rhs_ast) {
 	my $uxntal_code = '';
 	# unpack the asts
 	my ($lhs_var,$lhs_idxs,$lhs_idx_expr_type) = __unpack_var_access_ast($lhs_ast);
-	if ($rhs_ast->[0] == 34) { 
+	if ($rhs_ast->[0] == 34) { # string literal
 		my $lhs_var_access = __var_access($stref,$f,$lhs_var);
 		my $rhs_Uxntal_expr = __substitute_PlaceHolders_Uxntal($rhs_ast->[1],$info);
-		if ($lhs_idx_expr_type == 2) {
+		if ($lhs_idx_expr_type == 2) { # slice
 			# s_to(b1:e1) = "str"
 			# This is a full string copy
 			# so the RHS is just the string
@@ -1238,8 +1238,20 @@ sub __copy_substr($stref, $f, $info, $lhs_ast, $rhs_ast) {
 				# So to avoid overwriting, we use the LHS slice
 				$uxntal_code = "$rhs_Uxntal_expr $lhs_var_access $lhs_idx_expr_b ADD2 $lhs_idx_expr_e $lhs_idx_expr_b SUB2 INC2 strncpy";
 			}
-		} else { # We will assume that this is a character assignment
-			$uxntal_code = "$rhs_Uxntal_expr $lhs_var_access STA";
+		} else { # This is either a character assignment or a string copy
+		# <string-literal> ;lhs_str <$len> strncpy
+		# we need the length of LHS and RHS.
+			my $Sf = $stref->{'Subroutines'}{$f};
+			my $decl = get_var_record_from_set($Sf->{'Vars'},$lhs_var);
+			if($decl->{'Attr'}!~/len/) {
+				# a single character
+				$uxntal_code = "$rhs_Uxntal_expr $lhs_var_access STA";
+			} else {
+				my $lhs_len = $decl->{'Attr'};$lhs_len=~s/len=//;$lhs_len=~s/[\(\)]//g;
+				my $rhs_len = length($info->{'PlaceHolders'}{$rhs_ast->[1]})-2;
+				my $len = toHex(min($lhs_len,$rhs_len),2);
+				$uxntal_code = "$rhs_Uxntal_expr $lhs_var_access $len strcpy";
+			}
 			# croak "NOT a substr copy! ".Dumper($lhs_ast,$rhs_ast);
 		}
 
