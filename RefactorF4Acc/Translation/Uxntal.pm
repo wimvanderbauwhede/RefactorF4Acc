@@ -1036,14 +1036,24 @@ sub _var_access_assign($stref,$f,$info,$lhs_ast,$rhs_ast) {
 		$uxntal_code =  __copy_substr($stref, $f, $info, $lhs_ast, $rhs_ast)
 	} elsif  (is_array($stref,$f,$var) and $idx_expr_type == 0) {
 		# array = rhs_expr
+		my $decl = get_var_record_from_set($Sf->{'Vars'},$var);
+		my $dim =  __C_array_size($decl->{'Dim'});
+		my $array_length = $dim;
 		if ($rhs_ast->[0] == 28) {
-			croak Dumper _emit_expression_Uxntal($rhs_ast, $stref,$f, $info);
+			my $rhs_array_literal = _emit_expression_Uxntal($rhs_ast, $stref,$f, $info);
+			# unique ID the cheap way
+			my $ref = \$rhs_ast; $ref=~s/REF..//;$ref=~s/\)//;
+			$uxntal_code = "$rhs_array_literal ;&$ref STA2 " .
+			"{ ( iter ) ".
+				( $word_sz==2 ? '#0002 MUL2' : '')
+				.' DUP2 LIT2 &'.$ref.' $2 ADD2 LDA' .$short_mode.
+				( $short_mode==2 ? ' SWP2' : ' ROT ROT' )
+				. " $lhs_var_access ADD2 STA$short_mode JMP2r } STH2r ".
+				toHex($array_length-1,2) 
+				. ' #0000 range-map-short';
 		} else {
 			my ($rhs_var,$idxs,$idx_expr_type) = __unpack_var_access_ast($rhs_ast);
 			if (is_array($stref,$f,$rhs_var)) {
-				my $decl = get_var_record_from_set($Sf->{'Vars'},$var);
-				my $dim =  __C_array_size($decl->{'Dim'});
-				my $array_length = $dim;
 				# if the rhs is also an array we need an array copy
 				# This is a range-map 
 				my $rhs_var_access = __var_access($stref,$f,$rhs_var);
@@ -2000,7 +2010,10 @@ sub _emit_expression_Uxntal ($ast, $stref, $f, $info) {
 			}
 		}
 		elsif ($opcode == 28) {
-			croak _emit_expression_Uxntal($ast->[1], $stref, $f,$info);
+			# this is very lazy, but it works
+			my $lst_expr = _emit_expression_Uxntal($ast->[1], $stref, $f,$info);
+			$lst_expr =~s/\#//g;
+			return "{ $lst_expr } STH2r";
 		}
 		elsif ($opcode > 28) { # literal constants (bool, number, character, string), emit in place
 			(my $opcode, my $exp) =@{$ast};
