@@ -957,12 +957,20 @@ sub _var_access_assign($stref,$f,$info,$lhs_ast,$rhs_ast) {
 	return $uxntal_code;
 } # END of _var_access_assign()
 
-sub __var_access($stref,$f,$var) {
-	my $use_stack = __use_stack($stref,$f);
+sub __is_write_arg($stref,$f,$var) {
 	my $decl =  get_var_record_from_set($stref->{'Subroutines'}{$f}{'Vars'},$var) ;
 	# carp("<$var>",Dumper $decl);
-	my $iodir = $decl->{'IODir'};
+	my $iodir = exists $decl->{'IODir'} ? $decl->{'IODir'} : 'Unknown';
 	my $uxntal_write_arg = $iodir eq 'out' or $iodir eq 'inout' ? 1 : 0 ;
+	return $uxntal_write_arg;
+}
+sub __var_access($stref,$f,$var) {
+	my $use_stack = __use_stack($stref,$f);
+	# my $decl =  get_var_record_from_set($stref->{'Subroutines'}{$f}{'Vars'},$var) ;
+	# carp("<$var>",Dumper $decl);
+	# my $iodir = exists $decl->{'IODir'} ? $decl->{'IODir'} : 'Unknown';
+	my $uxntal_write_arg = __is_write_arg($stref,$f,$var);
+	# $iodir eq 'out' or $iodir eq 'inout' ? 1 : 0 ;
 
 	return
 		(
@@ -1174,41 +1182,29 @@ sub __stack_access($stref,$f,$var) {
 
 # We call this for every variable declaration
 # But I think storing the arguments should be a separate call.
-#
 sub _stack_allocation($stref,$f,$var) {
 	my $Sf = $stref->{'Subroutines'}{$f};
 	my $wordsz = $Sf->{'WordSizes'}{$var} ;
 	my $uxntal_code = '';
     if  (is_array_or_string($stref,$f,$var)) {
+		my $offset = $Sf->{'CurrentOffset'};
+		$Sf->{'StackOffset'}{$var}= $offset;
 	 	if (is_arg($stref,$f,$var)) {
 			# 		passed by reference, so
-				my $offset = $Sf->{'CurrentOffset'};
 				$Sf->{'CurrentOffset'} += 2;
-				$Sf->{'StackOffset'}{$var}= $offset;
 		} else {
 			# 		not passed, so
 				my $subset = in_nested_set( $Sf, 'DeclaredOrigLocalVars', $var );
 				my $decl = get_var_record_from_set($Sf->{$subset},$var);
 				my $dim =  __C_array_size($decl->{'Dim'});
-				my $offset = $Sf->{'CurrentOffset'};
 				$Sf->{'CurrentOffset'} += $dim*$wordsz;
-				$Sf->{'StackOffset'}{$var}= $offset;
 				$uxntal_code = "( allocated $dim*$wordsz at $offset )";
 		}
-	} else {
-		if (is_arg($stref,$f,$var)) {
-		# 		passed by value, so
-				my $offset = $Sf->{'CurrentOffset'};
-				$Sf->{'CurrentOffset'} += $wordsz;
-				$Sf->{'StackOffset'}{$var}= $offset;
-				$uxntal_code = "( allocated $wordsz at $offset )";
-		} else {
-		# 		not passed, so
-				my $offset = $Sf->{'CurrentOffset'};
-				$Sf->{'CurrentOffset'} += $wordsz;
-				$Sf->{'StackOffset'}{$var}= $offset;
-				$uxntal_code = "( allocated $wordsz at $offset )";
-		}
+	} else { # Scalars
+		my $offset = $Sf->{'CurrentOffset'};
+		$Sf->{'CurrentOffset'} += __is_write_arg($stref,$f,$var) ? 2 : $wordsz;
+		$Sf->{'StackOffset'}{$var}= $offset;
+		$uxntal_code = "( allocated $wordsz at $offset )";
 	}
 	return $uxntal_code;
 } # END of _stack_allocation()
