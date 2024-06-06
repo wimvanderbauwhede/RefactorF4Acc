@@ -1191,6 +1191,7 @@ sub _pushAnnLine {
             $stref->{'Subroutines'}{$f}{'AnnLines'} = []
               unless ( exists $stref->{'Subroutines'}{$f}{'Status'}
                 and $stref->{'Subroutines'}{$f}{'Status'} == $PARSED );
+            delete $stref->{'Subroutines'}{'UNKNOWN_SRC'};
         }
 
         if ( exists $info->{'EndModule'} and $srctype eq 'Subroutines' ) {
@@ -1232,16 +1233,14 @@ sub _pushAnnLine {
                 chomp $line;
                 say
                   "INFO: Adding <$line> to $src because code unit not yet known"
-                  if $I;# or $line=~/SPECIES IS NOT FOUND/;
+                  if $I;
 
-                  # This should only happen on the firs read of the sourcefile
+                  # This should only happen on the first read of the sourcefile
                   if ( $stref->{'SourceFiles'}{$src}{'Status'} == 1) {
                     push @{ $stref->{'SourceFiles'}{$src}{'AnnLines'} }, $annline;
                   }
-
             }
         }
-
         	      # say $ann. ' : '.Dumper($annline);
     }
 

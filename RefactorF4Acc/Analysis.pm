@@ -80,7 +80,6 @@ sub analyse_all {
 		}
 	}
 
-
 	for my $f ( keys %{ $stref->{'Subroutines'} } ) {
 		next if $f eq '';
 		if (exists $stref->{'Entries'}{$f}) {
