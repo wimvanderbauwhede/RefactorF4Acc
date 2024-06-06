@@ -1547,7 +1547,7 @@ sub _find_args_in_ast { (my $ast, my $args) =@_;
     elsif (($ast->[0] & 0xFF) > 28) { # constants
     # constants
     my $mvar = $ast->[1];
-    $args->{'Set'}{$mvar}={'Type'=>$sigils[ ($ast->[0] & 0xFF) ]} ;
+    $args->{'Set'}{$mvar}={'Type'=>'Const','SubType'=>$sigils[ ($ast->[0] & 0xFF) ]} ;
     push @{$args->{'List'}},$mvar;
     }
     return $args;

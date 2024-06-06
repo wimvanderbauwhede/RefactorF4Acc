@@ -206,7 +206,7 @@ sub f95_var_decl_parser_ORIG {
 
 # where
 sub attribute_parser {
-    choice(&dim_parser, &intent_parser, &parameter_parser, &allocatable_parser, &volatile_parser)
+    choice(&dim_parser, &intent_parser, &parameter_parser, &allocatable_parser, &volatile_parser, &external_parser, &intrinsic_parser)
 }
 # The kind or len can in principle be an expression. 
 # Which means it could contain parens, in which case this will break.
@@ -265,9 +265,16 @@ sub parameter_parser {
 }
 
 sub volatile_parser {
-    symbol('volatile')
+    { 'Volatile' => symbol('volatile') }
 }
 
+sub external_parser {
+    {'External' => symbol('external')}
+}
+
+sub intrinsic_parser {
+    {'Intrinsic' => symbol('intrinsic')}
+}
 
 sub allocatable_parser {
     {'Allocatable' => symbol('allocatable')}

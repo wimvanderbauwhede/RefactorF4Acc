@@ -373,21 +373,23 @@ Instead of the nice but cumbersome approach we had until now, from now on it is 
 				$pass_state->{'Subroutine'}{'IsMain'}=$f;
 			}
 		}
-		elsif (exists $info->{'VarDecl'} ) {
+		elsif (exists $info->{'VarDecl'}  ) {
 			my $var = $info->{'VarDecl'}{'Name'};
-			if (exists $stref->{'Subroutines'}{$f}{'DeclaredOrigArgs'}{'Set'}{$var}) {
-				$c_line='( '.$line.' )';
-				# croak 'WHY?'.$line;
-			} else {
-				($stref,my $uxntal_var_decl) =  _emit_var_decl_Uxntal($stref,$f,$info,$var);
-				if (not exists $pass_state->{'Subroutine'}{'LocalVars'}{'Set'}{$uxntal_var_decl}) {
-					$pass_state->{'Subroutine'}{'LocalVars'}{'Set'}{$uxntal_var_decl}=$uxntal_var_decl;
-					$skip_comment=1;
-					push @{$pass_state->{'Subroutine'}{'LocalVars'}{'List'}}, "( ____ $line )" unless $skip_comment;
-					push @{$pass_state->{'Subroutine'}{'LocalVars'}{'List'}},$uxntal_var_decl;
+			if (not exists $stref->{'Subroutines'}{$var}) { # otherwise it is a function
+				if (exists $stref->{'Subroutines'}{$f}{'DeclaredOrigArgs'}{'Set'}{$var}) {
+					$c_line='( '.$line.' )';
+					# croak 'WHY?'.$line;
 				} else {
-					croak "Vars should be unique: $uxntal_var_decl";
-				}
+					($stref,my $uxntal_var_decl) =  _emit_var_decl_Uxntal($stref,$f,$info,$var);
+					if (not exists $pass_state->{'Subroutine'}{'LocalVars'}{'Set'}{$uxntal_var_decl}) {
+						$pass_state->{'Subroutine'}{'LocalVars'}{'Set'}{$uxntal_var_decl}=$uxntal_var_decl;
+						$skip_comment=1;
+						push @{$pass_state->{'Subroutine'}{'LocalVars'}{'List'}}, "( ____ $line )" unless $skip_comment;
+						push @{$pass_state->{'Subroutine'}{'LocalVars'}{'List'}},$uxntal_var_decl;
+					} else {
+						croak "Vars should be unique: $uxntal_var_decl";
+					}
+			}
 			}
 			$skip=1;
 		}
@@ -916,7 +918,7 @@ sub _var_access_assign($stref,$f,$info,$lhs_ast,$rhs_ast) {
 		my $decl = get_var_record_from_set($Sf->{'Vars'},$var);
 		my $dim =  __C_array_size($decl->{'Dim'});
 		my $array_length = $dim;
-		if ($rhs_ast->[0] == 28) {
+		if ($rhs_ast->[0] == 28) { # Array literal
 			my $rhs_array_literal = _emit_expression_Uxntal($rhs_ast, $stref,$f, $info);
 			# unique ID the cheap way
 			my $ref = \$rhs_ast; $ref=~s/REF..//;$ref=~s/\)//;
@@ -1000,10 +1002,6 @@ sub __unpack_var_access_ast($ast) {
 			if (scalar @{$ast} != 2) {
 				error('Scalar AST must have 2 items: '.Dumper($ast));
 			}
-		# } elsif ($ast->[0] == 34) { # String literal placeholder, but I don't have the $info to substitute it
-
-		# } elsif ($ast->[0] == 28) { # Array constant
-
 		} else {
 			croak Dumper $ast;
 			error('AST must be an @ or $: '.Dumper($ast));
@@ -1035,9 +1033,14 @@ sub __copy_substr($stref, $f, $info, $lhs_ast, $rhs_ast) {
 	my $uxntal_code = '';
 	# unpack the asts
 	my ($lhs_var,$lhs_idxs,$lhs_idx_expr_type) = __unpack_var_access_ast($lhs_ast);
-	if ($rhs_ast->[0] == 34) { # string literal
+	if ($rhs_ast->[0] == 34 or $rhs_ast->[0] == 1 or $rhs_ast->[0] == 13) { # string literal or function returning a string or char
 		my $lhs_var_access = __var_access($stref,$f,$lhs_var);
-		my $rhs_Uxntal_expr = __substitute_PlaceHolders_Uxntal($rhs_ast->[1],$info);
+		my $rhs_Uxntal_expr = 
+			($rhs_ast->[0] == 1 or $rhs_ast->[0] == 13)
+			? _emit_expression_Uxntal($rhs_ast, $stref, $f,$info)
+			: $rhs_ast->[0] == 34 
+				? __substitute_PlaceHolders_Uxntal($rhs_ast->[1],$info)
+				: croak "PROBLEM: ".Dumper($rhs_ast);
 		if ($lhs_idx_expr_type == 2) { # slice
 			# s_to(b1:e1) = "str"
 			# This is a full string copy
@@ -1072,7 +1075,6 @@ sub __copy_substr($stref, $f, $info, $lhs_ast, $rhs_ast) {
 			}
 			# croak "NOT a substr copy! ".Dumper($lhs_ast,$rhs_ast);
 		}
-
 	} else {
 		my ($rhs_var,$rhs_idxs,$rhs_idx_expr_type) = __unpack_var_access_ast($rhs_ast);
 		my $lhs_var_access = __var_access($stref,$f,$lhs_var);
@@ -2272,34 +2274,69 @@ sub _emit_function_call_expr_Uxntal($stref,$f,$info,$ast){
 			my $call_arg_expr_str = 
 			($call_arg_ast->[0] == 2 or $call_arg_ast->[0] == 10)
 			? $call_arg_ast->[1] : '';
-			push @call_arg_expr_strs_Uxntal, __emit_call_arg_Uxntal_expr($stref,$f,$info,$call_arg_expr_str,$idx,'in');
+			push @call_arg_expr_strs_Uxntal, __emit_call_arg_Uxntal_expr($stref,$f,$info,$subname,$call_arg_expr_str,$idx,'in');
 		}
 	} else {
 		my $Ssubname = $stref->{'Subroutines'}{$subname};
 		my $idx=0;
-		for my $sig_arg (@{$Ssubname->{'RefactoredArgs'}{'List'}}) {
-			$idx++; # So starts at 1, because 0 is the sigil
-			my $intent = $Ssubname->{'RefactoredArgs'}{'Set'}{$sig_arg}{'IODir'};
-			my $call_arg_expr_str = $info->{'SubroutineCall'}{'ArgMap'}{$sig_arg} // $sig_arg;
-			push @call_arg_expr_strs_Uxntal, __emit_call_arg_Uxntal_expr($stref,$f,$info,$call_arg_expr_str,$idx,$intent);
+		for my $fcall (@{$info->{'FunctionCalls'}}) {
+			if ($fcall->{'Name'} eq $subname) {
+				my $argmap = $fcall->{'ArgMap'};
+					for my $sig_arg (sort keys %{$argmap}) {
+						$idx++; # So starts at 1, because 0 is the sigil
+						my $intent = $Ssubname->{'RefactoredArgs'}{'Set'}{$sig_arg}{'IODir'};
+						my $call_arg_expr_str = $argmap->{$sig_arg} // $sig_arg;
+						push @call_arg_expr_strs_Uxntal, __emit_call_arg_Uxntal_expr($stref,$f,$info,$subname,$call_arg_expr_str,$idx,$intent);
+					}
+				last;
+			}
 		}
+		# for my $sig_arg (@{$Ssubname->{'RefactoredArgs'}{'List'}}) {
+		# 	$idx++; # So starts at 1, because 0 is the sigil
+		# 	my $intent = $Ssubname->{'RefactoredArgs'}{'Set'}{$sig_arg}{'IODir'};
+		# 	my $call_arg_expr_str = $info->{'FunctionCalls'}{'ArgMap'}{$sig_arg} // $sig_arg;
+		# 	push @call_arg_expr_strs_Uxntal, __emit_call_arg_Uxntal_expr($stref,$f,$info,$call_arg_expr_str,$idx,$intent);
+		# }
 	}
 
-	return join("\n", @call_arg_expr_strs_Uxntal, $subname);
+	return join(" ", @call_arg_expr_strs_Uxntal, $subname);
 
 } # END of _emit_function_call_expr_Uxntal
 
-sub __emit_call_arg_Uxntal_expr($stref,$f,$info,$call_arg_expr_str,$idx,$intent){
+sub __emit_call_arg_Uxntal_expr($stref,$f,$info,$subname,$call_arg_expr_str,$idx,$intent){
 	my $Sf = $stref->{'Subroutines'}{$f};
 	my $call_arg_decl = get_var_record_from_set($Sf->{'Vars'},$call_arg_expr_str);
-	my $isParam = defined $call_arg_decl and exists $call_arg_decl->{'Parameter'};
+	# carp Dumper $call_arg_decl, (defined $call_arg_decl) , (exists $call_arg_decl->{'Parameter'});
+	my $isParam = ((defined $call_arg_decl) and (exists $call_arg_decl->{'Parameter'})) ? 1 : 0;
+	my $call_info = $info->{'SubroutineCall'};
+	if (exists $info->{'Assignment'} ) {
+		for my $fcall (@{$info->{'FunctionCalls'}}) {
+			if ($fcall->{'Name'} eq $subname) {
+				$call_info = $fcall;
+				last;
+			}
+		}
+	}
+	# carp Dumper $info, exists $call_info->{'Args'}{'Set'}{$call_arg_expr_str};
+	my $isConstOrExpr = exists $call_info->{'Args'}{'Set'}{$call_arg_expr_str} 
+		? (($call_info->{'Args'}{'Set'}{$call_arg_expr_str}{'Type'} eq 'Const' )
+		or ($call_info->{'Args'}{'Set'}{$call_arg_expr_str}{'Type'} eq 'Expr')
+		or $isParam) 
+			? 1 
+			: 0
+		: 0;
+	my $ast_from_info = exists $info->{'Assignment'} 
+		? $info->{'Rhs'}{'ExpressionAST'}
+		: $info->{'SubroutineCall'}{'ExpressionAST'};
+	# carp Dumper($f,$call_arg_expr_str,$ast_from_info,$isConstOrExpr,$isParam,$call_info->{'Args'}{'Set'}{$call_arg_expr_str}{'Type'});
 
-	my $isConstOrExpr = exists $info->{'SubroutineCall'}{'Args'}{'Set'}{$call_arg_expr_str} ?
-	(($info->{'SubroutineCall'}{'Args'}{'Set'}{$call_arg_expr_str}{'Type'} eq 'Const' )
-	or ($info->{'SubroutineCall'}{'Args'}{'Set'}{$call_arg_expr_str}{'Type'} eq 'Expr')
-	or $isParam)
-	: 0;
-	my $arg_expr_ast = $info->{'SubroutineCall'}{'ExpressionAST'}[0] == 27 ? $info->{'SubroutineCall'}{'ExpressionAST'}[$idx] : $info->{'SubroutineCall'}{'ExpressionAST'};
+	my $arg_expr_ast = $ast_from_info->[0] == 27 
+		? $ast_from_info->[$idx] 
+		: $ast_from_info->[0] == 1
+			? $ast_from_info->[2][0] == 27
+				? $ast_from_info->[2][$idx]
+				: $ast_from_info->[2]
+			: $ast_from_info;
 	if ($isConstOrExpr) { # Not a var
 		return _emit_expression_Uxntal($arg_expr_ast, $stref, $f,$info);#.' ( CONST/EXPR ARG by VAL) ';
 	}
