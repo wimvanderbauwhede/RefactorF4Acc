@@ -1182,6 +1182,8 @@ sub __stack_access($stref,$f,$var) {
 
 # We call this for every variable declaration
 # But I think storing the arguments should be a separate call.
+# Instead of ;arg STA$short_mode we need .fp LDZ2 $Sf->{'StackOffset'}{$var} ADD2 STA$short_mode 
+# i.e. __stack_access($stref,$f,$var). "STA$short_mode"
 sub _stack_allocation($stref,$f,$var) {
 	my $Sf = $stref->{'Subroutines'}{$f};
 	my $wordsz = $Sf->{'WordSizes'}{$var} ;
