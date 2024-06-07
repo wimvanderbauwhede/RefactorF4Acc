@@ -345,6 +345,33 @@ Instead of the nice but cumbersome approach we had until now, from now on it is 
 	$Sf->{'Pointers'} = $pass_state->{'Pointers'};
 
 # --------------------------------------------------------------------------------------------
+	my $use_stack = __use_stack($stref,$f);
+	my @stack_alloc_info=();
+	if ($use_stack) {
+		my $pass_stack_allocation = sub ($annline, $state){
+			(my $line,my $info)=@{$annline};
+			(my $stref, my $f, my $pass_state)=@{$state};
+
+			if (exists $info->{'VarDecl'}  ) {
+				my $var = $info->{'VarDecl'}{'Name'};
+				if (not exists $stref->{'Subroutines'}{$var}) { # otherwise it is a function
+					push @{$pass_state->{'StackAllocInfo'}}, _stack_allocation($stref,$f,$var);
+				}
+			}
+			return ([$annline],[$stref,$f,$pass_state]);
+		};
+
+		my $stack_alloc_state = [$stref,$f,
+			# pass state
+			{
+				'StackAllocInfo' => []
+			}
+			];
+		($stref,$stack_alloc_state) = stateful_pass_inplace($stref,$f,$pass_stack_allocation, $stack_alloc_state,'pass_stack_allocation() ' . __LINE__  ) ;
+		@stack_alloc_info=@{$stack_alloc_state->[2]{'StackAllocInfo'}};
+	}
+
+# --------------------------------------------------------------------------------------------
 	my $pass_translate_to_Uxntal = sub ($annline, $state){
 		(my $line,my $info)=@{$annline};
 		my $c_line="( TODO $line )";
@@ -373,7 +400,7 @@ Instead of the nice but cumbersome approach we had until now, from now on it is 
 				$pass_state->{'Subroutine'}{'IsMain'}=$f;
 			}
 		}
-		elsif (exists $info->{'VarDecl'}  ) {
+		elsif (exists $info->{'VarDecl'} and not $use_stack ) {
 			my $var = $info->{'VarDecl'}{'Name'};
 			if (not exists $stref->{'Subroutines'}{$var}) { # otherwise it is a function
 				if (exists $stref->{'Subroutines'}{$f}{'DeclaredOrigArgs'}{'Set'}{$var}) {
@@ -658,6 +685,7 @@ Instead of the nice but cumbersome approach we had until now, from now on it is 
  	# $stref->{'Subroutines'}{$f}{'TranslatedCode'}=$state->[2]{'TranslatedCode'};
  	my @translated_sub_code=(
 		# @{$stref->{'TranslatedCode'}},'',
+		@stack_alloc_info,
 		@{$sub_uxntal_code->{'ArgDecls'}},
 		@{$sub_uxntal_code->{'LocalVars'}{'List'}},
 		@{$sub_uxntal_code->{'Sig'}},
@@ -1178,7 +1206,7 @@ sub __stack_access($stref,$f,$var) {
 	my $offset_hex = toHex($offset,2);
 	my $uxntal_code = '';
 	return ".fp LDZ2 $offset_hex ADD2";
-} # END of _stack_access()
+} # END of __stack_access()
 
 # We call this for every variable declaration
 # But I think storing the arguments should be a separate call.
@@ -1194,19 +1222,20 @@ sub _stack_allocation($stref,$f,$var) {
 	 	if (is_arg($stref,$f,$var)) {
 			# 		passed by reference, so
 				$Sf->{'CurrentOffset'} += 2;
+			$uxntal_code = "( allocated 2 bytes at $offset for $var )";
 		} else {
 			# 		not passed, so
 				my $subset = in_nested_set( $Sf, 'DeclaredOrigLocalVars', $var );
 				my $decl = get_var_record_from_set($Sf->{$subset},$var);
 				my $dim =  __C_array_size($decl->{'Dim'});
 				$Sf->{'CurrentOffset'} += $dim*$wordsz;
-				$uxntal_code = "( allocated $dim*$wordsz at $offset )";
+				$uxntal_code = "( allocated $dim*$wordsz bytes at $offset for $var )";
 		}
 	} else { # Scalars
 		my $offset = $Sf->{'CurrentOffset'};
 		$Sf->{'CurrentOffset'} += __is_write_arg($stref,$f,$var) ? 2 : $wordsz;
 		$Sf->{'StackOffset'}{$var}= $offset;
-		$uxntal_code = "( allocated $wordsz at $offset )";
+		$uxntal_code = "( allocated $wordsz bytes at $offset for $var )";
 	}
 	return $uxntal_code;
 } # END of _stack_allocation()
@@ -1434,31 +1463,36 @@ sub _emit_subroutine_sig_Uxntal($stref, $f, $annline){
 } # END of _emit_subroutine_sig_Uxntal
 
 sub _emit_arg_decl_Uxntal($stref,$f,$arg, $name){
-
-	# my $decl_for_iodir =	$stref->{'Subroutines'}{$f}{'RefactoredArgs'}{'Set'}{$arg};
 	my $decl =  get_var_record_from_set($stref->{'Subroutines'}{$f}{'Vars'},$arg) ;
 	my $iodir = $decl->{'IODir'};
 	my $ftype = $decl->{'Type'};
 	my $fkind = $decl->{'Attr'};
-	my $isArray = $decl->{'ArrayOrScalar'} eq 'Array';
-	my $isString = ($decl->{'Type'} eq 'character' and (exists $decl->{'Attr'} and ($decl->{'Attr'} !~/len\s*=\s*1/)));
+	my $isArrayOrString =  is_array_or_string($stref,$f,$arg);
 	$fkind=~s/\(kind=//;
 	$fkind=~s/\)//;
 	if ($fkind eq '') {$fkind=2};
 	# my $uxntal_size = toUxntalType($ftype,$fkind);
 	my $word_sz = $stref->{'Subroutines'}{$f}{'WordSizes'}{$arg};
+	my $short_mode = __nBytes($word_sz, $isArrayOrString)==1?'':'2';
 	# croak "$f $arg: $word_sz != $uxntal_size" if $word_sz != $uxntal_size;
-	my $uxntal_arg_decl = '@'.$name.'_'.$arg.' $'.__nBytes($word_sz, $isArray, $isString);
-	my $uxntal_arg_store = ';'.$name.'_'.$arg.' STA'.(__nBytes($word_sz, $isArray, $isString)==1?'':'2');
 	my $uxntal_write_arg = $iodir eq 'out' or $iodir eq 'inout' ? 1 : 0 ;
-	return ($stref,$uxntal_arg_decl,$uxntal_arg_store, $uxntal_write_arg);
+	my $fq_name = $name.'_'.$arg;
+	my $use_stack = __use_stack($stref,$f);
+	my $uxntal_arg_store = ($use_stack
+		? __stack_access($stref,$f,$arg)
+		: ";$fq_name"
+		) . " STA$short_mode";
+	my $uxntal_arg_decl = $use_stack
+		? ''
+		: '@'.$fq_name.' $'.__nBytes($word_sz, $isArrayOrString);
+	return ($stref,$uxntal_arg_decl,$uxntal_arg_store, $uxntal_write_arg,$use_stack);
 } # END of _emit_arg_decl_Uxntal()
 
-sub __nBytes ($wordSz, $isArray, $isString){
+sub __nBytes ($wordSz, $isArrayOrString){
 	# If the arg is an array, 2 bytes
 	# If the arg is a scalar, wordSz
 	# If the arg is a string, 2 bytes
-	if ($isArray or $isString) {
+	if ($isArrayOrString) {
 		return 2;
 	} else {
 		return $wordSz;
