@@ -70,6 +70,7 @@ my $lib_lines = [
 	'~../../../uxntal-libs/fmt-print.tal',
 	'~../../../uxntal-libs/string.tal',
 	'~../../../uxntal-libs/range-map-fold-lib.tal',
+	'~../../../uxntal-libs/call-stack.tal',
 	'@min',
 	'OVR2 OVR2 LTH2 #00 SWP DUP2 #0001 SWP2 SUB2',
 	'ROT2 MUL2 ROT2 ROT2 MUL2 ADD2',
@@ -112,15 +113,24 @@ my $lib_lines = [
 ];
 
 sub translate_program_to_Uxntal($stref,$program_name){
-
+	$stref->{'UseCallStack'}=0;
 	$stref->{'Uxntal'} = {
 		'Macros' => { 'Set' =>{}, 'List' => [] },
+		'CallStackPointers'  => [
+			'|0000',
+			'@csp $2 ( call stack pointer )',
+			'@fp $2 ( frame pointer, it points to the *previous* frame )'
+		],
 		'CLIHandling' => ['( TODO CLI HANDLING )'],
 		'Main' => {'TranslatedCode'=>[],'Name'=>''},
 		'Libraries' => { 'Set' =>{}, 'List' => $lib_lines },
 		'Subroutines' => {},
 		# { 'LocalVars'=> {'Set' =>{}, 'List' => [] }, 'Args' => {'Set' =>{}, 'List' => [] },  'isMain' => '' , 'TranslatedCode'}
 		'Globals' => { 'Set' =>{}, 'List' => [] },
+		'CallStack'  => [
+			'|e000 ( 8 kB call stack )',
+			'@call-stack ( grows down )'
+		]
 	};
 
 	$stref = fold_constants_all($stref) ;
@@ -146,9 +156,11 @@ sub translate_program_to_Uxntal($stref,$program_name){
        );
 	   $stref->{'TranslatedCode'}=[
 		@{$stref->{'Uxntal'}{'Macros'}{'List'}},
+		($stref->{'UseCallStack'} ? @{$stref->{'Uxntal'}{'CallStackPointers'}} : ()),
 		@{$stref->{'Uxntal'}{'CLIHandling'}},
 
 		'','|0100',
+		($stref->{'UseCallStack'} ? 'init-call-stack' : ''),
 		$stref->{'Uxntal'}{'Main'}{'Name'},
 		'BRK','',
 
@@ -156,6 +168,7 @@ sub translate_program_to_Uxntal($stref,$program_name){
 		@{$stref->{'Uxntal'}{'Libraries'}{'List'}},
 		@{$stref->{'TranslatedCode'}}, # These are the subroutines
 		@{$stref->{'Uxntal'}{'Globals'}{'List'}},
+		($stref->{'UseCallStack'} ? @{$stref->{'Uxntal'}{'CallStack'}} : ()),
 	   ];
 	#    carp "TODO: Global decls";
 	# This prints out the lines from $stref->{'TranslatedCode'}
@@ -345,9 +358,14 @@ Instead of the nice but cumbersome approach we had until now, from now on it is 
 	$Sf->{'Pointers'} = $pass_state->{'Pointers'};
 
 # --------------------------------------------------------------------------------------------
+ 	$Sf->{'UseCallStack'}=1;
 	my $use_stack = __use_stack($stref,$f);
+	my @stack_alloc_info_nbytes=();
 	my @stack_alloc_info=();
+	my $stack_alloc_nbytes = 0;
 	if ($use_stack) {
+		$Sf->{'CurrentOffset'}=0;
+		$stref->{'UseCallStack'}=1;
 		my $pass_stack_allocation = sub ($annline, $state){
 			(my $line,my $info)=@{$annline};
 			(my $stref, my $f, my $pass_state)=@{$state};
@@ -368,7 +386,12 @@ Instead of the nice but cumbersome approach we had until now, from now on it is 
 			}
 			];
 		($stref,$stack_alloc_state) = stateful_pass_inplace($stref,$f,$pass_stack_allocation, $stack_alloc_state,'pass_stack_allocation() ' . __LINE__  ) ;
-		@stack_alloc_info=@{$stack_alloc_state->[2]{'StackAllocInfo'}};
+		@stack_alloc_info_nbytes=@{$stack_alloc_state->[2]{'StackAllocInfo'}};
+
+		for my $entry (@stack_alloc_info_nbytes) {
+			$stack_alloc_nbytes+=$entry->[1];
+		}
+		@stack_alloc_info = map {$_->[0]} @stack_alloc_info_nbytes
 	}
 
 # --------------------------------------------------------------------------------------------
@@ -391,7 +414,8 @@ Instead of the nice but cumbersome approach we had until now, from now on it is 
 			$pass_state->{'Subroutine'}{'ArgDecls'}=$arg_decls;
 			$pass_state->{'Subroutine'}{'Sig'}=[
 				"( ____ $line )",
-				$sig_line
+				$sig_line, ($use_stack ? 'push-frame' :''),
+				($use_stack ? toHex($stack_alloc_nbytes,2).' stack-alloc' : '') # FIXME: not pure, $use_stack and $stack_alloc_nbytes are global
 				];
 			$pass_state->{'Subroutine'}{'ReadArgs'}=$args_to_store;
 			$skip=1;$skip_comment=1;
@@ -595,7 +619,8 @@ Instead of the nice but cumbersome approach we had until now, from now on it is 
 		elsif ( exists $info->{'EndProgram'} ) {
 
             $info->{'Indent'} = '' ;
-            $c_line = 'BRK' ;
+            # $c_line = 'BRK' ;
+			$c_line = $use_stack ? '!pop-frame' : 'JMP2r';
 
 		}
 		elsif ( exists $info->{'EndSubroutine'} ) {
@@ -603,8 +628,18 @@ Instead of the nice but cumbersome approach we had until now, from now on it is 
 			# WV 20240126: or not? A subroutine has not return values, right. And any `OUT`s should have been written to elsewhere.
 			# $c_line = _emit_subroutine_return_vals_Uxntal($stref,$f,$info);
             # $info->{'Indent'} = '' ;
-            $c_line = "JMP2r";
-
+            $c_line = $use_stack ? '!pop-frame' : 'JMP2r';
+		}
+		elsif ( exists $info->{'EndFunction'} ) {
+			# A function returns either its RESULT or its own name. 
+			my $fname = $info->{'EndFunction'}{'Name'};
+			# carp Dumper $stref->{'Subroutines'}{$fname}{'Signature'};
+			my $res = exists $stref->{'Subroutines'}{$fname}{'Signature'}{'ResultVar'} 
+				?  $stref->{'Subroutines'}{$fname}{'Signature'}{'ResultVar'} 
+				: $fname;
+			my $wordsz = $stref->{'Subroutines'}{$fname}{'WordSizes'}{$res};
+			my $short_mode =  $wordsz == 2 ? '2' : '';
+			$c_line = ";$fname\_$res LDA$short_mode ".($use_stack ? '!pop-frame' : 'JMP2r');
 		}
 		elsif (exists $info->{'EndSelect'} ) {
 			croak 'SHOULD NOT HAPPEN!';
@@ -685,7 +720,7 @@ Instead of the nice but cumbersome approach we had until now, from now on it is 
  	# $stref->{'Subroutines'}{$f}{'TranslatedCode'}=$state->[2]{'TranslatedCode'};
  	my @translated_sub_code=(
 		# @{$stref->{'TranslatedCode'}},'',
-		@stack_alloc_info,
+		@stack_alloc_info, # This is purely info
 		@{$sub_uxntal_code->{'ArgDecls'}},
 		@{$sub_uxntal_code->{'LocalVars'}{'List'}},
 		@{$sub_uxntal_code->{'Sig'}},
@@ -762,7 +797,10 @@ sub _get_word_sizes($stref,$f){
 
 sub __use_stack($stref,$f) {
 	my $Sf = $stref->{'Subroutines'}{$f};
-	if (exists $Sf->{'Recursion'}) {
+	if (exists $Sf->{'UseCallStack'}) {
+		return 1;
+	}
+	elsif (exists $Sf->{'Recursion'} ) {
 		if ($Sf->{'Recursion'} eq 'No' or $Sf->{'Recursion'} eq 'Tail' ) {
 			return 0;
 		} else {
@@ -1216,28 +1254,30 @@ sub _stack_allocation($stref,$f,$var) {
 	my $Sf = $stref->{'Subroutines'}{$f};
 	my $wordsz = $Sf->{'WordSizes'}{$var} ;
 	my $uxntal_code = '';
+	my $offset = $Sf->{'CurrentOffset'};
+	my $nbytes=2;
     if  (is_array_or_string($stref,$f,$var)) {
-		my $offset = $Sf->{'CurrentOffset'};
-		$Sf->{'StackOffset'}{$var}= $offset;
 	 	if (is_arg($stref,$f,$var)) {
-			# 		passed by reference, so
-				$Sf->{'CurrentOffset'} += 2;
+		# 		passed by reference, so
+			$Sf->{'CurrentOffset'} += $nbytes;
 			$uxntal_code = "( allocated 2 bytes at $offset for $var )";
 		} else {
-			# 		not passed, so
-				my $subset = in_nested_set( $Sf, 'DeclaredOrigLocalVars', $var );
-				my $decl = get_var_record_from_set($Sf->{$subset},$var);
-				my $dim =  __C_array_size($decl->{'Dim'});
-				$Sf->{'CurrentOffset'} += $dim*$wordsz;
-				$uxntal_code = "( allocated $dim*$wordsz bytes at $offset for $var )";
+		# 		not passed, so
+			my $subset = in_nested_set( $Sf, 'DeclaredOrigLocalVars', $var );
+			my $decl = get_var_record_from_set($Sf->{$subset},$var);
+			my $dim =  __C_array_size($decl->{'Dim'});
+			my $nbytes= $dim*$wordsz;
+			$Sf->{'CurrentOffset'} += $nbytes;
+			# my $nbytes_Uxn=toHex($nbytes,2);
+			$uxntal_code = "( allocated $nbytes bytes at $offset for $var )";
 		}
 	} else { # Scalars
-		my $offset = $Sf->{'CurrentOffset'};
-		$Sf->{'CurrentOffset'} += __is_write_arg($stref,$f,$var) ? 2 : $wordsz;
-		$Sf->{'StackOffset'}{$var}= $offset;
-		$uxntal_code = "( allocated $wordsz bytes at $offset for $var )";
+		my $nbytes = __is_write_arg($stref,$f,$var) ? 2 : $wordsz;
+		$Sf->{'CurrentOffset'} += $nbytes;
+		$uxntal_code = "( allocated $nbytes bytes at $offset for $var )";
 	}
-	return $uxntal_code;
+	$Sf->{'StackOffset'}{$var}= $offset;
+	return [$uxntal_code,$nbytes];
 } # END of _stack_allocation()
 
 # Every arg is stored on the stack.
