@@ -358,7 +358,7 @@ Instead of the nice but cumbersome approach we had until now, from now on it is 
 	$Sf->{'Pointers'} = $pass_state->{'Pointers'};
 
 # --------------------------------------------------------------------------------------------
- 	$Sf->{'UseCallStack'}=1;
+ 	# $Sf->{'UseCallStack'}=1; # override for debugging
 	my $use_stack = __use_stack($stref,$f);
 	my @stack_alloc_info_nbytes=();
 	my @stack_alloc_info=();
@@ -878,7 +878,10 @@ sub _var_access_read($stref,$f,$info,$ast) {
 	my $short_mode = $Sf->{'WordSizes'}{$var} == 2 ? '2' : '';
 	my $uxntal_code = '';
 	my $var_access = __var_access($stref,$f,$var);
-    if (is_array($stref,$f,$var) and $idx_expr_type == 1) {
+	if (is_param($stref,$f,$var)) {
+		$uxntal_code = __create_fq_varname($stref,$f,$var);
+	}
+    elsif (is_array($stref,$f,$var) and $idx_expr_type == 1) {
 		my $idx = _emit_expression_Uxntal($idxs,$stref,$f,$info);
 		my $idx_expr = defined $idx ? ($idx eq '#0000') ? '' : 
 		"$idx ".( $short_mode ? ' #0002 MUL2 ': '') .' ADD2 ' : '';
@@ -1218,9 +1221,24 @@ sub __copy_substr($stref, $f, $info, $lhs_ast, $rhs_ast) {
 				$uxntal_code = "$rhs_var_access $rhs_idx_expr_b ADD2 $lhs_var_access ".
 				__calc_len($rhs_idx_expr_e, $rhs_idx_expr_b)." ;$lhs_var LDA2 min strncpy";
 			}
+		} elsif ($lhs_idx_expr_type == 2 and $rhs_idx_expr_type == 1) {
+			# Special case: RHS is array assignment.
+			# This can be either an array of chars or an array of strings
+			# So we need to get the array type, and the indices of the LHS slice
+			my $lhs_idx_expr_b = _emit_expression_Uxntal($lhs_idxs->[1], $stref, $f,$info);
+			my $lhs_idx_expr_e = _emit_expression_Uxntal($lhs_idxs->[2], $stref, $f,$info);
+			my $rhs_idx_expr = _emit_expression_Uxntal($rhs_idxs, $stref, $f,$info);
+			# I will be lazy and simply trust the LHS indices
+			if ($lhs_idx_expr_b eq $lhs_idx_expr_e) {
+				my $lhs_idx_expr =  ($lhs_idx_expr_b eq '#0000') ? '' : "$lhs_idx_expr_b ADD2 ";
+				$uxntal_code = "$rhs_var_access $rhs_idx_expr LDA $lhs_var_access #0002 ADD2 STA";
+			} else {
+				croak 'TODO: array of strings';
+			}
 
 		} else {
-			error('Unsupported index expression: '.Dumper($lhs_ast,$rhs_ast));
+			say $lhs_idx_expr_type,$rhs_idx_expr_type ;
+			error('Unsupported index expression: '.Dumper($lhs_ast,$rhs_ast),$DBG,'ERROR');
 		}
 	}
 	return $uxntal_code;
@@ -1567,7 +1585,10 @@ sub _emit_var_decl_Uxntal ($stref,$f,$info,$var){
 		} else {
 			croak "ParsedParDecl without AST, FIXME!";
 		}
-		my $par_decl_str = '%'.$f.'_'.$var.' { '. $val_str .' }';
+		# Define parameter as macro
+		# my $par_decl_str = '%'.$f.'_'.$var.' { '. $val_str .' }';
+		# Better: define parameter as function
+		my $par_decl_str = '@'.$f.'_'.$var.' '. $val_str .' JMP2r';
 		return ($stref,$par_decl_str);
 		# $const = 'const ';
 		# $val = ' = '.$decl->{'Val'};
@@ -2329,7 +2350,7 @@ sub _emit_function_call_expr_Uxntal($stref,$f,$info,$ast){
 	(my $opcode, my $name, my $args) =@{$ast};
 	my @call_arg_expr_strs_Uxntal=();
 	my $subname = $ast->[1];#$info->{'SubroutineCall'}{'Name'}; 
-
+carp Dumper $ast;
 	if (exists $F95_intrinsic_function_sigs{$subname}) {
 		# my $intent = 'in';
 		my @call_arg_asts = ();
@@ -2397,10 +2418,15 @@ sub __emit_call_arg_Uxntal_expr($stref,$f,$info,$subname,$call_arg_expr_str,$idx
 			? 1 
 			: 0
 		: 0;
+	# croak 'TODO: support DO via {'Do'}{'Range'}{ExpressionASTs'}'
+	# Problem is that here, we don't know which of the expressions it is
+	my $be = exists $info->{'Do'} ? croak 'DO' : 0;
 	my $ast_from_info = exists $info->{'Assignment'} 
 		? $info->{'Rhs'}{'ExpressionAST'}
-		: $info->{'SubroutineCall'}{'ExpressionAST'};
-	# carp Dumper($f,$call_arg_expr_str,$ast_from_info,$isConstOrExpr,$isParam,$call_info->{'Args'}{'Set'}{$call_arg_expr_str}{'Type'});
+		: exists $info->{'Do'} 
+			? $info->{'Do'}{'Range'}{'ExpressionASTs'}[$be]
+			: $info->{'SubroutineCall'}{'ExpressionAST'};
+	 carp Dumper($info,$f,$call_arg_expr_str,$ast_from_info,$isConstOrExpr,$isParam,$call_info->{'Args'}{'Set'}{$call_arg_expr_str}{'Type'});
 
 	my $arg_expr_ast = $ast_from_info->[0] == 27 
 		? $ast_from_info->[$idx] 
@@ -3052,7 +3078,7 @@ my $port = $unit eq 'STDERR' ? '#19' : '#18';
 			error("Unsupported: PRINT with label arg: $line",0,'ERROR');
 		}
 		my $print_fmt = __analyse_write_call_arg($stref,$f,$info,$fmt_ast,0);
-		my ($print_call_list, $offsets) = __parse_fmt($print_fmt->[1]);
+		my ($print_call_list, $offsets) = __parse_fmt($print_fmt->[1],$info);
 		my $call_arg_list = $ast->[2]; shift @{$call_arg_list};shift @{$call_arg_list};
 		if (scalar @{$print_call_list} != scalar @{$call_arg_list}) {
 			die Dumper($print_call_list,$call_arg_list);

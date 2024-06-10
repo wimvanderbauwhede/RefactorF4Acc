@@ -1,7 +1,7 @@
 package RefactorF4Acc::Parser::Expressions;
 use v5.10;
 use RefactorF4Acc::Config;
-use RefactorF4Acc::Utils qw( sub_func_incl_mod );
+use RefactorF4Acc::Utils qw( sub_func_incl_mod error );
 use RefactorF4Acc::CallTree qw( add_to_call_tree );
 #
 #   (c) 2010-2017 Wim Vanderbauwhede <wim@dcs.gla.ac.uk>
@@ -85,7 +85,9 @@ sub parse_expression { my ($exp, $info, $stref, $f)=@_;
 
 		(my $ast, my $rest, my $err, my $has_funcs)  = parse_expression_no_context($exp);
 		if($DBG and $err or $rest ne '') {
-            croak "PARSE ERROR $err in <$exp>, REST: $rest";
+            my $exp_ = _substitute_PlaceHolders($exp,$info);
+            my $rest_ = _substitute_PlaceHolders($rest,$info);
+            error( "Parse error in $f:\n\t$exp_\nparse stopped before\n\t$rest_", $DBG, 'PARSE ERROR');
 		}
         (my $ast2, my $grouped_messages) = $has_funcs ? _replace_function_calls_in_ast($stref,$f,$info,$ast, $exp, {}) : ($ast,{});
 	    if ($W) {
@@ -1650,6 +1652,18 @@ sub _parse_subcall_args { (my $ast, my $args) =@_;
     return $args;
 } # END of _parse_subcall_args
 
-
+sub _substitute_PlaceHolders { my ($expr_str,$info) = @_;
+    if ($expr_str=~/__PH/ and exists $info->{'PlaceHolders'}) {
+        # croak $expr_str.Dumper($info->{'PlaceHolders'})
+        while ($expr_str =~ /(__PH\d+__)/) {
+            my $ph=$1;
+            my $ph_str = $info->{'PlaceHolders'}{$ph};
+            $ph_str=~s/[\'\"]$/\"/;
+            $ph_str=~s/^[\']/\"/;
+            $expr_str=~s/$ph/$ph_str/;
+        }
+    }
+    return $expr_str;
+} # END of _substitute_PlaceHolders
 1;
 

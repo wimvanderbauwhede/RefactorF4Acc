@@ -56,6 +56,7 @@ use Exporter;
     &is_array
     &is_string
     &is_array_or_string
+    &is_param
     &warning
     &error
     &coderef_to_subname
@@ -717,6 +718,7 @@ sub is_arg {my ($stref,$f,$var) =@_;
 }
 sub is_array { my ($stref,$f,$var) = @_;
 	my $decl =  get_var_record_from_set($stref->{'Subroutines'}{$f}{'Vars'},$var) ;
+    carp Dumper $decl;
 	my $isArray = $decl->{'ArrayOrScalar'} eq 'Array';
     return $isArray;
 }
@@ -742,6 +744,11 @@ sub is_array_or_string { my ($stref,$f,$var) = @_;
 	my $isArray = $decl->{'ArrayOrScalar'} eq 'Array';
 	my $isString = ($decl->{'Type'} eq 'character' and (exists $decl->{'Attr'} and ($decl->{'Attr'} !~/len\s*=\s*1/)));
     return ($isArray or $isString);
+}
+
+sub is_param { my ($stref,$f,$var) = @_;
+    my $var_decl =  get_var_record_from_set($stref->{'Subroutines'}{$f}{'Vars'},$var) ;
+	return (((defined $var_decl) and (exists $var_decl->{'Parameter'})) ? 1 : 0);
 }
 
 1;
