@@ -515,8 +515,8 @@ Instead of the nice but cumbersome approach we had until now, from now on it is 
 		}
 		elsif (exists $info->{'IOCall'}) {
 			if (exists $info->{'PrintCall'}) {
-				say "PRINT: $line";
-				say Dumper $info;
+				# say "PRINT: $line";
+				# say Dumper $info;
 				$c_line = __emit_list_based_print_write($stref,$f,$line,$info, '*','yes');
 				# say "UXNTAL: $c_line";
 			} elsif (exists $info->{'WriteCall'}) {
@@ -536,16 +536,17 @@ Instead of the nice but cumbersome approach we had until now, from now on it is 
 				} else {
 					# if ($unit eq 'STDOUT' or $unit eq 'STDERR') {
 						$c_line = '';
-						my $maybe_str = ($unit eq 'STDOUT' or $unit eq 'STDERR')? '' :
-						_emit_expression_Uxntal([32,$unit],$stref, $f, $info);
+						my $maybe_str = ($unit eq 'STDOUT' or $unit eq 'STDERR')
+							? ''
+							: _emit_expression_Uxntal([2,$unit],$stref, $f, $info);
 						# ";$unit ";
 						my $idx=1;
 						for my $print_call (@{$print_calls}) {
 							my $maybe_offset= $maybe_str ne ''
 								? $offsets->[$idx-1] == 0
-									? ''
-									: toHex( $offsets->[$idx-1],2).' ADD2 '
-								: '';
+									? ' '
+									: ' '.toHex( $offsets->[$idx-1],2).' ADD2 '
+								: ' ';
 							my $arg_ast = [];
 							if ($iolist_ast->[0] == 27) {
 								# warn "$line: $print_call: ".Dumper($iolist_ast->[$idx++]);
@@ -1312,6 +1313,7 @@ sub _store_arg_on_stack($stref,$f,$arg) {
 } # END of _store_arg_on_stack()
 
 sub __create_fq_varname($stref,$f,$var_name) {
+	# carp Dumper $var_name;
 	my $Sf = $stref->{'Subroutines'}{$f};
 	my $decl = get_var_record_from_set($Sf->{'ModuleVars'},$var_name);
 	my $fq_varname = $f.'_'.$var_name;
@@ -1865,7 +1867,7 @@ sub _emit_expression_Uxntal ($ast, $stref, $f, $info) {
 				return '#00';
 			}
 			else {
-				return "$exp ( FALL-THROUGH ) ";
+				return _var_access_read($stref,$f,$info, $ast)." ( FALL-THROUGH ) ";
 			}
 		}
 		elsif (__is_operator($opcode) ) { # operators
@@ -2350,7 +2352,7 @@ sub _emit_function_call_expr_Uxntal($stref,$f,$info,$ast){
 	(my $opcode, my $name, my $args) =@{$ast};
 	my @call_arg_expr_strs_Uxntal=();
 	my $subname = $ast->[1];#$info->{'SubroutineCall'}{'Name'}; 
-carp Dumper $ast;
+
 	if (exists $F95_intrinsic_function_sigs{$subname}) {
 		# my $intent = 'in';
 		my @call_arg_asts = ();
@@ -2367,7 +2369,7 @@ carp Dumper $ast;
 			my $call_arg_expr_str = 
 			($call_arg_ast->[0] == 2 or $call_arg_ast->[0] == 10)
 			? $call_arg_ast->[1] : '';
-			push @call_arg_expr_strs_Uxntal, __emit_call_arg_Uxntal_expr($stref,$f,$info,$subname,$call_arg_expr_str,$idx,'in');
+			push @call_arg_expr_strs_Uxntal, __emit_call_arg_Uxntal_expr($stref,$f,$info,$subname,$call_arg_expr_str,$call_arg_ast,$idx,'in');
 		}
 	} else {
 		my $Ssubname = $stref->{'Subroutines'}{$subname};
@@ -2379,24 +2381,18 @@ carp Dumper $ast;
 						$idx++; # So starts at 1, because 0 is the sigil
 						my $intent = $Ssubname->{'RefactoredArgs'}{'Set'}{$sig_arg}{'IODir'};
 						my $call_arg_expr_str = $argmap->{$sig_arg} // $sig_arg;
-						push @call_arg_expr_strs_Uxntal, __emit_call_arg_Uxntal_expr($stref,$f,$info,$subname,$call_arg_expr_str,$idx,$intent);
+						push @call_arg_expr_strs_Uxntal, __emit_call_arg_Uxntal_expr($stref,$f,$info,$subname,$call_arg_expr_str,$fcall->{'ExpressionAST'},$idx,$intent);
 					}
 				last;
 			}
 		}
-		# for my $sig_arg (@{$Ssubname->{'RefactoredArgs'}{'List'}}) {
-		# 	$idx++; # So starts at 1, because 0 is the sigil
-		# 	my $intent = $Ssubname->{'RefactoredArgs'}{'Set'}{$sig_arg}{'IODir'};
-		# 	my $call_arg_expr_str = $info->{'FunctionCalls'}{'ArgMap'}{$sig_arg} // $sig_arg;
-		# 	push @call_arg_expr_strs_Uxntal, __emit_call_arg_Uxntal_expr($stref,$f,$info,$call_arg_expr_str,$idx,$intent);
-		# }
 	}
 
 	return join(" ", @call_arg_expr_strs_Uxntal, $subname);
 
 } # END of _emit_function_call_expr_Uxntal
 
-sub __emit_call_arg_Uxntal_expr($stref,$f,$info,$subname,$call_arg_expr_str,$idx,$intent){
+sub __emit_call_arg_Uxntal_expr($stref,$f,$info,$subname,$call_arg_expr_str,$ast_from_info,$idx,$intent){
 	my $Sf = $stref->{'Subroutines'}{$f};
 	my $call_arg_decl = get_var_record_from_set($Sf->{'Vars'},$call_arg_expr_str);
 	# carp Dumper $call_arg_decl, (defined $call_arg_decl) , (exists $call_arg_decl->{'Parameter'});
@@ -2420,18 +2416,18 @@ sub __emit_call_arg_Uxntal_expr($stref,$f,$info,$subname,$call_arg_expr_str,$idx
 		: 0;
 	# croak 'TODO: support DO via {'Do'}{'Range'}{ExpressionASTs'}'
 	# Problem is that here, we don't know which of the expressions it is
-	my $be = exists $info->{'Do'} ? croak 'DO' : 0;
-	my $ast_from_info = exists $info->{'Assignment'} 
-		? $info->{'Rhs'}{'ExpressionAST'}
-		: exists $info->{'Do'} 
-			? $info->{'Do'}{'Range'}{'ExpressionASTs'}[$be]
-			: $info->{'SubroutineCall'}{'ExpressionAST'};
-	 carp Dumper($info,$f,$call_arg_expr_str,$ast_from_info,$isConstOrExpr,$isParam,$call_info->{'Args'}{'Set'}{$call_arg_expr_str}{'Type'});
+	# my $be = exists $info->{'Do'} ? croak 'DO' : 0;
+	# my $ast_from_info = exists $info->{'Assignment'} 
+	# 	? $info->{'Rhs'}{'ExpressionAST'}
+	# 	: exists $info->{'Do'} 
+	# 		? $info->{'Do'}{'Range'}{'ExpressionASTs'}[$be]
+	# 		: $info->{'SubroutineCall'}{'ExpressionAST'};
+	#  carp Dumper($info,$f,$call_arg_expr_str,$ast_from_info,$isConstOrExpr,$isParam,$call_info->{'Args'}{'Set'}{$call_arg_expr_str}{'Type'});
 
-	my $arg_expr_ast = $ast_from_info->[0] == 27 
+	my $arg_expr_ast = $ast_from_info->[0] == 27 # comma
 		? $ast_from_info->[$idx] 
-		: $ast_from_info->[0] == 1
-			? $ast_from_info->[2][0] == 27
+		: $ast_from_info->[0] == 1 # function call
+			? $ast_from_info->[2][0] == 27 # comma
 				? $ast_from_info->[2][$idx]
 				: $ast_from_info->[2]
 			: $ast_from_info;
@@ -2442,7 +2438,7 @@ sub __emit_call_arg_Uxntal_expr($stref,$f,$info,$subname,$call_arg_expr_str,$idx
 		return _var_access_read($stref,$f,$info,$arg_expr_ast);#.' ( SCALAR IN ARG by VAL) ';
 	}
 	else { # A var, either nor scalar or scalar but used as Out or InOut
-		return __var_access($stref,$f,$arg_expr_ast);#.' ( ARG by REF) ';
+		return __var_access($stref,$f,$arg_expr_ast->[1]);#.' ( ARG by REF) ';
 	}
 } # END of __emit_call_arg_Uxntal_expr
 

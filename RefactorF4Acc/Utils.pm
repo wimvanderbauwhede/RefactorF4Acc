@@ -718,7 +718,7 @@ sub is_arg {my ($stref,$f,$var) =@_;
 }
 sub is_array { my ($stref,$f,$var) = @_;
 	my $decl =  get_var_record_from_set($stref->{'Subroutines'}{$f}{'Vars'},$var) ;
-    carp Dumper $decl;
+    # carp Dumper $decl;
 	my $isArray = $decl->{'ArrayOrScalar'} eq 'Array';
     return $isArray;
 }
