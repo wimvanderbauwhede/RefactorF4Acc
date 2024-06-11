@@ -2727,6 +2727,10 @@ sub _emit_list_print_Uxntal($stref,$f,$line,$info,$unit,$advance,$list_to_print)
 		my $print_fn_Uxntal = _emit_print_from_ast($stref,$f,$line,$info,$unit,$elt);
 
 		my $arg_to_print_Uxntal =  _emit_expression_Uxntal($elt,$stref, $f, $info);
+		# If a string is a single char, we treat it as a char, so we must print a char
+		if ($arg_to_print_Uxntal=~/^\s*\#/ and $print_fn_Uxntal eq 'print-string') { # 
+			$print_fn_Uxntal = 'print-char';
+		}
 		$line_Uxntal .= "$arg_to_print_Uxntal $print_fn_Uxntal #20 $port DEO ( , )\n"
 	}
 	if ($advance eq 'yes') {
@@ -2802,7 +2806,9 @@ sub _emit_print_from_ast($stref,$f,$line,$info,$unit,$elt){
 			return 'print-char'.$suffix;
 		}
 		elsif ($const_type == 34 ) {
-			die("Placeholder in print statement\n");
+			# say Dumper ($f,$line,$info,$unit,$elt);
+			# die("Placeholder in print statement\n");
+			return 'print-string'.$suffix;
 		}
 		else {
 			error('Unsupported type in print statement: '.$sigils[$const_type]);
@@ -3052,7 +3058,7 @@ sub __get_len_from_AST($val_ast, $phs){
 
 sub __emit_list_based_print_write($stref,$f,$line,$info,$unit, $advance){
 # carp Dumper $info->{'IOCall'}{'Args'}{'AST'};
-my $port = $unit eq 'STDERR' ? '#19' : '#18';
+	my $port = $unit eq 'STDERR' ? '#19' : '#18';
 	my $ast =  $info->{'IO'} eq 'print'
 		? $info->{'IOCall'}{'Args'}{'AST'}
 		:  [1,'write',[27,[32,'*'],@{ $info->{'IOList'}{'AST'} }[
