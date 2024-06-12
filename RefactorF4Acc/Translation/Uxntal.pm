@@ -155,7 +155,7 @@ sub translate_program_to_Uxntal($stref,$program_name){
        ]
        );
 	   $stref->{'TranslatedCode'}=[
-		@{$stref->{'Uxntal'}{'Macros'}{'List'}},
+
 		($stref->{'UseCallStack'} ? @{$stref->{'Uxntal'}{'CallStackPointers'}} : ()),
 		@{$stref->{'Uxntal'}{'CLIHandling'}},
 
@@ -168,6 +168,7 @@ sub translate_program_to_Uxntal($stref,$program_name){
 		@{$stref->{'Uxntal'}{'Libraries'}{'List'}},
 		@{$stref->{'TranslatedCode'}}, # These are the subroutines
 		@{$stref->{'Uxntal'}{'Globals'}{'List'}},
+		@{$stref->{'Uxntal'}{'Macros'}{'List'}},
 		($stref->{'UseCallStack'} ? @{$stref->{'Uxntal'}{'CallStack'}} : ()),
 	   ];
 	#    carp "TODO: Global decls";

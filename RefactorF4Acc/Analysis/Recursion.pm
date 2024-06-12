@@ -154,7 +154,7 @@ sub analyse_recursion($stref,$f){
 						if (_isOutArg($stref,$f,$lhs_var)) {
 							$state->{'Used'}{$lhs_var}=1;
 							$state->{'TailCall'}=0;
-							say "$f: LINE $line: $lhs_var is used after recursive call, so not a tail call";
+							say "$f: LINE $line: LHS $lhs_var is used after recursive call, so not a tail call";
 						}
 					} else {
 						# Only links after the recursive call make sense
@@ -168,18 +168,18 @@ sub analyse_recursion($stref,$f){
 						# This means the variable is used after a recursive call
 						$state->{'Used'}{$var}=1;
 						$state->{'TailCall'}=0;
-						say "$f: LINE $line: $var is used after recursive call, so not a tail call";
+						say "$f: LINE $line: $var in IF is used after recursive call, so not a tail call";
 					}
 				}
 			}
-			elsif (exists $info->{'Do'} ) {
+			elsif (exists $info->{'Do'} and $state->{'AfterRecursiveCall'} == 1) {
 				if (scalar @{$info->{'Do'}{'Range'}{'Vars'}}>0 ) {
 					for my $var (@{$info->{'Do'}{'Range'}{'Vars'}}) {
 						if (exists $all_args_local_vars->{$var} and not exists $state->{'DependencyFree'}{$var}) {
 							# This means the variable is used after a recursive call
 							$state->{'Used'}{$var}=1;
 							$state->{'TailCall'}=0;
-							say "$f: LINE $line: $var is used after recursive call, so not a tail call";
+							say "$f: LINE $line: $var in DO is used after recursive call, so not a tail call";
 						}
 					}
 				}
