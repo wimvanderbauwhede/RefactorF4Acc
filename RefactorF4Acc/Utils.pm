@@ -738,7 +738,7 @@ sub is_character { my ($stref,$f,$var) = @_;
 }
 sub is_array_or_string { my ($stref,$f,$var) = @_;
 	my $decl =  get_var_record_from_set($stref->{'Subroutines'}{$f}{'Vars'},$var) ;
-    # carp Dumper $decl;
+    # carp Dumper $f,$var,$decl;
 	my $ftype = $decl->{'Type'};
 	my $fkind = $decl->{'Attr'};
 	my $isArray = $decl->{'ArrayOrScalar'} eq 'Array';

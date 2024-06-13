@@ -1241,7 +1241,8 @@ sub _replace_function_calls_in_ast {
             		# change & to @
                 	$ast->[0]=  10 + (($ast->[0]>>8)<<8);#    '@';
     				say "\tFound array $mvar" if $DBG;
-				} elsif (   	exists $F95_intrinsics{$mvar} ) {
+				} else {
+                    if (   	exists $F95_intrinsics{$mvar} ) {
 					say "parse_expression('$exp') " . __LINE__ if $DBG;
                     say "WARNING: treating '$mvar' in $f as an intrinsic " if $DBG;
 					$grouped_messages->{'W'}{'VAR_AS_INTRINSIC'}{$mvar} =   "WARNING: treating '$mvar' in $f as an intrinsic " if $WW;
@@ -1249,7 +1250,8 @@ sub _replace_function_calls_in_ast {
 					say "parse_expression('$exp') " . __LINE__ if $DBG;
                     say "Treating $mvar in $f as a function-like reserved word " if $DBG;
 					$grouped_messages->{'W'}{'VAR_AS_INTRINSIC'}{$mvar} =   "WARNING: Treating $mvar in $f as a function-like reserved word  " if $WW;
-				} else {
+				} 
+                #else {
                     #say ' FUNCTION CALL';
 					# So, this line contains a function call, so we should say so in $info!
 					# I introduce FunctionCalls for this purpose!
@@ -1259,8 +1261,8 @@ sub _replace_function_calls_in_ast {
 					  and ( #
 						$mvar ne $subname
 # 						and not exists $stref->{$code_unit}{$f}{'CalledSubs'}{'Set'}{$mvar}
-						and not exists $F95_reserved_words{$mvar}
 						)
+						or exists $F95_intrinsic_functions{$mvar}
 					) {
 						( my $expr_args, my $expr_other_vars ) = @{find_args_vars_in_ast($ast->[2])}; # look only at the argument list
                         #say Dumper($expr_args);
@@ -1270,28 +1272,38 @@ sub _replace_function_calls_in_ast {
 								$stref->{$code_unit}{$f}{'ReferencedLabels'}{$label}=$label;
 							}
 						}
-						push @{ $info->{'FunctionCalls'} },  {
-							'Name' => $mvar,
-							'Args' => $expr_args,
-							'ExprVars' => $expr_other_vars,
-							'ExpressionAST' => $ast,
-						};
-						# Add to CalledSubs for $f
-						if (not exists $stref->{$code_unit}{$f}{'CalledSubs'}{'Set'}{$mvar}) {
-						push @{ $stref->{$code_unit}{$f}{'CalledSubs'}{'List'} }, $mvar;
-                        # This is '2' because it is tested against 1 in Refactoring/Common, and for some reason that must be avoided
-						$stref->{$code_unit}{$f}{'CalledSubs'}{'Set'}{$mvar} = [2,1];
-						}
+                        if (exists $F95_intrinsic_functions{$mvar}) {
+                            push @{ $info->{'IntrinsicFunctionCalls'} },  {
+                                'Name' => $mvar,
+                                'Args' => $expr_args,
+                                'ExprVars' => $expr_other_vars,
+                                'ExpressionAST' => $ast,
+                            };
+                        } else {
+                            push @{ $info->{'FunctionCalls'} },  {
+                                'Name' => $mvar,
+                                'Args' => $expr_args,
+                                'ExprVars' => $expr_other_vars,
+                                'ExpressionAST' => $ast,
+                            };
+                            # Add to CalledSubs for $f
+                            if (not exists $stref->{$code_unit}{$f}{'CalledSubs'}{'Set'}{$mvar}) {
+                            push @{ $stref->{$code_unit}{$f}{'CalledSubs'}{'List'} }, $mvar;
+                            # This is '2' because it is tested against 1 in Refactoring/Common, and for some reason that must be avoided
+                            $stref->{$code_unit}{$f}{'CalledSubs'}{'Set'}{$mvar} = [2,1];
+                            }
 
-						# Add $f to Callers for $mvar
-						my $Sname =  $stref->{'Subroutines'}{$mvar};
-						$Sname->{'Called'} = 1;
-						if ( not exists $Sname->{'Callers'}{$f} ) {
-							$Sname->{'Callers'}{$f} = [];
-						}
-						push @{ $Sname->{'Callers'}{$f} }, $info->{'LineID'}; #the line number
-						# Add to the call tree
-						$stref = add_to_call_tree( $mvar, $stref, $f );
+                            # Add $f to Callers for $mvar
+                            my $Sname =  $stref->{'Subroutines'}{$mvar};
+                            $Sname->{'Called'} = 1;
+                            if ( not exists $Sname->{'Callers'}{$f} ) {
+                                $Sname->{'Callers'}{$f} = [];
+                            }
+                            push @{ $Sname->{'Callers'}{$f} }, $info->{'LineID'}; #the line number
+                            # Add to the call tree
+                            $stref = add_to_call_tree( $mvar, $stref, $f );
+                        }
+
 					}
 				}
             } #else {

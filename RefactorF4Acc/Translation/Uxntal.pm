@@ -966,7 +966,7 @@ LOCAL
     ARRAY SLICE => copy
 =cut
 sub _var_access_assign($stref,$f,$info,$lhs_ast,$rhs_ast) {
-
+# carp Dumper($lhs_ast,$rhs_ast);
 	my ($var,$idxs,$idx_expr_type) = __unpack_var_access_ast($lhs_ast);
 	my $Sf = $stref->{'Subroutines'}{$f};
 	my $word_sz= $Sf->{'WordSizes'}{$var};
@@ -1685,85 +1685,85 @@ sub _emit_assignment_Uxntal ($stref, $f, $info, $pass_state){
 	my $rline = _var_access_assign($stref,$f,$info,$lhs_ast,$rhs_ast);
 	return ($rline,$pass_state);
 
-	if ($rhs_ast->[0] == 34) { # it's a string assignment
-		# string assignment
-		# This must become lhs_uxntal ;fqn_rhs_uxntal memwrite-string
-		my $rline = _emit_expression_Uxntal($rhs_ast,$stref,$f,$info).' ;'.$f.'_'.$lhs_ast->[1].' memwrite-string';
-		return ($rline,$pass_state);
-	}
-# I think here we should do ST for lhs and LD for rhs, and it should be correct;
-# But we need to check if it is an array/string access expressions, i.e. 10, or not.
-	if ($lhs_ast->[0] == 10) {
-		my $var = $lhs_ast->[1];
-		my $idx = _emit_expression_Uxntal($lhs_ast->[2],$stref,$f,$info);
-		say "LHS $var($idx)";
-		my $lhs_str = _var_access($stref,$f,$info,$var,$idx,'ST');
-		my $rhs_str = _emit_expression_Uxntal($rhs_ast,$stref,$f,$info);
-		my $rline = "$rhs_str $lhs_str";
-		return ($rline,$pass_state);
-		# croak 'ARRAY or STRING access: '.Dumper($lhs_ast,$rhs_ast,$rline);
-	} else {
-		my $var = $lhs_ast->[1];
-		my $lhs_str = _var_access($stref,$f,$info,$var,undef,'ST');
-		my $rhs_str = _emit_expression_Uxntal($rhs_ast,$stref,$f,$info);
-		my $rline = "$rhs_str $lhs_str";
-		return ($rline,$pass_state);
-		# croak 'SCALAR access: '.Dumper($lhs_ast,$rhs_ast,$rline);
-	}
-	my $lhs = _emit_expression_Uxntal($lhs_ast,$stref,$f,$info);
+# 	if ($rhs_ast->[0] == 34) { # it's a string assignment
+# 		# string assignment
+# 		# This must become lhs_uxntal ;fqn_rhs_uxntal memwrite-string
+# 		my $rline = _emit_expression_Uxntal($rhs_ast,$stref,$f,$info).' ;'.$f.'_'.$lhs_ast->[1].' memwrite-string';
+# 		return ($rline,$pass_state);
+# 	}
+# # I think here we should do ST for lhs and LD for rhs, and it should be correct;
+# # But we need to check if it is an array/string access expressions, i.e. 10, or not.
+# 	if ($lhs_ast->[0] == 10) {
+# 		my $var = $lhs_ast->[1];
+# 		my $idx = _emit_expression_Uxntal($lhs_ast->[2],$stref,$f,$info);
+# 		say "LHS $var($idx)";
+# 		my $lhs_str = _var_access($stref,$f,$info,$var,$idx,'ST');
+# 		my $rhs_str = _emit_expression_Uxntal($rhs_ast,$stref,$f,$info);
+# 		my $rline = "$rhs_str $lhs_str";
+# 		return ($rline,$pass_state);
+# 		# croak 'ARRAY or STRING access: '.Dumper($lhs_ast,$rhs_ast,$rline);
+# 	} else {
+# 		my $var = $lhs_ast->[1];
+# 		my $lhs_str = _var_access($stref,$f,$info,$var,undef,'ST');
+# 		my $rhs_str = _emit_expression_Uxntal($rhs_ast,$stref,$f,$info);
+# 		my $rline = "$rhs_str $lhs_str";
+# 		return ($rline,$pass_state);
+# 		# croak 'SCALAR access: '.Dumper($lhs_ast,$rhs_ast,$rline);
+# 	}
+# 	my $lhs = _emit_expression_Uxntal($lhs_ast,$stref,$f,$info);
 
-	my $lhs_stripped = $lhs;
-	my $indent='';
-	$lhs_stripped=~/^(\s+)/ && do {
-		$indent=$1;
-		$lhs_stripped=~s/^\s+//;
-	};
-	$lhs_stripped=~s/^\(([^\(\)]+)\)/$1/;
-	$lhs_stripped=$indent.$lhs_stripped;
+# 	my $lhs_stripped = $lhs;
+# 	my $indent='';
+# 	$lhs_stripped=~/^(\s+)/ && do {
+# 		$indent=$1;
+# 		$lhs_stripped=~s/^\s+//;
+# 	};
+# 	$lhs_stripped=~s/^\(([^\(\)]+)\)/$1/;
+# 	$lhs_stripped=$indent.$lhs_stripped;
 
-	my $rhs = _emit_expression_Uxntal($rhs_ast,$stref,$f,$info);
+# 	my $rhs = _emit_expression_Uxntal($rhs_ast,$stref,$f,$info);
 
-	my $rhs_stripped = $rhs;
-	$rhs_stripped=~s/^\(([^\(\)]+)\)$/$1/;
+# 	my $rhs_stripped = $rhs;
+# 	$rhs_stripped=~s/^\(([^\(\)]+)\)$/$1/;
 
-	# for my $macro (keys %{ $Config{'Macros'} } ) {
-	# 	my $lc_macro=lc($macro);
-	# 	$rhs_stripped=~s/\b$lc_macro\b/$macro/g;
-	# }
-	$rhs_stripped=__substitute_PlaceHolders_Uxntal($rhs_stripped,$info);
+# 	# for my $macro (keys %{ $Config{'Macros'} } ) {
+# 	# 	my $lc_macro=lc($macro);
+# 	# 	$rhs_stripped=~s/\b$lc_macro\b/$macro/g;
+# 	# }
+# 	$rhs_stripped=__substitute_PlaceHolders_Uxntal($rhs_stripped,$info);
 
-	# my $rline = $info->{'Indent'}.$lhs.' = '.$rhs_stripped;
-	my $lhs_post = $lhs;
-	$lhs_post =~s/LDA\s*$/STA /;
-	$lhs_post =~s/LDA2\s*$/STA2 /;
-	if ($lhs_post !~/STA/) {
-		$lhs_post .= ' STA2 ( must be string! ) ';
-	}
+# 	# my $rline = $info->{'Indent'}.$lhs.' = '.$rhs_stripped;
+# 	my $lhs_post = $lhs;
+# 	$lhs_post =~s/LDA\s*$/STA /;
+# 	$lhs_post =~s/LDA2\s*$/STA2 /;
+# 	if ($lhs_post !~/STA/) {
+# 		$lhs_post .= ' STA2 ( must be string! ) ';
+# 	}
 
-	$rline = $info->{'Indent'} . $rhs_stripped . ' ( = ) '. $lhs_post;
-	if (exists $info->{'If'}) {
-		# croak 'TODO: If without Then', Dumper($info);
-		my $branch_id = $info->{'LineID'};
-		# $pass_state->{'IfBranchId'} = $id;
-		# my $branch_id = $pass_state->{'IfBranchId'};
-		# push @{$pass_state->{'IfStack'}},$id;
-		# $pass_state->{'IfId'}=$id;
-		my $cond_expr_ast=$info->{'Cond'}{'AST'};
-		my $cond_expr = _emit_expression_Uxntal($cond_expr_ast,$stref,$f,$info);
-	# What we have is e.g.
-	# if (fl(1:2) == __PH0__) VV = .true.
-	# What we need is
-	# NOT <cond> <label_end> JCN
-		$rline = "\n( If without Then )\n" . $indent.' '."$cond_expr EQU #00 ,&branch$branch_id JCN\n" . $rline;
-	# <expr>
-		$rline .= $indent.' '."&branch$branch_id";
+# 	$rline = $info->{'Indent'} . $rhs_stripped . ' ( = ) '. $lhs_post;
+# 	if (exists $info->{'If'}) {
+# 		# croak 'TODO: If without Then', Dumper($info);
+# 		my $branch_id = $info->{'LineID'};
+# 		# $pass_state->{'IfBranchId'} = $id;
+# 		# my $branch_id = $pass_state->{'IfBranchId'};
+# 		# push @{$pass_state->{'IfStack'}},$id;
+# 		# $pass_state->{'IfId'}=$id;
+# 		my $cond_expr_ast=$info->{'Cond'}{'AST'};
+# 		my $cond_expr = _emit_expression_Uxntal($cond_expr_ast,$stref,$f,$info);
+# 	# What we have is e.g.
+# 	# if (fl(1:2) == __PH0__) VV = .true.
+# 	# What we need is
+# 	# NOT <cond> <label_end> JCN
+# 		$rline = "\n( If without Then )\n" . $indent.' '."$cond_expr EQU #00 ,&branch$branch_id JCN\n" . $rline;
+# 	# <expr>
+# 		$rline .= $indent.' '."&branch$branch_id";
 
-		# my $if_str = _emit_ifthen_Uxntal($stref,$f,$info,$branch_id);
-		# $rline =$indent.' '.$rline;
-		# die $rline;
-	}
-	# carp "$f $rline";
-	return ($rline,$pass_state);
+# 		# my $if_str = _emit_ifthen_Uxntal($stref,$f,$info,$branch_id);
+# 		# $rline =$indent.' '.$rline;
+# 		# die $rline;
+# 	}
+# 	# carp "$f $rline";
+# 	return ($rline,$pass_state);
 } # END of _emit_assignment_Uxntal
 
 
@@ -2364,11 +2364,12 @@ sub _emit_function_call_expr_Uxntal($stref,$f,$info,$ast){
 		} else {
 			push @call_arg_asts, $args;
 		}
+		# croak Dumper @call_arg_asts;
 		my $idx=0;
-		for my $call_arg_ast (@{call_arg_asts}) {
+		for my $call_arg_ast (@call_arg_asts) {
 			$idx++;
 			my $call_arg_expr_str = 
-			($call_arg_ast->[0] == 2 or $call_arg_ast->[0] == 10)
+			($call_arg_ast->[0] == 2 or $call_arg_ast->[0] == 10 or $call_arg_ast->[0] > 28)
 			? $call_arg_ast->[1] : '';
 			push @call_arg_expr_strs_Uxntal, __emit_call_arg_Uxntal_expr($stref,$f,$info,$subname,$call_arg_expr_str,$call_arg_ast,$idx,'in');
 		}
@@ -2395,19 +2396,33 @@ sub _emit_function_call_expr_Uxntal($stref,$f,$info,$ast){
 
 sub __emit_call_arg_Uxntal_expr($stref,$f,$info,$subname,$call_arg_expr_str,$ast_from_info,$idx,$intent){
 	my $Sf = $stref->{'Subroutines'}{$f};
+	# croak Dumper($subname,$call_arg_expr_str,$ast_from_info) if $subname eq 'modulo';
 	my $call_arg_decl = get_var_record_from_set($Sf->{'Vars'},$call_arg_expr_str);
 	# carp Dumper $call_arg_decl, (defined $call_arg_decl) , (exists $call_arg_decl->{'Parameter'});
 	my $isParam = ((defined $call_arg_decl) and (exists $call_arg_decl->{'Parameter'})) ? 1 : 0;
+
+	# This does not work for intrinsics, they are not in FunctionCalls
+	# Maybe I should add IntrinsicFunctionCalls to make it easy
 	my $call_info = $info->{'SubroutineCall'};
 	if (exists $info->{'Assignment'} ) {
-		for my $fcall (@{$info->{'FunctionCalls'}}) {
-			if ($fcall->{'Name'} eq $subname) {
-				$call_info = $fcall;
-				last;
+		if  (exists $info->{'FunctionCalls'} and scalar @{$info->{'FunctionCalls'}}>0) {
+			for my $fcall (@{$info->{'FunctionCalls'}}) {
+				if ($fcall->{'Name'} eq $subname) {
+					$call_info = $fcall;
+					last;
+				}
+			}
+		}
+		if  (exists $info->{'IntrinsicFunctionCalls'} and scalar @{$info->{'IntrinsicFunctionCalls'}}>0) {
+			for my $fcall (@{$info->{'IntrinsicFunctionCalls'}}) {
+				if ($fcall->{'Name'} eq $subname) {
+					$call_info = $fcall;
+					last;
+				}
 			}
 		}
 	}
-	# carp Dumper $info, exists $call_info->{'Args'}{'Set'}{$call_arg_expr_str};
+	# croak Dumper $info if $subname eq 'modulo';
 	my $isConstOrExpr = exists $call_info->{'Args'}{'Set'}{$call_arg_expr_str} 
 		? (($call_info->{'Args'}{'Set'}{$call_arg_expr_str}{'Type'} eq 'Const' )
 		or ($call_info->{'Args'}{'Set'}{$call_arg_expr_str}{'Type'} eq 'Expr')
