@@ -75,6 +75,14 @@ my $lib_lines = [
 	'OVR2 OVR2 LTH2 #00 SWP DUP2 #0001 SWP2 SUB2',
 	'ROT2 MUL2 ROT2 ROT2 MUL2 ADD2',
 	'JMP2r',
+	'@not #01 SWP SUB JMP2r',
+	'( a:16 b:16 -- m:16 )',
+	'@modulo',
+	'OVR2 OVR2  ( a b a b )',
+	'DIV2  ( a b a/b )',
+	'MUL2  ( a b*(a/b) )',
+	'SUB2 ( a-b*(a/b) )',
+	'JMP2r',
 	'( now obsolete )',
 	'@print-list',
     'ROT ROT SWP',
@@ -1147,8 +1155,15 @@ sub __copy_substr($stref, $f, $info, $lhs_ast, $rhs_ast) {
 				# a single character
 				$uxntal_code = "$rhs_Uxntal_expr $lhs_var_access STA";
 			} else {
+				# Problem is that this can be an expression
+				# Something like str // "str" // fstr()
+				# This becomes rather complicated so I will only deal with constant strings
+
+				# carp $rhs_Uxntal_expr,Dumper ($info,$rhs_ast);
 				my $lhs_len = $decl->{'Attr'};$lhs_len=~s/len=//;$lhs_len=~s/[\(\)]//g;
-				my $rhs_len = length($info->{'PlaceHolders'}{$rhs_ast->[1]})-2;
+				my $rhs_len = $rhs_ast->[0] == 34
+					? length($info->{'PlaceHolders'}{$rhs_ast->[1]})-2 # -2 for the quotes
+					: $lhs_len; # a hack, TODO
 				my $len = toHex(min($lhs_len,$rhs_len),2);
 				$uxntal_code = "$rhs_Uxntal_expr $lhs_var_access $len strncpy";
 			}
@@ -1221,7 +1236,7 @@ sub __copy_substr($stref, $f, $info, $lhs_ast, $rhs_ast) {
 				# Or we could just copy length bytes
 				# So: if e-b+1 < length, use e-b+1 else use length
 				$uxntal_code = "$rhs_var_access $rhs_idx_expr_b ADD2 $lhs_var_access ".
-				__calc_len($rhs_idx_expr_e, $rhs_idx_expr_b)." ;$lhs_var LDA2 min strncpy";
+				__calc_len($rhs_idx_expr_e, $rhs_idx_expr_b)." $lhs_var_access LDA2 min strncpy";
 			}
 		} elsif ($lhs_idx_expr_type == 2 and $rhs_idx_expr_type == 1) {
 			# Special case: RHS is array assignment.

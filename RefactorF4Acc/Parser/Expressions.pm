@@ -63,7 +63,7 @@ our @sigils = ('(', '&', '$', '+', '-', '*', '/', '%', '**', '=', '@', '#', ':' 
 # '&','@': my ($sigil, $var_name_str, $args) = @{$ast}; # [1|10,'v',[...]]
 # '$': my ($sigil,$var_name_str) = @{$ast};
 # '(': my ($sigil, my $exp) = @{$ast};
-# ',': my ($comma, @items) = @{$ast}; # [',',11,22,33,...] 
+# ',': my ($comma, @items) = @{$ast}; # [',',11,22,33,...]
 # Binops: my ($binop,$left_expr,$right_expr) = @{$ast};
 # Constants : my ($type,$val_str) = @{$ast};
 
@@ -572,7 +572,6 @@ sub parse_expression_no_context { (my $str)=@_;
     my $error=0;
     # I will not treat * as a proper prefix
 
-
     my $expr_ast=[];
     my $arg_expr_ast=[];
     my $has_funcs=0;
@@ -799,7 +798,7 @@ sub parse_expression_no_context { (my $str)=@_;
             }
             # otherwise it is quite the same as the end of the string
             else {
-            	# say "LEAVE WHILE: closing paren";
+            	# say "LEAVE WHILE: closing paren";parse_expression_no_context
                 last;
             }
         }
@@ -1002,7 +1001,7 @@ So it looks like I need at least 6 bits, so we'll need <<8 and 0xFF
                 # warn Dumper([27,@{$arg_expr_ast}],$str,$error,$has_funcs);
                 return ([27,@{$arg_expr_ast}],$str,$error,$has_funcs);
             }
-        }        
+        }
     } # while
 
     # So when we fall off the end of the string we need to clean up
@@ -1250,7 +1249,7 @@ sub _replace_function_calls_in_ast {
 					say "parse_expression('$exp') " . __LINE__ if $DBG;
                     say "Treating $mvar in $f as a function-like reserved word " if $DBG;
 					$grouped_messages->{'W'}{'VAR_AS_INTRINSIC'}{$mvar} =   "WARNING: Treating $mvar in $f as a function-like reserved word  " if $WW;
-				} 
+				}
                 #else {
                     #say ' FUNCTION CALL';
 					# So, this line contains a function call, so we should say so in $info!
