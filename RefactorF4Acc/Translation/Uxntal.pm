@@ -1030,7 +1030,7 @@ sub _var_access_assign($stref,$f,$info,$lhs_ast,$rhs_ast) {
 	} else {
 		# TODO, this should be a
 		# v = <anything not a string>
-		carp Dumper $rhs_ast;
+		# carp Dumper $rhs_ast;
 		my $rhs_expr_Uxntal = _emit_expression_Uxntal($rhs_ast,$stref,$f,$info);
 		$uxntal_code = "$rhs_expr_Uxntal $lhs_var_access STA$short_mode ( scalar )";
 	}
@@ -1681,8 +1681,8 @@ sub __substitute_PlaceHolders_Uxntal($expr_str,$info){
 			$expr_str=~s/$ph/$ph_str/;
 		}
 		my $len = toRawHex(length($expr_str)-1,2);
-		if ($len==1) {
-			$expr_str = toHex(ord(substr($expr_str,0,1)),1);
+		if ($len==1) { 
+			$expr_str = toHex(ord(substr($expr_str,1,1)),1);
 		} else {
 			# replace space and nl by their ascii code
 			# ' ' => ' 20 "'
@@ -1836,7 +1836,6 @@ sub _emit_expression_Uxntal ($ast, $stref, $f, $info) {
 
     if (ref($ast) eq 'ARRAY') {
 		my $opcode = $ast->[0];
-		
 		if ( $opcode == 10 or $opcode == 2) { # variables, will always be _var_access_read()
 			return _var_access_read($stref,$f,$info,$ast);
 		}
@@ -1846,7 +1845,7 @@ sub _emit_expression_Uxntal ($ast, $stref, $f, $info) {
 			if ($name eq 'int' or $name eq 'achar' or $name eq 'char') { # just remove it
 				# [1,'int',[',', $arg, $sz]]
 				# For 'char' this means we ignore the 'kind' and assume ASCII
-				my $uxn_ast = $args->[1];
+				my $uxn_ast = $args->[0] == 27  ? $args->[1] : $args;
 				return _emit_expression_Uxntal($uxn_ast, $stref, $f,$info);
 			}
 			elsif ($name eq 'print') {
@@ -1889,7 +1888,7 @@ sub _emit_expression_Uxntal ($ast, $stref, $f, $info) {
 			}
 		}
 		elsif (__is_operator($opcode) ) { # operators
-		carp Dumper $ast,$opcode;
+		# carp Dumper $ast,$opcode;
 			# Special cases
 			# Uxn does not have pow or mod so these would have to be functions
 			# TODO these are not implemented yet
@@ -1916,7 +1915,7 @@ sub _emit_expression_Uxntal ($ast, $stref, $f, $info) {
 				$ast = [1,'mod',[27,$lexp,$rexp] ] ;
 				return _emit_function_call_expr_Uxntal($stref,$f,$info,$ast);
 			}
-carp Dumper($lexp,$rexp);
+# carp Dumper($lexp,$rexp);
 			my $lv = (ref($lexp) eq 'ARRAY') ? _emit_expression_Uxntal($lexp, $stref, $f,$info) : $lexp;
 			my $rv = (ref($rexp) eq 'ARRAY') ? _emit_expression_Uxntal($rexp, $stref, $f,$info) : $rexp;
 
@@ -2309,7 +2308,7 @@ while ($expr=~/\.(\w+)\./) {
 	return $expr;
 }
 #### #### #### #### END OF C TRANSLATION CODE #### #### #### ####
-# This can also be used for function calls because there is no difference in the emitted expression
+
 sub _emit_subroutine_call_expr_Uxntal($stref,$f,$line,$info){
 	my @call_arg_expr_strs_Uxntal=();
 	my $subname = $info->{'SubroutineCall'}{'Name'};
@@ -2366,12 +2365,10 @@ sub _emit_subroutine_call_expr_Uxntal($stref,$f,$line,$info){
 
 } # END of _emit_subroutine_call_expr_Uxntal
 
-# This can also be used for function calls because there is no difference in the emitted expression
 sub _emit_function_call_expr_Uxntal($stref,$f,$info,$ast){
 	(my $opcode, my $name, my $args) =@{$ast};
 	my @call_arg_expr_strs_Uxntal=();
 	my $subname = $ast->[1];#$info->{'SubroutineCall'}{'Name'}; 
-
 	if (exists $F95_intrinsic_function_sigs{$subname}) {
 		# my $intent = 'in';
 		my @call_arg_asts = ();
@@ -2759,8 +2756,11 @@ sub _emit_list_print_Uxntal($stref,$f,$line,$info,$unit,$advance,$list_to_print)
 	my $line_Uxntal = '';
 	for my $elt ( @{$list_to_print} ) {
 		my $print_fn_Uxntal = _emit_print_from_ast($stref,$f,$line,$info,$unit,$elt);
-
 		my $arg_to_print_Uxntal =  _emit_expression_Uxntal($elt,$stref, $f, $info);
+		# TODO: feels like a HACK
+		if ($print_fn_Uxntal eq 'print-char' and $elt->[0] == 2) {
+			$arg_to_print_Uxntal = _var_access_read($stref,$f,$info,$elt). ' LDA';
+		}
 		# If a string is a single char, we treat it as a char, so we must print a char
 		if ($arg_to_print_Uxntal=~/^\s*\#/ and $print_fn_Uxntal eq 'print-string') { # 
 			$print_fn_Uxntal = 'print-char';
