@@ -70,7 +70,6 @@ my $lib_lines = [
 	'~../../../uxntal-libs/fmt-print.tal',
 	'~../../../uxntal-libs/string.tal',
 	'~../../../uxntal-libs/range-map-fold-lib.tal',
-	'~../../../uxntal-libs/call-stack.tal',
 	'@min',
 	'OVR2 OVR2 LTH2 #00 SWP DUP2 #0001 SWP2 SUB2',
 	'ROT2 MUL2 ROT2 ROT2 MUL2 ADD2',
@@ -136,6 +135,7 @@ sub translate_program_to_Uxntal($stref,$program_name){
 		# { 'LocalVars'=> {'Set' =>{}, 'List' => [] }, 'Args' => {'Set' =>{}, 'List' => [] },  'isMain' => '' , 'TranslatedCode'}
 		'Globals' => { 'Set' =>{}, 'List' => [] },
 		'CallStack'  => [
+			'~../../../uxntal-libs/call-stack.tal',
 			'|e000 ( 8 kB call stack )',
 			'@call-stack ( grows down )'
 		]
