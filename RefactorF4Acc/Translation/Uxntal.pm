@@ -1030,6 +1030,7 @@ sub _var_access_assign($stref,$f,$info,$lhs_ast,$rhs_ast) {
 	} else {
 		# TODO, this should be a
 		# v = <anything not a string>
+		carp Dumper $rhs_ast;
 		my $rhs_expr_Uxntal = _emit_expression_Uxntal($rhs_ast,$stref,$f,$info);
 		$uxntal_code = "$rhs_expr_Uxntal $lhs_var_access STA$short_mode ( scalar )";
 	}
@@ -1835,6 +1836,7 @@ sub _emit_expression_Uxntal ($ast, $stref, $f, $info) {
 
     if (ref($ast) eq 'ARRAY') {
 		my $opcode = $ast->[0];
+		
 		if ( $opcode == 10 or $opcode == 2) { # variables, will always be _var_access_read()
 			return _var_access_read($stref,$f,$info,$ast);
 		}
@@ -1887,10 +1889,11 @@ sub _emit_expression_Uxntal ($ast, $stref, $f, $info) {
 			}
 		}
 		elsif (__is_operator($opcode) ) { # operators
+		carp Dumper $ast,$opcode;
 			# Special cases
 			# Uxn does not have pow or mod so these would have to be functions
 			# TODO these are not implemented yet
-			if ($opcode == 21 or $opcode == 4 or $opcode == 3) {#  '.not.', '-' or '+'
+			if (($opcode == 21 or $opcode == 4 or $opcode == 3) and scalar @{$ast} == 2) {#  '.not.', '-' or '+'
 				(my $opcode, my $exp) =@{$ast};
                 my $v = _emit_expression_Uxntal($exp, $stref, $f,$info);
 				if ($opcode == 21 ) {
@@ -1913,7 +1916,7 @@ sub _emit_expression_Uxntal ($ast, $stref, $f, $info) {
 				$ast = [1,'mod',[27,$lexp,$rexp] ] ;
 				return _emit_function_call_expr_Uxntal($stref,$f,$info,$ast);
 			}
-
+carp Dumper($lexp,$rexp);
 			my $lv = (ref($lexp) eq 'ARRAY') ? _emit_expression_Uxntal($lexp, $stref, $f,$info) : $lexp;
 			my $rv = (ref($rexp) eq 'ARRAY') ? _emit_expression_Uxntal($rexp, $stref, $f,$info) : $rexp;
 
