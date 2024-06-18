@@ -742,7 +742,7 @@ sub is_array_or_string { my ($stref,$f,$var) = @_;
 	my $ftype = $decl->{'Type'};
 	my $fkind = $decl->{'Attr'};
 	my $isArray = $decl->{'ArrayOrScalar'} eq 'Array';
-	my $isString = ($decl->{'Type'} eq 'character' and (exists $decl->{'Attr'} and ($decl->{'Attr'} !~/len\s*=\s*1/)));
+	my $isString = ($decl->{'Type'} eq 'character' and (exists $decl->{'Attr'} and ($decl->{'Attr'} ne '' and $decl->{'Attr'} !~/len\s*=\s*1/)));
     return ($isArray or $isString);
 }
 

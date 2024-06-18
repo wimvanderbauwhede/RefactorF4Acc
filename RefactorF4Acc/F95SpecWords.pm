@@ -482,8 +482,8 @@ our %F95_intrinsics = (%F95_intrinsic_functions,%F95_other_intrinsics);
 
 our %F95_intrinsic_subroutine_sigs = (
 	'getarg' => [
-		'integer(kind=2)',
-		'character(len=128)'
+		['integer(kind=2)','in'],
+		['character(len=128)','out']
 	],
 );
 
@@ -534,7 +534,7 @@ our %F95_intrinsic_function_sigs = (
     'adjustl' => [['character(*)'], 'character(*)'],
     'adjustr' => [['character(*)'], 'character(*)'],
     'char'=> [['integer'], 'character'],
-    'iachar'=> [['character'], 'integer'],
+    'iachar'=> [['character','integer'], 'integer'],
     'ichar'=> [['character'], 'integer'],
     'index' => [['character(*)','character(*)','logical'],'integer'],
     'len' => [['character(*)'],'integer'],
