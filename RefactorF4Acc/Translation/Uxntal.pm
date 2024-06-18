@@ -66,7 +66,7 @@ our @sigils = ('(', '&', '$', 'ADD', 'SUB', 'MUL', 'DIV', 'mod', 'pow', '=', '@'
 
 # TODO This needs to be changed so that only the used functions are emitted
 my $lib_lines = [
-	'( TODO LIBRARIES )',
+	'( LIBRARIES )',
 	'~../../../uxntal-libs/fmt-print.tal',
 	'~../../../uxntal-libs/string.tal',
 	'~../../../uxntal-libs/range-map-fold-lib.tal',
@@ -82,41 +82,6 @@ my $lib_lines = [
 	'MUL2  ( a b*(a/b) )',
 	'SUB2 ( a-b*(a/b) )',
 	'JMP2r',
-	'( now obsolete )',
-	'@print-list',
-    'ROT ROT SWP',
-    '#30 ADD #18 DEO',
-	'#30 ADD #18 DEO',
-    '#20 #18 DEO',
-    '#18 DEO',
-    '#0a #18 DEO',
-    'JMP2r',
-
-
-
-
-
-# '( this assumes a string with structure `{ 0006 "hello 0a } STH2r` )
-# @print-string ( {str}* -- ) #18 !write-string
-# @print-string-stderr ( {str}* -- ) #19 !write-string
-
-# @write-string ( {str}* unit -- )
-# 	STH
-#     DUP2 LDA2 ( str len )
-#     SWP2 ( len str )
-#     INC2 INC2 DUP2  ( len str+2 str+2 )
-#     ROT2 ADD2 SWP2 ( str+2+len str+2 )
-#     &l ( -- )
-#     LDAk STHrk DEO
-#         INC2 GTH2k ?&l
-#         POP2 POP2
-# 	POPr
-# JMP2r
-# ',
-
-# '@len LDA2 JMP2r'
-
-
 ];
 
 sub translate_program_to_Uxntal($stref,$program_name){
@@ -128,7 +93,25 @@ sub translate_program_to_Uxntal($stref,$program_name){
 			'@csp $2 ( call stack pointer )',
 			'@fp $2 ( frame pointer, it points to the *previous* frame )'
 		],
-		'CLIHandling' => ['( TODO CLI HANDLING )'],
+		'Console' => [
+		'	|10 @Console &vector $2 &read $1 &pad $4 &type $1 &write $1 &error $1'
+		],
+
+		'CLIHandling' => {
+			'Preamble'=> [
+				'@buf $40 ( 64 in total )',
+				'@argbuf $40 ( 64 in total )',
+				'@argc $2',
+				'@arglens $7 ( 7 args max )',
+				'@all-done $1'
+			],
+			'Main' => [
+				'( set vector )',
+				';on-argument .Console/vector DEO2',
+    			'#00 .argc STZ'
+			],
+			'Lib' => '~../../../process-args-lib.tal'
+		},
 		'Main' => {'TranslatedCode'=>[],'Name'=>''},
 		'Libraries' => { 'Set' =>{}, 'List' => $lib_lines },
 		'Subroutines' => {},
@@ -163,15 +146,18 @@ sub translate_program_to_Uxntal($stref,$program_name){
        ]
        );
 	   $stref->{'TranslatedCode'}=[
-
+		($stref->{'HasCLArgs'} ? @{$stref->{'Uxntal'}{'Console'}} :()),
+		'|0000',
 		($stref->{'UseCallStack'} ? @{$stref->{'Uxntal'}{'CallStackPointers'}} : ()),
-		@{$stref->{'Uxntal'}{'CLIHandling'}},
+		($stref->{'HasCLArgs'} ? @{$stref->{'Uxntal'}{'CLIHandling'}{'Preamble'}} : (),
 
 		'','|0100',
 		($stref->{'UseCallStack'} ? 'init-call-stack' : ''),
-		$stref->{'Uxntal'}{'Main'}{'Name'},
+		($stref->{'HasCLArgs'} ? @{$stref->{'Uxntal'}{'CLIHandling'}{'Main'}} :
+		$stref->{'Uxntal'}{'Main'}{'Name'}),
 		'BRK','',
-
+		($stref->{'HasCLArgs'} ? '@main !'.$stref->{'Uxntal'}{'Main'}{'Name'} : ''),
+		($stref->{'HasCLArgs'} ?  $stref->{'Uxntal'}{'CLIHandling'}{'Lib'} : ''),
 		@{$stref->{'Uxntal'}{'Main'}{'TranslatedCode'}},
 		@{$stref->{'Uxntal'}{'Libraries'}{'List'}},
 		@{$stref->{'TranslatedCode'}}, # These are the subroutines
@@ -266,7 +252,8 @@ Instead of the nice but cumbersome approach we had until now, from now on it is 
 	# Or maybe not, as pointer analysis is not necessary for Uxntal.
 	# We populate $state->{'Pointers'} and $state->{'WordSizes'} but the latter is not used as
 	# $Sf->{'WordSizes'} is populated above;
-	my $pass_pointer_analysis = sub ($annline,$state){
+	# We also check if getarg is called and set CLArgs to 1 if it is
+	my $pass_analysis = sub ($annline,$state){
 		my ($line, $info) = @{$annline};
 
 		if (exists $info->{'Signature'} ) {
@@ -343,6 +330,8 @@ Instead of the nice but cumbersome approach we had until now, from now on it is 
 						# carp 'TODO: a const scalar passed as arg: ',$call_arg_expr_str ;
 					}
 				}
+			} elsif ($fname eq 'getarg') { # call to getarg means we need the machinery
+				$state->{'CLArgs'}=1;
 			}
 		}
 		elsif ( exists $info->{'FunctionCalls'} ) {
@@ -362,10 +351,10 @@ Instead of the nice but cumbersome approach we had until now, from now on it is 
 		return ([[$line,$info]],$state)
 	};
 
-	my $pass_state = {'Pointers'=>{},'Args' =>{},'LocalVars' =>{}, 'Parameters'=>{}, 'WordSizes'=>{}};
-	(my $new_annlines_,$pass_state) = stateful_pass($annlines,$pass_pointer_analysis,$pass_state,"pass_pointer_analysis($f)");
+	my $pass_state = {'Pointers'=>{},'CLArgs'=>0,'Args' =>{},'LocalVars' =>{}, 'Parameters'=>{}, 'WordSizes'=>{}};
+	(my $new_annlines_,$pass_state) = stateful_pass($annlines,$pass_analysis,$pass_state,"pass_analysis($f)");
 	$Sf->{'Pointers'} = $pass_state->{'Pointers'};
-
+	$stref->{'HasCLArgs'} = $pass_state->{'CLArgs'} unless $Sf->{'CLArgs'}==1;
 # --------------------------------------------------------------------------------------------
  	# $Sf->{'UseCallStack'}=1; # override for debugging
 	my $use_stack = __use_stack($stref,$f);
