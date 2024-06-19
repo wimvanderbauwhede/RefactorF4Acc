@@ -743,6 +743,8 @@ sub is_array_or_string { my ($stref,$f,$var) = @_;
 	my $fkind = $decl->{'Attr'};
 	my $isArray = $decl->{'ArrayOrScalar'} eq 'Array';
 	my $isString = ($decl->{'Type'} eq 'character' and (exists $decl->{'Attr'} and ($decl->{'Attr'} ne '' and $decl->{'Attr'} !~/len\s*=\s*1/)));
+    # It could still be a character if only a single elt is accessed.
+    # But that gets us into the difference between a character and a string of length 1
     return ($isArray or $isString);
 }
 

@@ -487,31 +487,33 @@ our %F95_intrinsic_subroutine_sigs = (
 	],
 );
 
+ # MISSING: logical(a,kind)
 our %F95_intrinsic_function_sigs = (
 	'iargc' => [[],'integer(kind=2)'],
 
 # Numeric Functions
     'abs' => [['a'],'a'],
     'aimag' => [['complex'],'real'],
-    'aint' => [['real'],'real'],
-    'anint' => [['real'],'real'],
-    'ceiling' => [['real'],'integer'],
-    'cmplx' => [['a','a'],'complex'],
+    'aint' => [['real'],'real'], # kind
+    'anint' => [['real'],'real'], # kind
+    'ceiling' => [['real'],'integer'], # kind
+    'cmplx' => [['a','a'],'complex'], # kind
     'conjg' => [['complex'],'complex'],
     'dble' => [['a'],'real(kind=8)'],
     'dim' => [['a','a'],'a'],
     'dprod' => [['real(8)','real(8)'],'real(8)'],
     'exponent' => [['real'],'real'],
-    'floor' => [['real'],'integer'],
+    'floor' => [['real'],'integer'], # kind
     'fraction' => [['real'],'real'],
-    'int' => [['a'],'integer'],
+    'int' => [['a'],'integer'], # kind
+    'logical' =>[['a'],'logical'], # kind
     'max' => [['a','a'],'a'],
     'min' => [['a','a'],'a'],
     'mod' => [['a','a'],'a'],
     'modulo' => [['a','a'],'a'],
     'nearest' => [['real','real'],'real'],
-    'nint' => [['real'],'integer'],
-    'real' => [['a'],'real'],
+    'nint' => [['real'],'integer'], # kind
+    'real' => [['a'],'real'], # kind
     'rrspacing' => [['real'],'real'],
     'scale' => [['real','integer'],'real'],
     'set_exponent' => [['real','integer'],'real'],
@@ -533,7 +535,7 @@ our %F95_intrinsic_function_sigs = (
     'achar'=> [['integer'], 'character'],
     'adjustl' => [['character(*)'], 'character(*)'],
     'adjustr' => [['character(*)'], 'character(*)'],
-    'char'=> [['integer'], 'character'],
+    'char'=> [['integer'], 'character'], # kind
     'iachar'=> [['character','integer'], 'integer'],
     'ichar'=> [['character'], 'integer'],
     'index' => [['character(*)','character(*)','logical'],'integer'],
@@ -582,6 +584,7 @@ our %F95_intrinsic_functions_for_eval = (
     'floor' => sub { POSIX::floor($_[0])}, # integer
     'fraction' => sub { die "TODO: fraction is NOT IMPLEMENTED\n" },
     'int' => sub {int($_[0])},  # integer
+    'logical' => sub { die "TODO: logical is NOT IMPLEMENTED\n" },
     'max' => sub { $_[0] > $_[1] ? $_[0] : $_[1] },# integer or real
     'min' => sub { $_[0] < $_[1] ? $_[0] : $_[1] },# integer or real
     'mod' => sub { $_[0] % $_[1] },# integer 

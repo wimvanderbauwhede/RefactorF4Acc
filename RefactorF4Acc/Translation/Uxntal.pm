@@ -82,6 +82,8 @@ my $lib_lines = [
 	'MUL2  ( a b*(a/b) )',
 	'SUB2 ( a-b*(a/b) )',
 	'JMP2r',
+	'@iachar', # HACK: ignoring kind, returns a short
+	'#00 SWP JMP2r'
 ];
 
 sub translate_program_to_Uxntal($stref,$program_name){
@@ -250,7 +252,7 @@ Instead of the nice but cumbersome approach we had until now, from now on it is 
 	# This analysis only looks at args, local vars and local parameters. We need to include globals
 	# Or maybe not, as pointer analysis is not necessary for Uxntal.
 	# We populate $state->{'Pointers'} and $state->{'WordSizes'} but the latter is not used as
-	# $Sf->{'WordSizes'} is populated above;
+	# $Sf->{'WordSizes'} is populated above via _get_word_sizes()
 	# We also check if getarg is called and set CLArgs to 1 if it is
 	my $pass_analysis = sub ($annline,$state){
 		my ($line, $info) = @{$annline};
@@ -285,7 +287,13 @@ Instead of the nice but cumbersome approach we had until now, from now on it is 
 			} else {
 				die "Supported types are integer, character, string and logical: $var in $f is $type\n";
 			}
-			$state->{'WordSizes'}{$var}=$wordsz;
+			if (not exists $Sf->{'WordSizes'}{$var}) {
+				# carp 'MISSING WORDSZ for '.$var;
+				# The previous analysis does not include unused variables
+				$state->{'WordSizes'}{$var}=$wordsz;
+			} elsif ($Sf->{'WordSizes'}{$var} != $wordsz ) {
+				carp 'CONFLICTING WORDSZ for '.$var.': '.$Sf->{'WordSizes'}{$var}.' != '.$wordsz;
+			}
 		}
 		elsif ( exists $info->{'ParamDecl'} ) {
 			my $var = $info->{'ParamDecl'}{'Var'};
@@ -353,6 +361,7 @@ Instead of the nice but cumbersome approach we had until now, from now on it is 
 	my $pass_state = {'Pointers'=>{},'CLArgs'=>0,'Args' =>{},'LocalVars' =>{}, 'Parameters'=>{}, 'WordSizes'=>{}};
 	(my $new_annlines_,$pass_state) = stateful_pass($annlines,$pass_analysis,$pass_state,"pass_analysis($f)");
 	$Sf->{'Pointers'} = $pass_state->{'Pointers'};
+	$Sf->{'WordSizes'} = { %{$Sf->{'WordSizes'}}, %{$pass_state->{'WordSizes'}}};
 	$stref->{'HasCLArgs'} = $pass_state->{'CLArgs'} unless exists $Sf->{'CLArgs'} and $Sf->{'CLArgs'}==1;
 # --------------------------------------------------------------------------------------------
  	# $Sf->{'UseCallStack'}=1; # override for debugging
@@ -2347,7 +2356,15 @@ sub _emit_subroutine_call_expr_Uxntal($stref,$f,$line,$info){
 			push @call_arg_expr_strs_Uxntal, _var_access_read($stref,$f,$info,$arg_expr_ast);#.' ( SCALAR IN ARG by VAL) ';
 		}
 		else { # A var, either nor scalar or scalar but used as Out or InOut
+		# But this could be e.g. str(ib:ie), in which case it is a substring, TODO!
+				if ($arg_expr_ast->[0] == 10 and scalar @{$arg_expr_ast}==3) { # an array or string access, need a substring or subarray
+	 		croak 'TODO: '.Dumper($arg_expr_ast);
+	 	} else {
+		# 	return __var_access($stref,$f,$arg_expr_ast->[1]).' ( ARG by REF ) ';
+	 	# }
+
 			push @call_arg_expr_strs_Uxntal, __var_access($stref,$f,$arg_expr_ast);#.' ( ARG by REF) ';
+		}
 		}
 	}
 
@@ -2370,7 +2387,6 @@ sub _emit_function_call_expr_Uxntal($stref,$f,$info,$ast){
 			} else {
 				push @call_arg_asts, $args;
 			}
-			
 			my $idx=0;
 			for my $call_arg_ast (@call_arg_asts) {
 				$idx++;
@@ -2397,7 +2413,7 @@ sub _emit_function_call_expr_Uxntal($stref,$f,$info,$ast){
 			}
 		}
 	}
-
+# TODO: deal with kind here
 	return join(" ", @call_arg_expr_strs_Uxntal, $subname);
 
 } # END of _emit_function_call_expr_Uxntal
@@ -2408,7 +2424,8 @@ sub __emit_call_arg_Uxntal_expr($stref,$f,$info,$subname,$call_arg_expr_str,$ast
 	my $call_arg_decl = get_var_record_from_set($Sf->{'Vars'},$call_arg_expr_str);
 	# carp Dumper $call_arg_decl, (defined $call_arg_decl) , (exists $call_arg_decl->{'Parameter'});
 	my $isParam = ((defined $call_arg_decl) and (exists $call_arg_decl->{'Parameter'})) ? 1 : 0;
-
+	my $arg_is_not_string = 0;
+	my $arg_is_intrinsic_call = 0;
 	# This does not work for intrinsics, they are not in FunctionCalls
 	# Maybe I should add IntrinsicFunctionCalls to make it easy
 	my $call_info = $info->{'SubroutineCall'};
@@ -2425,6 +2442,9 @@ sub __emit_call_arg_Uxntal_expr($stref,$f,$info,$subname,$call_arg_expr_str,$ast
 			for my $fcall (@{$info->{'IntrinsicFunctionCalls'}}) {
 				if ($fcall->{'Name'} eq $subname) {
 					$call_info = $fcall;
+					$arg_is_intrinsic_call = 1;
+					# carp Dumper $subname,$F95_intrinsic_function_sigs{$subname},$idx;
+					$arg_is_not_string = $F95_intrinsic_function_sigs{$subname}[0][$idx-1] ne 'character(*)' ? 1 : 0;
 					last;
 				}
 			}
@@ -2455,14 +2475,23 @@ sub __emit_call_arg_Uxntal_expr($stref,$f,$info,$subname,$call_arg_expr_str,$ast
 				? $ast_from_info->[2][$idx]
 				: $ast_from_info->[2]
 			: $ast_from_info;
+	# carp Dumper $arg_expr_ast;
 	if ($isConstOrExpr) { # Not a var
-		return _emit_expression_Uxntal($arg_expr_ast, $stref, $f,$info).' ( CONST/EXPR ARG by VAL) ';
+		return _emit_expression_Uxntal($arg_expr_ast, $stref, $f,$info);#.' ( CONST/EXPR ARG by VAL ) ';
 	}
 	elsif (not is_array_or_string($stref,$f,$call_arg_expr_str) and $intent eq 'in' ) { # As Scalar var used as In
-		return _var_access_read($stref,$f,$info,$arg_expr_ast).' ( SCALAR IN ARG by VAL) ';
+		return _var_access_read($stref,$f,$info,$arg_expr_ast).' ( SCALAR IN ARG by VAL ) ';
+	}
+	elsif ( $arg_is_not_string ) { # An string access used as In in an intrinsic
+		return _var_access_read($stref,$f,$info,$arg_expr_ast).' ( INTRINSIC ARG by VAL ) ';
 	}
 	else { # A var, either not scalar or scalar but used as Out or InOut
-		return __var_access($stref,$f,$arg_expr_ast->[1]).' ( ARG by REF) ';
+	# But this could be e.g. str(ib:ie), in which case it is a substring, TODO!
+		if ($arg_expr_ast->[0] == 10 and scalar @{$arg_expr_ast}==3) { # an array or string access, need a substring or subarray
+	 		croak 'TODO: '.Dumper($arg_expr_ast);
+	 	} else {
+			return __var_access($stref,$f,$arg_expr_ast->[1]).' ( ARG by REF ) ';
+	 	}
 	}
 } # END of __emit_call_arg_Uxntal_expr
 
@@ -2608,6 +2637,7 @@ sub __emit_intrinsic_subroutine_call_expr_Uxntal($stref,$f,$info,$ast){
 	return join(" ", @call_arg_expr_strs_Uxntal, $subname);
 
 } # END of __emit_intrinsic_subroutine_call_expr_Uxntal
+
 sub __emit_intrinsic_subroutine_call_expr_Uxntal_OLD($stref,$f,$line,$info){
 	croak "SEE _emit_function_call_expr_Uxntal INSTEAD";
 	my $subname = $info->{'SubroutineCall'}{'Name'};
