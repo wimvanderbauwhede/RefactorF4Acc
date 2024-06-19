@@ -2792,12 +2792,13 @@ sub __gen_substr($str_addr, $cb, $ce, $len, $id){
 		elsif ($ceb=~/LDA2/) {
 			$ceb .= ' NIP ';
 		}
+		# iter-1+2; iter-1-(cb-1) = iter+1; iter-cb
 		return
-		'{ DUP #00 SWP '.$str_addr.' ADD2 #0002 ADD2 LDA' . "\n" .
+		'{ DUP #00 SWP '.$str_addr.' ADD2 #0001 ADD2 LDA' . "\n" .
 		'  SWP #00 SWP '.$cb.' SUB2' . "\n" .
-		'  ;&substr_'.$id.' ADD2 #0002 ADD2 STA'  . "\n" .
+		'  ;&substr_'.$id.' ADD2 STA'  . "\n" .
 		'  JMP2r'  . "\n" .
-		'} STH2r '.$ceb.' #01 SUB '.$cbb.' #01 SUB range-map'  . "\n" .
+		'} STH2r '.$ceb.' '.$cbb.' range-map'  . "\n" .
 		'{ '.toRawHex($len,2).' &substr_'.$id.' $'.toRawHex($len,1).' } STH2r'; # string with a 2-byte length field
 	}
 } # END of __gen_substr
