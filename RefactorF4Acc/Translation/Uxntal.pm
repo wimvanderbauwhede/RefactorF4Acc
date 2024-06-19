@@ -2357,14 +2357,27 @@ sub _emit_subroutine_call_expr_Uxntal($stref,$f,$line,$info){
 		}
 		else { # A var, either nor scalar or scalar but used as Out or InOut
 		# But this could be e.g. str(ib:ie), in which case it is a substring, TODO!
-				if ($arg_expr_ast->[0] == 10 and scalar @{$arg_expr_ast}==3) { # an array or string access, need a substring or subarray
-	 		croak 'TODO: '.Dumper($arg_expr_ast);
-	 	} else {
-		# 	return __var_access($stref,$f,$arg_expr_ast->[1]).' ( ARG by REF ) ';
-	 	# }
-
-			push @call_arg_expr_strs_Uxntal, __var_access($stref,$f,$arg_expr_ast);#.' ( ARG by REF) ';
-		}
+			if ($arg_expr_ast->[0] == 10 and scalar @{$arg_expr_ast}==3) { # an array or string access, need a substring or subarray
+				my $var = $arg_expr_ast->[1];
+				my $var_access = __var_access($stref,$f,$var);
+				my $idx_expr_b = _emit_expression_Uxntal($arg_expr_ast->[2][0], $stref, $f,$info);
+				my $idx_expr_e = _emit_expression_Uxntal($arg_expr_ast->[2][1], $stref, $f,$info);
+				if ($idx_expr_b eq $idx_expr_e) { # access a single character, so return a byte as value
+					my $idx_expr =  ($idx_expr_b eq '#0000') ? '' : "$idx_expr_b ADD2 ";
+					push @call_arg_expr_strs_Uxntal,  "$var_access $idx_expr LDA" # load a pointer, index, load the value
+				} else {
+					# extract a substring
+					my $decl = get_var_record_from_set($Sf->{'Vars'},$var);
+					my $id=$info->{'LineID'};
+					if($decl->{'Attr'}!~/len/) {
+						croak 'String with index>1 but the type is character', Dumper $arg_expr_ast;
+					}
+					my $len = __get_len_from_Attr($decl);
+					push @call_arg_expr_strs_Uxntal, __gen_substr($var_access, $idx_expr_b,$idx_expr_e, $len, $id);
+				}
+			} else {
+				push @call_arg_expr_strs_Uxntal, __var_access($stref,$f,$arg_expr_ast);#.' ( ARG by REF) ';
+			}
 		}
 	}
 
@@ -2488,7 +2501,24 @@ sub __emit_call_arg_Uxntal_expr($stref,$f,$info,$subname,$call_arg_expr_str,$ast
 	else { # A var, either not scalar or scalar but used as Out or InOut
 	# But this could be e.g. str(ib:ie), in which case it is a substring, TODO!
 		if ($arg_expr_ast->[0] == 10 and scalar @{$arg_expr_ast}==3) { # an array or string access, need a substring or subarray
-	 		croak 'TODO: '.Dumper($arg_expr_ast);
+				my $var = $arg_expr_ast->[1];
+				my $var_access = __var_access($stref,$f,$var);
+				my $idx_expr_b = _emit_expression_Uxntal($arg_expr_ast->[2][0], $stref, $f,$info);
+				my $idx_expr_e = _emit_expression_Uxntal($arg_expr_ast->[2][1], $stref, $f,$info);
+				if ($idx_expr_b eq $idx_expr_e) { # access a single character, so return a byte as value
+					my $idx_expr =  ($idx_expr_b eq '#0000') ? '' : "$idx_expr_b ADD2 ";
+					return  "$var_access $idx_expr LDA" # load a pointer, index, load the value
+				} else {
+					# extract a substring
+					my $decl = get_var_record_from_set($Sf->{'Vars'},$var);
+					my $id=$info->{'LineID'};
+					if($decl->{'Attr'}!~/len/) {
+						croak 'String with index>1 but the type is character', Dumper $arg_expr_ast;
+					}
+					my $len = __get_len_from_Attr($decl);
+					return __gen_substr($var_access, $idx_expr_b,$idx_expr_e, $len, $id);
+				}
+
 	 	} else {
 			return __var_access($stref,$f,$arg_expr_ast->[1]).' ( ARG by REF ) ';
 	 	}
