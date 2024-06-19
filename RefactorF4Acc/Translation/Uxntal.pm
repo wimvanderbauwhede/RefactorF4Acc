@@ -514,7 +514,7 @@ Instead of the nice but cumbersome approach we had until now, from now on it is 
 			# if (fl(1:2) == __PH0__) VV = .true.
 			# What we need is
 			# NOT <cond> <label_end> JCN
-				$c_line = "\n$indent $cond_expr EQU #00 ,&branch$branch_id JCN\n" . $c_line;
+				$c_line = "\n$indent $cond_expr EQU #00 ;&branch$branch_id JCN2\n" . $c_line;
 			# <expr>
 				$c_line .= $indent.' '."&branch$branch_id";
 			}
@@ -587,7 +587,7 @@ Instead of the nice but cumbersome approach we had until now, from now on it is 
 			my $branch_id = $info->{'LineID'};
 			my $cond_expr_ast=$info->{'Cond'}{'AST'};
 			my $cond_expr = _emit_expression_Uxntal($cond_expr_ast,$stref,$f,$info);
-			$c_line = "\n( If without Then )\n" . $indent.' '."$cond_expr EQU #00 ,&branch$branch_id JCN\n" . $c_line;
+			$c_line = "\n( If without Then )\n" . $indent.' '."$cond_expr EQU #00 ;&branch$branch_id JCN2\n" . $c_line;
 			$c_line .= $indent.' '."&branch$branch_id";
 		}
         elsif (exists $info->{'IfThen'} and not exists $info->{'ElseIf'} ) {
@@ -614,13 +614,12 @@ Instead of the nice but cumbersome approach we had until now, from now on it is 
 					# croak Dumper $f,$annline,$do_tup;
 					my ($do_id, $do_iter, $do_step) = @{$do_tup};
 					my $inc = $do_step == 1 ? 'INC2' : toHex($do_step,2). ($do_step>0 ? ' ADD2' : ' SUB2');
-            		# $c_line = "DUP2 INC2 ;$do_iter LDA2 $inc DUP2 ROT2 ROT2 NEQ2 ".',&loop_'.$f.'_'.$do_id.' JCN';
-					$c_line = ";$do_iter LDA2 $inc OVR2 OVR2 NEQ2 ".',&loop_'.$f.'_'.$do_id.' JCN';
+					$c_line = ";$do_iter LDA2 $inc OVR2 OVR2 NEQ2 ".';&loop_'.$f.'_'.$do_id.' JCN2';
 				} else { # while
 				# croak Dumper $do_tup;
 					my ($do_id, $do_while_cond) = @{$do_tup};
 					$c_line =  _emit_expression_Uxntal($do_while_cond,$stref, $f, $info);
-					$c_line .= "\n".',&while_loop_'.$f.'_'.$do_id.' JCN';
+					$c_line .= "\n".';&while_loop_'.$f.'_'.$do_id.' JCN2';
 				}
 		}
 		elsif ( exists $info->{'EndProgram'} ) {
@@ -900,7 +899,7 @@ sub _var_access_read($stref,$f,$info,$ast) {
 		my $idx_expr_e = _emit_expression_Uxntal($idxs->[2], $stref, $f,$info);
 		if ($idx_expr_b eq $idx_expr_e) { # access a single character, so return a byte as value
 			my $idx_expr =  ($idx_expr_b eq '#0000') ? '' : "$idx_expr_b ADD2 ";
-			$uxntal_code =  "$var_access $idx_expr LDA" # load a pointer, index, load the value
+			$uxntal_code =  "$var_access INC2 $idx_expr LDA" # load a pointer, index, load the value
 		} else {
 			# extract a substring
 			my $decl = get_var_record_from_set($Sf->{'Vars'},$var);
@@ -1789,8 +1788,8 @@ sub _emit_ifthen_Uxntal ($stref, $f, $info, $branch_id){
 	# FIXME! fix for stray '+'
 	# $cond_expr=~s/\+\>/>/g;
 	# my $rline = 'if ('.$cond_expr.') '. (exists $info->{'IfThen'} ? '{' : '');
-	my $rline = "$cond_expr ,&branch$branch_id JCN\n" .
-	             ",&branch${branch_id}_end JMP\n" .
+	my $rline = "$cond_expr ;&branch$branch_id JCN2\n" .
+	             ";&branch${branch_id}_end JMP2\n" .
              "&branch${branch_id}";
 	return $rline;
 }
@@ -1799,7 +1798,7 @@ sub _emit_ifbranch_end_Uxntal ($id, $state){
 	my $branch_id = $state->{'IfBranchId'};
 	my $if_id = $state->{'IfId'};
 	my $r_line = "&branch${branch_id}_end\n";
-	$r_line .= ",&cond_end${if_id} JMP\n";
+	$r_line .= ";&cond_end${if_id} JMP2\n";
 	$state->{'IfBranchId'} = $id;
 	$branch_id = $state->{'IfBranchId'};
 	return ($r_line,$branch_id);
@@ -2794,12 +2793,12 @@ sub __gen_substr($str_addr, $cb, $ce, $len, $id){
 			$ceb .= ' NIP ';
 		}
 		return
-		'{ DUP #00 SWP '.$str_addr.' ADD2 LDA' . "\n" .
+		'{ DUP #00 SWP '.$str_addr.' ADD2 #0002 ADD2 LDA' . "\n" .
 		'  SWP #00 SWP '.$cb.' SUB2' . "\n" .
-		'  ;substr_'.$id.' ADD2 STA'  . "\n" .
+		'  ;&substr_'.$id.' ADD2 #0002 ADD2 STA'  . "\n" .
 		'  JMP2r'  . "\n" .
-		'} STH2r '.$ceb.' '.$cbb.' range-map'  . "\n" .
-		'{ '.toRawHex($len,2).' @substr_'.$id.' $'.toRawHex($len,1).' } STH2r'; # string with a 2-byte length field
+		'} STH2r '.$ceb.' #01 SUB '.$cbb.' #01 SUB range-map'  . "\n" .
+		'{ '.toRawHex($len,2).' &substr_'.$id.' $'.toRawHex($len,1).' } STH2r'; # string with a 2-byte length field
 	}
 } # END of __gen_substr
 
@@ -2856,7 +2855,7 @@ sub _emit_list_print_Uxntal($stref,$f,$line,$info,$unit,$advance,$list_to_print)
 			$arg_to_print_Uxntal = _var_access_read($stref,$f,$info,$elt). ' LDA';
 		}
 		# If a string is a single char, we treat it as a char, so we must print a char
-		if ($arg_to_print_Uxntal=~/^\s*\#/ and $print_fn_Uxntal eq 'print-string') { # 
+		if ($print_fn_Uxntal eq 'print-string' and $arg_to_print_Uxntal=~/^\s*\#|LDA$/ ) { # 
 			$print_fn_Uxntal = 'print-char';
 		}
 		$line_Uxntal .= "$arg_to_print_Uxntal $print_fn_Uxntal #20 $port DEO ( , )\n"
