@@ -1524,7 +1524,7 @@ sub __emit_select_exprs { my ($conds_for_paths, $s_ast_tree)=@_;
         my @labels = sort keys %{$conds_per_label};
         my $last_label = pop @labels;     
         # I assume that if one of the exprs is a store, all of them must be store
-        my $is_store =  exists $s_ast_tree->{$last_label}{Store} and exists  $s_ast_tree->{$last_label}{Store}{$reg} ? 1 : 0;        
+        my $is_store =  (exists $s_ast_tree->{$last_label}{Store} and exists  $s_ast_tree->{$last_label}{Store}{$reg}) ? 1 : 0;
         my $cond_reg = '';
         my $select_chain_reg = $is_store ? $reg.'_store' : $reg;        
         

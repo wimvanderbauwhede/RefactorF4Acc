@@ -116,7 +116,7 @@ sub _format_call_tree_line {
 	(my $f, my $stref ) = @_;
     my $sub_or_func = sub_func_incl_mod( $f, $stref );
     my $src         = $stref->{$sub_or_func}{$f}{'Source'};
-    my $is_func = exists $stref->{$sub_or_func}{$f}{'Function'} and $stref->{$sub_or_func}{$f}{'Function'} == 1 ? 1 : 0;
+    my $is_func = (exists $stref->{$sub_or_func}{$f}{'Function'} and $stref->{$sub_or_func}{$f}{'Function'} == 1) ? 1 : 0;
     if (not defined $src) {
     	$src='<unknown source>';
     }
