@@ -610,7 +610,9 @@ Instead of the nice but cumbersome approach we had until now, from now on it is 
 			($c_line, my $branch_id) = _emit_ifbranch_end_Uxntal($id,$pass_state);
             $c_line .= "&branch$branch_id";
         } elsif (exists $info->{'EndIf'} ) {
-            $c_line = '&cond_end'.$pass_state->{'IfId'}.' &branch'.$pass_state->{'IfId'}.'_end';
+			my $branch_id = $pass_state->{'IfBranchId'};
+			my $if_id = $pass_state->{'IfId'};
+            $c_line = '&cond_end'.$if_id.' &branch'.$branch_id.'_end';
             pop @{$pass_state->{'IfStack'}};
             $pass_state->{'IfId'}=$pass_state->{'IfStack'}[-1];
         }
@@ -622,7 +624,7 @@ Instead of the nice but cumbersome approach we had until now, from now on it is 
 					# croak Dumper $f,$annline,$do_tup;
 					my ($do_id, $do_iter, $do_step) = @{$do_tup};
 					my $inc = $do_step == 1 ? 'INC2' : toHex($do_step,2). ($do_step>0 ? ' ADD2' : ' SUB2');
-					$c_line = ";$do_iter LDA2 $inc OVR2 OVR2 NEQ2 ".';&loop_'.$f.'_'.$do_id.' JCN2';
+					$c_line = ";$do_iter LDA2 $inc OVR2 OVR2 NEQ2 ".';&loop_'.$f.'_'.$do_id.' JCN2 '."\n;$do_iter LDA2 $inc ;$do_iter STA2";
 				} else { # while
 				# croak Dumper $do_tup;
 					my ($do_id, $do_while_cond) = @{$do_tup};
@@ -1253,7 +1255,7 @@ sub __copy_substr($stref, $f, $info, $lhs_ast, $rhs_ast) {
 			# I will be lazy and simply trust the LHS indices
 			if ($lhs_idx_expr_b eq $lhs_idx_expr_e) {
 				my $lhs_idx_expr =  ($lhs_idx_expr_b eq '#0000') ? '' : "$lhs_idx_expr_b ADD2 ";
-				$uxntal_code = "$rhs_var_access $rhs_idx_expr LDA $lhs_var_access #0002 ADD2 STA";
+				$uxntal_code = "$rhs_var_access $rhs_idx_expr ADD2 LDA $lhs_var_access $lhs_idx_expr #0002 ADD2 STA";
 			} else {
 				croak 'TODO: array of strings';
 			}
@@ -1263,7 +1265,7 @@ sub __copy_substr($stref, $f, $info, $lhs_ast, $rhs_ast) {
 			error('Unsupported index expression: '.Dumper($lhs_ast,$rhs_ast),$DBG,'ERROR');
 		}
 	}
-	return $uxntal_code;
+	return $uxntal_code.' ( COPY SUBSTR )';
 
 } # END of __copy_substr
 
@@ -1520,6 +1522,9 @@ sub _emit_subroutine_sig_Uxntal($stref, $f, $annline){
 
 	    my $name = $info->{'Signature'}{'Name'};
 		my $args_ref = $info->{'Signature'}{'Args'}{'List'};
+		if (exists $info->{'Signature'}{'ResultVar'}) {
+			push @{$args_ref},$info->{'Signature'}{'ResultVar'};
+		}
 		my $uxntal_arg_decls=[];
 		my $uxntal_args_to_store=[];
 		my $uxntal_write_args={};
@@ -1685,7 +1690,7 @@ sub __substitute_PlaceHolders_Uxntal($expr_str,$info){
 			$expr_str=~s/$ph/$ph_str/;
 		}
 		my $len = toRawHex(length($expr_str)-1,2);
-		if ($len==1) { 
+		if ($len eq '0001' ) { 
 			$expr_str = toHex(ord(substr($expr_str,1,1)),1);
 		} else {
 			# replace space and nl by their ascii code
