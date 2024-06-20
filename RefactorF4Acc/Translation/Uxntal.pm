@@ -1933,8 +1933,7 @@ sub _emit_expression_Uxntal ($ast, $stref, $f, $info) {
 				$rv = "{ $len $rv } STH2r";
 			}
 			if (isStrCmp($ast, $stref, $f,$info)) {
-				croak "DEBUG strcmp";
-				return "$lv $rv strcmp ( TODO: strcmp for strings with length ) ";
+				return "$lv $rv strcmp";
 			} elsif ($opcode == 13) {
 				# Only works for a total length of 256 characters
 				return "$lv $rv".' { 0100 $100 } STH2r concat';
