@@ -2347,9 +2347,12 @@ sub _emit_subroutine_call_expr_Uxntal($stref,$f,$line,$info){
 		my $rec = $Ssubname->{'RefactoredArgs'}{'Set'}{$sig_arg};
 		my $call_arg_expr_str = $info->{'SubroutineCall'}{'ArgMap'}{$sig_arg} // $sig_arg;
 		my $call_arg_decl = get_var_record_from_set($Sf->{'Vars'},$call_arg_expr_str);
-		my $isParam = defined $call_arg_decl and exists $call_arg_decl->{'Parameter'};
+		# my $isParam = (defined $call_arg_decl ?1:0) * (exists $call_arg_decl->{'Parameter'}?1:0);
+		# and binds lower than = so needs parens
+		# my $isParam = (defined $call_arg_decl and exists $call_arg_decl->{'Parameter'});
+		# or use &&
+		my $isParam = defined $call_arg_decl && exists $call_arg_decl->{'Parameter'};
 		my $intent = $rec->{'IODir'};
-
 		my $isConstOrExpr = exists $info->{'SubroutineCall'}{'Args'}{'Set'}{$call_arg_expr_str} ?
 		(($info->{'SubroutineCall'}{'Args'}{'Set'}{$call_arg_expr_str}{'Type'} eq 'Const' )
 		or ($info->{'SubroutineCall'}{'Args'}{'Set'}{$call_arg_expr_str}{'Type'} eq 'Expr')
@@ -2357,10 +2360,10 @@ sub _emit_subroutine_call_expr_Uxntal($stref,$f,$line,$info){
 		: 0;
 		my $arg_expr_ast = $info->{'SubroutineCall'}{'ExpressionAST'}[0] == 27 ? $info->{'SubroutineCall'}{'ExpressionAST'}[$idx] : $info->{'SubroutineCall'}{'ExpressionAST'};
 		if ($isConstOrExpr) { # Not a var
-			push @call_arg_expr_strs_Uxntal, _emit_expression_Uxntal($arg_expr_ast, $stref, $f,$info);#.' ( CONST/EXPR ARG by VAL) ';
+			push @call_arg_expr_strs_Uxntal, _emit_expression_Uxntal($arg_expr_ast, $stref, $f,$info).' ( CONST/EXPR ARG by VAL ) ';
 		}
 		elsif (not is_array_or_string($stref,$f,$call_arg_expr_str) and $intent eq 'in' ) { # As Scalar var used as In
-			push @call_arg_expr_strs_Uxntal, _var_access_read($stref,$f,$info,$arg_expr_ast);#.' ( SCALAR IN ARG by VAL) ';
+			push @call_arg_expr_strs_Uxntal, _var_access_read($stref,$f,$info,$arg_expr_ast).' ( SCALAR IN ARG by VAL ) ';
 		}
 		else { # A var, either nor scalar or scalar but used as Out or InOut
 		# But this could be e.g. str(ib:ie), in which case it is a substring, TODO!
@@ -2371,7 +2374,7 @@ sub _emit_subroutine_call_expr_Uxntal($stref,$f,$line,$info){
 				my $idx_expr_e = _emit_expression_Uxntal($arg_expr_ast->[2][1], $stref, $f,$info);
 				if ($idx_expr_b eq $idx_expr_e) { # access a single character, so return a byte as value
 					my $idx_expr =  ($idx_expr_b eq '#0000') ? '' : "$idx_expr_b ADD2 ";
-					push @call_arg_expr_strs_Uxntal,  "$var_access $idx_expr LDA" # load a pointer, index, load the value
+					push @call_arg_expr_strs_Uxntal,  "$var_access $idx_expr LDA".' ( CHAR )' # load a pointer, index, load the value
 				} else {
 					# extract a substring
 					my $decl = get_var_record_from_set($Sf->{'Vars'},$var);
@@ -2380,10 +2383,10 @@ sub _emit_subroutine_call_expr_Uxntal($stref,$f,$line,$info){
 						croak 'String with index>1 but the type is character', Dumper $arg_expr_ast;
 					}
 					my $len = __get_len_from_Attr($decl);
-					push @call_arg_expr_strs_Uxntal, __gen_substr($var_access, $idx_expr_b,$idx_expr_e, $len, $id);
+					push @call_arg_expr_strs_Uxntal, __gen_substr($var_access, $idx_expr_b,$idx_expr_e, $len, $id). ' ( SUBSTR ) ';
 				}
 			} else {
-				push @call_arg_expr_strs_Uxntal, __var_access($stref,$f,$arg_expr_ast);#.' ( ARG by REF) ';
+				push @call_arg_expr_strs_Uxntal, __var_access($stref,$f,$arg_expr_ast->[1]).' ( ARG by REF ) ';
 			}
 		}
 	}
@@ -2443,7 +2446,7 @@ sub __emit_call_arg_Uxntal_expr($stref,$f,$info,$subname,$call_arg_expr_str,$ast
 	# croak Dumper($subname,$call_arg_expr_str,$ast_from_info) if $subname eq 'modulo';
 	my $call_arg_decl = get_var_record_from_set($Sf->{'Vars'},$call_arg_expr_str);
 	# carp Dumper $call_arg_decl, (defined $call_arg_decl) , (exists $call_arg_decl->{'Parameter'});
-	my $isParam = ((defined $call_arg_decl) and (exists $call_arg_decl->{'Parameter'})) ? 1 : 0;
+	my $isParam = ((defined $call_arg_decl) && (exists $call_arg_decl->{'Parameter'})) ? 1 : 0;
 	my $arg_is_not_string = 0;
 	my $arg_is_intrinsic_call = 0;
 	# This does not work for intrinsics, they are not in FunctionCalls
@@ -2560,7 +2563,7 @@ sub _emit_subroutine_call_expr_Uxntal_OLD($stref,$f,$line,$info){
 		my $rec = $Ssubname->{'RefactoredArgs'}{'Set'}{$sig_arg};
 		my $call_arg_expr_str = $info->{'SubroutineCall'}{'ArgMap'}{$sig_arg} // $sig_arg;
 		my $call_arg_decl = get_var_record_from_set($Sf->{'Vars'},$call_arg_expr_str);
-		my $isParam = defined $call_arg_decl and exists $call_arg_decl->{'Parameter'};
+		my $isParam = (defined $call_arg_decl) && (exists $call_arg_decl->{'Parameter'});
 		my $intent = $rec->{'IODir'};
 		my $isArray = $rec->{'ArrayOrScalar'} eq 'Array';
 		my $isString = 0;
