@@ -501,6 +501,14 @@ Instead of the nice but cumbersome approach we had until now, from now on it is 
 		if (exists $info->{'Assignment'} ) {
 			# say "Assignment line: $line";
 			($c_line,$pass_state) = _emit_assignment_Uxntal($stref, $f, $info,$pass_state) ;
+			if (exists $info->{'If'}) {
+				my $indent = $info->{'Indent'};
+				my $branch_id = $info->{'LineID'};
+				my $cond_expr_ast=$info->{'Cond'}{'AST'};
+				my $cond_expr = _emit_expression_Uxntal($cond_expr_ast,$stref,$f,$info);
+				$c_line = "\n$cond_expr #00 EQU ,&branch$branch_id JCN\n" . $indent.$c_line;
+				$c_line .= "\n&branch$branch_id";
+			}
 		}
 		elsif (exists $info->{'SubroutineCall'} and not exists $info->{'IOCall'}) {
             $c_line = _emit_subroutine_call_expr_Uxntal($stref,$f,$line,$info);
@@ -514,7 +522,7 @@ Instead of the nice but cumbersome approach we had until now, from now on it is 
 			# if (fl(1:2) == __PH0__) VV = .true.
 			# What we need is
 			# NOT <cond> <label_end> JCN
-				$c_line = "\n$indent $cond_expr EQU #00 ;&branch$branch_id JCN2\n" . $c_line;
+				$c_line = "\n$indent $cond_expr #00 EQU ;&branch$branch_id JCN2\n" . $c_line;
 			# <expr>
 				$c_line .= $indent.' '."&branch$branch_id";
 			}
@@ -1925,7 +1933,8 @@ sub _emit_expression_Uxntal ($ast, $stref, $f, $info) {
 				$rv = "{ $len $rv } STH2r";
 			}
 			if (isStrCmp($ast, $stref, $f,$info)) {
-				return "$lv $rv scmp ( TODO: scmp for strings with length ) ";
+				croak "DEBUG strcmp";
+				return "$lv $rv strcmp ( TODO: strcmp for strings with length ) ";
 			} elsif ($opcode == 13) {
 				# Only works for a total length of 256 characters
 				return "$lv $rv".' { 0100 $100 } STH2r concat';
