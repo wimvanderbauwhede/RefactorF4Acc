@@ -580,7 +580,7 @@ Instead of the nice but cumbersome approach we had until now, from now on it is 
 							$c_line.= $arg_exp_Uxntal.' '.$maybe_str.$maybe_offset.$print_call.'' .$update_len. " ";
 
 						}
-						say "UXNTAL: $c_line";
+						# say "UXNTAL: $c_line";
 					# } else {
 					# 	carp 'TODO STRING:'.Dumper($unit, $advance, $print_calls, $iolist_ast);
 					# }
@@ -1182,6 +1182,13 @@ sub __copy_substr($stref, $f, $info, $lhs_ast, $rhs_ast) {
 				my $rhs_len = $rhs_ast->[0] == 34
 					? length($info->{'PlaceHolders'}{$rhs_ast->[1]})-2 # -2 for the quotes
 					: $lhs_len; # a hack, TODO
+				# This works only if there is only one function call
+				if (exists $info->{'FunctionCalls'} and 
+				scalar @{$info->{'FunctionCalls'}}==1) {
+					my $fname = $info->{'FunctionCalls'}[0]{'Name'};
+					$rhs_len = $stref->{'Subroutines'}{$fname}{'RefactoredCode'}[0][1]{'Signature'}{'ReturnTypeAttr'};
+					$rhs_len =~s/\(len=//;$rhs_len =~s/\)//;
+				}
 				my $len = toHex(min($lhs_len,$rhs_len),2);
 				$uxntal_code = "$rhs_Uxntal_expr $lhs_var_access $len strncpy";
 			}
@@ -1533,7 +1540,6 @@ sub _emit_subroutine_sig_Uxntal($stref, $f, $annline){
 
 	    my $name = $info->{'Signature'}{'Name'};
 		my $args_ref = $info->{'Signature'}{'Args'}{'List'};
-		carp "This is not good enough. The ResultVar should be declared like a local, and be returned by value unless it is an array or string";
 # The ResultVar should be declared like a local, and be returned by value unless it is an array or string;
 # @intToStr_cs $2 should be @intToStr_cs 0006 $6 instead
 # ;intToStr_cs STA2 at the start should not be there
@@ -1555,7 +1561,13 @@ sub _emit_subroutine_sig_Uxntal($stref, $f, $annline){
 				unshift @{$uxntal_arg_decls},$uxntal_arg_decl;
 				unshift @{$uxntal_args_to_store},$uxntal_arg_store;
 			} else {
-				croak 'TODO: arg decl for result var, can be a string'
+				if (is_string($stref,$f,$result_var)) {
+					my $uxntal_res_decl = _emit_var_decl_Uxntal ($stref,$f,$info,$result_var);
+					unshift @{$uxntal_arg_decls},$uxntal_res_decl;
+				} else {
+					unshift @{$uxntal_arg_decls},$uxntal_arg_decl;
+				}
+				# croak 'TODO: arg decl for result var, can be a string'
 			}
 		}
 
@@ -1833,7 +1845,7 @@ sub _emit_ifbranch_end_Uxntal ($id, $state){
 	my $branch_id = $state->{'IfBranchId'};
 	my $if_id = $state->{'IfId'};
 	my $r_line = "&branch${branch_id}_end\n";
-	$r_line .= ";&cond_end${if_id} JMP2\n";
+	$r_line .= "( ;&cond_end${if_id} JMP2 )\n";
 	$state->{'IfBranchId'} = $id;
 	$branch_id = $state->{'IfBranchId'};
 	return ($r_line,$branch_id);
@@ -1960,7 +1972,6 @@ sub _emit_expression_Uxntal ($ast, $stref, $f, $info) {
 				$rv = "{ $len $rv } STH2r";
 			}
 			if (isStrCmp($ast, $stref, $f,$info)) {
-				croak Dumper $ast,isStrCmp($ast, $stref, $f,$info);
 				return "$lv $rv strcmp";
 			} elsif ($opcode == 13) {
 				# Only works for a total length of 256 characters
