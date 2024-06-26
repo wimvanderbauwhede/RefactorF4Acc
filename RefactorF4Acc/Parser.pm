@@ -465,12 +465,18 @@ sub analyse_lines {
 					if ($line =~ /function\s+\w+\s*\(.*\)\s+result\s*\((\w+)\)/ ) {
 						$result_var=$1;
 					}
+					my $proc_return_type_attr = '';
+					if ($proc_return_type =~ /\(.+$/ ) {
+						($proc_return_type,$proc_return_type_attr) = split(/\(/,$proc_return_type);
+						$proc_return_type_attr = '('.$proc_return_type_attr;
+					}
+
 					$Sf->{'DeclaredOrigLocalVars'}{'Set'}{$result_var}={
 						'Indent'=> $indent,
 						'Type'          => $proc_return_type ,
 						'ArrayOrScalar' => 'Scalar',
 						'Dim'           => [],
-						'Attr' => '',
+						'Attr' => $proc_return_type_attr,
 						'IODir' => 'Out',
 						'Name'=>$result_var,
 						'Implicit' => 0

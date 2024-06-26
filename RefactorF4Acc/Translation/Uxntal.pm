@@ -652,7 +652,9 @@ Instead of the nice but cumbersome approach we had until now, from now on it is 
             $c_line = $use_stack ? '!pop-frame' : 'JMP2r';
 		}
 		elsif ( exists $info->{'EndFunction'} ) {
-			# A function returns either its RESULT or its own name. 
+			# A function returns either its RESULT or its own name.
+			# If the result is an array or string we should return a reference
+
 			my $fname = $info->{'EndFunction'}{'Name'};
 			# carp Dumper $stref->{'Subroutines'}{$fname}{'Signature'};
 			my $res = exists $stref->{'Subroutines'}{$fname}{'Signature'}{'ResultVar'} 
@@ -660,7 +662,11 @@ Instead of the nice but cumbersome approach we had until now, from now on it is 
 				: $fname;
 			my $wordsz = $stref->{'Subroutines'}{$fname}{'WordSizes'}{$res};
 			my $short_mode =  $wordsz == 2 ? '2' : '';
-			$c_line = ";$fname\_$res LDA$short_mode ".($use_stack ? '!pop-frame' : 'JMP2r');
+			if (is_array_or_string($stref,$f,$res)) {
+				$c_line = ";$fname\_$res ".($use_stack ? '!pop-frame' : 'JMP2r');
+			} else {
+				$c_line = ";$fname\_$res LDA$short_mode ".($use_stack ? '!pop-frame' : 'JMP2r');
+			}
 		}
 		elsif (exists $info->{'EndSelect'} ) {
 			croak 'SHOULD NOT HAPPEN!';
@@ -1527,8 +1533,14 @@ sub _emit_subroutine_sig_Uxntal($stref, $f, $annline){
 
 	    my $name = $info->{'Signature'}{'Name'};
 		my $args_ref = $info->{'Signature'}{'Args'}{'List'};
-		croak "This is not good enough. The ResultVar should be declared like a local, and be returned by value unless it is an array or string";
+		carp "This is not good enough. The ResultVar should be declared like a local, and be returned by value unless it is an array or string";
+# The ResultVar should be declared like a local, and be returned by value unless it is an array or string;
+# @intToStr_cs $2 should be @intToStr_cs 0006 $6 instead
+# ;intToStr_cs STA2 at the start should not be there
+# ;intToStr_cs LDA2 should be ;intToStr_cs unless it is a scalar
+		my $result_var = '';
 		if (exists $info->{'Signature'}{'ResultVar'}) {
+			$result_var = $info->{'Signature'}{'ResultVar'};
 			push @{$args_ref},$info->{'Signature'}{'ResultVar'};
 		}
 		my $uxntal_arg_decls=[];
@@ -1539,8 +1551,12 @@ sub _emit_subroutine_sig_Uxntal($stref, $f, $annline){
 			if ($uxntal_write_arg) {
 				$uxntal_write_args->{$arg}=[$arg,$name];
 			}
-			unshift @{$uxntal_arg_decls},$uxntal_arg_decl;
-			unshift @{$uxntal_args_to_store},$uxntal_arg_store;
+			if ( $arg ne $result_var) {
+				unshift @{$uxntal_arg_decls},$uxntal_arg_decl;
+				unshift @{$uxntal_args_to_store},$uxntal_arg_store;
+			} else {
+				croak 'TODO: arg decl for result var, can be a string'
+			}
 		}
 
 	    # my $args_str = join( ' ', @{$uxntal_arg_decls} );
@@ -1556,7 +1572,7 @@ sub _emit_subroutine_sig_Uxntal($stref, $f, $annline){
 
 sub _emit_arg_decl_Uxntal($stref,$f,$arg, $name){
 	my $decl =  get_var_record_from_set($stref->{'Subroutines'}{$f}{'Vars'},$arg) ;
-	my $iodir = $decl->{'IODir'};
+	my $iodir = lc($decl->{'IODir'});
 	my $ftype = $decl->{'Type'};
 	my $fkind = $decl->{'Attr'};
 	my $isArrayOrString =  is_array_or_string($stref,$f,$arg);
