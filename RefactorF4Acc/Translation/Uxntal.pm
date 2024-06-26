@@ -549,7 +549,10 @@ Instead of the nice but cumbersome approach we had until now, from now on it is 
 					# say "UXNTAL SINGLE WRITE: $c_line";
 				} else {
 					# if ($unit eq 'STDOUT' or $unit eq 'STDERR') {
-						$c_line = '';
+						my $update_len = ($unit eq 'STDOUT' or $unit eq 'STDERR') ? '' :
+							' '._emit_expression_Uxntal([2,$unit],$stref, $f, $info). ' update-len ';
+						$c_line = ($unit eq 'STDOUT' or $unit eq 'STDERR') ? '' :
+							' #0000 '._emit_expression_Uxntal([2,$unit],$stref, $f, $info). ' STA2 ';
 						my $maybe_str = ($unit eq 'STDOUT' or $unit eq 'STDERR')
 							? ''
 							: _emit_expression_Uxntal([2,$unit],$stref, $f, $info);
@@ -569,13 +572,15 @@ Instead of the nice but cumbersome approach we had until now, from now on it is 
 								# warn "$line: $print_call: ".Dumper($iolist_ast);
 								$arg_ast = $iolist_ast;
 							}
+							# say Dumper( $offsets->[$idx-1] -($idx<1?0:$offsets->[$idx-2]), $arg_ast);
 							my $arg_exp_Uxntal = _emit_expression_Uxntal($arg_ast,$stref, $f, $info);
 							if ($arg_exp_Uxntal=~/\#\d+/ and $print_call=~/string/) {
 								$print_call=~s/string/char/;
 							}
-							$c_line.= $arg_exp_Uxntal.' '.$maybe_str.$maybe_offset.$print_call." ";
+							$c_line.= $arg_exp_Uxntal.' '.$maybe_str.$maybe_offset.$print_call.'' .$update_len. " ";
+
 						}
-						# say "UXNTAL: $c_line";
+						say "UXNTAL: $c_line";
 					# } else {
 					# 	carp 'TODO STRING:'.Dumper($unit, $advance, $print_calls, $iolist_ast);
 					# }
@@ -1522,6 +1527,7 @@ sub _emit_subroutine_sig_Uxntal($stref, $f, $annline){
 
 	    my $name = $info->{'Signature'}{'Name'};
 		my $args_ref = $info->{'Signature'}{'Args'}{'List'};
+		croak "This is not good enough. The ResultVar should be declared like a local, and be returned by value unless it is an array or string";
 		if (exists $info->{'Signature'}{'ResultVar'}) {
 			push @{$args_ref},$info->{'Signature'}{'ResultVar'};
 		}
@@ -1938,6 +1944,7 @@ sub _emit_expression_Uxntal ($ast, $stref, $f, $info) {
 				$rv = "{ $len $rv } STH2r";
 			}
 			if (isStrCmp($ast, $stref, $f,$info)) {
+				croak Dumper $ast,isStrCmp($ast, $stref, $f,$info);
 				return "$lv $rv strcmp";
 			} elsif ($opcode == 13) {
 				# Only works for a total length of 256 characters
@@ -2820,6 +2827,8 @@ sub __gen_substr($str_addr, $cb, $ce, $len, $id){
 } # END of __gen_substr
 
 sub isStrCmp($ast, $stref, $f,$info){
+	if ($ast->[0] >=15 && $ast->[0]<=26 ) {
+		# it is a comparison; are the args strings?
 	my $lhs_name = $ast->[1][0] == 10 ? $ast->[1][1] : '';
 	my $rhs_name = $ast->[2][0] == 10 ? $ast->[2][1] : '';
 	my $lhs_is_str = $ast->[1][0] == 34 ? 1 : 0;
@@ -2841,6 +2850,10 @@ sub isStrCmp($ast, $stref, $f,$info){
 		}
 	}
 	return $lhs_is_str * $rhs_is_str;
+	} else {
+		# it is not a comparison
+		return 0
+	}
 }
 # @scmp ( a* b* -- f )
 # 	STH2
@@ -3036,7 +3049,10 @@ sub _analyse_write_call($stref,$f,$info){
 		$print_calls = [map {$_.='-stderr'} @{$print_calls}];
 	}
 	elsif ($unit ne 'STDOUT') { # so must be a var
-		$print_calls = [map {$_=~s/print/memwrite/;$_} @{$print_calls}];
+	# memwrite-string assumes the target is a string
+	# memwrite-char, memwrite-int, memwrite-hex assume the target is an array
+	# The use case is for strings so to be clear I should probably call them strwrite instead of memwrite.
+		$print_calls = [map {$_=~s/print/strwrite/;$_} @{$print_calls}];
 	}
 
 	return ($print_calls, $offsets, $unit, $advance);
@@ -3112,7 +3128,7 @@ sub __analyse_write_call_arg($stref,$f,$info,$arg,$i){
 # w>m is an error
 # w<m pads upfront with spaces
 # if the field is too small, a string of w `*`s is returned
-# I am not going to do this.
+# TODO: I am not going to do this.
 # I will simply use m and ignore w
 sub __parse_fmt($fmt_str,$info){
 
@@ -3146,7 +3162,13 @@ sub __parse_fmt($fmt_str,$info){
 			$offset+=max(2,$nchars);
 		}
 		elsif ( $c eq 'Z' ) {
-			push @{$print_calls}, 'print-hex';
+			# Normally, print-hex assumes a short and returns 4 bytes
+			# If $nchars < 4, we need to remove 
+			if ($nchars <4) {
+				push @{$print_calls}, 'print-hex-'.$nchars;
+			} else {
+				push @{$print_calls}, 'print-hex';
+			}
 			$offset+=max(1,$nchars);
 		}
 		elsif ( $c eq 'L' ) {

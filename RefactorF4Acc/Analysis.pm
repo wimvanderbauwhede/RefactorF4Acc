@@ -236,7 +236,10 @@ sub analyse_all {
 		if (exists $stref->{'Entries'}{$f}) {
 			next;
 		}
-		$stref = analyse_recursion( $stref, $f );
+		my $Sf = $stref->{'Subroutines'}{$f};
+		if ($Sf->{'Status'} >= $PARSED) {
+			$stref = analyse_recursion( $stref, $f );
+		}
 	}
 	say "DONE analyse_recursion()";
 # ==============================================================================================================

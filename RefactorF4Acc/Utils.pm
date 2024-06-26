@@ -726,14 +726,14 @@ sub is_string { my ($stref,$f,$var) = @_;
 	my $decl =  get_var_record_from_set($stref->{'Subroutines'}{$f}{'Vars'},$var) ;
 	my $ftype = $decl->{'Type'};
 	my $fkind = $decl->{'Attr'};
-	my $isString = ($decl->{'Type'} eq 'character' and (exists $decl->{'Attr'} and ($decl->{'Attr'} !~/len\s*=\s*1/)));
+	my $isString = ($decl->{'Type'} eq 'character' and (exists $decl->{'Attr'} and ($decl->{'Attr'} !~/len\s*=\s*1\)/)));
     return $isString;
 }
 sub is_character { my ($stref,$f,$var) = @_;
 	my $decl =  get_var_record_from_set($stref->{'Subroutines'}{$f}{'Vars'},$var) ;
 	my $ftype = $decl->{'Type'};
 	my $fkind = $decl->{'Attr'};
-	my $isChar = ($decl->{'Type'} eq 'character' and (not exists $decl->{'Attr'} or ($decl->{'Attr'} =~/len\s*=\s*1/)));
+	my $isChar = ($decl->{'Type'} eq 'character' and (not exists $decl->{'Attr'} or ($decl->{'Attr'} =~/len\s*=\s*1\)/)));
     return $isChar;
 }
 sub is_array_or_string { my ($stref,$f,$var) = @_;
@@ -742,7 +742,7 @@ sub is_array_or_string { my ($stref,$f,$var) = @_;
 	my $ftype = $decl->{'Type'};
 	my $fkind = $decl->{'Attr'};
 	my $isArray = $decl->{'ArrayOrScalar'} eq 'Array';
-	my $isString = ($decl->{'Type'} eq 'character' and (exists $decl->{'Attr'} and ($decl->{'Attr'} ne '' and $decl->{'Attr'} !~/len\s*=\s*1/)));
+	my $isString = ($decl->{'Type'} eq 'character' and (exists $decl->{'Attr'} and ($decl->{'Attr'} ne '' and $decl->{'Attr'} !~/len\s*=\s*1\)/)));
     # It could still be a character if only a single elt is accessed.
     # But that gets us into the difference between a character and a string of length 1
     return ($isArray or $isString);
