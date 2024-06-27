@@ -5,8 +5,8 @@ use v5.30;
 use RefactorF4Acc::Config;
 use RefactorF4Acc::Utils;
 use RefactorF4Acc::Utils::Functional qw( min max );
-use RefactorF4Acc::F95SpecWords qw( 
-	%F95_intrinsic_functions 
+use RefactorF4Acc::F95SpecWords qw(
+	%F95_intrinsic_functions
 	%F95_intrinsic_function_sigs
 	%F95_intrinsic_subroutine_sigs
 	);
@@ -158,6 +158,7 @@ sub translate_program_to_Uxntal($stref,$program_name){
 	if ($stref->{'UseCallStack'} ) {
 		add_to_used_lib_subs( 'init-call-stack' );
 		add_to_used_lib_subs( 'push-frame' );
+		add_to_used_lib_subs( 'pop-frame' );
 		add_to_used_lib_subs( 'stack-alloc' );
 	}
 	my @used_uxntal_lib_subroutine_sources=emit_used_uxntal_lib_subroutine_sources();
@@ -676,8 +677,8 @@ Instead of the nice but cumbersome approach we had until now, from now on it is 
 
 			my $fname = $info->{'EndFunction'}{'Name'};
 			# carp Dumper $stref->{'Subroutines'}{$fname}{'Signature'};
-			my $res = exists $stref->{'Subroutines'}{$fname}{'Signature'}{'ResultVar'} 
-				?  $stref->{'Subroutines'}{$fname}{'Signature'}{'ResultVar'} 
+			my $res = exists $stref->{'Subroutines'}{$fname}{'Signature'}{'ResultVar'}
+				?  $stref->{'Subroutines'}{$fname}{'Signature'}{'ResultVar'}
 				: $fname;
 			my $wordsz = $stref->{'Subroutines'}{$fname}{'WordSizes'}{$res};
 			my $short_mode =  $wordsz == 2 ? '2' : '';
@@ -819,7 +820,7 @@ sub _get_word_sizes($stref,$f){
 		elsif ($type eq 'logical') {
 			$wordsz=1;
 		}
-		elsif ($type eq 'character') { 
+		elsif ($type eq 'character') {
 				# if (exists $decl->{'Attr'} and $decl->{'Attr'} ne '' and $decl->{'Attr'}!~/len=1/) {
 				# 	# It's a string, not a character, so we store the address, not the value.
 				# 	# croak('WRONG! Need to disambiguate between the pointer and the value!');
@@ -929,7 +930,7 @@ sub _var_access_read($stref,$f,$info,$ast) {
 	}
     elsif (is_array($stref,$f,$var) and $idx_expr_type == 1) {
 		my $idx = _emit_expression_Uxntal($idxs,$stref,$f,$info);
-		my $idx_expr = defined $idx ? ($idx eq '#0000') ? '' : 
+		my $idx_expr = defined $idx ? ($idx eq '#0000') ? '' :
 		"$idx ".( $short_mode ? ' #0002 MUL2 ': '') .' ADD2 ' : '';
 		$uxntal_code = 	"$var_access $idx_expr LDA$short_mode"; # index, load the value
 	} elsif (is_array($stref,$f,$var) and $idx_expr_type == 2) {
@@ -1043,20 +1044,20 @@ sub _var_access_assign($stref,$f,$info,$lhs_ast,$rhs_ast) {
 				.' DUP2 LIT2 &'.$ref.' $2 ADD2 LDA' .$short_mode.
 				( $short_mode==2 ? ' SWP2' : ' ROT ROT' )
 				. " $lhs_var_access ADD2 STA$short_mode JMP2r } STH2r ".
-				toHex($array_length-1,2) 
+				toHex($array_length-1,2)
 				. ' #0000 range-map-short';
 		} else {
 			my ($rhs_var,$idxs,$idx_expr_type) = __unpack_var_access_ast($rhs_ast);
 			if (is_array($stref,$f,$rhs_var)) {
 				# if the rhs is also an array we need an array copy
-				# This is a range-map 
+				# This is a range-map
 				my $rhs_var_access = __var_access($stref,$f,$rhs_var);
 				$uxntal_code = "{ ( iter ) ".
 					( $word_sz==2 ? '#0002 MUL2' : '')
 					." DUP2 $rhs_var_access ADD2 LDA$short_mode " .
 					( $short_mode==2 ? 'SWP2' : 'ROT ROT' )
 					. " $lhs_var_access ADD2 STA$short_mode JMP2r } STH2r ".
-					toHex($array_length-1,2) 
+					toHex($array_length-1,2)
 					. ' #0000 range-map-short';
 			} else {
 			# if not, it is an error
@@ -1090,8 +1091,8 @@ sub __var_access($stref,$f,$var) {
 
 	return
 		(
-			$use_stack 
-			? __stack_access($stref,$f,$var) 
+			$use_stack
+			? __stack_access($stref,$f,$var)
 			: ';'. __create_fq_varname($stref,$f,$var)
 		)
 		.
@@ -1140,7 +1141,7 @@ sub __unpack_var_access_ast($ast) {
 # s(i:i) = c
 # s(i:i) = "c" => a character literal, this should be $lhs_idx_expr_type == 0 but that is not enough
 # s(i:j) = "hello, " // w => This is assumed to return a temporary string and we start at the first char
-# s = "c" 
+# s = "c"
 # # So must check the RHS and consider the following cases:
 # - a var, which can be a string or a character scalar (anything else is an error)
 # - a character literal (or a string literal of length 1)
@@ -1159,10 +1160,10 @@ sub __copy_substr($stref, $f, $info, $lhs_ast, $rhs_ast) {
 	my ($lhs_var,$lhs_idxs,$lhs_idx_expr_type) = __unpack_var_access_ast($lhs_ast);
 	if ($rhs_ast->[0] == 34 or $rhs_ast->[0] == 1 or $rhs_ast->[0] == 13) { # string literal or function returning a string or char
 		my $lhs_var_access = __var_access($stref,$f,$lhs_var);
-		my $rhs_Uxntal_expr = 
+		my $rhs_Uxntal_expr =
 			($rhs_ast->[0] == 1 or $rhs_ast->[0] == 13)
 			? _emit_expression_Uxntal($rhs_ast, $stref, $f,$info)
-			: $rhs_ast->[0] == 34 
+			: $rhs_ast->[0] == 34
 				? __substitute_PlaceHolders_Uxntal($rhs_ast->[1],$info)
 				: croak "PROBLEM: ".Dumper($rhs_ast);
 		if ($lhs_idx_expr_type == 2) { # slice
@@ -1202,7 +1203,7 @@ sub __copy_substr($stref, $f, $info, $lhs_ast, $rhs_ast) {
 					? length($info->{'PlaceHolders'}{$rhs_ast->[1]})-2 # -2 for the quotes
 					: $lhs_len; # a hack, TODO
 				# This works only if there is only one function call
-				if (exists $info->{'FunctionCalls'} and 
+				if (exists $info->{'FunctionCalls'} and
 				scalar @{$info->{'FunctionCalls'}}==1) {
 					my $fname = $info->{'FunctionCalls'}[0]{'Name'};
 					$rhs_len = $stref->{'Subroutines'}{$fname}{'RefactoredCode'}[0][1]{'Signature'}{'ReturnTypeAttr'};
@@ -1217,7 +1218,7 @@ sub __copy_substr($stref, $f, $info, $lhs_ast, $rhs_ast) {
 		my ($rhs_var,$rhs_idxs,$rhs_idx_expr_type) = __unpack_var_access_ast($rhs_ast);
 		my $lhs_var_access = __var_access($stref,$f,$lhs_var);
 		my $rhs_var_access = __var_access($stref,$f,$rhs_var);
-		if ($lhs_idx_expr_type == 2 and $rhs_idx_expr_type == 2) { 
+		if ($lhs_idx_expr_type == 2 and $rhs_idx_expr_type == 2) {
 			# both are slices
 			# get the slice index expressions
 			my $lhs_idx_expr_b = _emit_expression_Uxntal($lhs_idxs->[1], $stref, $f,$info);
@@ -1227,7 +1228,7 @@ sub __copy_substr($stref, $f, $info, $lhs_ast, $rhs_ast) {
 
 			if ($lhs_idx_expr_b eq $lhs_idx_expr_e and $rhs_idx_expr_b eq $rhs_idx_expr_e) {
 				# simplyfied case of s_to(b1:b1) = s_from(b2:b2)
-				# further simplified if b1 or b2 is 0: 
+				# further simplified if b1 or b2 is 0:
 				# s_to(b1:b1) = s_from(1:1)
 				# s_to(1:1) = s_from(b2:b2)
 				my $rhs_idx_expr =  ($rhs_idx_expr_b eq '#0000') ? '' : "$rhs_idx_expr_b ADD2 ";
@@ -1235,7 +1236,7 @@ sub __copy_substr($stref, $f, $info, $lhs_ast, $rhs_ast) {
 				$uxntal_code = "$rhs_var_access $rhs_idx_expr LDA $lhs_var_access $lhs_idx_expr STA"
 			} else { # It is not possible to tell at compile time if these are compatible.
 				# So to avoid overwriting, we use the LHS slice
-				# s_to(b1:e1) = s_from(b2:e2) 
+				# s_to(b1:e1) = s_from(b2:e2)
 				# So this is a strncpy where we copy e1-b1+1 bytes from the RHS starting at b2 to LHS starting at b1
 				$uxntal_code = "$rhs_var_access $rhs_idx_expr_b ADD2 $lhs_var_access $lhs_idx_expr_b ADD2 ".
 				__calc_len($lhs_idx_expr_e,$lhs_idx_expr_b). ' strncpy';
@@ -1245,13 +1246,13 @@ sub __copy_substr($stref, $f, $info, $lhs_ast, $rhs_ast) {
 			# s1(i:j) = s2
 			my $lhs_idx_expr_b = _emit_expression_Uxntal($lhs_idxs->[1], $stref, $f,$info);
 			my $lhs_idx_expr_e = _emit_expression_Uxntal($lhs_idxs->[2], $stref, $f,$info);
-			if ($rhs_ast->[0] == 2 and is_string($stref,$f,$rhs_var)) { 
+			if ($rhs_ast->[0] == 2 and is_string($stref,$f,$rhs_var)) {
 				# RHS is a scalar, so a string-type variable, and it is a string
 				# s_to(b:e) = s_from where s_from is of length e-b
 				# s_to = s_from(b:e) where s_to is of length e-b
 				$uxntal_code = "$rhs_var_access $lhs_var_access $lhs_idx_expr_b ADD2 ".
 				__calc_len($lhs_idx_expr_e, $lhs_idx_expr_b).' strncpy';
-			} 
+			}
 			elsif (($rhs_ast->[0] == 2 and is_character($stref,$f,$rhs_var)) or $rhs_ast->[0] == 32) {
 				# it's a character-type scalar or a character constant.
 				# s_to(b:b) = 'c'
@@ -1327,7 +1328,7 @@ sub __stack_access($stref,$f,$var) {
 
 # We call this for every variable declaration
 # But I think storing the arguments should be a separate call.
-# Instead of ;arg STA$short_mode we need .fp LDZ2 $Sf->{'StackOffset'}{$var} ADD2 STA$short_mode 
+# Instead of ;arg STA$short_mode we need .fp LDZ2 $Sf->{'StackOffset'}{$var} ADD2 STA$short_mode
 # i.e. __stack_access($stref,$f,$var). "STA$short_mode"
 sub _stack_allocation($stref,$f,$var) {
 	my $Sf = $stref->{'Subroutines'}{$f};
@@ -1743,7 +1744,7 @@ sub __substitute_PlaceHolders_Uxntal($expr_str,$info){
 			$expr_str=~s/$ph/$ph_str/;
 		}
 		my $len = toRawHex(length($expr_str)-1,2);
-		if ($len eq '0001' ) { 
+		if ($len eq '0001' ) {
 			$expr_str = toHex(ord(substr($expr_str,1,1)),1);
 		} else {
 			# replace space and nl by their ascii code
@@ -1991,9 +1992,11 @@ sub _emit_expression_Uxntal ($ast, $stref, $f, $info) {
 				$rv = "{ $len $rv } STH2r";
 			}
 			if (isStrCmp($ast, $stref, $f,$info)) {
+				add_to_used_lib_subs('strcmp');
 				return "$lv $rv strcmp";
 			} elsif ($opcode == 13) {
 				# Only works for a total length of 256 characters
+				add_to_used_lib_subs('concat');
 				return "$lv $rv".' { 0100 $100 } STH2r concat';
 			} else {
 				# Ideally, the _emit_expression_Uxntal should return the word size of the expression
@@ -2139,7 +2142,7 @@ sub _emit_expression_Uxntal_OFF ($ast, $stref, $f, $info) {
 								}
 							}
 						} else { # A subroutine access.
-							if ($name ne 'achar') { 
+							if ($name ne 'achar') {
 								return join(' ',@args_lst_Uxntal).' '.$name;
 							} else {
 								return join(' ',@args_lst_Uxntal);
@@ -2456,12 +2459,12 @@ sub _emit_subroutine_call_expr_Uxntal($stref,$f,$line,$info){
 sub _emit_function_call_expr_Uxntal($stref,$f,$info,$ast){
 	(my $opcode, my $name, my $args) =@{$ast};
 	my @call_arg_expr_strs_Uxntal=();
-	my $subname = $ast->[1];#$info->{'SubroutineCall'}{'Name'}; 
+	my $subname = $ast->[1];#$info->{'SubroutineCall'}{'Name'};
 	if (exists $F95_intrinsic_function_sigs{$subname}) {
 		# my $intent = 'in';
 		my @call_arg_asts = ();
 		if (@{$args}) { # else means no args
-			if ($args->[0] == 27) { # 
+			if ($args->[0] == 27) { #
 				for my $idx (1 .. scalar @{$args}-1) {
 					push @call_arg_asts, $args->[$idx];
 				}
@@ -2471,7 +2474,7 @@ sub _emit_function_call_expr_Uxntal($stref,$f,$info,$ast){
 			my $idx=0;
 			for my $call_arg_ast (@call_arg_asts) {
 				$idx++;
-				my $call_arg_expr_str = 
+				my $call_arg_expr_str =
 				($call_arg_ast->[0] == 2 or $call_arg_ast->[0] == 10 or $call_arg_ast->[0] > 28)
 				? $call_arg_ast->[1] : '';
 
@@ -2532,25 +2535,25 @@ sub __emit_call_arg_Uxntal_expr($stref,$f,$info,$subname,$call_arg_expr_str,$ast
 		}
 	}
 	# croak Dumper $info if $subname eq 'modulo';
-	my $isConstOrExpr = exists $call_info->{'Args'}{'Set'}{$call_arg_expr_str} 
+	my $isConstOrExpr = exists $call_info->{'Args'}{'Set'}{$call_arg_expr_str}
 		? (($call_info->{'Args'}{'Set'}{$call_arg_expr_str}{'Type'} eq 'Const' )
 		or ($call_info->{'Args'}{'Set'}{$call_arg_expr_str}{'Type'} eq 'Expr')
-		or $isParam) 
-			? 1 
+		or $isParam)
+			? 1
 			: 0
 		: 0;
 	# croak 'TODO: support DO via {'Do'}{'Range'}{ExpressionASTs'}'
 	# Problem is that here, we don't know which of the expressions it is
 	# my $be = exists $info->{'Do'} ? croak 'DO' : 0;
-	# my $ast_from_info = exists $info->{'Assignment'} 
+	# my $ast_from_info = exists $info->{'Assignment'}
 	# 	? $info->{'Rhs'}{'ExpressionAST'}
-	# 	: exists $info->{'Do'} 
+	# 	: exists $info->{'Do'}
 	# 		? $info->{'Do'}{'Range'}{'ExpressionASTs'}[$be]
 	# 		: $info->{'SubroutineCall'}{'ExpressionAST'};
 	#  carp Dumper($info,$f,$call_arg_expr_str,$ast_from_info,$isConstOrExpr,$isParam,$call_info->{'Args'}{'Set'}{$call_arg_expr_str}{'Type'});
 
 	my $arg_expr_ast = $ast_from_info->[0] == 27 # comma
-		? $ast_from_info->[$idx] 
+		? $ast_from_info->[$idx]
 		: $ast_from_info->[0] == 1 # function call
 			? $ast_from_info->[2][0] == 27 # comma
 				? $ast_from_info->[2][$idx]
@@ -2709,11 +2712,11 @@ sub _emit_subroutine_call_expr_Uxntal_OLD($stref,$f,$line,$info){
 sub __emit_intrinsic_subroutine_call_expr_Uxntal($stref,$f,$info,$ast){
 	(my $opcode, my $name, my $args) =@{$ast};
 	my @call_arg_expr_strs_Uxntal=();
-	my $subname = $ast->[1];#$info->{'SubroutineCall'}{'Name'}; 
+	my $subname = $ast->[1];#$info->{'SubroutineCall'}{'Name'};
 	my $sig= $F95_intrinsic_subroutine_sigs{$subname};
 		# my $intent = 'in';
 	my @call_arg_asts = ();
-	if ($args->[0] == 27) { # 
+	if ($args->[0] == 27) { #
 		for my $idx (1 .. scalar @{$args}-1) {
 			push @call_arg_asts, $args->[$idx];
 		}
@@ -2725,7 +2728,7 @@ sub __emit_intrinsic_subroutine_call_expr_Uxntal($stref,$f,$info,$ast){
 	for my $call_arg_ast (@call_arg_asts) {
 		my $intent = $sig->[$idx][1];
 		$idx++;
-		my $call_arg_expr_str = 
+		my $call_arg_expr_str =
 		($call_arg_ast->[0] == 2 or $call_arg_ast->[0] == 10 or $call_arg_ast->[0] > 28)
 		? $call_arg_ast->[1] : '';
 		push @call_arg_expr_strs_Uxntal, __emit_call_arg_Uxntal_expr($stref,$f,$info,$subname,$call_arg_expr_str,$call_arg_ast,$idx,$intent);
@@ -2816,7 +2819,7 @@ sub toUxntalType($ftype,$kind ){
 }    # END of toUxntalType()
 
 sub toHex($n,$sz){
-croak if not defined $n;
+	croak if not defined $n;
 	my $szx2 = $sz*2;
 	return sprintf("#%0${szx2}x",$n);
 }
@@ -2837,6 +2840,7 @@ sub __gen_substr($str_addr, $cb, $ce, $len, $id){
         # -1 to go to base-0 but +2 because of the length field, so +1
 		return $cb . ' INC2 '.$str_addr.' LDA2 ( STRING ) ADD2 LDA'
 	} else {
+		add_to_used_lib_subs('range-map');
         # return an actual substring.
 # What this does is allocate space for the substring and return the address, so it's by reference.
 # If the substring is the argument of a function of operator, that is the right thing to do
@@ -2847,14 +2851,14 @@ sub __gen_substr($str_addr, $cb, $ce, $len, $id){
 # s(4:8)="hello"
 # Then what we need is a memwrite-string starting at 4
 # short to byte
-		my $cbb = $cb; 
+		my $cbb = $cb;
 		if ($cbb=~/^\#00/) {
 			$cbb=~s/^\#00//; $cbb='#'.$cbb
-		} 
+		}
 		elsif ($cbb=~/LDA2/) {
 			$cbb .= ' NIP ';
 		}
-		my $ceb = $ce; 
+		my $ceb = $ce;
 		if ($ceb=~/^\#00/) {
 			$ceb=~s/^\#00//;$ceb='#'.$ceb
 		}
@@ -2931,10 +2935,11 @@ sub _emit_list_print_Uxntal($stref,$f,$line,$info,$unit,$advance,$list_to_print)
 			$arg_to_print_Uxntal = _var_access_read($stref,$f,$info,$elt). ' LDA';
 		}
 		# If a string is a single char, we treat it as a char, so we must print a char
-		if ($print_fn_Uxntal eq 'print-string' and $arg_to_print_Uxntal=~/^\s*\#|LDA$/ ) { # 
+		if ($print_fn_Uxntal eq 'print-string' and $arg_to_print_Uxntal=~/^\s*\#|LDA$/ ) { #
 			$print_fn_Uxntal = 'print-char';
 		}
-		$line_Uxntal .= "$arg_to_print_Uxntal $print_fn_Uxntal #20 $port DEO ( , )\n"
+		$line_Uxntal .= "$arg_to_print_Uxntal $print_fn_Uxntal #20 $port DEO ( , )\n";
+		add_to_used_lib_subs($print_fn_Uxntal);
 	}
 	if ($advance eq 'yes') {
 		if ($unit eq 'STDOUT') {
@@ -3099,6 +3104,7 @@ sub _analyse_write_call($stref,$f,$info){
 	# memwrite-char, memwrite-int, memwrite-hex assume the target is an array
 	# The use case is for strings so to be clear I should probably call them strwrite instead of memwrite.
 		$print_calls = [map {$_=~s/print/strwrite/;$_} @{$print_calls}];
+		map { add_to_used_lib_subs( $_ ) } @{$print_calls};
 	}
 
 	return ($print_calls, $offsets, $unit, $advance);
@@ -3209,7 +3215,7 @@ sub __parse_fmt($fmt_str,$info){
 		}
 		elsif ( $c eq 'Z' ) {
 			# Normally, print-hex assumes a short and returns 4 bytes
-			# If $nchars < 4, we need to remove 
+			# If $nchars < 4, we need to remove
 			if ($nchars <4) {
 				push @{$print_calls}, 'print-hex-'.$nchars;
 			} else {
@@ -3317,6 +3323,7 @@ sub __emit_list_based_print_write($stref,$f,$line,$info,$unit, $advance){
 		$c_line='';
 		for my $arg_ast (@{$call_arg_list}) {
 			my $print_call = shift @{$print_call_list};
+			add_to_used_lib_subs($print_call);
 			$c_line.= _emit_expression_Uxntal($arg_ast,$stref, $f, $info).' '.$print_call. " #20 $port DEO"."\n";
 		}
 	}
@@ -3407,7 +3414,7 @@ sub _gen_array_index_f2c1d_h {
 
 
 sub __is_operator($opcode) {
-	return 
+	return
 	(($opcode > 2  and $opcode < 7 ) or
 	($opcode > 14 and $opcode < 27) or
 	($opcode == 13));
@@ -3461,14 +3468,14 @@ __attribute__((always_inline)) inline unsigned int F4D2C(
 =pod
 Scalar:
 
-We have either 
+We have either
 
 ;v f -- pass by reference
 
-@f 
+@f
 ;&x STA2
 Using it
-;&x LDA2 LDA 
+;&x LDA2 LDA
 JMP2r
 &x $2
 
@@ -3479,7 +3486,7 @@ or
 @f
 ;&x STA
 Using it
-;&x LDA 
+;&x LDA
 JMP2r
 &x $1
 
@@ -3490,7 +3497,7 @@ But we could also have:
 ;&x STA
 ;&y STA2 -- because it is an Out, stores the address
 Using it
-;&x LDA 
+;&x LDA
 ;&y LDA2 STA
 JMP2r
 &x $1 &y $2
@@ -3507,7 +3514,7 @@ So __var_access needs to distinguish for scalars between In or not In
 Furthermore, we need to distinguish between call args of a subroutine and access in the body
 In a call arg list, if it is a Scalar Out or InOut or an Array or String, generate the address, no load
 
-__var_access does not actually load anything. So we can actually use it. 
+__var_access does not actually load anything. So we can actually use it.
 So if it is an In, we can use _var_access_read;
 otherwise, we can use __var_access
 
@@ -3519,7 +3526,7 @@ This is the case for scalar vars, indexing into arrays and strings and "bare" ar
 So what mainly remains are operators and constants,
 and function calls.
 I should transform all non-pure functions into subroutines first
-But it turns out I never implemented that. 
+But it turns out I never implemented that.
 Next best thing is to have a variant of _emit_subroutine_call_expr_Uxntal for functions, and we use that when we encounter & in an expression AST
 So first step is to rework _emit_subroutine_call_expr_Uxntal
 
@@ -3541,7 +3548,7 @@ end program test_inc
 
 #0001 ;nn STA2 ( _var_access_assign )
 ;nn inc ( InOut in call, so it should *not* be _var_access_read )
-( So maybe I need _var_access_call 
+( So maybe I need _var_access_call
 )
 
 ;n LDA2 LDA2 INC2 ;n LDA2 STA2
