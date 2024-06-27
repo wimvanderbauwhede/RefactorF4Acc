@@ -24,6 +24,8 @@ use RefactorF4Acc::Translation::LlvmToTyTraIR qw( generate_llvm_ir_for_TyTra );
 use RefactorF4Acc::Emitter qw( emit_AnnLines );
 use Fortran::F95VarDeclParser qw( parse_F95_var_decl );
 
+use RefactorF4Acc::Translation::UxntalLibHandler qw( load_uxntal_lib_subroutines add_to_used_lib_subs emit_used_uxntal_lib_subroutine_sources);
+
 #
 #   (c) 2010-2024 Wim Vanderbauwhede <wim@dcs.gla.ac.uk>
 #
@@ -65,11 +67,15 @@ our @sigils = ('(', '&', '$', 'ADD', 'SUB', 'MUL', 'DIV', 'mod', 'pow', '=', '@'
               );
 
 # TODO This needs to be changed so that only the used functions are emitted
-my $lib_lines = [
-	'( LIBRARIES )',
+my @uxntal_lib_sources = (
 	'~../../../uxntal-libs/fmt-print.tal',
 	'~../../../uxntal-libs/string.tal',
 	'~../../../uxntal-libs/range-map-fold-lib.tal',
+	'~../../../uxntal-libs/process-args-lib.tal',
+	'~../../../uxntal-libs/call-stack.tal'
+);
+my $lib_lines = [
+	'( LIBRARIES )',
 	'@min',
 	'OVR2 OVR2 LTH2 #00 SWP DUP2 #0001 SWP2 SUB2',
 	'ROT2 MUL2 ROT2 ROT2 MUL2 ADD2',
@@ -87,6 +93,7 @@ my $lib_lines = [
 ];
 
 sub translate_program_to_Uxntal($stref,$program_name){
+	load_uxntal_lib_subroutines(@uxntal_lib_sources);
 	$stref->{'UseCallStack'}=0;
 	$stref->{'Uxntal'} = {
 		'Macros' => { 'Set' =>{}, 'List' => [] },
@@ -112,7 +119,7 @@ sub translate_program_to_Uxntal($stref,$program_name){
 				';on-argument .Console/vector DEO2',
     			'#00 .argc STZ'
 			],
-			'Lib' => '~../../../uxntal-libs/process-args-lib.tal'
+			'Lib' => '( ~../../../uxntal-libs/process-args-lib.tal )'
 		},
 		'Main' => {'TranslatedCode'=>[],'Name'=>''},
 		'Libraries' => { 'Set' =>{}, 'List' => $lib_lines },
@@ -120,7 +127,7 @@ sub translate_program_to_Uxntal($stref,$program_name){
 		# { 'LocalVars'=> {'Set' =>{}, 'List' => [] }, 'Args' => {'Set' =>{}, 'List' => [] },  'isMain' => '' , 'TranslatedCode'}
 		'Globals' => { 'Set' =>{}, 'List' => [] },
 		'CallStack'  => [
-			'~../../../uxntal-libs/call-stack.tal',
+			'( ~../../../uxntal-libs/call-stack.tal )',
 			'|e000 ( 8 kB call stack )',
 			'@call-stack ( grows down )'
 		]
@@ -147,7 +154,15 @@ sub translate_program_to_Uxntal($stref,$program_name){
 		  [\&translate_sub_to_Uxntal]
        ]
        );
-	   $stref->{'TranslatedCode'}=[
+
+	if ($stref->{'UseCallStack'} ) {
+		add_to_used_lib_subs( 'init-call-stack' );
+		add_to_used_lib_subs( 'push-frame' );
+		add_to_used_lib_subs( 'stack-alloc' );
+	}
+	my @used_uxntal_lib_subroutine_sources=emit_used_uxntal_lib_subroutine_sources();
+
+	$stref->{'TranslatedCode'}=[
 		($stref->{'HasCLArgs'} ? @{$stref->{'Uxntal'}{'Console'}} :()),
 		'|0000',
 		($stref->{'UseCallStack'} ? @{$stref->{'Uxntal'}{'CallStackPointers'}} : ()),
@@ -162,6 +177,7 @@ sub translate_program_to_Uxntal($stref,$program_name){
 		@{$stref->{'Uxntal'}{'Main'}{'TranslatedCode'}},
 		@{$stref->{'Uxntal'}{'Libraries'}{'List'}},
 		@{$stref->{'TranslatedCode'}}, # These are the subroutines
+		@used_uxntal_lib_subroutine_sources,
 		@{$stref->{'Uxntal'}{'Globals'}{'List'}},
 		@{$stref->{'Uxntal'}{'Macros'}{'List'}},
 		($stref->{'UseCallStack'} ? @{$stref->{'Uxntal'}{'CallStack'}} : ()),
@@ -545,10 +561,12 @@ Instead of the nice but cumbersome approach we had until now, from now on it is 
 						$print_calls->[0] eq 'print-list-stderr'
 					)
 				) {
+					add_to_used_lib_subs($print_calls->[0]);
 					$c_line = __emit_list_based_print_write($stref,$f,$line,$info, $unit,$advance);
 					# say "UXNTAL SINGLE WRITE: $c_line";
 				} else {
 					# if ($unit eq 'STDOUT' or $unit eq 'STDERR') {
+					add_to_used_lib_subs('update-len');
 						my $update_len = ($unit eq 'STDOUT' or $unit eq 'STDERR') ? '' :
 							' '._emit_expression_Uxntal([2,$unit],$stref, $f, $info). ' update-len ';
 						$c_line = ($unit eq 'STDOUT' or $unit eq 'STDERR') ? '' :
@@ -559,6 +577,7 @@ Instead of the nice but cumbersome approach we had until now, from now on it is 
 						# ";$unit ";
 						my $idx=1;
 						for my $print_call (@{$print_calls}) {
+							add_to_used_lib_subs($print_call);
 							my $maybe_offset= $maybe_str ne ''
 								? $offsets->[$idx-1] == 0
 									? ' '
