@@ -68,29 +68,12 @@ our @sigils = ('(', '&', '$', 'ADD', 'SUB', 'MUL', 'DIV', 'mod', 'pow', '=', '@'
 
 # TODO This needs to be changed so that only the used functions are emitted
 my @uxntal_lib_sources = (
-	'~../../../uxntal-libs/fmt-print.tal',
-	'~../../../uxntal-libs/string.tal',
-	'~../../../uxntal-libs/range-map-fold-lib.tal',
-	'~../../../uxntal-libs/process-args-lib.tal',
-	'~../../../uxntal-libs/call-stack.tal'
+	'../../uxntal-libs/fmt-print.tal',
+	'../../uxntal-libs/string.tal',
+	'../../uxntal-libs/range-map-fold-lib.tal',
+	'../../uxntal-libs/process-args-lib.tal',
+	'../../uxntal-libs/call-stack.tal'
 );
-my $lib_lines = [
-	'( LIBRARIES )',
-	'@min',
-	'OVR2 OVR2 LTH2 #00 SWP DUP2 #0001 SWP2 SUB2',
-	'ROT2 MUL2 ROT2 ROT2 MUL2 ADD2',
-	'JMP2r',
-	'@not #01 SWP SUB JMP2r',
-	'( a:16 b:16 -- m:16 )',
-	'@modulo',
-	'OVR2 OVR2  ( a b a b )',
-	'DIV2  ( a b a/b )',
-	'MUL2  ( a b*(a/b) )',
-	'SUB2 ( a-b*(a/b) )',
-	'JMP2r',
-	'@iachar', # HACK: ignoring kind, returns a short
-	'#00 SWP JMP2r'
-];
 
 sub translate_program_to_Uxntal($stref,$program_name){
 	load_uxntal_lib_subroutines(@uxntal_lib_sources);
@@ -122,7 +105,7 @@ sub translate_program_to_Uxntal($stref,$program_name){
 			'Lib' => '( ~../../../uxntal-libs/process-args-lib.tal )'
 		},
 		'Main' => {'TranslatedCode'=>[],'Name'=>''},
-		'Libraries' => { 'Set' =>{}, 'List' => $lib_lines },
+		'Libraries' => { 'Set' =>{}, 'List' => ['( LIBRARY ROUTINES )'] },
 		'Subroutines' => {},
 		# { 'LocalVars'=> {'Set' =>{}, 'List' => [] }, 'Args' => {'Set' =>{}, 'List' => [] },  'isMain' => '' , 'TranslatedCode'}
 		'Globals' => { 'Set' =>{}, 'List' => [] },
@@ -354,8 +337,10 @@ Instead of the nice but cumbersome approach we had until now, from now on it is 
 						# carp 'TODO: a const scalar passed as arg: ',$call_arg_expr_str ;
 					}
 				}
-			} elsif ($fname eq 'getarg') { # call to getarg means we need the machinery
+			} elsif ($fname eq 'getarg' or $fname eq 'iargc') { # call to getarg means we need the machinery
 				$state->{'CLArgs'}=1;
+				add_to_used_lib_subs($fname);
+				add_to_used_lib_subs('on-argument');
 			}
 		}
 		elsif ( exists $info->{'FunctionCalls'} ) {
@@ -368,6 +353,8 @@ Instead of the nice but cumbersome approach we had until now, from now on it is 
 							$state->{'Pointers'}{$arg}='*';
 						}
 					}
+				} else {
+					add_to_used_lib_subs($fname);
 				}
 			}
 		}
@@ -2384,6 +2371,7 @@ sub _emit_subroutine_call_expr_Uxntal($stref,$f,$line,$info){
 			return 'BRK';
 		}
 		elsif (exists  $F95_intrinsic_subroutine_sigs{$subname}) {
+			add_to_used_lib_subs($subname);
 			my $ast = [1,$subname,$info->{'SubroutineCall'}{'ExpressionAST'}];
 			return __emit_intrinsic_subroutine_call_expr_Uxntal($stref,$f,$info,$ast);
 		} else {
@@ -2462,6 +2450,7 @@ sub _emit_function_call_expr_Uxntal($stref,$f,$info,$ast){
 	my $subname = $ast->[1];#$info->{'SubroutineCall'}{'Name'};
 	if (exists $F95_intrinsic_function_sigs{$subname}) {
 		# my $intent = 'in';
+		add_to_used_lib_subs($subname);
 		my @call_arg_asts = ();
 		if (@{$args}) { # else means no args
 			if ($args->[0] == 27) { #
