@@ -383,8 +383,14 @@ Instead of the nice but cumbersome approach we had until now, from now on it is 
 			if (exists $info->{'VarDecl'}  ) {
 				my $var = $info->{'VarDecl'}{'Name'};
 				if (not exists $stref->{'Subroutines'}{$var}) { # otherwise it is a function
+				# say "Stack alloc for $var in $f";
 					push @{$pass_state->{'StackAllocInfo'}}, _stack_allocation($stref,$f,$var);
 				}
+			} elsif (exists $info->{'ArgDecl'}) {
+				croak "ArgDecl should also be allocated on the stack!"
+			} elsif (exists $info->{'Signature'} && exists $info->{'Signature'}{'ResultVar'}) {
+				my $var = $info->{'Signature'}{'ResultVar'};
+				push @{$pass_state->{'StackAllocInfo'}}, _stack_allocation($stref,$f,$var);
 			}
 			return ([$annline],[$stref,$f,$pass_state]);
 		};
@@ -1307,7 +1313,6 @@ sub __calc_len($e,$b){
 # This returns the address of the var on the stack
 sub __stack_access($stref,$f,$var) {
 	my $Sf = $stref->{'Subroutines'}{$f};
-	carp $var, Dumper($Sf->{'StackOffset'});
 	my $offset = $Sf->{'StackOffset'}{$var};
 	my $offset_hex = toHex($offset,2);
 	my $uxntal_code = '';
@@ -1333,6 +1338,7 @@ sub _stack_allocation($stref,$f,$var) {
 		# 		not passed, so
 			my $subset = in_nested_set( $Sf, 'DeclaredOrigLocalVars', $var );
 			my $decl = get_var_record_from_set($Sf->{$subset},$var);
+			croak Dumper $decl ;
 			my $dim =  __C_array_size($decl->{'Dim'});
 			my $nbytes= $dim*$wordsz;
 			$Sf->{'CurrentOffset'} += $nbytes;
@@ -1606,6 +1612,14 @@ sub _emit_arg_decl_Uxntal($stref,$f,$arg, $name){
 	my $uxntal_write_arg = $iodir eq 'out' or $iodir eq 'inout' ? 1 : 0 ;
 	my $fq_name = $name.'_'.$arg;
 	my $use_stack = __use_stack($stref,$f);
+	# If the arg is an Out arg, we need to put its address on the stack
+	# TODO: I need to check the handling of a RESULT string from a function. 
+	# If we don't use the stack we can allocate this as a local and return the address
+	# But if we do use the stack the allocation should be done by the caller.
+	# So to do this right, the allocation should always be done by the caller.
+	# What if we have something like f(str(...)) and str returns a string? 
+	# The only good way seems to do something like tmp_str = str(...); f(tmp_str)
+	# What this means is that a call to a function that is used as an arg should have a strcpy 
 	my $uxntal_arg_store = ($use_stack
 		? __stack_access($stref,$f,$arg)
 		: ";$fq_name"

@@ -56,19 +56,45 @@ sub load_uxntal_lib_subroutines(@uxntal_lib_sources) {
         open my $LIB, '<', $uxntal_lib_source or die "$! $uxntal_lib_source";
         my $in_sub=0;
         my $current_sub='';
+        my $src_single_line='';
         while (my $line=<$LIB>){
             chomp $line;
-            if ($line=~/^\s*\@([\w\-]+)(?:\s+|$)/) {
+            $src_single_line.=" $line ";
+        }
+        close $LIB;
+        my $src_single_line_no_comments = remove_comments($src_single_line);
+#         my @chunks = split(/\s*\(/,$src_single_line);
+#         for my $chunk (@chunks) {
+#             $chunk =~s/^.*\)\s*//;
+#         }
+#         # so ( a ) bb ( cc ) dd becomes '','a ) bb','cc ) dd'
+#         # => '', 'bb', 'dd'
+#         # ( a ( ii jj ) kk ) bb ( cc ) dd becomes '','a )', 'ii jj ) kk ) bb','cc ) dd'
+#         # => '','', 'bb','dd'
+#         my $src_single_line_no_comments=join(' ',@chunks);
+        my @lines = split(/\s+/,$src_single_line_no_comments);
+# croak Dumper @lines if $uxntal_lib_source=~/stack/;
+        # my $acc_line='';
+        # my $prev_line='';
+        for my $line (@lines) {
+            if ($line=~/^\@([\w\-]+)$/) {
                 $in_sub=1;
                 $current_sub=$1;
                 say "SUB: $current_sub" if $VV;
                 $uxntal_lib_subroutines{$current_sub}=[];
-            } 
+                $line = "\n$line";
+            }
             if ($in_sub==1) {
-                push @{$uxntal_lib_subroutines{$current_sub}},$line;
+                # if (@{$uxntal_lib_subroutines{$current_sub}}
+                # && $uxntal_lib_subroutines{$current_sub}[-1]=~/[A-Z0-9]$/) {
+                #     $uxntal_lib_subroutines{$current_sub}[-1] .= " $line";
+                # } else {
+                    # push @{$uxntal_lib_subroutines{$current_sub}},$acc_line;
+                    # $acc_line = '';
+                    push @{$uxntal_lib_subroutines{$current_sub}},$line;
+                # }
             }
         }
-        close $LIB;
     }
     # croak Dumper sort keys %uxntal_lib_subroutines;
 }
@@ -104,4 +130,24 @@ sub emit_used_uxntal_lib_subroutine_sources(){
     }
     return @sources;
 }
+
+sub remove_comments($str_with_comments) {
+    my @chars=split('',$str_with_comments);
+    my $str_no_comments='';
+    my $parct=0;
+    for my $char (@chars) {
+        if ($char eq '(') {
+            $parct++;
+        }
+        elsif ($char eq ')') {
+            $parct--;
+        } 
+        elsif ($parct==0) {
+            $str_no_comments .= $char;
+        }
+    }
+    return $str_no_comments;
+
+}
+
 1;
