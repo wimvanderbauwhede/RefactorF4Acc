@@ -126,7 +126,6 @@ sub analyse_recursion($stref,$f){
 	# Now, this is a little more complicated: suppose we have a variable that is not a constant, but it is set to a constant anywhere upstream.
 	# Then we should mark that var as const until it is set to a non-constant. I think it means we put it in $dependency_free, and remove it if needed.
 
-
 	# But if we encounter this, then the lhs can be removed from the vars to check. So I need a set $dependency_free.
 
 		my $pass_analyse_recursion = sub($annline,$state) {
@@ -159,6 +158,17 @@ sub analyse_recursion($stref,$f){
 					} else {
 						# Only links after the recursive call make sense
 						delete $state->{'Links'}{$lhs_var};
+					}
+				}
+
+				# Now see if there is a recursion via a function call in the RHS expression
+				if (exists $info->{'FunctionCalls'} and scalar @{$info->{'FunctionCalls'}} > 0 ){
+					for my $call_info ( @{$info->{'FunctionCalls'}} ) {
+						$state = _check_call_for_recursion($stref,$f,$line,$call_info,$state,$all_args_local_vars);
+						if ($state->{'AfterRecursiveCall'} == -1) {
+							say "After a recursive call in expression";
+							$state->{'AfterRecursiveCall'} = 1;
+						}
 					}
 				}
 			}
@@ -330,5 +340,63 @@ local $V=1;
     pop  @{ $stref->{'CallStack'} };
     return $stref;
 } # END of check_recursive_call_chain()
+
+sub _check_call_for_recursion($stref,$f,$line,$call_info,$state,$all_args_local_vars) {
+	my $csubname = $call_info->{'Name'};
+	if ($csubname eq $f) {
+		if ($state->{'AfterRecursiveCall'} == 0) {
+			say "$f: LINE $line: Found a recursive call";
+			$state->{'AfterRecursiveCall'} = -1;
+		}
+	}
+	if ($state->{'AfterRecursiveCall'} == 1) {
+		my @in_args = (); # contains the inouts as well
+		my @out_args = (); # contains the inouts as well
+		for my $sig_arg (sort keys %{ $call_info->{'ArgMap'} }) {
+			my $call_arg = $call_info->{'ArgMap'}{$sig_arg};
+
+			if ($call_info->{'Args'}{'Set'}{$call_arg}{'Type'} eq 'Expr') {
+				my $ast = $call_info->{'Args'}{'Set'}{$call_arg}{'AST'};
+				my $vars = get_vars_from_expression( $ast, {} );
+				for my $expr_var (sort keys %{$vars}) {
+					if( _isOutArg($stref,$f,$sig_arg) and exists $all_args_local_vars->{$expr_var} ) {
+						push @out_args,$expr_var;
+					}
+					if( _isInArg($stref,$f,$sig_arg) and exists $all_args_local_vars->{$expr_var} ) {
+						push @in_args,$expr_var;
+					}
+				}
+			} else {
+				if( _isOutArg($stref,$f,$sig_arg) and exists $all_args_local_vars->{$call_arg} ) {
+					push @out_args,$call_arg;
+				}
+				if( _isInArg($stref,$f,$sig_arg) and exists $all_args_local_vars->{$call_arg} ) {
+					push @in_args,$call_arg;
+				}
+			}
+
+		}
+		# Any input arg to a subroutine call is Used
+		for my $in_arg (@in_args) {
+			$state->{'Used'}{$in_arg}=1;
+			$state->{'TailCall'}=0;
+			say "$f: LINE $line: $in_arg is used in call to $csubname after recursive call, so not a tail call";
+		}
+		for my $out_arg( @out_args) {
+			# Any output arg of the caller is Used.
+			if (_isOutArg($stref,$f,$out_arg) ) {
+				$state->{'Used'}{$out_arg}=1;
+				$state->{'TailCall'}=0;
+				say "$f: LINE $line: $out_arg is an Out arg of $f used in call to $csubname after recursive call, so not a tail call";
+			} else {
+				# Other vars go in the Links table.
+				for my $in_arg (@in_args) {
+					$state->{'Links'}{$out_arg}{$in_arg}=1;
+				}
+			}
+		}
+	}
+	return $state;
+}
 
 1;

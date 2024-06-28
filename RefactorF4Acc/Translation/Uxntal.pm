@@ -1307,6 +1307,7 @@ sub __calc_len($e,$b){
 # This returns the address of the var on the stack
 sub __stack_access($stref,$f,$var) {
 	my $Sf = $stref->{'Subroutines'}{$f};
+	carp $var, Dumper($Sf->{'StackOffset'});
 	my $offset = $Sf->{'StackOffset'}{$var};
 	my $offset_hex = toHex($offset,2);
 	my $uxntal_code = '';
@@ -2523,7 +2524,7 @@ sub __emit_call_arg_Uxntal_expr($stref,$f,$info,$subname,$call_arg_expr_str,$ast
 			}
 		}
 	}
-	# croak Dumper $info if $subname eq 'modulo';
+
 	my $isConstOrExpr = exists $call_info->{'Args'}{'Set'}{$call_arg_expr_str}
 		? (($call_info->{'Args'}{'Set'}{$call_arg_expr_str}{'Type'} eq 'Const' )
 		or ($call_info->{'Args'}{'Set'}{$call_arg_expr_str}{'Type'} eq 'Expr')
@@ -2552,7 +2553,7 @@ sub __emit_call_arg_Uxntal_expr($stref,$f,$info,$subname,$call_arg_expr_str,$ast
 	if ($isConstOrExpr) { # Not a var
 		return _emit_expression_Uxntal($arg_expr_ast, $stref, $f,$info);#.' ( CONST/EXPR ARG by VAL ) ';
 	}
-	elsif (not is_array_or_string($stref,$f,$call_arg_expr_str) and $intent eq 'in' ) { # As Scalar var used as In
+	elsif (not is_array_or_string($stref,$f,$call_arg_expr_str) and $intent eq 'in' ) { # a Scalar var used as In
 		return _var_access_read($stref,$f,$info,$arg_expr_ast).' ( SCALAR IN ARG by VAL ) ';
 	}
 	elsif ( $arg_is_not_string ) { # An string access used as In in an intrinsic

@@ -1263,8 +1263,11 @@ sub _replace_function_calls_in_ast {
 						)
 						or exists $F95_intrinsic_functions{$mvar}
 					) {
-						( my $expr_args, my $expr_other_vars ) = @{find_args_vars_in_ast($ast->[2])}; # look only at the argument list
-                        #say Dumper($expr_args);
+                        # WV 20240628 This is not correct, it does not work for args that are expressions
+                        # As it is only called here, it is obsolete
+						# ( my $expr_args, my $expr_other_vars ) = @{find_args_vars_in_ast($ast->[2])}; # look only at the argument list
+                        ( my $expr_args, my $expr_other_vars ) = get_args_vars_from_subcall($ast->[2]);
+                        carp "Function $mvar called in $f:".Dumper($expr_args);
 						for my $expr_arg (@{$expr_args->{'List'}}) {
 							if ( $expr_args->{'Set'}{$expr_arg}{'Type'} eq 'Label') {
 								my $label=$expr_arg;
@@ -1353,7 +1356,7 @@ sub _find_consts_in_ast { my ( $ast, $consts)=@_;
 # if the expression is a sub call (or in fact just a comma-sep list), return the arguments and also all variables that are not arguments
 # range(...) is one use case. I guess we don't even need that anymore
 sub find_args_vars_in_ast {(my $ast)=@_;
-
+croak 'OBSOLETE';
     my $all_vars={'List'=>[],'Set'=>{} };
     $all_vars->{'Set'}=find_vars_in_ast($ast,{});
 
@@ -1470,7 +1473,7 @@ sub find_vars_in_ast { my ( $ast, $vars)=@_;
             $vars = find_vars_in_ast($ast->[$idx],$vars);
         }
     }
-# carp 'VARS:'. Dumper $vars;
+# carp 'AST:'.Dumper($ast).'VARS:'. Dumper( $vars);
 # croak Dumper($ast) if exists $vars->{'.true.'};
     return $vars;
 } # END of find_vars_in_ast
@@ -1536,6 +1539,7 @@ sub find_implied_do_in_ast { (my $ast, my $vars)=@_;
 # Funny enough it seems I also need constant args because I look for ReferencedLabels
 # I think only keeping these would be enough; and also maybe I should give them a proper Type and sigil
 sub _find_args_in_ast { (my $ast, my $args) =@_;
+croak 'OBSOLETE';
 	if (! @{$ast} ){ return $args; }
 	if ( ($ast->[0] & 0xFF) == 0 ) {
 	# descend
@@ -1547,12 +1551,12 @@ sub _find_args_in_ast { (my $ast, my $args) =@_;
 			$args = _find_args_in_ast($ast->[$idx], $args);
 		}
 	}
-	elsif (($ast->[0] & 0xFF)== 2) {
+	elsif (($ast->[0] & 0xFF)== 2) { # scalar
 	        my $mvar = $ast->[1];
 	        $args->{'Set'}{$mvar}={'Type'=>'Scalar'} ;
             push @{$args->{'List'}},$mvar;
 	    }
-	elsif (($ast->[0] & 0xFF)== 10) {
+	elsif (($ast->[0] & 0xFF)== 10) { # array
 	        my $mvar = $ast->[1];
 	        $args->{'Set'}{$mvar}={'Type'=>'Array'} ;
             push @{$args->{'List'}},$mvar;
@@ -1562,6 +1566,8 @@ sub _find_args_in_ast { (my $ast, my $args) =@_;
     my $mvar = $ast->[1];
     $args->{'Set'}{$mvar}={'Type'=>'Const','SubType'=>$sigils[ ($ast->[0] & 0xFF) ]} ;
     push @{$args->{'List'}},$mvar;
+    } else {
+        say "Arg is expression: ".Dumper($ast);
     }
     return $args;
 } # END of _find_args_in_ast
@@ -1583,7 +1589,7 @@ sub _parse_subcall_args { (my $ast, my $args) =@_;
     (scalar @{$ast} >= 3 and
     $ast->[0]<27 and $ast->[0] != 2  and $ast->[0] != 10 )
     or
-    (scalar @{$ast} == 2 and  $ast->[0] == 4 and $ast->[1][0]<27) # - not followed by const
+    (scalar @{$ast} == 2 and  $ast->[0] == 4 and $ast->[1][0]<27) # - (minus sign) not followed by const
     ) {
 	# An expression.
        my $expr_str = emit_expr_from_ast($ast);
