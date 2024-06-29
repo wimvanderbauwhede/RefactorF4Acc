@@ -47,7 +47,23 @@ our %uxntal_lib_subroutines = (
 'iachar' => [
 	'@iachar', # HACK: ignoring kind, returns a short
 	'#00 SWP JMP2r'
-]
+],
+'lte2' => [
+    '@lte2', 
+    'GTH2 #01 SWP SUB JMP2r'
+],
+'lte' => [
+    '@lte', 
+    'GTH #01 SWP SUB JMP2r'
+],
+'gte2' => [
+    '@gte2', 
+    'LTH2 #01 SWP SUB JMP2r'
+],
+'gte' => [
+    '@gte', 
+    'GTH #01 SWP SUB JMP2r'
+],
 );
 
 sub load_uxntal_lib_subroutines(@uxntal_lib_sources) {
@@ -111,7 +127,8 @@ sub add_to_used_lib_subs($subname) {
         for my $line (@{$used_uxntal_lib_subroutines{$subname}}) {
             my $tline = $line;
             while ($tline=~/\(.+?\)/){$tline=~s/\(.+?\)//;}
-            my @tokens = split(/\s+[\;\!]?/,$tline);
+            my @tokens = split(/(?:^|\s+)[\;\!]?/,$tline);
+            # croak "<$tline>",@tokens if $tline=~/\!proc\-n/;
             my @called_subs = grep { /^[\w\-]+$/ && !/^[A-Z][A-Z][A-Z][2kr]*$/ } @tokens;
             for my $called_sub (@called_subs) {
                 add_to_used_lib_subs($called_sub);

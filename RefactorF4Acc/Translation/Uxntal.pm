@@ -630,7 +630,8 @@ Instead of the nice but cumbersome approach we had until now, from now on it is 
         } elsif (exists $info->{'EndIf'} ) {
 			my $branch_id = $pass_state->{'IfBranchId'};
 			my $if_id = $pass_state->{'IfId'};
-            $c_line = '&cond_end'.$if_id.' &branch'.$branch_id.'_end';
+			$c_line = ';&cond_end'.$if_id.' JMP2 '."\n"
+            .'&branch'.$branch_id.'_end &cond_end'.$if_id;
             pop @{$pass_state->{'IfStack'}};
             $pass_state->{'IfId'}=$pass_state->{'IfStack'}[-1];
         }
@@ -1866,8 +1867,8 @@ sub _emit_ifthen_Uxntal ($stref, $f, $info, $branch_id){
 sub _emit_ifbranch_end_Uxntal ($id, $state){
 	my $branch_id = $state->{'IfBranchId'};
 	my $if_id = $state->{'IfId'};
-	my $r_line = "&branch${branch_id}_end\n";
-	$r_line .= "( ;&cond_end${if_id} JMP2 )\n";
+	my $r_line = ";&cond_end${if_id} JMP2 \n";
+	$r_line .= "&branch${branch_id}_end\n";
 	$state->{'IfBranchId'} = $id;
 	$branch_id = $state->{'IfBranchId'};
 	return ($r_line,$branch_id);
@@ -1958,6 +1959,9 @@ sub _emit_expression_Uxntal ($ast, $stref, $f, $info) {
 			# Special cases
 			# Uxn does not have pow or mod so these would have to be functions
 			# TODO these are not implemented yet
+			if ($opcode >=19 and $opcode <= 21) {
+				add_to_used_lib_subs($sigils[$opcode].'2'); # FIXME: use word size!
+			}
 			if (($opcode == 21 or $opcode == 4 or $opcode == 3) and scalar @{$ast} == 2) {#  '.not.', '-' or '+'
 				(my $opcode, my $exp) =@{$ast};
                 my $v = _emit_expression_Uxntal($exp, $stref, $f,$info);
