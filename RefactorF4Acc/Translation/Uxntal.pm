@@ -3563,3 +3563,41 @@ end program test_inc
 
 
 =cut
+
+=pod
+
+
+'|a0 @File &vector $2 &success $2 &stat $2 &delete $1 &append $1 &name $2 &length $2 &read $2 &write $2'
+
+
+# Open
+	$i=1
+	open(unit=$src,file=$fn,iostat=$stat,action='read', status='old', recl=1,access='direct',form='unformatted') )
+	=> ";$fn .File/name DEO2"
+	,stream JSR
+
+# Close
+	=> '.File/name DEI2k BRK ROT DEO2'
+
+We need a counter for the position, corresponding to $i
+
+# Read
+
+	#0001 .File/length DEO2 ( write 1 to File/length )
+
+What we should do to do this right, is take the length of $cbuf (it can even be a list, TODO) and set this on every read
+
+File/success* will be less than File/length* if the file is shorter, so if lenght==1 it will be 0 on fail, 1 otherwise. So say we do -1 then it will be zero on success and -1 on EOF
+
+$stat is a scalar default INTEGER variable that is assigned a positive value if an error condition occurs, a negative value if an end-of-file or end-of-record condition occurs, and zero
+otherwise.
+
+		read(unit=$src,iostat=$stat,rec=$i) $cbuf 
+
+		=>
+		. "$len .File/length DEO2\n" 
+		. ";&$cbuf .File/read DEO2\n"
+		. ";$i LDA2 INC2 ;$i STA2\n"
+        . ".File/success DEI2 #0001 SUB2 ;&$stat STA2";
+
+=cut
