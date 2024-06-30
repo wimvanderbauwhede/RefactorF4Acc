@@ -3569,6 +3569,13 @@ end program test_inc
 
 '|a0 @File &vector $2 &success $2 &stat $2 &delete $1 &append $1 &name $2 &length $2 &read $2 &write $2'
 
+We need at least a
+
+	$Sf->{'FileHandle'}{$src}={
+	file =>
+	iostat =>
+		... 
+	}
 
 # Open
 	$i=1
@@ -3600,4 +3607,10 @@ otherwise.
 		. ";$i LDA2 INC2 ;$i STA2\n"
         . ".File/success DEI2 #0001 SUB2 ;&$stat STA2";
 
+# Write
+
+For file writes, I think I will only support the following:
+	write($src,*) $data 
+	. "$len .File/length DEO2\n"
+	. ";$data .File/write DEO2" ;
 =cut
