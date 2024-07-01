@@ -546,6 +546,7 @@ Instead of the nice but cumbersome approach we had until now, from now on it is 
 			} elsif (exists $info->{'WriteCall'}) {
 				my $call_ast = $info->{'IOCall'}{'Args'}{'AST'};
 				my $iolist_ast = $info->{'IOList'}{'AST'};
+				# TODO: check if this is a write to a file!
 				# say 'WRITE: IOCall Args:'.Dumper($call_ast),'IOList:',Dumper($iolist_ast);
 				# say "WRITE: $line";
 				my ($print_calls, $offsets, $unit, $advance) = _analyse_write_call($stref,$f,$info);
@@ -598,6 +599,40 @@ Instead of the nice but cumbersome approach we had until now, from now on it is 
 					# 	carp 'TODO STRING:'.Dumper($unit, $advance, $print_calls, $iolist_ast);
 					# }
 				}
+			}
+			elsif (exists $info->{'OpenCall'}) {
+				# open(unit=$src,file=$fn,iostat=$stat,action='read', status='old', recl=1,access='direct',form='unformatted') )
+				my $fn = __create_fq_varname($stref,$f,$info->{'FileNameVar'});
+				my $unit= $info->{'UnitVar'};
+				my $fq_unit= __create_fq_varname($stref,$f,$unit);
+				my $iostat = __create_fq_varname($stref,$f,$info->{'IOStat'});
+				$c_line = ";$fn .File/name DEO2";
+				if (not exists $stref->{'Subroutines'}{$f}{'FileHandle'}) {
+					$stref->{'Subroutines'}{$f}{'FileHandle'}{$unit}={
+						'Unit' => $fq_unit,
+						'IOStat' =>$iostat,
+						'File' => $fn
+					};
+				} else {
+					die "Only a single file handle is supported\n";
+				}
+			}
+			elsif (exists $info->{'CloseCall'}) {
+				my $unit= $info->{'UnitVar'};
+				$c_line = '.File/name DEI2k BRK ROT DEO2';
+				delete $stref->{'Subroutines'}{$f}{'FileHandle'}{$unit};
+			}
+			elsif (exists $info->{'ReadCall'}) {
+				# read(unit=$src,iostat=$stat,rec=$i) $cbuf 
+				my $rec = $info->{'RecVar'};
+				croak Dumper $info->{'Vars'}{'Read'};
+				my $len = 0; # TODO
+				my $cbuf = ''; # TODO
+				my $iostat = __create_fq_varname($stref,$f,$info->{'IOStat'});
+				$c_line = "$len .File/length DEO2\n" 
+				. ";&$cbuf .File/read DEO2\n"
+				. ";$rec LDA2 INC2 ;$rec STA2\n"
+				. ".File/success DEI2 #0001 SUB2 ;&$iostat STA2";
 			} else {
 				croak 'TODO: IOCall '.Dumper( $info->{'IOCall'}{'Args'}{'AST'})."\nIOList ".Dumper($info->{'IOList'}{'AST'});
 
@@ -3578,6 +3613,8 @@ We need at least a
 	}
 
 # Open
+	my $fn = $f.'_'.$info->{'FileNameVar'};
+	return ;$fn .File/name DEO2"
 	$i=1
 	open(unit=$src,file=$fn,iostat=$stat,action='read', status='old', recl=1,access='direct',form='unformatted') )
 	=> ";$fn .File/name DEO2"

@@ -1810,10 +1810,12 @@ END IF
 						}
 					}
 					if ( exists $ast->{'UnitVar'} ) {
+						$info->{'UnitVar'}=$ast->{'UnitVar'};
 						$info->{'Vars'}{'Set'}{ $ast->{'UnitVar'} } = 1;
 					}
 					if ( exists $ast->{'IOStat'} ) {
 						$info->{'Vars'}{'Set'}{ $ast->{'IOStat'} } = 1;
+						$info->{'IOStat'}=$ast->{'IOStat'};
 					}
                     if ( exists $ast->{'AttrVal'} and ref($ast->{'AttrVal'}) eq 'ARRAY') {
                         for my $val (@{ $ast->{'AttrVal'} } ) {
