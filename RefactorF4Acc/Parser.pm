@@ -4531,8 +4531,8 @@ sub _parse_assignment {
 	}
 # die "<$line>".Dumper($lhs,$rhs,@rest) if $line=~/f\(7\)\s*=/;
 	#     say "LHS: $lhs, RHS: $rhs";
+	
 	my $lhs_ast = parse_expression( $lhs, $info, $stref, $f );
-
 
 	#	say 'ARGS: '.Dumper($lhs_args);
 	#	say 'VARS:'.Dumper($lhs_vars)  if $lhs_ast->[1] eq 'len';
@@ -4575,7 +4575,9 @@ sub _parse_assignment {
 		$rhs=~s/\/\)/)/;
 		$array_constant=1;
 	}
-
+ if ( $line=~/res.+?fib.+?fib/) {
+	say "DoubleFunctionCall";
+	$info->{'DoubleFunctionCall'}=1};	
 	my $rhs_ast = parse_expression( $rhs, $info, $stref, $f );
 	if ($array_constant==1) {
 		$rhs_ast->[0]=28; #'_OPEN_CONST_ARRAY_';

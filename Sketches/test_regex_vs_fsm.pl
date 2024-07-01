@@ -194,7 +194,7 @@ Level
 11        left        .xor. .eqv. .neqv.
 =cut 
 
-sub parse_expression {(my $str)=@_;
+sub parse_expression_OFF {(my $str)=@_;
     my $max_lev=0;
     my $prev_lev=0;
     my $lev=0;

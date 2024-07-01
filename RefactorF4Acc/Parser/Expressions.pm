@@ -89,7 +89,9 @@ sub parse_expression { my ($exp, $info, $stref, $f)=@_;
             my $rest_ = _substitute_PlaceHolders($rest,$info);
             error( "Parse error in $f:\n\t$exp_\nparse stopped before\n\t$rest_", $DBG, 'PARSE ERROR');
 		}
+        # say "HERE1 DoubleFunctionCall: $exp => $has_funcs" if exists $info->{'DoubleFunctionCall'};
         (my $ast2, my $grouped_messages) = $has_funcs ? _replace_function_calls_in_ast($stref,$f,$info,$ast, $exp, {}) : ($ast,{});
+        # say "HERE2: ".Dumper($info)  if exists $info->{'DoubleFunctionCall'};
 	    if ($W) {
 	        for my $warning_type (sort keys % {$grouped_messages->{'W'}} ) {
 	            for my $k (sort keys %{$grouped_messages->{'W'}{$warning_type}}) {
@@ -160,7 +162,7 @@ sub _change_func_to_array { (my $stref, my $f,  my $info, my $ast, my $exp, my $
 						and not exists $F95_reserved_words{$mvar}
 						)
 					) {
-
+                        # carp Dumper $ast;
 						( my $expr_args, my $expr_other_vars ) = get_args_vars_from_subcall($ast);
 						for my $expr_arg (@{$expr_args->{'List'}}) {
 							if (substr($expr_arg,0,1) eq '*') {
@@ -1203,7 +1205,7 @@ sub emit_expr_from_ast { (my $ast)=@_;
 # This replaces _change_func_to_array
 sub _replace_function_calls_in_ast {
 (my $stref, my $f,  my $info, my $ast, my $exp, my $grouped_messages)=@_;
-
+# say "HERE3"  if exists $info->{'DoubleFunctionCall'};
     #say Dumper($ast);
     if (ref($ast) eq 'ARRAY' and scalar @{$ast}>0) {
         if (($ast->[0] & 0xFF) == 1 or ($ast->[0] & 0xFF) == 10) { # '&', function call; '@', array
@@ -1267,13 +1269,14 @@ sub _replace_function_calls_in_ast {
                         # As it is only called here, it is obsolete
 						# ( my $expr_args, my $expr_other_vars ) = @{find_args_vars_in_ast($ast->[2])}; # look only at the argument list
                         ( my $expr_args, my $expr_other_vars ) = get_args_vars_from_subcall($ast->[2]);
-                        carp "Function $mvar called in $f:".Dumper($expr_args);
+                        # carp "Function $mvar called in $f:".Dumper($expr_args);
 						for my $expr_arg (@{$expr_args->{'List'}}) {
 							if ( $expr_args->{'Set'}{$expr_arg}{'Type'} eq 'Label') {
 								my $label=$expr_arg;
 								$stref->{$code_unit}{$f}{'ReferencedLabels'}{$label}=$label;
 							}
 						}
+                        
                         if (exists $F95_intrinsic_functions{$mvar}) {
                             push @{ $info->{'IntrinsicFunctionCalls'} },  {
                                 'Name' => $mvar,
@@ -1322,6 +1325,7 @@ sub _replace_function_calls_in_ast {
             }
         }
     }
+    # carp Dumper $info   if exists $info->{'DoubleFunctionCall'};
     return ($ast,$grouped_messages);
 } # END of _replace_function_calls_in_ast
 
@@ -1583,13 +1587,14 @@ sub _find_args_in_ast { (my $ast, my $args) =@_;
 # The assumption is that we pass this the 3rd arg of an AST for a subroutine call
 # This can either be a comma-sep list or a single arg
 sub _parse_subcall_args { (my $ast, my $args) =@_;
-# carp Dumper $ast;
+carp 'AST:'.Dumper $ast;
 # An expression:
+    if (scalar @{$ast}==0) { return {} }
     if (
-    (scalar @{$ast} >= 3 and
-    $ast->[0]<27 and $ast->[0] != 2  and $ast->[0] != 10 )
+    ((scalar @{$ast} >= 3) and
+    ($ast->[0]<27) and ($ast->[0] != 2)  and ($ast->[0] != 10) )
     or
-    (scalar @{$ast} == 2 and  $ast->[0] == 4 and $ast->[1][0]<27) # - (minus sign) not followed by const
+    ((scalar @{$ast} == 2) and ( $ast->[0] == 4) and ($ast->[1][0]<27)) # - (minus sign) not followed by const
     ) {
 	# An expression.
        my $expr_str = emit_expr_from_ast($ast);

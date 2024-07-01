@@ -219,7 +219,7 @@ sub fold_constants_no_iters {
                     if ($decl->{'Attr'}) {
                         my $len_expr= $decl->{'Attr'}; 
                         $len_expr=~s/len\s*=\s*//;
-                            if ($len_expr ne '(*)') {
+                        if ($len_expr ne '(*)') {
                             my $expr_str = $len_expr;
                             my ($ast,$str_,$error_,$has_funcs_)=parse_expression_no_context($expr_str);
                             my ($const_ast, $retval_) = replace_consts_in_ast_no_iters($stref, $f, $ast, $info);
@@ -239,6 +239,9 @@ sub fold_constants_no_iters {
                             }
                             $decl->{'ConstAttr'} = "len=$const_len";
                         } else {
+                            # I could try via callers
+                            # I am lazy, only one level
+                            warn 'TODO: TRY RESOLVE * via CALLER'. Dumper sort keys %{$Sf->{'Callers'}};
                             if (exists $info->{'ParsedVarDecl'}) {
                                 $info->{'ParsedVarDecl'}{'Attributes'}{'Len'}= "len=*";
                             }

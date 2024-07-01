@@ -742,9 +742,19 @@ Instead of the nice but cumbersome approach we had until now, from now on it is 
 			my $wordsz = $stref->{'Subroutines'}{$fname}{'WordSizes'}{$res};
 			my $short_mode =  $wordsz == 2 ? '2' : '';
 			if (is_array_or_string($stref,$f,$res)) {
-				$c_line = ";$fname\_$res ".($use_stack ? '!pop-frame' : 'JMP2r');
+				# We return the address
+				if ($use_stack) {
+					$c_line =  __stack_access($stref,$f,$res).' !pop-frame';	
+				} else {
+					$c_line = ';'. __create_fq_varname($stref,$f,$res). ' JMP2r';
+				}
 			} else {
-				$c_line = ";$fname\_$res LDA$short_mode ".($use_stack ? '!pop-frame' : 'JMP2r');
+				# We return the value
+				if ($use_stack) {
+					$c_line =  __stack_access($stref,$f,$res).' LDA'.$short_mode.' !pop-frame';	
+				} else {
+					$c_line = ';'. __create_fq_varname($stref,$f,$res).' LDA'.$short_mode .' JMP2r';
+				}
 			}
 		}
 		elsif (exists $info->{'EndSelect'} ) {
@@ -1390,9 +1400,13 @@ sub __calc_len($e,$b){
 sub __stack_access($stref,$f,$var) {
 	my $Sf = $stref->{'Subroutines'}{$f};
 	my $offset = $Sf->{'StackOffset'}{$var};
-	my $offset_hex = toHex($offset,2);
-	my $uxntal_code = '';
-	return ".fp LDZ2 $offset_hex ADD2";
+	if ($offset>0) {
+		my $offset_hex = toHex($offset,2);
+		# my $uxntal_code = '';
+		return ".fp LDZ2 $offset_hex ADD2";
+	} else {
+		return ".fp LDZ2";
+	}
 } # END of __stack_access()
 
 # We call this for every variable declaration
@@ -2060,7 +2074,7 @@ sub _emit_expression_Uxntal ($ast, $stref, $f, $info) {
 				$ast = [1,'mod',[27,$lexp,$rexp] ] ;
 				return _emit_function_call_expr_Uxntal($stref,$f,$info,$ast);
 			}
-# carp Dumper($lexp,$rexp);
+
 			my $lv = (ref($lexp) eq 'ARRAY') ? _emit_expression_Uxntal($lexp, $stref, $f,$info) : $lexp;
 			my $rv = (ref($rexp) eq 'ARRAY') ? _emit_expression_Uxntal($rexp, $stref, $f,$info) : $rexp;
 
@@ -2577,7 +2591,7 @@ sub _emit_function_call_expr_Uxntal($stref,$f,$info,$ast){
 						$idx++; # So starts at 1, because 0 is the sigil
 						my $intent = $Ssubname->{'RefactoredArgs'}{'Set'}{$sig_arg}{'IODir'};
 						my $call_arg_expr_str = $argmap->{$sig_arg} // $sig_arg;
-						push @call_arg_expr_strs_Uxntal, __emit_call_arg_Uxntal_expr($stref,$f,$info,$subname,$call_arg_expr_str,$fcall->{'ExpressionAST'},$idx,$intent);
+						push @call_arg_expr_strs_Uxntal, __emit_call_arg_Uxntal_expr($stref,$f,$info,$subname,$call_arg_expr_str,$ast,$idx,$intent);
 					}
 				last;
 			}
@@ -2613,7 +2627,7 @@ sub __emit_call_arg_Uxntal_expr($stref,$f,$info,$subname,$call_arg_expr_str,$ast
 				if ($fcall->{'Name'} eq $subname) {
 					$call_info = $fcall;
 					$arg_is_intrinsic_call = 1;
-					# carp Dumper $subname,$F95_intrinsic_function_sigs{$subname},$idx;
+					carp Dumper $subname,$F95_intrinsic_function_sigs{$subname},$idx;
 					$arg_is_not_string = $F95_intrinsic_function_sigs{$subname}[0][$idx-1] ne 'character(*)' ? 1 : 0;
 					last;
 				}

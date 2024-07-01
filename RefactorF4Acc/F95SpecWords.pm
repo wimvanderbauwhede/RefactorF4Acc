@@ -536,10 +536,10 @@ our %F95_intrinsic_function_sigs = (
     'adjustl' => [['character(*)'], 'character(*)'],
     'adjustr' => [['character(*)'], 'character(*)'],
     'char'=> [['integer'], 'character'], # kind
-    'iachar'=> [['character','integer'], 'integer'],
-    'ichar'=> [['character'], 'integer'],
-    'index' => [['character(*)','character(*)','logical'],'integer'],
-    'len' => [['character(*)'],'integer'],
+    'iachar'=> [['character','integer'], 'integer'], # kind
+    'ichar'=> [['character'], 'integer'], # kind
+    'index' => [['character(*)','character(*)','logical'],'integer'], # kind
+    'len' => [['character(*)'],'integer'], # kind
     'len_trim' => sub {my $tstr = $_[0];$tstr=~s/\s+$//;length($tstr)}, # integer
     'lge'  => [['character(*)','character(*)'],'logical'],
     'lgt'  => [['character(*)','character(*)'],'logical'],

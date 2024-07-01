@@ -2,6 +2,7 @@ package RefactorF4Acc::Utils;
 use v5.10;
 use POSIX;
 use RefactorF4Acc::Config;
+use RefactorF4Acc::F95SpecWords qw( %F95_intrinsic_function_sigs );
 #
 #   (c) 2010-2017 Wim Vanderbauwhede <wim@dcs.gla.ac.uk>
 #
@@ -737,15 +738,41 @@ sub is_character { my ($stref,$f,$var) = @_;
     return $isChar;
 }
 sub is_array_or_string { my ($stref,$f,$var) = @_;
-	my $decl =  get_var_record_from_set($stref->{'Subroutines'}{$f}{'Vars'},$var) ;
-    # carp Dumper $f,$var,$decl;
-	my $ftype = $decl->{'Type'};
-	my $fkind = $decl->{'Attr'};
-	my $isArray = $decl->{'ArrayOrScalar'} eq 'Array';
-	my $isString = ($decl->{'Type'} eq 'character' and (exists $decl->{'Attr'} and ($decl->{'Attr'} ne '' and $decl->{'Attr'} !~/len\s*=\s*1\)/)));
-    # It could still be a character if only a single elt is accessed.
-    # But that gets us into the difference between a character and a string of length 1
-    return ($isArray or $isString);
+# For array index, string index of function call
+    if ($var=~/\w+\s*\(/) {
+        $var=~s/\s*\(.+$//;
+    }
+    my $Sf=$stref->{'Subroutines'}{$f};
+	my $decl =  get_var_record_from_set($Sf->{'Vars'},$var) ;
+    if (not defined $decl) { 
+        # This could still be a string due to concatenation; it could also be a function returning a string
+        my $isString=0;
+        if (exists $stref->{'Subroutines'}{$var}) {
+            my $type =  $stref->{'Subroutines'}{$var}{'Signature'}{'ReturnType'} // '';
+            my $attr = $stref->{'Subroutines'}{$var}{'Signature'}{'ReturnTypeAttr'} // '';
+            if ($type eq 'character' && $attr=~/len=\d+/) {
+                $isString=1;
+            }
+        }
+        elsif (exists $F95_intrinsic_function_sigs{$var}) {
+            if ($F95_intrinsic_function_sigs{$var}[1] eq 'character(*)') {
+                $isString=1;
+            }
+            return $isString;
+        }
+        elsif ($var =~/\/\//) {
+            $isString=1;
+        }
+        return $isString;
+    } else {
+        my $ftype = $decl->{'Type'};
+        my $fkind = $decl->{'Attr'};
+        my $isArray = $decl->{'ArrayOrScalar'} eq 'Array';
+        my $isString = ($decl->{'Type'} eq 'character' and (exists $decl->{'Attr'} and ($decl->{'Attr'} ne '' and $decl->{'Attr'} !~/len\s*=\s*1\)/)));
+        # It could still be a character if only a single elt is accessed.
+        # But that gets us into the difference between a character and a string of length 1
+        return ($isArray or $isString);
+    }
 }
 
 sub is_param { my ($stref,$f,$var) = @_;
