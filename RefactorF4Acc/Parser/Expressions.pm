@@ -1356,7 +1356,7 @@ sub _find_consts_in_ast { my ( $ast, $consts)=@_;
 # if the expression is a sub call (or in fact just a comma-sep list), return the arguments and also all variables that are not arguments
 # range(...) is one use case. I guess we don't even need that anymore
 sub find_args_vars_in_ast {(my $ast)=@_;
-croak 'OBSOLETE';
+# croak 'OBSOLETE';
     my $all_vars={'List'=>[],'Set'=>{} };
     $all_vars->{'Set'}=find_vars_in_ast($ast,{});
 
@@ -1539,7 +1539,7 @@ sub find_implied_do_in_ast { (my $ast, my $vars)=@_;
 # Funny enough it seems I also need constant args because I look for ReferencedLabels
 # I think only keeping these would be enough; and also maybe I should give them a proper Type and sigil
 sub _find_args_in_ast { (my $ast, my $args) =@_;
-croak 'OBSOLETE';
+# croak 'OBSOLETE';
 	if (! @{$ast} ){ return $args; }
 	if ( ($ast->[0] & 0xFF) == 0 ) {
 	# descend

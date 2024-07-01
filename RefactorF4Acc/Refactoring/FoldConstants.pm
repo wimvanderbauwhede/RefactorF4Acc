@@ -351,7 +351,7 @@ sub fold_constants_no_iters {
                 $info->{'Do'}{'Range'}{'Expressions'} = $const_range_exprs;
                 $info->{'Do'}{'Range'}{'Vars'} = []; # FIXME! Only works if all vars have been replaced!
             }  else {
-                carp "TODO: FOLD CONSTANTS IN WHILE: $line";
+                warn "TODO: FOLD CONSTANTS IN WHILE: $line";
             }
             }
             elsif ( exists $info->{'PrintCall'} ) {

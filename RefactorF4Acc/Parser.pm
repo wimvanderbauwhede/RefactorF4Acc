@@ -4303,15 +4303,20 @@ sub _parse_read_write_print {
 	        if (exists $attr_pairs->{'iostat'}) {
 	        	my $ios = $attr_pairs->{'iostat'}[1];
 	        	$info->{'Vars'}{'Written'}{'Set'}{$ios}=1;
+				$info->{'IOStat'}=$ios;
+				# croak Dumper $ios;
 	        }
 		} elsif ($case==2) {
 			  #If case 2, add REC vars to Read from
 			if (exists $attr_pairs->{'iostat'}) {
 	            my $ios = $attr_pairs->{'iostat'}[1];
+				# croak Dumper $ios;
+				$info->{'IOStat'}=$ios;
 	            $info->{'Vars'}{'Written'}{'Set'}{$ios}=1;
 	        }
 	        if (exists $attr_pairs->{'rec'}) {
                 my $rn = $attr_pairs->{'rec'}[1];
+				$info->{'RecVar'}=$rn;
                 $info->{'Vars'}{'Read'}{'Set'}{$rn}=1;
             }
 	        # This must be the iolist case. First check for implied do; then call args_vars. All args are Written, the rest is Read

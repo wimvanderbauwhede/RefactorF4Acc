@@ -88,6 +88,14 @@ sub translate_program_to_Uxntal($stref,$program_name){
 		'Console' => [
 		'	|10 @Console &vector $2 &read $1 &pad $4 &type $1 &write $1 &error $1'
 		],
+		# For reading
+		'ReadFile' => [
+		'	|a0 @File &vector $2 &success $2 &stat $2 &delete $1 &append $1 &name $2 &length $2 &read $2 &write $2'
+		],
+		# For writing, TODO
+		'WriteFile' => [
+		'	|b0 @File &vector $2 &success $2 &stat $2 &delete $1 &append $1 &name $2 &length $2 &read $2 &write $2'
+		],
 
 		'CLIHandling' => {
 			'Preamble'=> [
@@ -148,6 +156,8 @@ sub translate_program_to_Uxntal($stref,$program_name){
 
 	$stref->{'TranslatedCode'}=[
 		($stref->{'HasCLArgs'} ? @{$stref->{'Uxntal'}{'Console'}} :()),
+		($stref->{'HasReadFile'} ? @{$stref->{'Uxntal'}{'ReadFile'}} :()),
+		($stref->{'HasWriteFile'} ? @{$stref->{'Uxntal'}{'WriteFile'}} :()),
 		'|0000',
 		($stref->{'UseCallStack'} ? @{$stref->{'Uxntal'}{'CallStackPointers'}} : ()),
 		($stref->{'HasCLArgs'} ? @{$stref->{'Uxntal'}{'CLIHandling'}{'Preamble'}} : ()),
@@ -606,7 +616,7 @@ Instead of the nice but cumbersome approach we had until now, from now on it is 
 				my $unit= $info->{'UnitVar'};
 				my $fq_unit= __create_fq_varname($stref,$f,$unit);
 				my $iostat = __create_fq_varname($stref,$f,$info->{'IOStat'});
-				$c_line = ";$fn .File/name DEO2";
+				$c_line = ";$fn #0002 ADD2 .File/name DEO2";
 				if (not exists $stref->{'Subroutines'}{$f}{'FileHandle'}) {
 					$stref->{'Subroutines'}{$f}{'FileHandle'}{$unit}={
 						'Unit' => $fq_unit,
@@ -623,16 +633,36 @@ Instead of the nice but cumbersome approach we had until now, from now on it is 
 				delete $stref->{'Subroutines'}{$f}{'FileHandle'}{$unit};
 			}
 			elsif (exists $info->{'ReadCall'}) {
+				$stref->{'HasReadFile'}=1;
 				# read(unit=$src,iostat=$stat,rec=$i) $cbuf 
-				my $rec = $info->{'RecVar'};
-				croak Dumper $info->{'Vars'}{'Read'};
-				my $len = 0; # TODO
-				my $cbuf = ''; # TODO
+				my $rec = __create_fq_varname($stref,$f,$info->{'RecVar'});
+				# croak Dumper sort keys %{$info};
+				if ($info->{'IOList'}{'AST'}[0] != 2) {
+					die "READ is only supported with a single arg in the IO list\n";
+				}
+				my $cbuf = $info->{'IOList'}{'AST'}[1];
+				my $subset = in_nested_set($Sf,'Vars',$cbuf);
+				if ($subset eq '') {
+					croak "$f $cbuf";
+				}
+				my $decl = get_var_record_from_set($Sf->{$subset},$cbuf);
+				my $len=0;
+				if ($decl->{'Type'} ne 'character') {
+					die "READ is only supported with a character buffer\n";
+				} else {
+					if (exists $decl->{'Attr'} and $decl->{'Attr'}=~/len/) { 
+						$len=$decl->{'Attr'}; $len=~s/^\(len=//;$len=~s/\)$//;
+					} else {
+						$len=1;
+					}
+				}
+				my $uxntal_len = toHex($len,2);
+				my $fq_cbuf = __create_fq_varname($stref,$f,$cbuf);
 				my $iostat = __create_fq_varname($stref,$f,$info->{'IOStat'});
-				$c_line = "$len .File/length DEO2\n" 
-				. ";&$cbuf .File/read DEO2\n"
+				$c_line = "$uxntal_len .File/length DEO2\n" 
+				. ";$fq_cbuf .File/read DEO2\n"
 				. ";$rec LDA2 INC2 ;$rec STA2\n"
-				. ".File/success DEI2 #0001 SUB2 ;&$iostat STA2";
+				. ".File/success DEI2 #0001 SUB2 ;$iostat STA2";
 			} else {
 				croak 'TODO: IOCall '.Dumper( $info->{'IOCall'}{'Args'}{'AST'})."\nIOList ".Dumper($info->{'IOList'}{'AST'});
 
@@ -835,12 +865,16 @@ sub _get_word_sizes($stref,$f){
 		my $wordsz=0;
 		my $type = $decl->{'Type'};
 		if ($type eq 'integer') {
-			# carp Dumper $decl;
 			my $kind = $decl->{'Attr'};
 			$kind=~s/kind\s*=\s*//;
 			$kind=~s/^\s*\(\s*//;
 			$kind=~s/\s*\)\s*$//;
-			$kind*=1;
+			if( $kind eq '') {
+				warn "default kind for $var in $f";
+				$kind=4;
+			} else {
+				$kind*=1;
+			}
 			if ($kind>2) {
 				die "Integers must be 8-bit or 16-bit: $var in $f is $kind\n";
 			}
@@ -1212,6 +1246,7 @@ sub __copy_substr($stref, $f, $info, $lhs_ast, $rhs_ast) {
 				# So to avoid overwriting, we use the LHS slice
 				$uxntal_code = "$rhs_Uxntal_expr $lhs_var_access $lhs_idx_expr_b ADD2 ".
 				__calc_len($lhs_idx_expr_e, $lhs_idx_expr_b).' strncpy';
+				add_to_used_lib_subs('strncpy');
 			}
 		} else { # This is either a character assignment or a string copy
 		# <string-literal> ;lhs_str <$len> strncpy
@@ -1240,6 +1275,7 @@ sub __copy_substr($stref, $f, $info, $lhs_ast, $rhs_ast) {
 				}
 				my $len = toHex(min($lhs_len,$rhs_len),2);
 				$uxntal_code = "$rhs_Uxntal_expr $lhs_var_access $len strncpy";
+				add_to_used_lib_subs('strncpy');
 			}
 			# croak "NOT a substr copy! ".Dumper($lhs_ast,$rhs_ast);
 		}
@@ -1269,6 +1305,7 @@ sub __copy_substr($stref, $f, $info, $lhs_ast, $rhs_ast) {
 				# So this is a strncpy where we copy e1-b1+1 bytes from the RHS starting at b2 to LHS starting at b1
 				$uxntal_code = "$rhs_var_access $rhs_idx_expr_b ADD2 $lhs_var_access $lhs_idx_expr_b ADD2 ".
 				__calc_len($lhs_idx_expr_e,$lhs_idx_expr_b). ' strncpy';
+				add_to_used_lib_subs('strncpy');
 			}
 		} elsif ($lhs_idx_expr_type == 2 and $rhs_idx_expr_type == 0) {
 			# this is a special case of the above where we start the RHS string at 0; LHS is a slice
@@ -1281,6 +1318,7 @@ sub __copy_substr($stref, $f, $info, $lhs_ast, $rhs_ast) {
 				# s_to = s_from(b:e) where s_to is of length e-b
 				$uxntal_code = "$rhs_var_access $lhs_var_access $lhs_idx_expr_b ADD2 ".
 				__calc_len($lhs_idx_expr_e, $lhs_idx_expr_b).' strncpy';
+				add_to_used_lib_subs('strncpy');
 			}
 			elsif (($rhs_ast->[0] == 2 and is_character($stref,$f,$rhs_var)) or $rhs_ast->[0] == 32) {
 				# it's a character-type scalar or a character constant.
@@ -1311,6 +1349,8 @@ sub __copy_substr($stref, $f, $info, $lhs_ast, $rhs_ast) {
 				# So: if e-b+1 < length, use e-b+1 else use length
 				$uxntal_code = "$rhs_var_access $rhs_idx_expr_b ADD2 $lhs_var_access ".
 				__calc_len($rhs_idx_expr_e, $rhs_idx_expr_b)." $lhs_var_access LDA2 min strncpy";
+				add_to_used_lib_subs('min');
+				add_to_used_lib_subs('strncpy');
 			}
 		} elsif ($lhs_idx_expr_type == 2 and $rhs_idx_expr_type == 1) {
 			# Special case: RHS is array assignment.
@@ -2053,6 +2093,9 @@ sub _emit_expression_Uxntal ($ast, $stref, $f, $info) {
                 return join(' ',@args_lst_Uxntal);
 		}
 		else {
+			if ($opcode==0) { # parens, just remove it
+				return _emit_expression_Uxntal($ast->[1], $stref, $f, $info);
+			}
 			croak 'Unimplemented case for _emit_expression_Uxntal: ',Dumper($ast);
 		}
     } else {
@@ -3121,9 +3164,10 @@ sub _analyse_write_call($stref,$f,$info){
 			# 9: =, check what is next, it should be [2,$attr]
 			# Most common $attr is advance; the value will be a PlaceHolder
 			my $attr = __analyse_write_call_arg($stref,$f,$info,$arg_ast,$i);
+			# carp 'ATTR:'.Dumper( $attr);
 			++$i;
 			if ($attr->[0] eq 'fmt') {
-				($print_calls,$offsets) = __parse_fmt($attr->[1],$info);
+				($print_calls,$offsets) = __parse_fmt($attr->[1],$stref,$f,$info);
 			}
 			elsif ($attr->[0] eq 'unit') {
 				$unit = $attr->[1];
@@ -3225,7 +3269,7 @@ sub __analyse_write_call_arg($stref,$f,$info,$arg,$i){
 # if the field is too small, a string of w `*`s is returned
 # TODO: I am not going to do this.
 # I will simply use m and ignore w
-sub __parse_fmt($fmt_str,$info){
+sub __parse_fmt($fmt_str,$stref,$f,$info){
 
 	my @chunks = split(/\s*,\s*/,$fmt_str);
 	my $print_calls=[];
@@ -3240,18 +3284,43 @@ sub __parse_fmt($fmt_str,$info){
 		} elsif ($nchars=~/^(\d)$/) {
 			$nchars=$1;
 		} else {
-			# croak 'INFO:',Dumper($info->{'IOList'}{'AST'},$info->{'PlaceHolders'});
 			if ($info->{'IOList'}{'AST'}[0]==27) {
 				# more than one argument
 				my $val_ast = $info->{'IOList'}{'AST'}[$chunk_idx];
 				$nchars = __get_len_from_AST($val_ast,$info->{'PlaceHolders'});
 
 			} else {
-				my $val_ast = $info->{'IOList'}{'AST'}[0];
+				my $val_ast = $info->{'IOList'}{'AST'};
 				$nchars = __get_len_from_AST($val_ast,$info->{'PlaceHolders'});
+				if ($nchars==0 and $val_ast->[0] == 2) {
+					my $var = $val_ast->[1];
+					my $Sf = $stref->{'Subroutines'}{$f};
+					my $subset = in_nested_set($Sf,'Vars',$var);
+					if ($subset eq '') {
+						croak "$f $var";
+					}
+					my $decl = get_var_record_from_set($Sf->{$subset},$var);
+					my $len=0;
+					if ($decl->{'Type'} eq 'character') {
+						if (exists $decl->{'Attr'} and $decl->{'Attr'}=~/len/) { 
+							$len=$decl->{'Attr'}; $len=~s/^\(len=//;$len=~s/\)$//;
+						} else {
+							$len=1;
+						}
+					} elsif ($decl->{'Type'} eq 'integer') {
+						if (exists $decl->{'Attr'} and $decl->{'Attr'}=~/kind/) { 
+							$len=$decl->{'Attr'}; $len=~s/^\(kind=//;$len=~s/\)$//;
+						} else {
+							$len=1;
+						}
+					} else {
+						die "READ is only supported with a character or integer\n";
+					}
+					$nchars=$len;
+				}
 			}
 		}
-		# warn "NCHARS: $nchars";
+		
 		if ( $c eq 'I' ) {
 			push @{$print_calls}, 'print-int';
 			$offset+=max(2,$nchars);
@@ -3272,10 +3341,15 @@ sub __parse_fmt($fmt_str,$info){
 		}
 		elsif ( $c eq 'A' ) {
 			if (uc($chunk) eq 'A') {
-				push @{$print_calls}, 'print-string';
-				# offset is unknown
-				# set it totally ad-hoc to 8
-				$offset+=8;
+				if ($ nchars!=1) {
+					push @{$print_calls}, 'print-string';
+					# offset is unknown
+					# set it totally ad-hoc to 8
+					$offset+=8;
+				} else {
+					push @{$print_calls}, 'print-char';
+					$offset+=1;
+				}
 			} else {
 				if ($nchars==1) {
 					push @{$print_calls}, 'print-char';
@@ -3320,6 +3394,11 @@ sub __get_len_from_AST($val_ast, $phs){
 		return length($val_ast->[1].'');
 	} elsif ($val_ast->[0] == 36) {
 		return length($val_ast->[1].'');
+	} elsif ($val_ast->[0] == 2) {
+		# assuming this is a variable, return 0 as a sign it needs to be done outside of this function
+		return 0;
+	} else {
+		error("Unsupported arg type for fmt: ".Dumper($val_ast));
 	}
 }
 
@@ -3358,7 +3437,7 @@ sub __emit_list_based_print_write($stref,$f,$line,$info,$unit, $advance){
 			error("Unsupported: PRINT with label arg: $line",0,'ERROR');
 		}
 		my $print_fmt = __analyse_write_call_arg($stref,$f,$info,$fmt_ast,0);
-		my ($print_call_list, $offsets) = __parse_fmt($print_fmt->[1],$info);
+		my ($print_call_list, $offsets) = __parse_fmt($print_fmt->[1],$stref,$f,$info);
 		my $call_arg_list = $ast->[2]; shift @{$call_arg_list};shift @{$call_arg_list};
 		if (scalar @{$print_call_list} != scalar @{$call_arg_list}) {
 			die Dumper($print_call_list,$call_arg_list);
