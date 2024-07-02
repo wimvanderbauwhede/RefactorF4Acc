@@ -521,7 +521,7 @@ Instead of the nice but cumbersome approach we had until now, from now on it is 
 		if (exists $info->{'Assignment'} ) {
 			# say "Assignment line: $line";
 			($c_line,$pass_state) = _emit_assignment_Uxntal($stref, $f, $info,$pass_state) ;
-			if (exists $info->{'If'}) {
+			if (exists $info->{'If'} and not exists $info->{'IfThen'}) {
 				my $indent = $info->{'Indent'};
 				my $branch_id = $info->{'LineID'};
 				my $cond_expr_ast=$info->{'Cond'}{'AST'};
@@ -533,7 +533,7 @@ Instead of the nice but cumbersome approach we had until now, from now on it is 
 		elsif (exists $info->{'SubroutineCall'} and not exists $info->{'IOCall'}) {
             $c_line = _emit_subroutine_call_expr_Uxntal($stref,$f,$line,$info);
 			# If without Then
-			if (exists $info->{'If'}) {
+			if (exists $info->{'If'} and not exists $info->{'IfThen'}) {
 				my $indent = $info->{'Indent'};
 				my $branch_id = $info->{'LineID'};
 				my $cond_expr_ast=$info->{'Cond'}{'AST'};
@@ -667,6 +667,19 @@ Instead of the nice but cumbersome approach we had until now, from now on it is 
 				croak 'TODO: IOCall '.Dumper( $info->{'IOCall'}{'Args'}{'AST'})."\nIOList ".Dumper($info->{'IOList'}{'AST'});
 
 			}
+			if (exists $info->{'If'} and not exists $info->{'IfThen'}) {
+				my $indent = $info->{'Indent'};
+				my $branch_id = $info->{'LineID'};
+				my $cond_expr_ast=$info->{'Cond'}{'AST'};
+				my $cond_expr = _emit_expression_Uxntal($cond_expr_ast,$stref,$f,$info);
+			# What we have is e.g.
+			# if (fl(1:2) == __PH0__) VV = .true.
+			# What we need is
+			# NOT <cond> <label_end> JCN
+				$c_line = "\n$indent $cond_expr #00 EQU ;&branch$branch_id JCN2\n" . $c_line;
+			# <expr>
+				$c_line .= $indent.' '."&branch$branch_id";
+			}
 		}
 		elsif (exists $info->{'If'} and not exists $info->{'IfThen'} ) {
 			if (exists $info->{'Goto'}) {
@@ -685,15 +698,19 @@ Instead of the nice but cumbersome approach we had until now, from now on it is 
             $pass_state->{'IfBranchId'} = $id;
             push @{$pass_state->{'IfStack'}},$id;
             $pass_state->{'IfId'}=$id;
+			push @{$pass_state->{'BranchStack'}},$id;
 			$c_line = _emit_ifthen_Uxntal($stref, $f, $info, $id);
         } elsif (exists $info->{'ElseIf'} ) {
 			($c_line, my $branch_id) = _emit_ifbranch_end_Uxntal($id,$pass_state);
 			$c_line .= _emit_ifthen_Uxntal($stref, $f, $info, $branch_id);
+			push @{$pass_state->{'BranchStack'}},$branch_id;
         } elsif (exists $info->{'Else'} ) {
 			($c_line, my $branch_id) = _emit_ifbranch_end_Uxntal($id,$pass_state);
             $c_line .= "&branch$branch_id";
+			push @{$pass_state->{'BranchStack'}},$branch_id;
         } elsif (exists $info->{'EndIf'} ) {
 			my $branch_id = $pass_state->{'IfBranchId'};
+			my $branch_id = pop @{$pass_state->{'BranchStack'}};
 			my $if_id = $pass_state->{'IfId'};
 			$c_line = ';&cond_end'.$if_id.' JMP2 '."\n"
             .'&branch'.$branch_id.'_end &cond_end'.$if_id;
@@ -825,7 +842,8 @@ Instead of the nice but cumbersome approach we had until now, from now on it is 
 			'ReadArgs' => [],
 			'Sig' => '',
 		},
-		'IfStack'=>[],'IfId' =>0,'IfBranchId' =>0,
+		'IfStack'=>[],'IfId' =>0,
+		'BranchStack'=>[],'IfBranchId' =>0,
 		'DoStack'=>[], 'DoIter'=>'', 'DoId' => 0,
 	}
 	];
@@ -1954,7 +1972,8 @@ sub _emit_ifthen_Uxntal ($stref, $f, $info, $branch_id){
 }
 
 sub _emit_ifbranch_end_Uxntal ($id, $state){
-	my $branch_id = $state->{'IfBranchId'};
+	# my $branch_id = $state->{'IfBranchId'};
+	my $branch_id = pop @{$state->{'BranchStack'}};
 	my $if_id = $state->{'IfId'};
 	my $r_line = ";&cond_end${if_id} JMP2 \n";
 	$r_line .= "&branch${branch_id}_end\n";
@@ -2627,7 +2646,6 @@ sub __emit_call_arg_Uxntal_expr($stref,$f,$info,$subname,$call_arg_expr_str,$ast
 				if ($fcall->{'Name'} eq $subname) {
 					$call_info = $fcall;
 					$arg_is_intrinsic_call = 1;
-					carp Dumper $subname,$F95_intrinsic_function_sigs{$subname},$idx;
 					$arg_is_not_string = $F95_intrinsic_function_sigs{$subname}[0][$idx-1] ne 'character(*)' ? 1 : 0;
 					last;
 				}
