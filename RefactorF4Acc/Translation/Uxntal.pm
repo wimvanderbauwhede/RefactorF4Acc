@@ -617,7 +617,8 @@ Instead of the nice but cumbersome approach we had until now, from now on it is 
 				my $unit= $info->{'UnitVar'};
 				my $fq_unit= __create_fq_varname($stref,$f,$unit);
 				my $iostat = __create_fq_varname($stref,$f,$info->{'IOStat'});
-				$c_line = ";$fn #0002 ADD2 .File/name DEO2";
+				$c_line = _var_access_read($stref,$f,$info, [2,$info->{'FileNameVar'}]). 
+				" #0002 ADD2 .File/name DEO2";
 				if (not exists $stref->{'Subroutines'}{$f}{'FileHandle'}) {
 					$stref->{'Subroutines'}{$f}{'FileHandle'}{$unit}={
 						'Unit' => $fq_unit,
@@ -2224,8 +2225,12 @@ sub _emit_subroutine_call_expr_Uxntal($stref,$f,$line,$info){
 			if ($arg_expr_ast->[0] == 10 and scalar @{$arg_expr_ast}==3) { # an array or string access, need a substring or subarray
 				my $var = $arg_expr_ast->[1];
 				my $var_access = __var_access($stref,$f,$var);
-				my $idx_expr_b = _emit_expression_Uxntal($arg_expr_ast->[2][0], $stref, $f,$info);
-				my $idx_expr_e = _emit_expression_Uxntal($arg_expr_ast->[2][1], $stref, $f,$info);
+				my $idx_expr_b = $arg_expr_ast->[2][0] == 12 ? # ib:ie
+				_emit_expression_Uxntal($arg_expr_ast->[2][1], $stref, $f,$info)
+				: $arg_expr_ast->[2];
+				my $idx_expr_e = $arg_expr_ast->[2][0] == 12 ? # ib:ie
+				_emit_expression_Uxntal($arg_expr_ast->[2][2], $stref, $f,$info)
+				: $idx_expr_b;
 				if ($idx_expr_b eq $idx_expr_e) { # access a single character, so return a byte as value
 					my $idx_expr =  ($idx_expr_b eq '#0000') ? '' : "$idx_expr_b ADD2 ";
 					push @call_arg_expr_strs_Uxntal,  "$var_access $idx_expr LDA".' ( CHAR )' # load a pointer, index, load the value
@@ -2366,6 +2371,9 @@ sub __emit_call_arg_Uxntal_expr($stref,$f,$info,$subname,$call_arg_expr_str,$ast
 	# But this could be e.g. str(ib:ie), in which case it is a substring, TODO!
 		if ($arg_expr_ast->[0] == 10 and scalar @{$arg_expr_ast}==3) { # an array or string access, need a substring or subarray
 				my $var = $arg_expr_ast->[1];
+				if (is_array($stref,$f,$var)) {
+					error("Array slice is not supported: $var in $f");
+				}
 				my $var_access = __var_access($stref,$f,$var);
 				my $idx_expr_b = $arg_expr_ast->[2][0] == 12 ? # ib:ie
 				_emit_expression_Uxntal($arg_expr_ast->[2][1], $stref, $f,$info)
@@ -2375,7 +2383,7 @@ sub __emit_call_arg_Uxntal_expr($stref,$f,$info,$subname,$call_arg_expr_str,$ast
 				: $idx_expr_b;
 				if ($idx_expr_b eq $idx_expr_e) { # access a single character, so return a byte as value
 					my $idx_expr =  ($idx_expr_b eq '#0000') ? '' : "$idx_expr_b ADD2 ";
-					return  "$var_access $idx_expr LDA" # load a pointer, index, load the value
+					return  "$var_access INC2 $idx_expr LDA " # load a pointer, index, load the value
 				} else {
 					# extract a substring
 					my $decl = get_var_record_from_set($Sf->{'Vars'},$var);

@@ -718,17 +718,52 @@ sub is_arg {my ($stref,$f,$var) =@_;
 	# }
 }
 sub is_array { my ($stref,$f,$var) = @_;
-	my $decl =  get_var_record_from_set($stref->{'Subroutines'}{$f}{'Vars'},$var) ;
-    # carp Dumper $decl;
-	my $isArray = $decl->{'ArrayOrScalar'} eq 'Array';
+    # For array index, string index of function call
+    if ($var=~/\w+\s*\(/) {
+        $var=~s/\s*\(.+$//;
+    }
+    my $Sf=$stref->{'Subroutines'}{$f};
+	my $decl =  get_var_record_from_set($Sf->{'Vars'},$var) ;
+    my $isArray = 0;
+    if ( defined $decl) {
+        $isArray = $decl->{'ArrayOrScalar'} eq 'Array';
+    }
     return $isArray;
 }
 sub is_string { my ($stref,$f,$var) = @_;
-	my $decl =  get_var_record_from_set($stref->{'Subroutines'}{$f}{'Vars'},$var) ;
-	my $ftype = $decl->{'Type'};
-	my $fkind = $decl->{'Attr'};
-	my $isString = ($decl->{'Type'} eq 'character' and (exists $decl->{'Attr'} and ($decl->{'Attr'} !~/len\s*=\s*1\)/)));
-    return $isString;
+    # For array index, string index of function call
+    if ($var=~/\w+\s*\(/) {
+        $var=~s/\s*\(.+$//;
+    }
+    my $Sf=$stref->{'Subroutines'}{$f};
+	my $decl =  get_var_record_from_set($Sf->{'Vars'},$var) ;
+    if (not defined $decl) { 
+        # This could still be a string due to concatenation; it could also be a function returning a string
+        # We ignore functions returning an array or array concatenation
+        my $isString=0;
+        if (exists $stref->{'Subroutines'}{$var}) {
+            my $type =  $stref->{'Subroutines'}{$var}{'Signature'}{'ReturnType'} // '';
+            my $attr = $stref->{'Subroutines'}{$var}{'Signature'}{'ReturnTypeAttr'} // '';
+            if ($type eq 'character' && $attr=~/len=\d+/) {
+                $isString=1;
+            }
+        }
+        elsif (exists $F95_intrinsic_function_sigs{$var}) {
+            if ($F95_intrinsic_function_sigs{$var}[1] eq 'character(*)') {
+                $isString=1;
+            }
+            return $isString;
+        }
+        elsif ($var =~/\/\//) {
+            $isString=1;
+        }
+        return $isString;
+    } else {
+        my $ftype = $decl->{'Type'};
+        my $fkind = $decl->{'Attr'};
+        my $isString = ($decl->{'Type'} eq 'character' and (exists $decl->{'Attr'} and ($decl->{'Attr'} !~/len\s*=\s*1\)/)));
+        return $isString;
+    }
 }
 sub is_character { my ($stref,$f,$var) = @_;
 	my $decl =  get_var_record_from_set($stref->{'Subroutines'}{$f}{'Vars'},$var) ;
@@ -738,7 +773,7 @@ sub is_character { my ($stref,$f,$var) = @_;
     return $isChar;
 }
 sub is_array_or_string { my ($stref,$f,$var) = @_;
-# For array index, string index of function call
+    # For array index, string index of function call
     if ($var=~/\w+\s*\(/) {
         $var=~s/\s*\(.+$//;
     }
@@ -746,6 +781,7 @@ sub is_array_or_string { my ($stref,$f,$var) = @_;
 	my $decl =  get_var_record_from_set($Sf->{'Vars'},$var) ;
     if (not defined $decl) { 
         # This could still be a string due to concatenation; it could also be a function returning a string
+        # We ignore functions returning an array or array concatenation
         my $isString=0;
         if (exists $stref->{'Subroutines'}{$var}) {
             my $type =  $stref->{'Subroutines'}{$var}{'Signature'}{'ReturnType'} // '';
