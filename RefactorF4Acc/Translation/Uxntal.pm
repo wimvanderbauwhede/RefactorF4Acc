@@ -376,7 +376,8 @@ Instead of the nice but cumbersome approach we had until now, from now on it is 
 	(my $new_annlines_,$pass_state) = stateful_pass($annlines,$pass_analysis,$pass_state,"pass_analysis($f)");
 	$Sf->{'Pointers'} = $pass_state->{'Pointers'};
 	$Sf->{'WordSizes'} = { %{$Sf->{'WordSizes'}}, %{$pass_state->{'WordSizes'}}};
-	$stref->{'HasCLArgs'} = $pass_state->{'CLArgs'} unless exists $Sf->{'CLArgs'} and $Sf->{'CLArgs'}==1;
+	$stref->{'HasCLArgs'} = $pass_state->{'CLArgs'} unless (exists $stref->{'HasCLArgs'} and $stref->{'HasCLArgs'}==1);
+
 # --------------------------------------------------------------------------------------------
  	# $Sf->{'UseCallStack'}=1; # override for debugging
 	my $use_stack = __use_stack($stref,$f);
@@ -691,7 +692,7 @@ Instead of the nice but cumbersome approach we had until now, from now on it is 
 			my $branch_id = $info->{'LineID'};
 			my $cond_expr_ast=$info->{'Cond'}{'AST'};
 			my $cond_expr = _emit_expression_Uxntal($cond_expr_ast,$stref,$f,$info);
-			$c_line = "\n( If without Then )\n" . $indent.' '."$cond_expr EQU #00 ;&branch$branch_id JCN2\n" . $c_line;
+			$c_line = "\n( If without Then )\n" . $indent.' '."$cond_expr #00 EQU ;&branch$branch_id JCN2\n" . $c_line;
 			$c_line .= $indent.' '."&branch$branch_id";
 		}
         elsif (exists $info->{'IfThen'} and not exists $info->{'ElseIf'} ) {
@@ -2138,332 +2139,6 @@ sub _emit_expression_Uxntal ($ast, $stref, $f, $info) {
 } # END of _emit_expression_Uxntal
 
 
-sub _emit_expression_Uxntal_OFF ($ast, $stref, $f, $info) {
-	my $Sf = $stref->{'Subroutines'}{$f};
-
-    if (ref($ast) eq 'ARRAY') {
-        if (scalar @{$ast}==3) { # three elements, e.g. ['@','v',['$','i']]
-			# Special cases
-			# Uxn does not have pow or mod so these would have to be functions
-			# TODO these are not implemented yet
-			if ($ast->[0] == 8) { # eq '^'
-				(my $op, my $arg1, my $arg2) = @{$ast};
-				$ast = [1,'pow',[27,$arg1,$arg2] ] ;
-			}
-			elsif ($ast->[0] == 7) { # eq '%', mod
-				(my $op, my $arg1, my $arg2) = @{$ast};
-				$ast = [1,'mod',[27,$arg1,$arg2] ] ;
-			}
-			# Arrays and calls
-            if ($ast->[0] == 1 or $ast->[0] ==10) { #  array access 10=='@' or function call 1=='&'
-                (my $opcode, my $name, my $args) =@{$ast};
-				# Special cases
-				if ($ast->[0] == 1 and $ast->[1] eq 'int') { # just remove it
-					# [1,'int',['(', $arg, $sz]]
-					my $uxn_ast = $ast->[2][1];
-					return _emit_expression_Uxntal($uxn_ast, $stref, $f,$info);
-				}
-				elsif ($ast->[0] == 1 and $ast->[1] eq 'print') {
-					# [1,'print','*', $arg]
-					my $uxn_ast = [1,'print',$ast->[2][2]];
-					return _emit_expression_Uxntal($uxn_ast, $stref, $f,$info);
-				}
-
-                if (@{$args}) {
-					if ($args->[0] != 14 ) { # NOT ')('
-						my @args_lst_Uxntal=();
-						my $has_slices=0;
-						if($args->[0] == 27) { # ','
-							# more than one arg
-							for my $idx (1 .. scalar @{$args}-1) {
-								my $arg = $args->[$idx];
-								my $is_slice = $arg->[0] == 12; # ':'
-								push @args_lst_Uxntal, _emit_expression_Uxntal($arg, $stref, $f,$info) unless $is_slice;
-								$has_slices ||= $is_slice;
-							}
-						} else {
-							# only one arg
-							$args_lst_Uxntal[0] = _emit_expression_Uxntal($args, $stref, $f,$info);
-						}
-
-						if ($ast->[0]==10) { # '@', an array access; but also a string access?
-							# If I did this right, this should simply be the _var_access function
-							# In Uxntal, an array access is ;array $idx ADD2 LDA2 and if $idx is a scalar, I assume it's $idx LDA2, because we use shorts everywhere.
-							my $var_name = $ast->[1];
-							my $wordsz = $stref->{'Subroutines'}{$f}{'WordSizes'}{$var_name};
-							my $qual_vname = $f .'_' . $var_name;
-							my $subset='';
-							my $is_arg = in_nested_set($Sf,'DeclaredOrigArgs',$var_name) eq 'DeclaredOrigArgs' ? 1 : 0;
-							if (not $is_arg) { # could be a module global
-								my $decl = get_var_record_from_set($Sf->{'ModuleVars'},$var_name);
-								# carp "VAR: $var_name ".Dumper($decl) if $var_name eq 'funktalGlobalString';
-								if (defined $decl) {
-									my $mod_name ='';
-									if (exists $decl->{'ModuleName'}) {
-										$mod_name = $decl->{'ModuleName'};
-									}
-									if ($mod_name ne '') {
-										$qual_vname = $mod_name.'_'.$var_name;
-										if (not exists $stref->{'Uxntal'}{'Globals'}{'Set'}{$qual_vname}) {
-											$stref->{'Uxntal'}{'Globals'}{'Set'}{$qual_vname} = 1;
-											($stref, my $global_var_decl)= _emit_var_decl_Uxntal($stref,$mod_name,$info,$var_name);
-											push @{$stref->{'Uxntal'}{'Globals'}{'List'}},$global_var_decl ;
-										}
-									}
-								}
-							}
-							if( $args->[0]==29 and $args->[1] eq '1') { # if we have v(1)
-								return ';'.$qual_vname.($is_arg? ' LDA2': '').' LDA'.($wordsz==1?'':'2');
-							} else {
-								my $decl = get_var_record_from_set($stref->{'Subroutines'}{$f}{'Vars'},$name);
-								if ($decl->{'ArrayOrScalar'} eq 'Array') {
-									my $dims =  $decl->{'Dim'};
-									# my $maybe_amp = $has_slices ? '&' : '';
-									my $ndims = scalar @{$dims};
-
-									# my @ranges=();
-									# my @lower_bounds=();
-									# for my $boundspair (@{$dims}) {
-									# 	(my $lb, my $hb)=@{$boundspair };
-									# 	push @ranges, "(($hb - $lb )+1)";
-									# 	push @lower_bounds, $lb;
-									# }
-									if ($ndims==1) { # access to a 1-D array, v(i)
-										return ';'.$qual_vname.($is_arg? ' LDA2': '').' '.$args_lst_Uxntal[0].' ADD2 LDA'.($wordsz==1?'':'2');
-									} elsif ($ndims==0 and $decl->{'Type'} eq 'character') {
-										my $cb = _emit_expression_Uxntal($ast->[2][1], $stref, $f,$info);
-										my $ce = _emit_expression_Uxntal($ast->[2][2], $stref, $f,$info);
-										my $id=$info->{'LineID'};
-										my $len = $decl->{'Attr'};$len=~s/len=//;
-										return __gen_substr(';'.$qual_vname.($is_arg? ' LDA2': ''), $cb,$ce, $len, $id);
-										# I think I should have a streq function and maybe a substr function
-										# we should be able to use a range-fold for this
-										# <chars> ;fl <cb> <ce> streq
-									} else {
-										error( "No support for multidimensional ($ndims) arrays yet\n" . Dumper($ast),0,'ERROR');
-									}
-								} elsif ( $decl->{'Type'} eq 'character') {
-									# Although the AST says '10', decls says it's a scalar
-									my $strn= (exists $decl->{'ModuleName'} ? $decl->{'ModuleName'} :$f).'_'.$ast->[1];
-									# croak "ALLOW FOR MODULE GLOBALS HERE!";
-									my $cb = _emit_expression_Uxntal($ast->[2][1], $stref, $f,$info);
-									my $ce = _emit_expression_Uxntal($ast->[2][2], $stref, $f,$info);
-									my $id=$info->{'LineID'};
-									if($decl->{'Attr'}!~/len/) {
-										croak 'String with index>1 but the type is character', Dumper $ast;
-									}
-									my $len = $decl->{'Attr'};$len=~s/len=//;
-									return __gen_substr(';'.$strn, $cb,$ce, $len, $id);
-								} else { # Although the AST says '10', decls says it's a scalar
-									croak Dumper $ast,$decl;
-								}
-							}
-						} else { # A subroutine access.
-							if ($name ne 'achar') {
-								return join(' ',@args_lst_Uxntal).' '.$name;
-							} else {
-								return join(' ',@args_lst_Uxntal);
-							}
-						}
-					} else { #  ')(', e.g. f(x)(y)
-						die 'ERROR: f()() is not supported, sorry!'."\n";
-					}
-				} else {
-					return 'SIGIL:'.$sigils[$opcode] ." $name";
-				}
-            } else { # not '&' or '@'
-
-                (my $opcode, my $lexp, my $rexp) =@{$ast};
-
-                my $lv = (ref($lexp) eq 'ARRAY') ? _emit_expression_Uxntal($lexp, $stref, $f,$info) : $lexp;
-                my $rv = (ref($rexp) eq 'ARRAY') ? _emit_expression_Uxntal($rexp, $stref, $f,$info) : $rexp;
-
-				if ($lv=~/^\"/) {
-					my $len = toRawHex( length($lv)-1,2);
-					$lv = "{ $len $lv } STH2r";
-				}
-				if ($rv=~/^\"/) {
-					my $len = toRawHex( length($rv)-1,2);
-					$rv = "{ $len $rv } STH2r";
-				}
-				if (isStrCmp($ast, $stref, $f,$info)) {
-					return "$lv $rv scmp ( TODO: scmp for strings with length ) ";
-				} else {
-                	return "$lv $rv  ".($opcode != 27 ? $sigils[$opcode].'2' : ''); # FIXME, needs refining
-				}
-            }
-        } elsif (scalar @{$ast}==2) { #  for '('  and '$'
-
-            (my $opcode, my $exp) =@{$ast};
-
-			my $sigil = $sigils[$opcode];
-
-            if ($opcode==0 ) { # eq '('
-                my $v = (ref($exp) eq 'ARRAY') ? _emit_expression_Uxntal($exp, $stref, $f,$info) : $exp;
-				# croak 'TODO: ( ... ) '.Dumper( $exp);
-                return "[ $v ]"; # FIXME, but of course this is valid Uxntal
-            } elsif ($opcode==28 ) { # eq '(/'
-				croak 'TODO: (/ ... /) '.Dumper( $exp);
-                my $v = (ref($exp) eq 'ARRAY') ? _emit_expression_Uxntal($exp, $stref, $f,$info) : $exp;
-                return "[ $v ]"; # FIXME
-            } elsif ($opcode==2 or $opcode>28) {# eq '$' or constants
-
-				$exp = __substitute_PlaceHolders_Uxntal($exp,$info) if $opcode == 34;
-				if ($opcode == 35) {
-					die 'ERROR: Fortran LABEL as arg is not supported, sorry!'."\n"; #  "*$exp" : $exp;   # Fortran LABEL, does not exist in C
-				}
-				# Handle integers, also with size notations, e.g. 11_1, 22_2
-				# Transform into hex
-				if ($exp=~/^\d+(?:_[1248])?$/) {
-					my $sz=2;
-					if ($exp=~s/_([1248])$//) { $sz=$1}
-					$exp = toHex($exp,$sz);
-					# croak "CONST EXP: $exp";
-				}
-				my $mvar = $ast->[1]; # Why is this not $exp?
-				# croak "PROBLEM: $mvar <> $exp " if $mvar ne $exp;
-				# my $qual_vname = $f .'_' . $mvar;
-				my $called_sub_name = $stref->{'CalledSub'} // '';
-
-				my $wordsz = $stref->{'Subroutines'}{$f}{'WordSizes'}{$mvar};
-				if (exists $stref->{'Subroutines'}{$f}{'Pointers'}{$mvar} ) {
-					my $is_arg = in_nested_set($Sf,'DeclaredOrigArgs',$mvar) eq 'DeclaredOrigArgs' ? 1 : 0;
-					# Meaning that $mvar is a pointer in $f
-					# Now we need to check if it is also a pointer in $subname
-					my $ptr = $stref->{'Subroutines'}{$f}{'Pointers'}{$mvar};
-
-					if ($called_sub_name ne '' and $called_sub_name ne $f and
-					exists  $stref->{'Subroutines'}{$called_sub_name}
-					and exists $stref->{'Subroutines'}{$called_sub_name}{'Pointers'}{$mvar} ) {
-						my $sig_ptr = $stref->{'Subroutines'}{$called_sub_name}{'Pointers'}{$mvar};
-						warn "SIG PTR: $sig_ptr <> $ptr";
-						if ($sig_ptr eq '' and $ptr eq '*') {
-							# function expects a value but is getting pointer
-							$ptr = ''; # change to value
-						} elsif ($sig_ptr eq '*' and $ptr eq '') {
-							# function expects a pointer but is getting a scalar
-							croak "PROBLEM: $mvar in call to $called_sub_name in $f";
-							$ptr = '&'
-						}
-					} else {
-						if ( $called_sub_name eq $f) {
-							carp "FIXME: we should parse the entire assigment expr so that we know we are dealing with an assignment!";
-							$ptr = '*';
-						}
-						# If the variable in question is 'Out' or 'InOut' we should use the pointer
-
-					}
-					croak "$mvar $exp" if $mvar ne $exp;
-					if ( in_nested_set($Sf,'Parameters',$mvar)) {
-						# What is lacking here is a check in the container.
-						return $f.'_'.$mvar;
-					}
-
-					elsif ( in_nested_set($Sf,'ModuleParameters',$mvar)) {
-						# What is lacking here is a check in the container.
-						croak 'MODULE PAR: _'.$mvar;
-					}
-					else {
-						# But if the variable is a string, we should not do LDA
-						# and if it is not a var, there should not be LDA either
-						# if ($mvar =~ /^[a-zA-Z_]/) {
-						my $qual_vname = $f.'_'.$mvar;
-						my $subset = in_nested_set($Sf,'Vars',$mvar);
-						my $decl = get_var_record_from_set($Sf->{$subset},$mvar);
-						if (isString($decl) or isArray($decl)) {
-							return ';'.$qual_vname.' ';
-						} else {
-							return ';'.$f.'_'.$mvar.' LDA' . ($wordsz==1 ? '' : '2' ).' ';#.' ( LOCAL ) ';
-						}
-					}
-				} else { # not local variables
-					if ($exp eq '.true.') {
-						return '#01';
-					} elsif ($exp eq '.false.') {
-						return '#00';
-					} else {
-						my $rune = '';
-						my $instr = '';
-						if ($sigil eq '$') {
-							$rune = ';';
-							$instr = ' LDA' .($wordsz==1 ? '' : '2' );#.' ( NOT LOCAL ) ';
-						}
-						if ($exp =~ /^[a-zA-Z_]/) {
-							my $qual_vname = $f.'_'.$exp;
-							my $subset = in_nested_set($Sf,'ModuleVars',$exp);
-							my $decl = get_var_record_from_set($Sf->{$subset},$exp);
-							# my ($mod_name, $set) = __has_module_level_declaration($stref,$f,$exp) ;
-							my $mod_name ='';
-							if (exists $decl->{'ModuleName'}) {
-								$mod_name = $decl->{'ModuleName'};
-							}
-
-							if ($mod_name ne '') {
-								$qual_vname = $mod_name.'_'.$exp;
-								if (not exists $stref->{'Uxntal'}{'Globals'}{'Set'}{$qual_vname}) {
-									($stref, my $global_var_decl)= _emit_var_decl_Uxntal($stref,$mod_name,$info,$exp);
-									$stref->{'Uxntal'}{'Globals'}{'Set'}{$qual_vname} = 1;
-									push @{$stref->{'Uxntal'}{'Globals'}{'List'}},$global_var_decl ;
-								}
-								return $rune.$qual_vname . ' '. $instr;#. '( SCALAR MODULE VAR )'; #
-							} else { # Could be a module parameter
-								my $subset = in_nested_set($Sf,'ModuleParameters',$exp);
-								my $decl = get_var_record_from_set($Sf->{$subset},$exp);
-								my $mod_name ='';
-								if (exists $decl->{'ModuleName'}) {
-									$mod_name = $decl->{'ModuleName'};
-								}
-
-								if ($mod_name ne '') {
-									$qual_vname = $mod_name.'_'.$exp;
-									if (not exists $stref->{'Uxntal'}{'Macros'}{'Set'}{$qual_vname}) {
-										$stref->{'Uxntal'}{'Macros'}{'Set'}{$qual_vname} = 1;
-										($stref, my $global_var_decl)= _emit_var_decl_Uxntal($stref,$mod_name,$info,$exp);
-										push @{$stref->{'Uxntal'}{'Macros'}{'List'}},$global_var_decl ;
-									}
-
-									return $qual_vname ;
-								 } else {
-									return $rune.$f.'_'.$exp . ' '. $instr. ' ( SCALAR FALLBACK )';
-								}
-							}
-						} else {
-							return $exp;
-						}
-					}
-				}
-            } elsif ($opcode == 21 or $opcode == 4 or $opcode == 3) {# eq '.not.' '-'
-                my $v = (ref($exp) eq 'ARRAY') ? _emit_expression_Uxntal($exp, $stref, $f,$info) : $exp;
-                return $v.' '.$sigils[$opcode] ;
-            } elsif ($opcode == 27) { # ','
-                croak Dumper($ast) if $DBG; # WHY is this here?
-                my @args_lst_Uxntal=();
-                for my $arg (@{$exp}) {
-                    push @args_lst_Uxntal, _emit_expression_Uxntal($arg, $stref, $f,$info);
-                }
-                return join(',',@args_lst_Uxntal);
-            } else {
-                croak 'BOOM! '.Dumper($ast).$opcode  if $DBG;
-            }
-        } elsif (scalar @{$ast} > 3) {
-
-            if($ast->[0] == 27) { # ','
-                my @args_lst_Uxntal=();
-                for my $idx (1 .. scalar @{$ast}-1) {
-                    my $arg = $ast->[$idx];
-                    push @args_lst_Uxntal, _emit_expression_Uxntal($arg, $stref, $f,$info);
-                }
-                return join(',',@args_lst_Uxntal);
-            } else {
-                croak Dumper($ast) if $DBG;
-            }
-        }
-    } else {
-		# Should not happen?
-		return $ast;
-	}
-} # END of _emit_expression_Uxntal_OFF
-
 
 sub _change_operators_to_Uxntal($expr){
 die 'FIXME!';
@@ -2692,8 +2367,12 @@ sub __emit_call_arg_Uxntal_expr($stref,$f,$info,$subname,$call_arg_expr_str,$ast
 		if ($arg_expr_ast->[0] == 10 and scalar @{$arg_expr_ast}==3) { # an array or string access, need a substring or subarray
 				my $var = $arg_expr_ast->[1];
 				my $var_access = __var_access($stref,$f,$var);
-				my $idx_expr_b = _emit_expression_Uxntal($arg_expr_ast->[2][0], $stref, $f,$info);
-				my $idx_expr_e = _emit_expression_Uxntal($arg_expr_ast->[2][1], $stref, $f,$info);
+				my $idx_expr_b = $arg_expr_ast->[2][0] == 12 ? # ib:ie
+				_emit_expression_Uxntal($arg_expr_ast->[2][1], $stref, $f,$info)
+				: $arg_expr_ast->[2];
+				my $idx_expr_e = $arg_expr_ast->[2][0] == 12 ? # ib:ie
+				_emit_expression_Uxntal($arg_expr_ast->[2][2], $stref, $f,$info)
+				: $idx_expr_b;
 				if ($idx_expr_b eq $idx_expr_e) { # access a single character, so return a byte as value
 					my $idx_expr =  ($idx_expr_b eq '#0000') ? '' : "$idx_expr_b ADD2 ";
 					return  "$var_access $idx_expr LDA" # load a pointer, index, load the value
