@@ -774,6 +774,16 @@ sub is_character { my ($stref,$f,$var) = @_;
 	my $isChar = ($decl->{'Type'} eq 'character' and (not exists $decl->{'Attr'} or ($decl->{'Attr'} =~/len\s*=\s*1\)/)));
     return $isChar;
 }
+sub is_integer { my ($stref,$f,$var) = @_; # Returns the kind!
+	my $decl =  get_var_record_from_set($stref->{'Subroutines'}{$f}{'Vars'},$var) ;
+	my $isInt = $decl->{'Type'} eq 'integer' ? 1 : 0;
+    my $kind = exists $decl->{'Attr'} ? $decl->{'Attr'} : 4;
+	$kind=~s/\(//;
+    $kind=~s/kind=//;
+	$kind=~s/\)//;
+	# if ($kind eq '') {$kind=4};
+    return $isInt*$kind;
+}
 sub is_array_or_string { my ($stref,$f,$var) = @_;
     # For array index, string index of function call
     if ($var=~/\w+\s*\(/) {

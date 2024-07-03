@@ -1142,21 +1142,51 @@ sub _var_access_assign($stref,$f,$info,$lhs_ast,$rhs_ast) {
 		} elsif ($rhs_ast->[0] == 34) { # the RHS is a string
 		# We should check that the LHS is an array of strings
 			my $decl = get_var_record_from_set($Sf->{'Vars'},$var);
-			if (is_character($stref,$f,$var) ) { 
+			if (is_character($stref,$f,$var) ) { # Array of characters
 			# If so, we set every elt to that string
 				my $dim =  __C_array_size($decl->{'Dim'});
 				my $array_length = $dim;
 				# unique ID the cheap way
-				my $rhs_string_literal = __substitute_PlaceHolders_Uxntal($rhs_ast->[1],$info);
+				my $rhs_char_literal = __substitute_PlaceHolders_Uxntal($rhs_ast->[1],$info);
 				my $ref = \$rhs_ast; $ref=~s/REF..//;$ref=~s/\)//;
-				$uxntal_code = "$rhs_string_literal ;&$ref STA2 " .
-					'{ ( iter ) LIT2 &'.$ref.' $2 SWP2 '.
-					" $lhs_var_access ADD2 STA JMP2r } STH2r ".
+				$uxntal_code =
+					"{ ( iter ) $rhs_char_literal ROT ROT ".
+					"$lhs_var_access ADD2 STA JMP2r } STH2r ".
 					toHex($array_length-1,2)
 					. ' #0000 range-map-short';
+			} elsif (is_string($stref,$f,$var) ) { # Array of strings
+				croak 'TODO: ASSIGNMENT TO ARRAY OF STRINGS';
 			} else {
 				error("RHS is string, LHS is array");
 			}
+		} elsif ($rhs_ast->[0] >= 29) { # the RHS is a constant
+		if ($rhs_ast->[0]==29) {
+			# integer, check type and kind of LHS.
+			my $mkind = is_integer($stref,$f,$var);
+			if ($mkind==0 or $mkind==4) {
+				error('Only integer of kind 1 or 2 is supported on the RHS of an array assignment');
+			} else {
+				my $rhs_int_literal = toHex($rhs_ast->[1],$mkind);
+				my $ref = \$rhs_ast; $ref=~s/REF..//;$ref=~s/\)//;
+				$uxntal_code = 
+					"{ ( iter ) $rhs_int_literal ". ($mkind==1 ? 'ROT ROT' : 'SWP2' ).
+					"$lhs_var_access ADD2 STA$mkind JMP2r } STH2r ".
+					toHex($array_length-1,2)
+					. ' #0000 range-map-short';
+			}
+		}
+		elsif ($rhs_ast->[0]==31) {
+			# logical, check type and kind of LHS. Encode as 1 or 0 byte
+			croak 'TODO: ASSIGNMENT TO ARRAY OF LOGICALS';
+
+		}
+		elsif ($rhs_ast->[0]==32) {
+			croak "CHARACTER assignment to ARRAY ".Dumper($rhs_ast);
+		}
+		else {
+			error('Only integer and logical are supported on the RHS of an array assignment');
+		}
+
 		} else {
 			my ($rhs_var,$idxs,$idx_expr_type) = __unpack_var_access_ast($rhs_ast);
 			if (is_array($stref,$f,$rhs_var)) {
@@ -1876,8 +1906,8 @@ sub __substitute_PlaceHolders_Uxntal($expr_str,$info){
 		my $len = toRawHex(length($expr_str)-1,2);
 		if ($len eq '0001' ) {
 			$expr_str = toHex(ord(substr($expr_str,1,1)),1);
-		} elsif ($len eq '0000') { # empty string
-			$expr_str = "{ 0000 } STH2r";
+		} elsif ($len eq '0000') { # empty string, I set this to 0 ad-hoc
+			$expr_str = '#00'; # "{ 0000 } STH2r";
 		} else {
 			# replace space and nl by their ascii code
 			# ' ' => ' 20 "'
