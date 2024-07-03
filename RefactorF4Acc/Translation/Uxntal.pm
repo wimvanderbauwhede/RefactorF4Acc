@@ -711,7 +711,7 @@ Instead of the nice but cumbersome approach we had until now, from now on it is 
             $c_line .= "&branch$branch_id";
 			push @{$pass_state->{'BranchStack'}},$branch_id;
         } elsif (exists $info->{'EndIf'} ) {
-			my $branch_id = $pass_state->{'IfBranchId'};
+			# my $branch_id = $pass_state->{'IfBranchId'};
 			my $branch_id = pop @{$pass_state->{'BranchStack'}};
 			my $if_id = $pass_state->{'IfId'};
 			$c_line = ';&cond_end'.$if_id.' JMP2 '."\n"
@@ -1139,6 +1139,24 @@ sub _var_access_assign($stref,$f,$info,$lhs_ast,$rhs_ast) {
 				. " $lhs_var_access ADD2 STA$short_mode JMP2r } STH2r ".
 				toHex($array_length-1,2)
 				. ' #0000 range-map-short';
+		} elsif ($rhs_ast->[0] == 34) { # the RHS is a string
+		# We should check that the LHS is an array of strings
+			my $decl = get_var_record_from_set($Sf->{'Vars'},$var);
+			if (is_character($stref,$f,$var) ) { 
+			# If so, we set every elt to that string
+				my $dim =  __C_array_size($decl->{'Dim'});
+				my $array_length = $dim;
+				# unique ID the cheap way
+				my $rhs_string_literal = __substitute_PlaceHolders_Uxntal($rhs_ast->[1],$info);
+				my $ref = \$rhs_ast; $ref=~s/REF..//;$ref=~s/\)//;
+				$uxntal_code = "$rhs_string_literal ;&$ref STA2 " .
+					'{ ( iter ) LIT2 &'.$ref.' $2 SWP2 '.
+					" $lhs_var_access ADD2 STA JMP2r } STH2r ".
+					toHex($array_length-1,2)
+					. ' #0000 range-map-short';
+			} else {
+				error("RHS is string, LHS is array");
+			}
 		} else {
 			my ($rhs_var,$idxs,$idx_expr_type) = __unpack_var_access_ast($rhs_ast);
 			if (is_array($stref,$f,$rhs_var)) {
@@ -1858,6 +1876,8 @@ sub __substitute_PlaceHolders_Uxntal($expr_str,$info){
 		my $len = toRawHex(length($expr_str)-1,2);
 		if ($len eq '0001' ) {
 			$expr_str = toHex(ord(substr($expr_str,1,1)),1);
+		} elsif ($len eq '0000') { # empty string
+			$expr_str = "{ 0000 } STH2r";
 		} else {
 			# replace space and nl by their ascii code
 			# ' ' => ' 20 "'

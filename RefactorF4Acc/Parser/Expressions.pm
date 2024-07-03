@@ -1587,7 +1587,7 @@ sub _find_args_in_ast { (my $ast, my $args) =@_;
 # The assumption is that we pass this the 3rd arg of an AST for a subroutine call
 # This can either be a comma-sep list or a single arg
 sub _parse_subcall_args { (my $ast, my $args) =@_;
-carp 'AST:'.Dumper $ast;
+# carp 'AST:'.Dumper $ast;
 # An expression:
     if (scalar @{$ast}==0) { return {} }
     if (

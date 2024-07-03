@@ -57,6 +57,7 @@ use Exporter;
     &is_array
     &is_string
     &is_array_or_string
+    &is_character
     &is_param
     &warning
     &error
@@ -752,16 +753,17 @@ sub is_string { my ($stref,$f,$var) = @_;
             if ($F95_intrinsic_function_sigs{$var}[1] eq 'character(*)') {
                 $isString=1;
             }
-            return $isString;
         }
         elsif ($var =~/\/\//) {
             $isString=1;
         }
+        # carp 'HERE1: <'.$isString.'>';
         return $isString;
     } else {
         my $ftype = $decl->{'Type'};
         my $fkind = $decl->{'Attr'};
-        my $isString = ($decl->{'Type'} eq 'character' and (exists $decl->{'Attr'} and ($decl->{'Attr'} !~/len\s*=\s*1\)/)));
+        my $isString = ($decl->{'Type'} eq 'character' and (exists $decl->{'Attr'} and ($decl->{'Attr'} !~/len\s*=\s*1\)/))) ? 1 : 0;
+        # carp 'HERE2: <'.$isString.'>'.Dumper($decl);
         return $isString;
     }
 }
