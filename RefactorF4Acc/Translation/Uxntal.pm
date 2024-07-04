@@ -415,7 +415,10 @@ Instead of the nice but cumbersome approach we had until now, from now on it is 
 	my $pass_state = {'Pointers'=>{},'CLArgs'=>0,'Args' =>{},'LocalVars' =>{}, 'Parameters'=>{}, 'WordSizes'=>{}};
 	(my $new_annlines_,$pass_state) = stateful_pass($annlines,$pass_analysis,$pass_state,"pass_analysis($f)");
 	$Sf->{'Pointers'} = $pass_state->{'Pointers'};
-	$Sf->{'WordSizes'} = { %{$Sf->{'WordSizes'}}, %{$pass_state->{'WordSizes'}}};
+	$Sf->{'WordSizes'} = 
+		exists $Sf->{'WordSizes'}
+		? { %{$Sf->{'WordSizes'}}, %{$pass_state->{'WordSizes'}}}
+		: { %{$pass_state->{'WordSizes'}}};
 	$stref->{'HasCLArgs'} = $pass_state->{'CLArgs'} unless (exists $stref->{'HasCLArgs'} and $stref->{'HasCLArgs'}==1);
 
 # --------------------------------------------------------------------------------------------
@@ -1164,8 +1167,14 @@ sub _var_access_assign($stref,$f,$info,$lhs_ast,$rhs_ast) {
 		$uxntal_code =  __copy_substr($stref, $f, $info, $lhs_ast, $rhs_ast)
 	} elsif  (is_array($stref,$f,$var) and $idx_expr_type == 0) {
 		# array = rhs_expr
+		my $subset = in_nested_set( $Sf, 'Vars', $var );
 		my $decl = get_var_record_from_set($Sf->{'Vars'},$var);
-		my $dim =  __C_array_size($decl->{'Dim'});
+		# It looks like ModuleVars are *copied* per function, not linked.
+		# So I need to get the actual decl from the module
+		croak "$f $subset ".Dumper( $decl).'; '.Dumper($stref->{'Modules'}{$decl->{'ParentModule'}}{'ModuleVars'}{'Set'}{$var});
+		my $dim = exists $decl->{'ConstDim'}
+			? __C_array_size($decl->{'ConstDim'})
+			: __C_array_size($decl->{'Dim'});
 		my $array_length = $dim;
 		if ($rhs_ast->[0] == 28) { # Array literal
 			my $rhs_array_literal = _emit_expression_Uxntal($rhs_ast, $stref,$f, $info);
@@ -1184,7 +1193,10 @@ sub _var_access_assign($stref,$f,$info,$lhs_ast,$rhs_ast) {
 			my $decl = get_var_record_from_set($Sf->{'Vars'},$var);
 			if (is_character($stref,$f,$var) ) { # Array of characters
 			# If so, we set every elt to that string
-				my $dim =  __C_array_size($decl->{'Dim'});
+				my $dim = exists $decl->{'ConstDim'} 
+					? __C_array_size($decl->{'ConstDim'})
+					: __C_array_size($decl->{'Dim'});
+				# my $dim =  __C_array_size($decl->{'Dim'});
 				my $array_length = $dim;
 				# unique ID the cheap way
 				my $rhs_char_literal = __substitute_PlaceHolders_Uxntal($rhs_ast->[1],$info);
@@ -1549,7 +1561,10 @@ sub _stack_allocation($stref,$f,$var) {
 			my $subset = in_nested_set( $Sf, 'DeclaredOrigLocalVars', $var );
 			my $decl = get_var_record_from_set($Sf->{$subset},$var);
 			croak Dumper $decl ;
-			my $dim =  __C_array_size($decl->{'Dim'});
+			# my $dim =  __C_array_size($decl->{'Dim'});
+			my $dim = exists $decl->{'ConstDim'} 
+				? __C_array_size($decl->{'ConstDim'})
+				: __C_array_size($decl->{'Dim'}) ;
 			my $nbytes= $dim*$wordsz;
 			$Sf->{'CurrentOffset'} += $nbytes;
 			# my $nbytes_Uxn=toHex($nbytes,2);
@@ -1899,8 +1914,12 @@ sub _emit_var_decl_Uxntal ($stref,$f,$info,$var){
 		#.Dumper($stref->{$sub_or_module}{$f}{'Vars'})
 		my $subset = in_nested_set( $Sf, 'Vars', $var );
 		# croak "$subset $f ". Dumper( $decl) if $decl->{'Type'} eq 'real';
-		croak "$subset $f ". Dumper( $decl) if $var eq 'funktalTokens';
-		my $dim = $array  ? __C_array_size($decl->{'Dim'}) : 1;
+		# croak "$subset $f ". Dumper( $decl) if $var eq 'funktalTokens';
+		my $dim = $array
+			? exists $decl->{'ConstDim'} 
+				? __C_array_size($decl->{'ConstDim'})
+				: __C_array_size($decl->{'Dim'}) 
+			: 1;
 		my $ftype = $decl->{'Type'};
 		my $strlen=0;
 		if ($ftype eq 'character') {
