@@ -2439,6 +2439,7 @@ sub __emit_call_arg_Uxntal_expr($stref,$f,$info,$subname,$call_arg_expr_str,$ast
 	# croak Dumper($subname,$call_arg_expr_str,$ast_from_info) if $subname eq 'modulo';
 	# my $call_arg_decl = get_var_record_from_set($Sf->{'Vars'},$call_arg_expr_str);
 	my $call_arg_decl = getDecl($stref,$f,$call_arg_expr_str);
+
 	# carp Dumper $call_arg_decl, (defined $call_arg_decl) , (exists $call_arg_decl->{'Parameter'});
 	my $isParam = ((defined $call_arg_decl) && (exists $call_arg_decl->{'Parameter'})) ? 1 : 0;
 	my $arg_is_not_string = 0;
@@ -3335,16 +3336,29 @@ sub isString($rec){
 }
 
 sub getDecl($stref,$f,$var) {
-	my $Sf =$stref->{'Subroutines'}{$f};
+	if ($var !~/^[a-z][_\w]*$/i) {
+		# not a variable, return undef
+		# even if it is an array or string access, too bad
+		return undef;
+	}
+	my $Sf = exists $stref->{'Modules'}{$f}
+		? $stref->{'Modules'}{$f} 
+		: $stref->{'Subroutines'}{$f};
 	my $subset = in_nested_set( $Sf, 'Vars', $var );
 	if ($subset eq '') {
 		croak "No decl for $var in Vars for $f";
 	}
 	my $decl = get_var_record_from_set($Sf->{'Vars'},$var);
+	my $module_name = exists $decl->{'ModuleName'}
+	? $decl->{'ModuleName'}
+	: exists $decl->{'ParentModule'}
+	? $decl->{'ParentModule'}
+	: $f;
 	# Module var decl records are copied into the state of the subroutines that use them 
 	# before constant folding is done. So we need to get the originals instead.
 	if( $subset eq 'ModuleVars') {
-		$decl = $stref->{'Modules'}{$decl->{'ParentModule'}}{'ModuleVars'}{'Set'}{$var};
+		# carp Dumper $decl;
+		$decl = $stref->{'Modules'}{$module_name}{'ModuleVars'}{'Set'}{$var};
 	}
 	return $decl;
 }
@@ -3371,7 +3385,7 @@ sub add_to_C_build_sources($f,$stref ){
 } # END of add_to_C_build_sources()
 
 sub __C_array_size($dims){
-carp Dumper $dims;
+# carp Dumper $dims;
 	my $array_size=1;
 	for my $dim (@{$dims}) {
 		my $lb=$dim->[0];
