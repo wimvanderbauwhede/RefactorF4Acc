@@ -370,12 +370,12 @@ sub fold_constants_no_iters {
     return ($stref,$new_annlines);
 } # END of fold_constants_no_iters
 
-sub fold_constants_all {
+sub fold_constants_all { 
 	( my $stref ) = @_;
     # Modules should be included too
 	for my $module_name (sort keys %{$stref->{'Modules'}} ) {
         next if ( $module_name eq '' or $module_name eq 'UNKNOWN_SRC' or not defined $module_name );
-
+# say "MODULE $module_name";
 		my $Mmn = $stref->{'Modules'}{$module_name};
 		if ( not defined $Mmn->{'Status'} ) {
 			$Mmn->{'Status'} = $UNREAD;
@@ -386,6 +386,7 @@ sub fold_constants_all {
 		next if $Mmn->{'Status'} == $READ;
 
 		($stref,my $new_annlines) = fold_constants_no_iters($stref,$module_name);
+        $stref = fold_constants_in_decls( $stref, $module_name );
 		$stref->{'Modules'}{$module_name}{'RefactoredCode'} = $new_annlines;
 	}
 
@@ -403,12 +404,13 @@ sub fold_constants_all {
 		next if $Sf->{'Status'} == $FROM_BLOCK;
 
 		($stref, my $new_annlines) = fold_constants_no_iters( $stref, $f );
-
+        $stref = fold_constants_in_decls( $stref, $f );
         $Sf->{'RefactoredCode'}=$new_annlines;
 
         $stref = emit_AnnLines($stref,$f,$new_annlines) ;
 
 	}
+    # croak "DONE FOLDING IN MODULES";
 	for my $f ( sort keys %{ $stref->{'Subroutines'} } ) {
 		next if ( $f eq '' or $f eq 'UNKNOWN_SRC' or not defined $f );
 		# next if exists $stref->{'Entries'}{$f};
@@ -424,7 +426,7 @@ sub fold_constants_all {
 		next if $Sf->{'Status'} == $FROM_BLOCK;
 
 		($stref, my $new_annlines) = fold_constants_no_iters( $stref, $f );
-
+        $stref = fold_constants_in_decls( $stref, $f );
         $Sf->{'RefactoredCode'}=$new_annlines;
 
         $stref = emit_AnnLines($stref,$f,$new_annlines) ;
@@ -436,10 +438,11 @@ sub fold_constants_all {
 
 sub fold_constants_in_decls {
     my ($stref, $f) = @_;
-
-    my $Sf = $stref->{'Subroutines'}{$f};
+    my $is_module = exists $stref->{'Modules'}{$f} ? 1 : 0;
+    my $Sf = $is_module? $stref->{'Modules'}{$f} : $stref->{'Subroutines'}{$f} ;
     my $pass_fold_constants_in_decls = sub { (my $annline)=@_;
         (my $line,my $info)=@{$annline};
+        # We assume parameters are never arrays
             if (exists $info->{'VarDecl'} and not exists $info->{'ParamDecl'}
              ) {
                 my $var_name = $info->{'VarDecl'}{'Name'};
@@ -448,6 +451,8 @@ sub fold_constants_in_decls {
                 if (exists $decl->{'ArrayOrScalar'}
                 and $decl->{'ArrayOrScalar'} eq 'Array'
                 ) {
+                    if (not exists $decl->{'ConstDim'} or scalar @{$decl->{'ConstDim'}}==0) {
+                croak "$f ARRAY VAR DECL LINE:$line ".Dumper($decl) if $var_name eq 'funktalTokens';
                     my $dims = $decl->{'Dim'};
                     $decl->{'ConstDim'}=[];
                     for my $dim (@{$dims}) {
@@ -464,8 +469,29 @@ sub fold_constants_in_decls {
                         push @{$decl->{'ConstDim'}}, $const_dim;
                     }
                     $Sf->{$subset}{'Set'}{$var_name} = $decl;
+                    }
+                    # A HACK!
+                    if ($is_module) {
+                        $Sf->{'ModuleVars'}{'Set'}{$var_name} = $decl;
+                        $Sf->{'DeclaredCommonVars'}{'Set'}{$var_name} = $decl;
+                    }
+                    
                 }
 			}
+            elsif ( exists $info->{'ParamDecl'} ) {
+                # In some cases, the Name is a tuple (Name,Val), and in other, just the Name string
+                my $var_name = ref($info->{'ParamDecl'}{'Name'}) eq 'ARRAY'
+                ? $info->{'ParamDecl'}{'Name'}[0]
+                : $info->{'ParamDecl'}{'Name'};
+                my $subset = in_nested_set( $Sf, 'Parameters', $var_name );
+                my $decl = get_var_record_from_set($Sf->{$subset},$var_name);
+
+                my $expr_str  = $decl->{'Val'};
+                my $evaled_str = eval_expression_with_parameters( $expr_str, $info,  $stref,  $f);
+                # say "$f PARAM DECL LINE:<$line> => $evaled_str ".Dumper( $var_name)." =>".Dumper($decl) if $decl->{'AST'}[0]==3;
+                $decl->{'Val'} = $evaled_str;
+                $Sf->{$subset}{'Set'}{$var_name}=$decl;
+            }
         return [$annline];
     };
     my $annlines = $Sf->{'RefactoredCode'};

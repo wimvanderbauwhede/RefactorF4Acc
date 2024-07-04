@@ -58,6 +58,8 @@ use Exporter;
     &is_string
     &is_array_or_string
     &is_character
+    &is_integer
+    &is_logical
     &is_param
     &warning
     &error
@@ -784,6 +786,13 @@ sub is_integer { my ($stref,$f,$var) = @_; # Returns the kind!
 	# if ($kind eq '') {$kind=4};
     return $isInt*$kind;
 }
+
+sub is_logical { my ($stref,$f,$var) = @_; # Returns the kind!
+	my $decl =  get_var_record_from_set($stref->{'Subroutines'}{$f}{'Vars'},$var) ;
+	my $isBool = $decl->{'Type'} eq 'logical' ? 1 : 0;
+    return $isBool;
+}
+
 sub is_array_or_string { my ($stref,$f,$var) = @_;
     # For array index, string index of function call
     if ($var=~/\w+\s*\(/) {

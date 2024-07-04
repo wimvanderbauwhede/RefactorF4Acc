@@ -18,7 +18,10 @@ use RefactorF4Acc::Refactoring::Fixes qw(
 	__has_module_level_declaration
 	);
 use RefactorF4Acc::Refactoring::CaseToIf qw( replace_case_by_if )	;
-use RefactorF4Acc::Refactoring::FoldConstants qw( fold_constants_all fold_constants_no_iters )	;
+use RefactorF4Acc::Refactoring::FoldConstants qw( 
+	fold_constants_all 
+	fold_constants_in_decls
+	);
 # use RefactorF4Acc::Parser::Expressions qw( @sigils );
 use RefactorF4Acc::Translation::LlvmToTyTraIR qw( generate_llvm_ir_for_TyTra );
 use RefactorF4Acc::Emitter qw( emit_AnnLines );
@@ -135,6 +138,7 @@ sub translate_program_to_Uxntal($stref,$program_name){
 	$stref = pass_wrapper_subs_in_module($stref,$program_name,
 	   # module-specific passes.
        [
+			# [\&_fold_consts_in_module_decls]
 			# [\&translate_module_decls_to_Uxntal]
        ],
        # subroutine-specific passes
@@ -188,7 +192,7 @@ sub translate_program_to_Uxntal($stref,$program_name){
 # TODO: This should include handling of 'use' declarations.
 # Unfortunately for those we will need to split the module level declarations from the subroutines.
 sub translate_module_decls_to_Uxntal($stref, $mod_name){
-
+	
     my $pass_emit_module_declarations = sub ($annline, $state){
         (my $line,my $info)=@{$annline};
 		# say "MOD LINE: <$line>";
@@ -225,6 +229,42 @@ sub translate_module_decls_to_Uxntal($stref, $mod_name){
 
     return $stref;
 } # END of translate_module_decls_to_Uxntal
+
+sub _fold_consts_in_module_decls($stref, $mod_name){
+croak Dumper $mod_name;
+    my $pass_fold_consts_in_module_decls = sub ($annline, $state){
+        (my $line,my $info)=@{$annline};
+		# say "MOD LINE: <$line>";
+        my $c_line=$line;
+        (my $stref, my $mod_name, my $pass_state)=@{$state};
+        my $skip=1;
+
+        if (exists $info->{'VarDecl'}) {
+                my $var = $info->{'VarDecl'}{'Name'};
+				say "$mod_name VAR DECL LINE: $c_line";
+				$skip=0;
+        }
+		elsif ( exists $info->{'ParamDecl'} ) {
+			croak "SHOULD NOT HAPPEN ParamDecl", Dumper($info);;
+			my $var = $info->{'VarDecl'}{'Name'};
+		}
+		elsif ( exists $info->{'ParsedVarDecl'} ) {
+			croak "SHOULD NOT HAPPEN ParsedVarDecl", Dumper($info);
+
+		}
+		elsif ( exists $info->{'ParsedParDecl'} ) {
+			croak "SHOULD NOT HAPPEN ParsedParDecl", Dumper($info);
+		}
+        push @{$pass_state->{'TranslatedCode'}},$c_line unless $skip;
+
+        return ([$annline],[]);
+    };
+
+    my $state = [];
+    ($stref,$state) = stateful_pass_inplace($stref,$mod_name,$pass_fold_consts_in_module_decls , $state,'pass_fold_consts_in_module_decls() ' . __LINE__  ) ;
+
+    return $stref;
+} # END of _fold_consts_in_module_decls
 
 sub translate_sub_to_Uxntal( $stref, $f){
 
@@ -1178,7 +1218,19 @@ sub _var_access_assign($stref,$f,$info,$lhs_ast,$rhs_ast) {
 		elsif ($rhs_ast->[0]==31) {
 			# logical, check type and kind of LHS. Encode as 1 or 0 byte
 			croak 'TODO: ASSIGNMENT TO ARRAY OF LOGICALS';
+			# integer, check type and kind of LHS.
+			if ( is_logical($stref,$f,$var) ) {
+				my $rhs_bool_literal = $rhs_ast->[1] eq '.true' ? '#01' : '#00';
+				my $ref = \$rhs_ast; $ref=~s/REF..//;$ref=~s/\)//;
+				$uxntal_code = 
+					"{ ( iter ) $rhs_bool_literal ".  'ROT ROT'  .
+					"$lhs_var_access ADD2 STA JMP2r } STH2r ".
+					toHex($array_length-1,2)
+					. ' #0000 range-map-short';
 
+			} else {
+				error('Only integer of kind 1 or 2 is supported on the RHS of an array assignment');
+			}
 		}
 		elsif ($rhs_ast->[0]==32) {
 			croak "CHARACTER assignment to ARRAY ".Dumper($rhs_ast);
@@ -1847,8 +1899,8 @@ sub _emit_var_decl_Uxntal ($stref,$f,$info,$var){
 		#.Dumper($stref->{$sub_or_module}{$f}{'Vars'})
 		my $subset = in_nested_set( $Sf, 'Vars', $var );
 		# croak "$subset $f ". Dumper( $decl) if $decl->{'Type'} eq 'real';
-		# croak "$subset $f ". Dumper( $decl) if $var eq 'funktalGlobalCharArray';
-		my $dim= $array  ? __C_array_size($decl->{'Dim'}) : 1;
+		croak "$subset $f ". Dumper( $decl) if $var eq 'funktalTokens';
+		my $dim = $array  ? __C_array_size($decl->{'Dim'}) : 1;
 		my $ftype = $decl->{'Type'};
 		my $strlen=0;
 		if ($ftype eq 'character') {
@@ -3268,7 +3320,7 @@ sub add_to_C_build_sources($f,$stref ){
 } # END of add_to_C_build_sources()
 
 sub __C_array_size($dims){
-# carp Dumper $dims;
+carp Dumper $dims;
 	my $array_size=1;
 	for my $dim (@{$dims}) {
 		my $lb=$dim->[0];
