@@ -686,11 +686,12 @@ Instead of the nice but cumbersome approach we had until now, from now on it is 
 					die "READ is only supported with a single arg in the IO list\n";
 				}
 				my $cbuf = $info->{'IOList'}{'AST'}[1];
-				my $subset = in_nested_set($Sf,'Vars',$cbuf);
-				if ($subset eq '') {
-					croak "$f $cbuf";
-				}
-				my $decl = get_var_record_from_set($Sf->{$subset},$cbuf);
+				# my $subset = in_nested_set($Sf,'Vars',$cbuf);
+				# if ($subset eq '') {
+				# 	croak "$f $cbuf";
+				# }
+				# my $decl = get_var_record_from_set($Sf->{$subset},$cbuf);
+				my $decl = getDecl($stref,$f,$cbuf);
 				my $len=0;
 				if ($decl->{'Type'} ne 'character') {
 					die "READ is only supported with a character buffer\n";
@@ -929,12 +930,12 @@ sub _get_word_sizes($stref,$f){
 
 	for my $var (@{$Sf->{'AllVarsAndPars'}{'List'}}) {
 
-		my $subset = in_nested_set($Sf,'Vars',$var);
-		if ($subset eq '') {
-			croak "$f $var";
-		}
-		my $decl = get_var_record_from_set($Sf->{$subset},$var);
-
+		# my $subset = in_nested_set($Sf,'Vars',$var);
+		# if ($subset eq '') {
+		# 	croak "$f $var";
+		# }
+		# my $decl = get_var_record_from_set($Sf->{$subset},$var);
+		my $decl = getDecl($stref,$f,$var);
 		my $wordsz=0;
 		my $type = $decl->{'Type'};
 		if ($type eq 'integer') {
@@ -1079,7 +1080,8 @@ sub _var_access_read($stref,$f,$info,$ast) {
 			$uxntal_code =  "$var_access INC2 $idx_expr LDA" # load a pointer, index, load the value
 		} else {
 			# extract a substring
-			my $decl = get_var_record_from_set($Sf->{'Vars'},$var);
+			# my $decl = get_var_record_from_set($Sf->{'Vars'},$var);
+			my $decl = getDecl($stref,$f,$var);
 			my $id=$info->{'LineID'};
 			if($decl->{'Attr'}!~/len/) {
 				croak 'String with index>1 but the type is character', Dumper $ast;
@@ -1167,11 +1169,12 @@ sub _var_access_assign($stref,$f,$info,$lhs_ast,$rhs_ast) {
 		$uxntal_code =  __copy_substr($stref, $f, $info, $lhs_ast, $rhs_ast)
 	} elsif  (is_array($stref,$f,$var) and $idx_expr_type == 0) {
 		# array = rhs_expr
-		my $subset = in_nested_set( $Sf, 'Vars', $var );
-		my $decl = get_var_record_from_set($Sf->{'Vars'},$var);
+		# my $subset = in_nested_set( $Sf, 'Vars', $var );
+		# my $decl = get_var_record_from_set($Sf->{'Vars'},$var);
+		my $decl = getDecl($stref,$f,$var);
 		# It looks like ModuleVars are *copied* per function, not linked.
 		# So I need to get the actual decl from the module
-		croak "$f $subset ".Dumper( $decl).'; '.Dumper($stref->{'Modules'}{$decl->{'ParentModule'}}{'ModuleVars'}{'Set'}{$var});
+		# croak "$f $subset ".Dumper( $decl).'; '.Dumper($stref->{'Modules'}{$decl->{'ParentModule'}}{'ModuleVars'}{'Set'}{$var});
 		my $dim = exists $decl->{'ConstDim'}
 			? __C_array_size($decl->{'ConstDim'})
 			: __C_array_size($decl->{'Dim'});
@@ -1190,7 +1193,8 @@ sub _var_access_assign($stref,$f,$info,$lhs_ast,$rhs_ast) {
 				. ' #0000 range-map-short';
 		} elsif ($rhs_ast->[0] == 34) { # the RHS is a string
 		# We should check that the LHS is an array of strings
-			my $decl = get_var_record_from_set($Sf->{'Vars'},$var);
+			# my $decl = get_var_record_from_set($Sf->{'Vars'},$var);
+			my $decl = getDecl($stref,$f,$var);
 			if (is_character($stref,$f,$var) ) { # Array of characters
 			# If so, we set every elt to that string
 				my $dim = exists $decl->{'ConstDim'} 
@@ -1280,7 +1284,8 @@ sub _var_access_assign($stref,$f,$info,$lhs_ast,$rhs_ast) {
 } # END of _var_access_assign()
 
 sub __is_write_arg($stref,$f,$var) {
-	my $decl =  get_var_record_from_set($stref->{'Subroutines'}{$f}{'Vars'},$var) ;
+	# my $decl =  get_var_record_from_set($stref->{'Subroutines'}{$f}{'Vars'},$var) ;
+	my $decl = getDecl($stref,$f,$var);
 	# carp("<$var>",Dumper $decl);
 	my $iodir = exists $decl->{'IODir'} ? $decl->{'IODir'} : 'Unknown';
 	my $uxntal_write_arg = $iodir eq 'out' or $iodir eq 'inout' ? 1 : 0 ;
@@ -1393,8 +1398,9 @@ sub __copy_substr($stref, $f, $info, $lhs_ast, $rhs_ast) {
 		} else { # This is either a character assignment or a string copy
 		# <string-literal> ;lhs_str <$len> strncpy
 		# we need the length of LHS and RHS.
-			my $Sf = $stref->{'Subroutines'}{$f};
-			my $decl = get_var_record_from_set($Sf->{'Vars'},$lhs_var);
+			# my $Sf = $stref->{'Subroutines'}{$f};
+			# my $decl = get_var_record_from_set($Sf->{'Vars'},$lhs_var);
+			my $decl = getDecl($stref,$f,$lhs_var);
 			if($decl->{'Attr'}!~/len/) {
 				# a single character
 				$uxntal_code = "$rhs_Uxntal_expr $lhs_var_access STA";
@@ -1561,6 +1567,7 @@ sub _stack_allocation($stref,$f,$var) {
 			my $subset = in_nested_set( $Sf, 'DeclaredOrigLocalVars', $var );
 			my $decl = get_var_record_from_set($Sf->{$subset},$var);
 			croak Dumper $decl ;
+			# my $decl = getDecl($stref,$f,$var);
 			# my $dim =  __C_array_size($decl->{'Dim'});
 			my $dim = exists $decl->{'ConstDim'} 
 				? __C_array_size($decl->{'ConstDim'})
@@ -1618,7 +1625,8 @@ sub __create_fq_varname($stref,$f,$var_name) {
 sub __string_access($stref,$f,$info,$var_name,$ast){
 	my $Sf = $stref->{'Subroutines'}{$f};
 	my $strn = __create_fq_varname($stref,$f,$var_name);
-	my $decl = get_var_record_from_set($Sf->{'Vars'},$var_name);
+	# my $decl = get_var_record_from_set($Sf->{'Vars'},$var_name);
+	my $decl = getDecl($stref,$f,$var_name);
 	my $cb = _emit_expression_Uxntal($ast->[2][1], $stref, $f,$info);
 	my $ce = _emit_expression_Uxntal($ast->[2][2], $stref, $f,$info);
 	my $id=$info->{'LineID'};
@@ -1822,7 +1830,8 @@ sub _emit_subroutine_sig_Uxntal($stref, $f, $annline){
 } # END of _emit_subroutine_sig_Uxntal
 
 sub _emit_arg_decl_Uxntal($stref,$f,$arg, $name){
-	my $decl =  get_var_record_from_set($stref->{'Subroutines'}{$f}{'Vars'},$arg) ;
+	# my $decl =  get_var_record_from_set($stref->{'Subroutines'}{$f}{'Vars'},$arg) ;
+	my $decl = getDecl($stref,$f,$arg);
 	my $iodir = lc($decl->{'IODir'});
 	my $ftype = $decl->{'Type'};
 	my $fkind = $decl->{'Attr'};
@@ -1870,7 +1879,8 @@ sub _emit_var_decl_Uxntal ($stref,$f,$info,$var){
 	my $sub_or_module = sub_func_incl_mod( $f, $stref );
 	my $Sf = $stref->{$sub_or_module}{$f};
 	# say "_emit_var_decl_Uxntal: VAR $var in $f ";
-	my $decl =  get_var_record_from_set($stref->{$sub_or_module}{$f}{'Vars'},$var);
+	# my $decl =  get_var_record_from_set($stref->{$sub_or_module}{$f}{'Vars'},$var);
+	my $decl = getDecl($stref,$f,$var);
 
 	my $array = (exists $decl->{'ArrayOrScalar'} and $decl->{'ArrayOrScalar'} eq 'Array') ? 1 : 0;
 
@@ -2322,7 +2332,8 @@ sub _emit_subroutine_call_expr_Uxntal($stref,$f,$line,$info){
 		$idx++; # So starts at 1, because 0 is the sigil
 		my $rec = $Ssubname->{'RefactoredArgs'}{'Set'}{$sig_arg};
 		my $call_arg_expr_str = $info->{'SubroutineCall'}{'ArgMap'}{$sig_arg} // $sig_arg;
-		my $call_arg_decl = get_var_record_from_set($Sf->{'Vars'},$call_arg_expr_str);
+		# my $call_arg_decl = get_var_record_from_set($Sf->{'Vars'},$call_arg_expr_str);
+		my $call_arg_decl = getDecl($stref,$f,$call_arg_expr_str);
 		# my $isParam = (defined $call_arg_decl ?1:0) * (exists $call_arg_decl->{'Parameter'}?1:0);
 		# and binds lower than = so needs parens
 		# my $isParam = (defined $call_arg_decl and exists $call_arg_decl->{'Parameter'});
@@ -2357,7 +2368,8 @@ sub _emit_subroutine_call_expr_Uxntal($stref,$f,$line,$info){
 					push @call_arg_expr_strs_Uxntal,  "$var_access $idx_expr LDA".' ( CHAR )' # load a pointer, index, load the value
 				} else {
 					# extract a substring
-					my $decl = get_var_record_from_set($Sf->{'Vars'},$var);
+					# my $decl = get_var_record_from_set($Sf->{'Vars'},$var);
+					my $decl = getDecl($stref,$f,$var);
 					my $id=$info->{'LineID'};
 					if($decl->{'Attr'}!~/len/) {
 						croak 'String with index>1 but the type is character', Dumper $arg_expr_ast;
@@ -2425,7 +2437,8 @@ sub _emit_function_call_expr_Uxntal($stref,$f,$info,$ast){
 sub __emit_call_arg_Uxntal_expr($stref,$f,$info,$subname,$call_arg_expr_str,$ast_from_info,$idx,$intent){
 	my $Sf = $stref->{'Subroutines'}{$f};
 	# croak Dumper($subname,$call_arg_expr_str,$ast_from_info) if $subname eq 'modulo';
-	my $call_arg_decl = get_var_record_from_set($Sf->{'Vars'},$call_arg_expr_str);
+	# my $call_arg_decl = get_var_record_from_set($Sf->{'Vars'},$call_arg_expr_str);
+	my $call_arg_decl = getDecl($stref,$f,$call_arg_expr_str);
 	# carp Dumper $call_arg_decl, (defined $call_arg_decl) , (exists $call_arg_decl->{'Parameter'});
 	my $isParam = ((defined $call_arg_decl) && (exists $call_arg_decl->{'Parameter'})) ? 1 : 0;
 	my $arg_is_not_string = 0;
@@ -2507,7 +2520,8 @@ sub __emit_call_arg_Uxntal_expr($stref,$f,$info,$subname,$call_arg_expr_str,$ast
 					return  "$var_access INC2 $idx_expr LDA " # load a pointer, index, load the value
 				} else {
 					# extract a substring
-					my $decl = get_var_record_from_set($Sf->{'Vars'},$var);
+					# my $decl = get_var_record_from_set($Sf->{'Vars'},$var);
+					my $decl = getDecl($stref,$f,$var);
 					my $id=$info->{'LineID'};
 					if($decl->{'Attr'}!~/len/) {
 						croak 'String with index>1 but the type is character', Dumper $arg_expr_ast;
@@ -2549,7 +2563,8 @@ sub _emit_subroutine_call_expr_Uxntal_OLD($stref,$f,$line,$info){
 		$idx++;
 		my $rec = $Ssubname->{'RefactoredArgs'}{'Set'}{$sig_arg};
 		my $call_arg_expr_str = $info->{'SubroutineCall'}{'ArgMap'}{$sig_arg} // $sig_arg;
-		my $call_arg_decl = get_var_record_from_set($Sf->{'Vars'},$call_arg_expr_str);
+		# my $call_arg_decl = get_var_record_from_set($Sf->{'Vars'},$call_arg_expr_str);
+		my $call_arg_decl = getDecl($stref,$f,$call_arg_expr_str);
 		my $isParam = (defined $call_arg_decl) && (exists $call_arg_decl->{'Parameter'});
 		my $intent = $rec->{'IODir'};
 		my $isArray = $rec->{'ArrayOrScalar'} eq 'Array';
@@ -2811,7 +2826,8 @@ sub isStrCmp($ast, $stref, $f,$info){
 	my $rhs_is_str = $ast->[2][0] == 34 ? 1 : 0;
 	if (not $lhs_is_str) {
 		if ($lhs_name ne '') {
-			my $decl = get_var_record_from_set($stref->{'Subroutines'}{$f}{'Vars'},$lhs_name);
+			# my $decl = get_var_record_from_set($stref->{'Subroutines'}{$f}{'Vars'},$lhs_name);
+			my $decl = getDecl($stref,$f,$lhs_name);
 			if ($decl->{'Type'} eq 'character') {
 				$lhs_is_str=1;
 			}
@@ -2819,7 +2835,8 @@ sub isStrCmp($ast, $stref, $f,$info){
 	}
 	if (not $rhs_is_str) {
 		if ($rhs_name ne '') {
-			my $decl = get_var_record_from_set($stref->{'Subroutines'}{$f}{'Vars'},$rhs_name);
+			# my $decl = get_var_record_from_set($stref->{'Subroutines'}{$f}{'Vars'},$rhs_name);
+			my $decl = getDecl($stref,$f,$rhs_name);
 			if ($decl->{'Type'} eq 'character') {
 				$rhs_is_str=1;
 			}
@@ -2887,7 +2904,8 @@ sub _emit_print_from_ast($stref,$f,$line,$info,$unit,$elt){
 	if ($code == 2 or $code == 10) { # A scalar, but can be an unindexed string or array
 		my $var_name = $elt->[1];
 		# my $wordsz = $stref->{'Subroutines'}{$f}{'WordSizes'}{$var_name};
-		my $decl = get_var_record_from_set($Sf->{'Vars'},$var_name);
+		# my $decl = get_var_record_from_set($Sf->{'Vars'},$var_name);
+		my $decl = getDecl($stref,$f,$var_name);
 		my $type = $decl->{'Type'};
 		if ($code == 2 and $decl->{'ArrayOrScalar'} eq 'Array') {
 			error("Printing an array is currently unsupported");
@@ -3134,12 +3152,13 @@ sub __parse_fmt($fmt_str,$stref,$f,$info){
 				$nchars = __get_len_from_AST($val_ast,$info->{'PlaceHolders'});
 				if ($nchars==0 and $val_ast->[0] == 2) {
 					my $var = $val_ast->[1];
-					my $Sf = $stref->{'Subroutines'}{$f};
-					my $subset = in_nested_set($Sf,'Vars',$var);
-					if ($subset eq '') {
-						croak "$f $var";
-					}
-					my $decl = get_var_record_from_set($Sf->{$subset},$var);
+					# my $Sf = $stref->{'Subroutines'}{$f};
+					# my $subset = in_nested_set($Sf,'Vars',$var);
+					# if ($subset eq '') {
+					# 	croak "$f $var";
+					# }
+					# my $decl = get_var_record_from_set($Sf->{$subset},$var);
+					my $decl = getDecl($stref,$f,$var);
 					my $len=0;
 					if ($decl->{'Type'} eq 'character') {
 						if (exists $decl->{'Attr'} and $decl->{'Attr'}=~/len/) { 
@@ -3315,7 +3334,20 @@ sub isString($rec){
 	return $is_string
 }
 
-
+sub getDecl($stref,$f,$var) {
+	my $Sf =$stref->{'Subroutines'}{$f};
+	my $subset = in_nested_set( $Sf, 'Vars', $var );
+	if ($subset eq '') {
+		croak "No decl for $var in Vars for $f";
+	}
+	my $decl = get_var_record_from_set($Sf->{'Vars'},$var);
+	# Module var decl records are copied into the state of the subroutines that use them 
+	# before constant folding is done. So we need to get the originals instead.
+	if( $subset eq 'ModuleVars') {
+		$decl = $stref->{'Modules'}{$decl->{'ParentModule'}}{'ModuleVars'}{'Set'}{$var};
+	}
+	return $decl;
+}
 # ----------------------------------------------------------------------------------------------------
 sub add_to_C_build_sources($f,$stref ){
     my $sub_or_func = sub_func_incl_mod( $f, $stref );
