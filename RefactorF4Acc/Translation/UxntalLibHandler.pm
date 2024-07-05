@@ -64,6 +64,12 @@ our %uxntal_lib_subroutines = (
     '@gte', 
     'GTH #01 SWP SUB JMP2r'
 ],
+'iand' => [
+    '@iand','AND2 JMP2r'
+],
+'ishft' => [
+    '@ishft',' ( TODO ) SF2 JMP2r'
+],
 );
 
 sub load_uxntal_lib_subroutines(@uxntal_lib_sources) {

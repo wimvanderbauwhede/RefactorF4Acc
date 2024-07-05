@@ -1316,15 +1316,7 @@ sub pass_wrapper_subs_in_module { (my $stref,my $module_name, my $module_pass_se
                 $_ eq $module_name or
                 exists $stref->{'Subroutines'}{$module_name}{'CalledSubs'}{'Set'}{$_}
                  ) } sort keys %{ $stref->{'Subroutines'} };
-            # my $pass_ctr = 1;
-            # for my $sub (@subs) {
-            #     if  (exists $stref->{'Subroutines'}{$module_name}{'CalledSubs'}{'Set'}{$sub}) {
-            #         say "SUB $sub is CALLED in $module_name";
-            #     } else {
-            #         say "SUB $sub is NOT CALLED in $module_name";
-            #     }
-            # }
-            # die;
+# croak Dumper (@subs);
 			for my $pass_sequence (@{$sub_pass_sequences}) {
 				for my $f ( @subs ) {
                     # my $pass_sub_ctr = 1;

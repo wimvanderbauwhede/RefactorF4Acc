@@ -11,7 +11,7 @@ use RefactorF4Acc::F95SpecWords qw(
 	%F95_intrinsic_subroutine_sigs
 	);
 use RefactorF4Acc::Analysis::ArgumentIODirs qw( determine_argument_io_direction_rec );
-use RefactorF4Acc::Refactoring::Helpers qw( stateful_pass stateful_pass_inplace pass_wrapper_subs_in_module update_arg_var_decl_sourcelines get_annotated_sourcelines);
+use RefactorF4Acc::Refactoring::Helpers qw( stateful_pass stateful_pass_inplace stateless_pass_inplace pass_wrapper_subs_in_module update_arg_var_decl_sourcelines get_annotated_sourcelines);
 use RefactorF4Acc::Refactoring::Fixes qw(
 	_declare_undeclared_variables
 	_remove_unused_variables
@@ -136,18 +136,25 @@ sub translate_program_to_Uxntal($stref,$program_name){
 		# _declare_undeclared_variables => 1,
 		# _remove_unused_variables => 1
 	};
-	$stref = pass_wrapper_subs_in_module($stref,$program_name,
-	   # module-specific passes.
-       [
-			# [\&_fold_consts_in_module_decls]
-			# [\&translate_module_decls_to_Uxntal]
-       ],
-       # subroutine-specific passes
-	   [
-		  [ \&replace_case_by_if ],
-		  [\&translate_sub_to_Uxntal]
-       ]
-       );
+	# croak "PROBLEM: this does not do a recdescent on the call tree!";
+	# $stref = pass_wrapper_subs_in_module($stref,$program_name,
+	#    # module-specific passes.
+    #    [
+	# 		# [\&_fold_consts_in_module_decls]
+	# 		# [\&translate_module_decls_to_Uxntal]
+    #    ],
+    #    # subroutine-specific passes
+	#    [
+	# 	  [ \&replace_case_by_if ],
+	# 	  [\&translate_sub_to_Uxntal]
+    #    ]
+    #    );
+	$stref = do_passes_recdescent($stref,$program_name,
+		[
+			\&replace_case_by_if ,
+			\&translate_sub_to_Uxntal
+		], {}
+	);
 
 	if ($stref->{'UseCallStack'} ) {
 		add_to_used_lib_subs( 'init-call-stack' );
@@ -266,8 +273,8 @@ croak Dumper $mod_name;
 } # END of _fold_consts_in_module_decls
 
 sub translate_sub_to_Uxntal( $stref, $f){
-	say "SUB: $f";
-croak $f if $f eq 'clearFunktalFunctionIdentifiers';
+
+
 =info
 	# First we collect info. What we need to know is:
 
@@ -2060,6 +2067,24 @@ sub _emit_expression_Uxntal ($ast, $stref, $f, $info) {
 				# [1,'print','*', $arg]
 				my $uxn_ast = [1,'print',$args->[2]];
 				return _emit_expression_Uxntal($uxn_ast, $stref, $f,$info);
+			}
+			elsif ($name eq 'ishft') {
+				# We need to translate the negative into a shift over 4 
+				# This is not even always possible, in principle this has to be a runtime operation
+				# But for constant shifts it can be done
+				my $val_to_shift = _emit_expression_Uxntal($args->[1], $stref, $f,$info);
+				if ($args->[2][0]==29) {
+					my $shift_nbits = $args->[2][1];
+					if ($shift_nbits >= 0) {
+						my $sft = toHex($shift_nbits,1);
+						return "$val_to_shift $sft #40 SFT SFT2"
+					} else {
+						my $sft = toHex(-$shift_nbits,1);
+						return "$val_to_shift $sft SFT2"
+					}
+				} else {
+					croak 'TODO ISHFT RUNTIME';
+				}
 			} else {
 				return _emit_function_call_expr_Uxntal($stref,$f,$info,$ast);
 			}
@@ -3368,50 +3393,46 @@ sub __is_operator($opcode) {
 	($opcode == 13));
 }
 
+# ================================================================================================================================================
 
-__DATA__
+sub do_passes_recdescent($stref,$f,$pass_sequence,$seen) {
 
-#ifndef __ARRAY_INDEX_F2C_H__
-#define __ARRAY_INDEX_F2C_H__
-__attribute__((always_inline)) inline unsigned int F3D2C(
-        unsigned int i_rng,unsigned int j_rng, // ranges, i.e. (hb-lb)+1
-        int i_lb, int j_lb, int k_lb, // lower bounds
-        int ix, int jx, int kx
-        ) {
-    return (i_rng*j_rng*(kx-k_lb)+i_rng*(jx-j_lb)+ix-i_lb);
-}
+    for my $pass_sub_ref (@{$pass_sequence}) {
+		say "PASS ".coderef_to_subname($pass_sub_ref)."($f)" if $V;
+		$stref=$pass_sub_ref->($stref, $f);
+	}
+	say "RECDESCENT for $f" if $V;
+    my $pass_recursion_call_tree = sub($annline){
+		my ($line, $info) = @{$annline};
 
-__attribute__((always_inline)) inline unsigned int F2D2C(
-        unsigned int i_rng, // ranges, i.e. (hb-lb)+1
-        int i_lb, int j_lb, // lower bounds
-        int ix, int jx
-        ) {
-    return (i_rng*(jx-j_lb)+ix-i_lb);
-}
-
-
-__attribute__((always_inline)) inline unsigned int F1D2C(
-        int i_lb, // lower bounds
-        int ix
-        ) {
-    return ix-i_lb;
-}
-
-__attribute__((always_inline)) inline unsigned int F4D2C(
-        unsigned int i_rng,unsigned int j_rng, unsigned int k_rng, // ranges, i.e. (hb-lb)+1
-        int i_lb, int j_lb, int k_lb, int l_lb, // lower bounds
-        int ix, int jx, int kx, int lx
-        ) {
-    return (i_rng*j_rng*k_rng*(lx-l_lb)+
-            i_rng*j_rng*(kx-k_lb)+
-            i_rng*(jx-j_lb)+
-            ix-i_lb
-            );
-}
-
-
-#endif
-
+		if (exists $info->{'SubroutineCall'}) {
+			my $csf = $info->{'SubroutineCall'}{'Name'};
+			if (not exists $seen->{$csf}) {
+				$seen->{$csf}=1;
+			if (not exists $F95_intrinsic_functions{$csf}){
+			say "RECURSE info SUB $csf" if $V;
+        	$stref = do_passes_recdescent($stref,$csf,$pass_sequence,$seen);}
+			}
+		}
+		# I work on the assumption that all $info records that could have function calls, will have FunctionCalls
+		if (exists $info->{'FunctionCalls'} and scalar @{$info->{'FunctionCalls'}}>0) {
+			my %seen=();
+			for my $fcall (@{$info->{'FunctionCalls'}}) {
+				my $csf = $fcall->{'Name'};
+				if (not exists $seen->{$csf}) {
+					$seen->{$csf}=1;
+					if (not exists $F95_intrinsic_functions{$csf}){
+					say "RECURSE info FUNC $csf" if $V;
+					$stref = do_passes_recdescent($stref,$csf,$pass_sequence,$seen);
+					}
+				}
+			}
+		}
+		return [$annline];
+    };
+	$stref = stateless_pass_inplace( $stref,  $f,  $pass_recursion_call_tree, 'pass_recursion_call_tree');
+	return $stref;
+} # END of do_passes_recdescent
 
 =pod
 Scalar:
