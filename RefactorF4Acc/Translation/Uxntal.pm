@@ -79,6 +79,7 @@ my @uxntal_lib_sources = (
 );
 
 sub translate_program_to_Uxntal($stref,$program_name){
+
 	load_uxntal_lib_subroutines(@uxntal_lib_sources);
 	$stref->{'UseCallStack'}=0;
 	$stref->{'Uxntal'} = {
@@ -143,9 +144,7 @@ sub translate_program_to_Uxntal($stref,$program_name){
        ],
        # subroutine-specific passes
 	   [
-		  [
-			  \&replace_case_by_if
-		  ],
+		  [ \&replace_case_by_if ],
 		  [\&translate_sub_to_Uxntal]
        ]
        );
@@ -267,7 +266,8 @@ croak Dumper $mod_name;
 } # END of _fold_consts_in_module_decls
 
 sub translate_sub_to_Uxntal( $stref, $f){
-
+	say "SUB: $f";
+croak $f if $f eq 'clearFunktalFunctionIdentifiers';
 =info
 	# First we collect info. What we need to know is:
 
@@ -1187,10 +1187,11 @@ sub _var_access_assign($stref,$f,$info,$lhs_ast,$rhs_ast) {
 			"{ ( iter ) ".
 				( $word_sz==2 ? '#0002 MUL2' : '')
 				.' DUP2 LIT2 &'.$ref.' $2 ADD2 LDA' .$short_mode.
-				( $short_mode==2 ? ' SWP2' : ' ROT ROT' )
+				( $short_mode eq '2' ? ' SWP2' : ' ROT ROT' )
 				. " $lhs_var_access ADD2 STA$short_mode JMP2r } STH2r ".
 				toHex($array_length-1,2)
 				. ' #0000 range-map-short';
+			add_to_used_lib_subs('range-map-short');
 		} elsif ($rhs_ast->[0] == 34) { # the RHS is a string
 		# We should check that the LHS is an array of strings
 			# my $decl = get_var_record_from_set($Sf->{'Vars'},$var);
@@ -1202,14 +1203,16 @@ sub _var_access_assign($stref,$f,$info,$lhs_ast,$rhs_ast) {
 					: __C_array_size($decl->{'Dim'});
 				# my $dim =  __C_array_size($decl->{'Dim'});
 				my $array_length = $dim;
+				my $isChar=1;
+				my $rhs_char_literal = __substitute_PlaceHolders_Uxntal($rhs_ast->[1],$info,$isChar);
 				# unique ID the cheap way
-				my $rhs_char_literal = __substitute_PlaceHolders_Uxntal($rhs_ast->[1],$info);
 				my $ref = \$rhs_ast; $ref=~s/REF..//;$ref=~s/\)//;
 				$uxntal_code =
 					"{ ( iter ) $rhs_char_literal ROT ROT ".
 					"$lhs_var_access ADD2 STA JMP2r } STH2r ".
 					toHex($array_length-1,2)
 					. ' #0000 range-map-short';
+				add_to_used_lib_subs('range-map-short');
 			} elsif (is_string($stref,$f,$var) ) { # Array of strings
 				croak 'TODO: ASSIGNMENT TO ARRAY OF STRINGS';
 			} else {
@@ -1222,13 +1225,15 @@ sub _var_access_assign($stref,$f,$info,$lhs_ast,$rhs_ast) {
 			if ($mkind==0 or $mkind==4) {
 				error('Only integer of kind 1 or 2 is supported on the RHS of an array assignment');
 			} else {
+				my $short_mode = $mkind==2 ? '2' : '';
 				my $rhs_int_literal = toHex($rhs_ast->[1],$mkind);
 				my $ref = \$rhs_ast; $ref=~s/REF..//;$ref=~s/\)//;
 				$uxntal_code = 
-					"{ ( iter ) $rhs_int_literal ". ($mkind==1 ? 'ROT ROT' : 'SWP2' ).
-					"$lhs_var_access ADD2 STA$mkind JMP2r } STH2r ".
+					"{ ( iter ) $rhs_int_literal ". ( $short_mode eq '2' ? ' SWP2' : ' ROT ROT' ).' '.
+					"$lhs_var_access ADD2 STA$short_mode JMP2r } STH2r ".
 					toHex($array_length-1,2)
 					. ' #0000 range-map-short';
+				add_to_used_lib_subs('range-map-short');
 			}
 		}
 		elsif ($rhs_ast->[0]==31) {
@@ -1243,6 +1248,7 @@ sub _var_access_assign($stref,$f,$info,$lhs_ast,$rhs_ast) {
 					"$lhs_var_access ADD2 STA JMP2r } STH2r ".
 					toHex($array_length-1,2)
 					. ' #0000 range-map-short';
+				add_to_used_lib_subs('range-map-short');
 
 			} else {
 				error('Only integer of kind 1 or 2 is supported on the RHS of an array assignment');
@@ -1264,10 +1270,11 @@ sub _var_access_assign($stref,$f,$info,$lhs_ast,$rhs_ast) {
 				$uxntal_code = "{ ( iter ) ".
 					( $word_sz==2 ? '#0002 MUL2' : '')
 					." DUP2 $rhs_var_access ADD2 LDA$short_mode " .
-					( $short_mode==2 ? 'SWP2' : 'ROT ROT' )
-					. " $lhs_var_access ADD2 STA$short_mode JMP2r } STH2r ".
+					( $short_mode eq '2' ? 'SWP2' : 'ROT ROT' ). ' '
+					. "$lhs_var_access ADD2 STA$short_mode JMP2r } STH2r ".
 					toHex($array_length-1,2)
 					. ' #0000 range-map-short';
+				add_to_used_lib_subs('range-map-short');
 			} else {
 			# if not, it is an error
 				error("LHS is an array but RHS isn't");
@@ -1374,7 +1381,7 @@ sub __copy_substr($stref, $f, $info, $lhs_ast, $rhs_ast) {
 			($rhs_ast->[0] == 1 or $rhs_ast->[0] == 13)
 			? _emit_expression_Uxntal($rhs_ast, $stref, $f,$info)
 			: $rhs_ast->[0] == 34
-				? __substitute_PlaceHolders_Uxntal($rhs_ast->[1],$info)
+				? __substitute_PlaceHolders_Uxntal($rhs_ast->[1],$info,0) # 0 means always as string
 				: croak "PROBLEM: ".Dumper($rhs_ast);
 		if ($lhs_idx_expr_type == 2) { # slice
 			# s_to(b1:e1) = "str"
@@ -1973,33 +1980,6 @@ sub _emit_var_decl_Uxntal ($stref,$f,$info,$var){
 	}
 } # END of _emit_var_decl_Uxntal
 
-# Emits constant strings with only a leading double quote
-sub __substitute_PlaceHolders_Uxntal($expr_str,$info){
-	if ($expr_str=~/__PH/ and exists $info->{'PlaceHolders'}) {
-		# croak $expr_str.Dumper($info->{'PlaceHolders'})
-		while ($expr_str =~ /(__PH\d+__)/) {
-			my $ph=$1;
-			my $ph_str = $info->{'PlaceHolders'}{$ph};
-			$ph_str=~s/[\'\"]$//;
-			$ph_str=~s/^[\']/\"/;
-			$expr_str=~s/$ph/$ph_str/;
-		}
-		my $len = toRawHex(length($expr_str)-1,2);
-		if ($len eq '0001' ) {
-			$expr_str = toHex(ord(substr($expr_str,1,1)),1);
-		} elsif ($len eq '0000') { # empty string, I set this to 0 ad-hoc
-			$expr_str = '#00'; # "{ 0000 } STH2r";
-		} else {
-			# replace space and nl by their ascii code
-			# ' ' => ' 20 "'
-			$expr_str =~s/\s/ 20 \"/g;
-			$expr_str =~s/\n/ 0a \"/g;
-			$expr_str =~s/\"\s*$//;
-			$expr_str = "{ $len $expr_str } STH2r";
-		}
-	}
-	return $expr_str;
-} # END of __substitute_PlaceHolders
 
 # TODO use _var_access_assign !
 sub _emit_assignment_Uxntal ($stref, $f, $info, $pass_state){
@@ -2007,86 +1987,6 @@ sub _emit_assignment_Uxntal ($stref, $f, $info, $pass_state){
 	my $lhs_ast =  $info->{'Lhs'}{'ExpressionAST'};
 	my $rline = _var_access_assign($stref,$f,$info,$lhs_ast,$rhs_ast);
 	return ($rline,$pass_state);
-
-# 	if ($rhs_ast->[0] == 34) { # it's a string assignment
-# 		# string assignment
-# 		# This must become lhs_uxntal ;fqn_rhs_uxntal memwrite-string
-# 		my $rline = _emit_expression_Uxntal($rhs_ast,$stref,$f,$info).' ;'.$f.'_'.$lhs_ast->[1].' memwrite-string';
-# 		return ($rline,$pass_state);
-# 	}
-# # I think here we should do ST for lhs and LD for rhs, and it should be correct;
-# # But we need to check if it is an array/string access expressions, i.e. 10, or not.
-# 	if ($lhs_ast->[0] == 10) {
-# 		my $var = $lhs_ast->[1];
-# 		my $idx = _emit_expression_Uxntal($lhs_ast->[2],$stref,$f,$info);
-# 		say "LHS $var($idx)";
-# 		my $lhs_str = _var_access($stref,$f,$info,$var,$idx,'ST');
-# 		my $rhs_str = _emit_expression_Uxntal($rhs_ast,$stref,$f,$info);
-# 		my $rline = "$rhs_str $lhs_str";
-# 		return ($rline,$pass_state);
-# 		# croak 'ARRAY or STRING access: '.Dumper($lhs_ast,$rhs_ast,$rline);
-# 	} else {
-# 		my $var = $lhs_ast->[1];
-# 		my $lhs_str = _var_access($stref,$f,$info,$var,undef,'ST');
-# 		my $rhs_str = _emit_expression_Uxntal($rhs_ast,$stref,$f,$info);
-# 		my $rline = "$rhs_str $lhs_str";
-# 		return ($rline,$pass_state);
-# 		# croak 'SCALAR access: '.Dumper($lhs_ast,$rhs_ast,$rline);
-# 	}
-# 	my $lhs = _emit_expression_Uxntal($lhs_ast,$stref,$f,$info);
-
-# 	my $lhs_stripped = $lhs;
-# 	my $indent='';
-# 	$lhs_stripped=~/^(\s+)/ && do {
-# 		$indent=$1;
-# 		$lhs_stripped=~s/^\s+//;
-# 	};
-# 	$lhs_stripped=~s/^\(([^\(\)]+)\)/$1/;
-# 	$lhs_stripped=$indent.$lhs_stripped;
-
-# 	my $rhs = _emit_expression_Uxntal($rhs_ast,$stref,$f,$info);
-
-# 	my $rhs_stripped = $rhs;
-# 	$rhs_stripped=~s/^\(([^\(\)]+)\)$/$1/;
-
-# 	# for my $macro (keys %{ $Config{'Macros'} } ) {
-# 	# 	my $lc_macro=lc($macro);
-# 	# 	$rhs_stripped=~s/\b$lc_macro\b/$macro/g;
-# 	# }
-# 	$rhs_stripped=__substitute_PlaceHolders_Uxntal($rhs_stripped,$info);
-
-# 	# my $rline = $info->{'Indent'}.$lhs.' = '.$rhs_stripped;
-# 	my $lhs_post = $lhs;
-# 	$lhs_post =~s/LDA\s*$/STA /;
-# 	$lhs_post =~s/LDA2\s*$/STA2 /;
-# 	if ($lhs_post !~/STA/) {
-# 		$lhs_post .= ' STA2 ( must be string! ) ';
-# 	}
-
-# 	$rline = $info->{'Indent'} . $rhs_stripped . ' ( = ) '. $lhs_post;
-# 	if (exists $info->{'If'}) {
-# 		# croak 'TODO: If without Then', Dumper($info);
-# 		my $branch_id = $info->{'LineID'};
-# 		# $pass_state->{'IfBranchId'} = $id;
-# 		# my $branch_id = $pass_state->{'IfBranchId'};
-# 		# push @{$pass_state->{'IfStack'}},$id;
-# 		# $pass_state->{'IfId'}=$id;
-# 		my $cond_expr_ast=$info->{'Cond'}{'AST'};
-# 		my $cond_expr = _emit_expression_Uxntal($cond_expr_ast,$stref,$f,$info);
-# 	# What we have is e.g.
-# 	# if (fl(1:2) == __PH0__) VV = .true.
-# 	# What we need is
-# 	# NOT <cond> <label_end> JCN
-# 		$rline = "\n( If without Then )\n" . $indent.' '."$cond_expr EQU #00 ,&branch$branch_id JCN\n" . $rline;
-# 	# <expr>
-# 		$rline .= $indent.' '."&branch$branch_id";
-
-# 		# my $if_str = _emit_ifthen_Uxntal($stref,$f,$info,$branch_id);
-# 		# $rline =$indent.' '.$rline;
-# 		# die $rline;
-# 	}
-# 	# carp "$f $rline";
-# 	return ($rline,$pass_state);
 } # END of _emit_assignment_Uxntal
 
 
@@ -2173,7 +2073,9 @@ sub _emit_expression_Uxntal ($ast, $stref, $f, $info) {
 		elsif ($opcode > 28) { # literal constants (bool, number, character, string), emit in place
 			(my $opcode, my $exp) =@{$ast};
 			if ($opcode == 34) {
-				return __substitute_PlaceHolders_Uxntal($exp,$info);
+				# We'll assume here that a single-char string is a char
+				my $isChar=1;
+				return __substitute_PlaceHolders_Uxntal($exp,$info,$isChar);
 			}
 			elsif ($opcode == 35) {
 				die 'ERROR: Fortran LABEL as arg is not supported, sorry!'."\n";
@@ -2271,6 +2173,35 @@ sub _emit_expression_Uxntal ($ast, $stref, $f, $info) {
 } # END of _emit_expression_Uxntal
 
 
+# Emits constant strings with only a leading double quote
+# We add extra info  to distingiush between a character and a string of length 1
+sub __substitute_PlaceHolders_Uxntal($expr_str,$info,$isChar){
+	if (not defined $isChar) { $isChar=0; }
+	if ($expr_str=~/__PH/ and exists $info->{'PlaceHolders'}) {
+		# croak $expr_str.Dumper($info->{'PlaceHolders'})
+		while ($expr_str =~ /(__PH\d+__)/) {
+			my $ph=$1;
+			my $ph_str = $info->{'PlaceHolders'}{$ph};
+			$ph_str=~s/[\'\"]$//;
+			$ph_str=~s/^[\']/\"/;
+			$expr_str=~s/$ph/$ph_str/;
+		}
+		my $len = toRawHex(length($expr_str)-1,2);
+		if ($len eq '0001' and $isChar) {
+			$expr_str = toHex(ord(substr($expr_str,1,1)),1);
+		} elsif ($len eq '0000') { # empty string, I set this to 0 ad-hoc
+			$expr_str = '#00'; # "{ 0000 } STH2r";
+		} else {
+			# replace space and nl by their ascii code
+			# ' ' => ' 20 "'
+			$expr_str =~s/\s/ 20 \"/g;
+			$expr_str =~s/\n/ 0a \"/g;
+			$expr_str =~s/\"\s*$//;
+			$expr_str = "{ $len $expr_str } STH2r";
+		}
+	}
+	return $expr_str;
+} # END of __substitute_PlaceHolders
 
 sub _change_operators_to_Uxntal($expr){
 die 'FIXME!';
@@ -2331,6 +2262,7 @@ sub _emit_subroutine_call_expr_Uxntal($stref,$f,$line,$info){
 	for my $sig_arg (@{$Ssubname->{'RefactoredArgs'}{'List'}}) {
 		$idx++; # So starts at 1, because 0 is the sigil
 		my $rec = $Ssubname->{'RefactoredArgs'}{'Set'}{$sig_arg};
+
 		my $call_arg_expr_str = $info->{'SubroutineCall'}{'ArgMap'}{$sig_arg} // $sig_arg;
 		# my $call_arg_decl = get_var_record_from_set($Sf->{'Vars'},$call_arg_expr_str);
 		my $call_arg_decl = getDecl($stref,$f,$call_arg_expr_str);
@@ -2346,8 +2278,16 @@ sub _emit_subroutine_call_expr_Uxntal($stref,$f,$line,$info){
 		or $isParam)
 		: 0;
 		my $arg_expr_ast = $info->{'SubroutineCall'}{'ExpressionAST'}[0] == 27 ? $info->{'SubroutineCall'}{'ExpressionAST'}[$idx] : $info->{'SubroutineCall'}{'ExpressionAST'};
-		if ($isConstOrExpr) { # Not a var
-			push @call_arg_expr_strs_Uxntal, _emit_expression_Uxntal($arg_expr_ast, $stref, $f,$info).' ( CONST/EXPR ARG by VAL ) ';
+		if ($isConstOrExpr) { # Not a var; but it can still be a string.
+		# look at the signature 
+			if ($arg_expr_ast->[0] == 34) { # special case
+				if (exists $rec->{'Attr'} and $rec->{'Attr'} ne ''
+				and $rec->{'Attr'}!~/len=1$/) {
+					push @call_arg_expr_strs_Uxntal, __substitute_PlaceHolders_Uxntal($arg_expr_ast->[1],$info,0).' ( STRING ) '; # treat as string
+				}
+			} else {
+				push @call_arg_expr_strs_Uxntal, _emit_expression_Uxntal($arg_expr_ast, $stref, $f,$info).' ( CONST/EXPR ARG by VAL ) ';
+			}
 		}
 		elsif (not is_array_or_string($stref,$f,$call_arg_expr_str) and $intent eq 'in' ) { # As Scalar var used as In
 			push @call_arg_expr_strs_Uxntal, _var_access_read($stref,$f,$info,$arg_expr_ast).' ( SCALAR IN ARG by VAL ) ';

@@ -1274,6 +1274,7 @@ sub top_src_is_module {( my $stref, my $s) = @_;
 
 # This is a wrapper to get the subroutines out of a module and then call other passes on these subroutines
 # It does this for all sources but in practice it assumes a single source, so it might be better to pass this source name in as an arg instead
+# This does NOT do a recursive descent on the call tree!
 sub pass_wrapper_subs_in_module { (my $stref,my $module_name, my $module_pass_sequences, my $sub_pass_sequences, my @rest) = @_;
 # say "CALL to pass_wrapper_subs_in_module($module_name)";
 # local $V=1;
