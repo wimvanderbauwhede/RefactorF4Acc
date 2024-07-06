@@ -1723,6 +1723,7 @@ END IF
 				$info->{'IO'}=$keyword;
 
 				$info = _parse_read_write_print( $mline, $info, $stref, $f );
+				# Here the line is still correct
                 $info->{'HasVars'} = 1;
 				$info->{'NonSpecificationStatement'} = 1;
 			}
@@ -4217,7 +4218,7 @@ sub _parse_read_write_print {
         $case=3;
         $tline=~s/^(\w+)\s*//;
         $tline="$1($tline)";
-#		say "TLINE3: $tline";
+		# say "TLINE3: $tline";
 
         $attrs_ast = parse_expression($tline,$info,$stref,$f);
 #		say Dumper($attrs_ast);

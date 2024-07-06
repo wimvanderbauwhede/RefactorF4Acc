@@ -278,7 +278,7 @@ sub main {
     } else {
 	   $stref = analyse_all($stref,$code_unit_name, $stage);
     }
-
+# croak Dumper pp_annlines( $stref->{'Subroutines'}{'funk2tal'}{'RefactoredCode'});
     # After the analysis we can either do the refactoring of the code, i.e. the main purpose of the compiler
     # or run one or more custom passes.
     #
@@ -311,7 +311,7 @@ sub main {
         }
     }
 
-# croak Dumper pp_annlines( $stref->{'RefactoredCode'}{'./dyn_shapiro.f95'});
+# croak Dumper pp_annlines( $stref->{'RefactoredCode'}{'./funk2tal.f90'});
 	# 5. Emitter: Emit the refactored source
 
 	if ( not $call_tree_only ) {

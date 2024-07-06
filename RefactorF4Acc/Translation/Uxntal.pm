@@ -51,9 +51,7 @@ use feature qw(signatures);
 @RefactorF4Acc::Translation::Uxntal::ISA = qw(Exporter);
 
 @RefactorF4Acc::Translation::Uxntal::EXPORT_OK = qw(
-    &add_to_C_build_sources
     &translate_program_to_Uxntal
-	&translate_sub_to_Uxntal
 );
 
 #### #### #### #### BEGIN OF UXNTAL TRANSLATION CODE #### #### #### ####
@@ -79,7 +77,6 @@ my @uxntal_lib_sources = (
 );
 
 sub translate_program_to_Uxntal($stref,$program_name){
-
 	load_uxntal_lib_subroutines(@uxntal_lib_sources);
 	$stref->{'UseCallStack'}=0;
 	$stref->{'Uxntal'} = {
@@ -128,9 +125,10 @@ sub translate_program_to_Uxntal($stref,$program_name){
 		]
 	};
 
-	$stref = fold_constants_all($stref) ;
 
+	$stref = fold_constants_all($stref) ;
 	my $new_annlines = $stref->{'Subroutines'}{$program_name}{'RefactoredCode'};
+	# croak Dumper pp_annlines($new_annlines);
 	$stref->{'TranslatedCode'}=[];
 	$Config{'FIXES'}={
 		# _declare_undeclared_variables => 1,
@@ -605,11 +603,12 @@ Instead of the nice but cumbersome approach we had until now, from now on it is 
 				$c_line = __emit_list_based_print_write($stref,$f,$line,$info, '*','yes');
 				# say "UXNTAL: $c_line";
 			} elsif (exists $info->{'WriteCall'}) {
+				# carp Dumper $info;
 				my $call_ast = $info->{'IOCall'}{'Args'}{'AST'};
 				my $iolist_ast = $info->{'IOList'}{'AST'};
 				# TODO: check if this is a write to a file!
 				# say 'WRITE: IOCall Args:'.Dumper($call_ast),'IOList:',Dumper($iolist_ast);
-				# say "WRITE: $line";
+				say "WRITE: $line";
 				my ($print_calls, $offsets, $unit, $advance) = _analyse_write_call($stref,$f,$info);
 				if (scalar @{$print_calls} == 1 and
 					(
@@ -617,7 +616,7 @@ Instead of the nice but cumbersome approach we had until now, from now on it is 
 						$print_calls->[0] eq 'print-list-stderr'
 					)
 				) {
-					add_to_used_lib_subs($print_calls->[0]);
+					# add_to_used_lib_subs($print_calls->[0]);
 					$c_line = __emit_list_based_print_write($stref,$f,$line,$info, $unit,$advance);
 					# say "UXNTAL SINGLE WRITE: $c_line";
 				} else {
@@ -2866,6 +2865,7 @@ sub _emit_list_print_Uxntal($stref,$f,$line,$info,$unit,$advance,$list_to_print)
 sub _emit_print_from_ast($stref,$f,$line,$info,$unit,$elt){
 	my $Sf = $stref->{'Subroutines'}{$f};
 	my $suffix = $unit eq 'STDERR' ? '-stderr' : '';
+	# carp Dumper $elt;
 	my $code = $elt->[0];
 	if ($code == 2 or $code == 10) { # A scalar, but can be an unindexed string or array
 		my $var_name = $elt->[1];
@@ -3241,6 +3241,7 @@ sub __get_len_from_Attr($decl){
 sub __emit_list_based_print_write($stref,$f,$line,$info,$unit, $advance){
 # carp Dumper $info->{'IOCall'}{'Args'}{'AST'};
 	my $port = $unit eq 'STDERR' ? '#19' : '#18';
+	# 
 	my $ast =  $info->{'IO'} eq 'print'
 		? $info->{'IOCall'}{'Args'}{'AST'}
 		:  [1,'write',[27,[32,'*'],@{ $info->{'IOList'}{'AST'} }[
@@ -3253,7 +3254,7 @@ sub __emit_list_based_print_write($stref,$f,$line,$info,$unit, $advance){
 	if (ref($ast->[2][1]) eq 'ARRAY' and $ast->[2][1][1] eq '*') {
 		my @list_to_print = @{$ast->[2]};
 		shift @list_to_print; shift @list_to_print;
-		# croak Dumper @list_to_print;
+		croak 'WRONG!'.Dumper( $ast,$info,@list_to_print) if $line=~/funktalTokensIdx/;
 		$c_line = _emit_list_print_Uxntal($stref,$f,$line,$info,$unit, $advance,\@list_to_print);
 
 	} else {

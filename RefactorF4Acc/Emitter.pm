@@ -677,8 +677,8 @@ sub emit_AnnLines {
                 $rline =
                     $indent
                 . $maybe_cond
-                . $io_call . ' '
-                . $attrs_str
+                . $io_call . ($io_call ne 'print' ? ' (' : ' ')
+                . $attrs_str . ($io_call ne 'print' ? ') ' : ' ')
                 . $exprs_str ;
                 #   . ')';
             }

@@ -358,6 +358,7 @@ sub fold_constants_no_iters {
             }
             }
             elsif ( exists $info->{'PrintCall'} ) {
+                croak $line if $line=~/write/;
                 my $print_args_ast = $info->{'IOCall'}{'Args'}{'AST'};
                 my $const_fold_print_args_ast = fold_constants_in_expr_no_iters($stref, $f, $print_args_ast,$info);
                 # croak Dumper $const_fold_print_args_ast;
