@@ -63,7 +63,7 @@ our @sigils = ('(', '&', '$', 'ADD', 'SUB', 'MUL', 'DIV', 'mod', 'pow', '=', '@'
 #                27   28
                ,',', '(/',
 # Constants
-#                29         30      31         32           33         34             35       36
+#                29         30      31         32           33         34             35       36     
                ,'integer', 'real', 'logical', 'character', 'complex', 'PlaceHolder', 'Label', 'BLANK'
               );
 
@@ -1077,6 +1077,7 @@ sub _var_access_read($stref,$f,$info,$ast) {
 		"$idx ".( $short_mode ? ' #0002 MUL2 ': '') .' ADD2 ' : '';
 		$uxntal_code = 	"$var_access $idx_expr LDA$short_mode"; # index, load the value
 	} elsif (is_array($stref,$f,$var) and $idx_expr_type == 2) {
+		croak('Array slice is not yet supported: '.Dumper($ast));
 		error('Array slice is not yet supported: '.Dumper($ast));
 	} elsif  (is_string($stref,$f,$var) and $idx_expr_type == 2) {
 		my $idx_expr_b = _emit_expression_Uxntal($idxs->[1], $stref, $f,$info);
@@ -2094,7 +2095,7 @@ sub _emit_expression_Uxntal ($ast, $stref, $f, $info) {
 			$lst_expr =~s/\#//g;
 			return "{ $lst_expr } STH2r";
 		}
-		elsif ($opcode > 28) { # literal constants (bool, number, character, string), emit in place
+		elsif ($opcode > 28 and $opcode < 36) { # literal constants (bool, number, character, string), emit in place
 			(my $opcode, my $exp) =@{$ast};
 			if ($opcode == 34) {
 				# We'll assume here that a single-char string is a char
@@ -2120,6 +2121,9 @@ sub _emit_expression_Uxntal ($ast, $stref, $f, $info) {
 			else {
 				return _var_access_read($stref,$f,$info, $ast)." ( FALL-THROUGH ) ";
 			}
+		}
+		elsif ($opcode >= 36) { # special case
+			return $ast->[1];
 		}
 		elsif (__is_operator($opcode) ) { # operators
 		# carp Dumper $ast,$opcode;
@@ -2836,8 +2840,26 @@ sub _emit_list_print_Uxntal($stref,$f,$line,$info,$unit,$advance,$list_to_print)
 
 	my $line_Uxntal = '';
 	for my $elt ( @{$list_to_print} ) {
+		# An array as arg is caught in _emit_print_from_ast so I should handle the slice there as well
 		my $print_fn_Uxntal = _emit_print_from_ast($stref,$f,$line,$info,$unit,$elt);
-		my $arg_to_print_Uxntal =  _emit_expression_Uxntal($elt,$stref, $f, $info);
+		# croak("HANDLE ARRAY SLICE HERE!");
+		if ($print_fn_Uxntal eq 'print-array') {
+			# transforming the array into an index access mighr be best
+			my $var_name = $elt->[1];
+			my $decl = getDecl($stref,$f,$var_name);
+			croak $print_fn_Uxntal,Dumper $elt;
+		}
+		elsif ($print_fn_Uxntal eq 'print-array-slice') {
+			# croak Dumper $elt;
+			my $b = _emit_expression_Uxntal($elt->[2][1],$stref, $f, $info);
+			my $e = _emit_expression_Uxntal($elt->[2][2],$stref, $f, $info);
+			$elt = [10,$elt->[1],[36,'LIT2 &iter $2']];
+			my $arg_to_print_Uxntal = _emit_expression_Uxntal($elt,$stref, $f, $info);
+			$line_Uxntal = '{ ( iter ) ,&iter STR2 '.$arg_to_print_Uxntal." JMP2r } STH2r $b #0001 SUB2 $e #0001 SUB2 range-map-short";
+			# croak $print_fn_Uxntal,$line_Uxntal;
+		}
+		my $arg_to_print_Uxntal = _emit_expression_Uxntal($elt,$stref, $f, $info);
+		# carp Dumper($print_fn_Uxntal,$arg_to_print_Uxntal);
 		# TODO: feels like a HACK
 		if ($print_fn_Uxntal eq 'print-char' and $elt->[0] == 2) {
 			$arg_to_print_Uxntal = _var_access_read($stref,$f,$info,$elt). ' LDA';
@@ -2855,6 +2877,13 @@ sub _emit_list_print_Uxntal($stref,$f,$line,$info,$unit,$advance,$list_to_print)
 		}
 		elsif ($unit eq 'STDERR') {
 			$line_Uxntal .= '#0a #19 DEO';
+		}
+	} else {
+		if ($unit eq 'STDOUT') {
+			$line_Uxntal .= '#20 #18 DEO';
+		}
+		elsif ($unit eq 'STDERR') {
+			$line_Uxntal .= '#20 #19 DEO';
 		}
 	}
 	return $line_Uxntal;
@@ -2874,8 +2903,16 @@ sub _emit_print_from_ast($stref,$f,$line,$info,$unit,$elt){
 		my $decl = getDecl($stref,$f,$var_name);
 		my $type = $decl->{'Type'};
 		if ($code == 2 and $decl->{'ArrayOrScalar'} eq 'Array') {
-			error("Printing an array is currently unsupported");
+			return 'print-array';
+			croak("Printing an array is currently unsupported: $var_name");
+			# this should be a range-map-short over the entire array
+			# { ( iter ) $array ADD2 LDA$short_mode $   }
 		}
+		elsif ($code == 10 and $elt->[2][0] == 12 and exists $decl->{'Dim'}) { 
+			return 'print-array-slice';
+			croak("Printing an array slice is currently unsupported",Dumper($elt,$decl)) 
+		}
+		# Detect and handle an array slice here. That should be [10, 'array', [':',...]]
 		if ( $decl->{'Type'} eq 'character') {
 			if( $code == 2 and $decl->{'Attr'}!~/len/) {
 				return 'print-char'.$suffix;
@@ -3244,17 +3281,21 @@ sub __emit_list_based_print_write($stref,$f,$line,$info,$unit, $advance){
 	# 
 	my $ast =  $info->{'IO'} eq 'print'
 		? $info->{'IOCall'}{'Args'}{'AST'}
-		:  [1,'write',[27,[32,'*'],@{ $info->{'IOList'}{'AST'} }[
-			1 ..
-			scalar  @{ $info->{'IOList'}{'AST'} } - 1
-			] ] ]
-		;
+		:  [1,'write',[27,[32,'*'],
+		( $info->{'IOList'}{'AST'}[0] == 27
+			? @{ $info->{'IOList'}{'AST'} }[
+				1 ..
+				scalar  @{ $info->{'IOList'}{'AST'} } - 1
+				] 
+			: $info->{'IOList'}{'AST'}
+		)
+		] ] ;
 	my $c_line = '';
 	# list-oriented print
 	if (ref($ast->[2][1]) eq 'ARRAY' and $ast->[2][1][1] eq '*') {
 		my @list_to_print = @{$ast->[2]};
 		shift @list_to_print; shift @list_to_print;
-		croak 'WRONG!'.Dumper( $ast,$info,@list_to_print) if $line=~/funktalTokensIdx/;
+		# croak 'WRONG!'.Dumper( $ast,$info,@list_to_print) if $line=~/funktalTokensIdx/;
 		$c_line = _emit_list_print_Uxntal($stref,$f,$line,$info,$unit, $advance,\@list_to_print);
 
 	} else {
