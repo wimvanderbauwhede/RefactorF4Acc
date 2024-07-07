@@ -34,6 +34,7 @@ use Exporter;
     &generate_docs
     &show_status
     &in_nested_set
+    &in_restricted_nested_set
     &get_vars_from_set
     &merge_subsets
     &get_var_record_from_set
@@ -521,7 +522,7 @@ sub in_nested_set { (my $set, my $set_key, my $var)=@_;
 
 	croak 'Undefined var in call to in_nested_set()' if $DBG and not defined $var;
     if (exists $set->{$set_key}{'Subsets'} ) {
-        for my $subset (keys %{  $set->{$set_key}{'Subsets'} } ) {
+        for my $subset (sort keys %{  $set->{$set_key}{'Subsets'} } ) {
             my $retval = in_nested_set($set->{$set_key}{'Subsets'},$subset, $var);
             # As soon as we have found a match we return it.
             if ($retval ne '') {
@@ -539,6 +540,30 @@ sub in_nested_set { (my $set, my $set_key, my $var)=@_;
         return '';
     }
 } # END of in_nested_set
+
+sub in_restricted_nested_set { (my $set, my $set_key, my $var, my $exluding)=@_;
+
+	croak 'Undefined var in call to in_nested_set()' if $DBG and not defined $var;
+    if (exists $set->{$set_key}{'Subsets'} ) {
+        for my $subset (sort keys %{  $set->{$set_key}{'Subsets'} } ) {
+            my $retval = in_nested_set($set->{$set_key}{'Subsets'},$subset, $var);
+            # As soon as we have found a match we return it.
+            if ($retval ne '' and not exists $exluding->{$retval}) {
+            	return $retval;
+            }
+        }
+    } elsif (exists $set->{$set_key}{'Set'}) {
+    	# There are no Subsets but there is a Set
+        if (exists $set->{$set_key}{'Set'}{$var} and not exists $exluding->{$set_key}) {
+        	return $set_key; # This returns to the caller, does not end the recursion
+        } else {
+        	return ''; # This returns to the caller, does not end the recursion
+        }
+    } else {
+        return '';
+    }
+} # END of in_restricted_nested_set
+
 
 # For a set with subsets, this gets the var records from all subsets
 # returns a set

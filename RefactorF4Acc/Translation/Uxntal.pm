@@ -2847,7 +2847,14 @@ sub _emit_list_print_Uxntal($stref,$f,$line,$info,$unit,$advance,$list_to_print)
 			# transforming the array into an index access mighr be best
 			my $var_name = $elt->[1];
 			my $decl = getDecl($stref,$f,$var_name);
-			croak $print_fn_Uxntal,Dumper $elt;
+			# carp Dumper($decl);
+			my $array_length = exists $decl->{'ConstDim'}
+			? __C_array_size($decl->{'ConstDim'})
+			: __C_array_size($decl->{'Dim'});
+			$elt = [10,$elt->[1],[36,'LIT2 &iter $2']];
+			my $arg_to_print_Uxntal = _emit_expression_Uxntal($elt,$stref, $f, $info);
+			$line_Uxntal = '{ ( iter ) ,&iter STR2 '.$arg_to_print_Uxntal.' JMP2r } STH2r '.toHex($array_length-1,2).' #0000  range-map-short';
+			croak 'ADD print command!'.$line_Uxntal;
 		}
 		elsif ($print_fn_Uxntal eq 'print-array-slice') {
 			# croak Dumper $elt;
@@ -2855,21 +2862,22 @@ sub _emit_list_print_Uxntal($stref,$f,$line,$info,$unit,$advance,$list_to_print)
 			my $e = _emit_expression_Uxntal($elt->[2][2],$stref, $f, $info);
 			$elt = [10,$elt->[1],[36,'LIT2 &iter $2']];
 			my $arg_to_print_Uxntal = _emit_expression_Uxntal($elt,$stref, $f, $info);
-			$line_Uxntal = '{ ( iter ) ,&iter STR2 '.$arg_to_print_Uxntal." JMP2r } STH2r $b #0001 SUB2 $e #0001 SUB2 range-map-short";
-			# croak $print_fn_Uxntal,$line_Uxntal;
+			$line_Uxntal = '{ ( iter ) ,&iter STR2 '.$arg_to_print_Uxntal." JMP2r } STH2r $e #0001 SUB2 $b #0001 SUB2 range-map-short";
+			croak 'ADD print command!'.$line_Uxntal;
+		} else {
+			my $arg_to_print_Uxntal = _emit_expression_Uxntal($elt,$stref, $f, $info);
+			# carp Dumper($print_fn_Uxntal,$arg_to_print_Uxntal);
+			# TODO: feels like a HACK
+			if ($print_fn_Uxntal eq 'print-char' and $elt->[0] == 2) {
+				$arg_to_print_Uxntal = _var_access_read($stref,$f,$info,$elt). ' LDA';
+			}
+			# If a string is a single char, we treat it as a char, so we must print a char
+			if ($print_fn_Uxntal eq 'print-string' and $arg_to_print_Uxntal=~/^\s*\#|LDA$/ ) { #
+				$print_fn_Uxntal = 'print-char';
+			}
+			$line_Uxntal .= "$arg_to_print_Uxntal $print_fn_Uxntal #20 $port DEO ( , )\n";
+			add_to_used_lib_subs($print_fn_Uxntal);
 		}
-		my $arg_to_print_Uxntal = _emit_expression_Uxntal($elt,$stref, $f, $info);
-		# carp Dumper($print_fn_Uxntal,$arg_to_print_Uxntal);
-		# TODO: feels like a HACK
-		if ($print_fn_Uxntal eq 'print-char' and $elt->[0] == 2) {
-			$arg_to_print_Uxntal = _var_access_read($stref,$f,$info,$elt). ' LDA';
-		}
-		# If a string is a single char, we treat it as a char, so we must print a char
-		if ($print_fn_Uxntal eq 'print-string' and $arg_to_print_Uxntal=~/^\s*\#|LDA$/ ) { #
-			$print_fn_Uxntal = 'print-char';
-		}
-		$line_Uxntal .= "$arg_to_print_Uxntal $print_fn_Uxntal #20 $port DEO ( , )\n";
-		add_to_used_lib_subs($print_fn_Uxntal);
 	}
 	if ($advance eq 'yes') {
 		if ($unit eq 'STDOUT') {
@@ -3351,7 +3359,13 @@ sub getDecl($stref,$f,$var) {
 	my $Sf = exists $stref->{'Modules'}{$f}
 		? $stref->{'Modules'}{$f} 
 		: $stref->{'Subroutines'}{$f};
-	my $subset = in_nested_set( $Sf, 'Vars', $var );
+
+	my $subset = in_restricted_nested_set( $Sf, 'Vars', $var ,
+	{ 'ExGlobArgs' => 1,
+		'UndeclaredCommonVars' => 1,
+		'DeclaredCommonVars' => 1
+	}
+	);
 	if ($subset eq '') {
 		croak "No decl for $var in Vars for $f";
 	}
@@ -3361,6 +3375,7 @@ sub getDecl($stref,$f,$var) {
 	: exists $decl->{'ParentModule'}
 	? $decl->{'ParentModule'}
 	: $f;
+	# croak "$subset $f $var" if not exists $decl->{'ConstDim'};
 	# Module var decl records are copied into the state of the subroutines that use them 
 	# before constant folding is done. So we need to get the originals instead.
 	if( $subset eq 'ModuleVars') {
