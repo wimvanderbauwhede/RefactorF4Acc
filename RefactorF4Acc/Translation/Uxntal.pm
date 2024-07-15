@@ -677,7 +677,7 @@ Instead of the nice but cumbersome approach we had until now, from now on it is 
 			}
 			elsif (exists $info->{'CloseCall'}) {
 				my $unit= $info->{'UnitVar'};
-				$c_line = '.File/name DEI2k BRK ROT DEO2';
+				$c_line = '.File/name DEI2k ROT DEO2';
 				delete $stref->{'Subroutines'}{$f}{'FileHandle'}{$unit};
 			}
 			elsif (exists $info->{'ReadCall'}) {
