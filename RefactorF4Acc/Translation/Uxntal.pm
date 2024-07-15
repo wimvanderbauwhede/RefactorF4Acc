@@ -622,42 +622,39 @@ Instead of the nice but cumbersome approach we had until now, from now on it is 
 				} else {
 					# if ($unit eq 'STDOUT' or $unit eq 'STDERR') {
 					add_to_used_lib_subs('update-len');
-						my $update_len = ($unit eq 'STDOUT' or $unit eq 'STDERR') ? '' :
-							' '._emit_expression_Uxntal([2,$unit],$stref, $f, $info). ' update-len ';
-						$c_line = ($unit eq 'STDOUT' or $unit eq 'STDERR') ? '' :
-							' #0000 '._emit_expression_Uxntal([2,$unit],$stref, $f, $info). ' STA2 ';
-						my $maybe_str = ($unit eq 'STDOUT' or $unit eq 'STDERR')
-							? ''
-							: _emit_expression_Uxntal([2,$unit],$stref, $f, $info);
-						# ";$unit ";
-						my $idx=1;
-						for my $print_call (@{$print_calls}) {
-							add_to_used_lib_subs($print_call);
-							my $maybe_offset= $maybe_str ne ''
-								? $offsets->[$idx-1] == 0
-									? ' '
-									: ' '.toHex( $offsets->[$idx-1],2).' ADD2 '
-								: ' ';
-							my $arg_ast = [];
-							if ($iolist_ast->[0] == 27) {
-								# warn "$line: $print_call: ".Dumper($iolist_ast->[$idx++]);
-								$arg_ast = $iolist_ast->[$idx++];
-							} else {
-								# warn "$line: $print_call: ".Dumper($iolist_ast);
-								$arg_ast = $iolist_ast;
-							}
-							# say Dumper( $offsets->[$idx-1] -($idx<1?0:$offsets->[$idx-2]), $arg_ast);
-							my $arg_exp_Uxntal = _emit_expression_Uxntal($arg_ast,$stref, $f, $info);
-							if ($arg_exp_Uxntal=~/\#\d+/ and $print_call=~/string/) {
-								$print_call=~s/string/char/;
-							}
-							$c_line.= $arg_exp_Uxntal.' '.$maybe_str.$maybe_offset.$print_call.'' .$update_len. " ";
-
+					my $update_len = ($unit eq 'STDOUT' or $unit eq 'STDERR') ? '' :
+						' '._emit_expression_Uxntal([2,$unit],$stref, $f, $info). ' update-len ';
+					$c_line = ($unit eq 'STDOUT' or $unit eq 'STDERR') ? '' :
+						' #0000 '._emit_expression_Uxntal([2,$unit],$stref, $f, $info). ' STA2 ';
+					my $maybe_str = ($unit eq 'STDOUT' or $unit eq 'STDERR')
+						? ''
+						: _emit_expression_Uxntal([2,$unit],$stref, $f, $info);
+					# ";$unit ";
+					my $idx=1;
+					for my $print_call (@{$print_calls}) {
+						add_to_used_lib_subs($print_call);
+						my $maybe_offset= $maybe_str ne ''
+							? $offsets->[$idx-1] == 0
+								? ' '
+								: ' '.toHex( $offsets->[$idx-1],2).' ADD2 '
+							: ' ';
+						my $arg_ast = [];
+						if ($iolist_ast->[0] == 27) {
+							# warn "$line: $print_call: ".Dumper($iolist_ast->[$idx++]);
+							$arg_ast = $iolist_ast->[$idx++];
+						} else {
+							# warn "$line: $print_call: ".Dumper($iolist_ast);
+							$arg_ast = $iolist_ast;
 						}
-						# say "UXNTAL: $c_line";
-					# } else {
-					# 	carp 'TODO STRING:'.Dumper($unit, $advance, $print_calls, $iolist_ast);
-					# }
+						# say Dumper( $offsets->[$idx-1] -($idx<1?0:$offsets->[$idx-2]), $arg_ast);
+						my $arg_exp_Uxntal = _emit_expression_Uxntal($arg_ast,$stref, $f, $info);
+						if ($arg_exp_Uxntal=~/\#\d+/ and $print_call=~/string/) {
+							$print_call=~s/string/char/;
+						}
+						$c_line.= $arg_exp_Uxntal.' '.$maybe_str.$maybe_offset.$print_call.'' .$update_len. " ";
+
+					}
+					# say "UXNTAL: $c_line";
 				}
 			}
 			elsif (exists $info->{'OpenCall'}) {
@@ -2840,6 +2837,8 @@ sub _emit_list_print_Uxntal($stref,$f,$line,$info,$unit,$advance,$list_to_print)
 
 	my $line_Uxntal = '';
 	for my $elt ( @{$list_to_print} ) {
+		my $ref = \$elt; $ref=~s/REF..//;$ref=~s/\)//;
+		my $iter="iter$ref";
 		# An array as arg is caught in _emit_print_from_ast so I should handle the slice there as well
 		my $print_fn_Uxntal = _emit_print_from_ast($stref,$f,$line,$info,$unit,$elt);
 		# croak("HANDLE ARRAY SLICE HERE!");
@@ -2851,19 +2850,23 @@ sub _emit_list_print_Uxntal($stref,$f,$line,$info,$unit,$advance,$list_to_print)
 			my $array_length = exists $decl->{'ConstDim'}
 			? __C_array_size($decl->{'ConstDim'})
 			: __C_array_size($decl->{'Dim'});
-			$elt = [10,$elt->[1],[36,'LIT2 &iter $2']];
-			my $arg_to_print_Uxntal = _emit_expression_Uxntal($elt,$stref, $f, $info);
-			$line_Uxntal = '{ ( iter ) ,&iter STR2 '.$arg_to_print_Uxntal.' JMP2r } STH2r '.toHex($array_length-1,2).' #0000  range-map-short';
-			croak 'ADD print command!'.$line_Uxntal;
+			my $elt_iter = [10,$elt->[1],[36,'LIT2 &'.$iter.' $2']];
+			my $arg_to_print_Uxntal = _emit_expression_Uxntal($elt_iter,$stref, $f, $info);
+			my $elt_0 = [10,$elt->[1],[29,'0']];
+			my $print_fn_Uxntal = _emit_print_from_ast($stref,$f,$line,$info,$unit,$elt_0);
+			$line_Uxntal = '{ ( iter ) ,&'.$iter.' STR2 '.$arg_to_print_Uxntal.' '.$print_fn_Uxntal.' JMP2r } STH2r '.toHex($array_length-1,2).' #0000  range-map-short';
+			# croak $line_Uxntal;
 		}
 		elsif ($print_fn_Uxntal eq 'print-array-slice') {
 			# croak Dumper $elt;
 			my $b = _emit_expression_Uxntal($elt->[2][1],$stref, $f, $info);
 			my $e = _emit_expression_Uxntal($elt->[2][2],$stref, $f, $info);
-			$elt = [10,$elt->[1],[36,'LIT2 &iter $2']];
+			$elt = [10,$elt->[1],[36,'LIT2 &'.$iter.' $2']];
 			my $arg_to_print_Uxntal = _emit_expression_Uxntal($elt,$stref, $f, $info);
-			$line_Uxntal = '{ ( iter ) ,&iter STR2 '.$arg_to_print_Uxntal." JMP2r } STH2r $e #0001 SUB2 $b #0001 SUB2 range-map-short";
-			croak 'ADD print command!'.$line_Uxntal;
+			my $elt_0 = [10,$elt->[1],[29,'0']];
+			my $print_fn_Uxntal = _emit_print_from_ast($stref,$f,$line,$info,$unit,$elt_0);
+			$line_Uxntal = '{ ( iter ) ,&'.$iter.' STR2 '.$arg_to_print_Uxntal.' '.$print_fn_Uxntal." JMP2r } STH2r $e #0001 SUB2 $b #0001 SUB2 range-map-short";
+			# croak $line_Uxntal;
 		} else {
 			my $arg_to_print_Uxntal = _emit_expression_Uxntal($elt,$stref, $f, $info);
 			# carp Dumper($print_fn_Uxntal,$arg_to_print_Uxntal);
@@ -2881,17 +2884,17 @@ sub _emit_list_print_Uxntal($stref,$f,$line,$info,$unit,$advance,$list_to_print)
 	}
 	if ($advance eq 'yes') {
 		if ($unit eq 'STDOUT') {
-			$line_Uxntal .= '#0a #18 DEO';
+			$line_Uxntal .= ' #0a #18 DEO';
 		}
 		elsif ($unit eq 'STDERR') {
-			$line_Uxntal .= '#0a #19 DEO';
+			$line_Uxntal .= ' #0a #19 DEO';
 		}
 	} else {
 		if ($unit eq 'STDOUT') {
-			$line_Uxntal .= '#20 #18 DEO';
+			$line_Uxntal .= ' #20 #18 DEO';
 		}
 		elsif ($unit eq 'STDERR') {
-			$line_Uxntal .= '#20 #19 DEO';
+			$line_Uxntal .= ' #20 #19 DEO';
 		}
 	}
 	return $line_Uxntal;
@@ -2954,13 +2957,33 @@ sub _emit_print_from_ast($stref,$f,$line,$info,$unit,$elt){
 			return 'print-bool'.$suffix;
 		}
 	}
-	elsif ($code == 1 ) {
+	elsif ($code == 1 ) { # A function call
 		my $fname = $elt->[1];
 		# This is a function, need to get its return type
 		# TODO
-		my $return_type = $stref->{'Subroutines'}{$fname}{'Signature'}{'ReturnType'};
-		my $return_type_attr = $stref->{'Subroutines'}{$fname}{'Signature'}{'ReturnTypeAttr'};
+		my $return_type = exists $F95_intrinsic_function_sigs{$fname}
+		? $F95_intrinsic_function_sigs{$fname}[-1]
+		: $stref->{'Subroutines'}{$fname}{'Signature'}{'ReturnType'};
+		my $return_type_attr = $stref->{'Subroutines'}{$fname}{'Signature'}{'ReturnTypeAttr'} // '';
+		if ($return_type eq 'character(*)' ) {
+			$return_type eq 'character';
+			$return_type_attr ='(*)';
+		}
 		# I am assuming the return type can only be integer(kind=2), character, string or boolean
+		if ($return_type eq 'logical') {
+			return 'print-bool'.$suffix;
+		}
+		elsif ($return_type eq 'integer' and $return_type_attr=~/(?:kind=)?2/) {
+			return 'print-int'.$suffix;
+		}
+		elsif ($return_type eq 'character' and ($return_type_attr eq '' or $return_type_attr=~/(?:len=)?1/)) {
+			return 'print-char'.$suffix;
+		}
+		elsif ($return_type eq 'character' and $return_type_attr=~/(?:len=)?\d+/) {
+			return 'print-string'.$suffix;
+		} else {
+			error('Unsupported type in print statement: '.$return_type_attr.'('.$return_type_attr.')');
+		}
 	}
 	elsif ($code>=29) {
 		my $const_type = $code;
@@ -2987,14 +3010,14 @@ sub _emit_print_from_ast($stref,$f,$line,$info,$unit,$elt){
 		return 'print-int'.$suffix;
 	}
 	elsif ($code==7 or $code==8) {
-		die("TODO: printing of ".$sigils[$code]."\n");
+		croak("TODO: printing of ".$sigils[$code]."\n");
 	}
 	elsif ($code>=15 and $code<=26) {
 		return 'print-bool'.$suffix;
 	}
 	elsif ($code==13) {
 		# I guess this should be a print-string of the string returned by the concatenation operation
-		die("TODO: printing of string concatenation expression\n");
+		croak("TODO: printing of string concatenation expression\n");
 	}
 	else {
 		error('Unsupported type in print statement: '.$sigils[$code]);
@@ -3002,10 +3025,27 @@ sub _emit_print_from_ast($stref,$f,$line,$info,$unit,$elt){
 } # END of _emit_print_from_ast
 # -----------------------------------------------------------------------------
 
+# Analyse the write call in terms of unit, format, advance and the argument list
+# Returns a list of print calls and offsets
+
+
+# How do we print 
+
+# funktalTokens(1:funktalTokensIdx-1)
+
+# We need essentially  
+# {
+# $print_item JMP2r
+# } STH2r funktalTokensIdx-2 0 range-map-short
+
+# where $print_item depends on the type of the array. 
+# I think the most pragmatic approach is to support only a single array argument, and add a special case, detected in _analyse_write_call: if there is a single arg and it is an array
+# (if there are more args and one is an array, )
+
 sub _analyse_write_call($stref,$f,$info){
 	my $call_args_ast = $info->{'IOCall'}{'Args'}{'AST'}[2];
 	my $iolist_ast = $info->{'IOList'}{'AST'};
-
+# carp Dumper $call_args_ast,$iolist_ast ;
 	# This is really complicated.
 	# The first arg can be an integer, a variable or '*'
 	# If it's zero, it's STDERR, so we need #19 instead of #18
@@ -3062,7 +3102,7 @@ sub _analyse_write_call($stref,$f,$info){
 		$print_calls = [map {$_=~s/print/strwrite/;$_} @{$print_calls}];
 		map { add_to_used_lib_subs( $_ ) } @{$print_calls};
 	}
-
+# suppose I return print-array-slice
 	return ($print_calls, $offsets, $unit, $advance);
 } # END of _analyse_write_call
 # -----------------------------------------------------------------------------
@@ -3139,36 +3179,28 @@ sub __analyse_write_call_arg($stref,$f,$info,$arg,$i){
 # TODO: I am not going to do this.
 # I will simply use m and ignore w
 sub __parse_fmt($fmt_str,$stref,$f,$info){
-
-	my @chunks = split(/\s*,\s*/,$fmt_str);
 	my $print_calls=[];
 	my $offsets=[0];
-	my $offset=0;
-	my $chunk_idx=1;
-	for my $chunk (@chunks) {
-		my $c=uc(substr($chunk,0,1));
-		my $nchars=substr($chunk,1);
-		if ($nchars=~/^\d\.(\d)$/) {
-			$nchars=$1;
-		} elsif ($nchars=~/^(\d)$/) {
-			$nchars=$1;
-		} else {
-			if ($info->{'IOList'}{'AST'}[0]==27) {
-				# more than one argument
-				my $val_ast = $info->{'IOList'}{'AST'}[$chunk_idx];
-				$nchars = __get_len_from_AST($val_ast,$info->{'PlaceHolders'});
+	# if ($fmt_str ne '*') {
+		my @fmt_str_chunks = split(/\s*,\s*/,$fmt_str);
+		my $offset=0;
+		my $chunk_idx=1;
+		for my $chunk (@fmt_str_chunks) {
+			my $c=uc(substr($chunk,0,1));
+			my $nchars=substr($chunk,1);
+			if ($nchars=~/^\d\.(\d)$/) {
+				$nchars=$1;
+			} elsif ($nchars=~/^(\d)$/) {
+				$nchars=$1;
+			} else { # For formats without numbers, we need to count the characters for each item in the IO list
+				my $val_ast = ($info->{'IOList'}{'AST'}[0]==27) 
+					# more than one argument in the IO list
+					? $info->{'IOList'}{'AST'}[$chunk_idx]
+					: $info->{'IOList'}{'AST'};
 
-			} else {
-				my $val_ast = $info->{'IOList'}{'AST'};
 				$nchars = __get_len_from_AST($val_ast,$info->{'PlaceHolders'});
-				if ($nchars==0 and $val_ast->[0] == 2) {
+				if ($nchars==0 and $val_ast->[0] == 2) { # A variable
 					my $var = $val_ast->[1];
-					# my $Sf = $stref->{'Subroutines'}{$f};
-					# my $subset = in_nested_set($Sf,'Vars',$var);
-					# if ($subset eq '') {
-					# 	croak "$f $var";
-					# }
-					# my $decl = get_var_record_from_set($Sf->{$subset},$var);
 					my $decl = getDecl($stref,$f,$var);
 					my $len=0;
 					if ($decl->{'Type'} eq 'character') {
@@ -3184,64 +3216,77 @@ sub __parse_fmt($fmt_str,$stref,$f,$info){
 							$len=1;
 						}
 					} else {
-						die "READ is only supported with a character or integer\n";
+						die "FMT without size is only supported with a character or integer\n";
 					}
 					$nchars=$len;
 				}
+
 			}
-		}
-		
-		if ( $c eq 'I' ) {
-			push @{$print_calls}, 'print-int';
-			$offset+=max(2,$nchars);
-		}
-		elsif ( $c eq 'Z' ) {
-			# Normally, print-hex assumes a short and returns 4 bytes
-			# If $nchars < 4, we need to remove
-			if ($nchars <4) {
-				push @{$print_calls}, 'print-hex-'.$nchars;
-			} else {
-				push @{$print_calls}, 'print-hex';
+
+			if ( $c eq 'I' ) {
+				push @{$print_calls}, 'print-int';
+				$offset+=max(2,$nchars);
 			}
-			$offset+=max(1,$nchars);
-		}
-		elsif ( $c eq 'L' ) {
-			push @{$print_calls}, 'print-bool';
-			$offset+=max(1,$nchars);
-		}
-		elsif ( $c eq 'A' ) {
-			if (uc($chunk) eq 'A') {
-				if ($ nchars!=1) {
-					push @{$print_calls}, 'print-string';
-					# offset is unknown
-					# set it totally ad-hoc to 8
-					$offset+=8;
+			elsif ( $c eq 'Z' ) {
+				# Normally, print-hex assumes a short and returns 4 bytes
+				# If $nchars < 4, we need to remove
+				if ($nchars <4) {
+					push @{$print_calls}, 'print-hex-'.$nchars;
 				} else {
-					push @{$print_calls}, 'print-char';
-					$offset+=1;
+					push @{$print_calls}, 'print-hex';
 				}
-			} else {
-				if ($nchars==1) {
-					push @{$print_calls}, 'print-char';
-					$offset+=max(1,$nchars);
-				}
-				elsif ($nchars>1) {
-					push @{$print_calls}, 'print-string';
-					$offset+=max(1,$nchars);
+				$offset+=max(1,$nchars);
+			}
+			elsif ( $c eq 'L' ) {
+				push @{$print_calls}, 'print-bool';
+				$offset+=max(1,$nchars);
+			}
+			elsif ( $c eq 'A' ) {
+				if (uc($chunk) eq 'A') {
+					if ($ nchars!=1) {
+						push @{$print_calls}, 'print-string';
+						# offset is unknown
+						# set it totally ad-hoc to 8
+						$offset+=8;
+					} else {
+						push @{$print_calls}, 'print-char';
+						$offset+=1;
+					}
 				} else {
-					die "Problem with FMT $chunk\n";
+					if ($nchars==1) {
+						push @{$print_calls}, 'print-char';
+						$offset+=max(1,$nchars);
+					}
+					elsif ($nchars>1) {
+						push @{$print_calls}, 'print-string';
+						$offset+=max(1,$nchars);
+					} else {
+						die "Problem with FMT $chunk\n";
+					}
 				}
 			}
-		}
-		elsif ( $c eq '*' ) {
-			push @{$print_calls}, 'print-list';
-		}
-		else {
-			die "Unsupported FMT: $chunk\n";
-		}
-		push @{$offsets},$offset;
-		$chunk_idx++;
-	}
+			elsif ( $c eq '*' ) {
+				my $val_ast = ($info->{'IOList'}{'AST'}[0]==27) 
+					# more than one argument in the IO list
+					? $info->{'IOList'}{'AST'}[$chunk_idx]
+					: $info->{'IOList'}{'AST'};
+				(my $type, $offset) = __get_type_len_from_AST($val_ast,$info->{'PlaceHolders'});
+				# push @{$print_calls}, 'print-'.$type;
+				push @{$print_calls}, 'print-list'; # This is purely to indicate that this should be handled differently
+			}
+			else {
+				die "Unsupported FMT: $chunk\n";
+			}
+			push @{$offsets},$offset;
+			$chunk_idx++;
+		} # for each chunk
+	# } else {
+	# if ($fmt_str eq '*') {
+	# 	# fmt=*
+	# 	carp 'FMT=*: ',Dumper $info->{'IOList'}{'AST'}
+	# 	# If it is a list, look at each arg; determine the print function based on that
+	# }
+	# carp '__parse_fmt: ',Dumper($print_calls,$offsets);
 	return ($print_calls,$offsets);
 } # END of __parse_fmt
 
@@ -3267,8 +3312,43 @@ sub __get_len_from_AST($val_ast, $phs){
 	} elsif ($val_ast->[0] == 2) {
 		# assuming this is a variable, return 0 as a sign it needs to be done outside of this function
 		return 0;
+	} elsif ($val_ast->[0] == 10) {
+		return 0;
+	} elsif ($val_ast->[0] == 1) {
+		return 0;
 	} else {
-		error("Unsupported arg type for fmt: ".Dumper($val_ast));
+		croak("Unsupported arg type for fmt: ".Dumper($val_ast));
+	}
+}
+
+sub __get_type_len_from_AST($val_ast, $phs){
+#                29         30      31         32           33         34             35       36
+#              ,'integer', 'real', 'logical', 'character', 'complex', 'PlaceHolder', 'Label', 'BLANK'
+	if ($val_ast->[0] == 29) { # we assume max is 2^16 so 5 chars plus a sign = 6 chars
+		return ('int',6);
+	} elsif ($val_ast->[0] == 30) {
+		return ('real',12); # ad hoc, UNSUPPORTED
+	} elsif ($val_ast->[0] == 31) {
+		return ('bool',1);
+	} elsif ($val_ast->[0] == 32) {
+		return ('char',1);
+	} elsif ($val_ast->[0] == 33) {
+		return ('complex',12); # ad hoc, UNSUPPORTED;
+	} elsif ($val_ast->[0] == 34) {
+		return ('string',length($phs->{$val_ast->[1]}));
+	} elsif ($val_ast->[0] == 35) {
+		return length($val_ast->[1].'');
+	} elsif ($val_ast->[0] == 36) {
+		return length($val_ast->[1].'');
+	} elsif ($val_ast->[0] == 2) {
+		# assuming this is a variable, return 0 as a sign it needs to be done outside of this function
+		return ('SCALAR',0);
+	} elsif ($val_ast->[0] == 10) {
+		return ('ARRAY',0);
+	} elsif ($val_ast->[0] == 1) {
+		return ('FUNCTION',0);
+	} else {
+		croak("Unsupported arg type for fmt: ".Dumper($val_ast));
 	}
 }
 
