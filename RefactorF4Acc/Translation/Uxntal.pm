@@ -163,6 +163,7 @@ sub translate_program_to_Uxntal($stref,$program_name){
 	my @used_uxntal_lib_subroutine_sources=emit_used_uxntal_lib_subroutine_sources();
 
 	$stref->{'TranslatedCode'}=[
+		'|00 @System &vector $2 &expansion $2 &wst $1 &rst $1 &metadata $2 &r $2 &g $2 &b $2 &debug $1 &state $1',
 		($stref->{'HasCLArgs'} ? @{$stref->{'Uxntal'}{'Console'}} :()),
 		($stref->{'HasReadFile'} ? @{$stref->{'Uxntal'}{'ReadFile'}} :()),
 		($stref->{'HasWriteFile'} ? @{$stref->{'Uxntal'}{'WriteFile'}} :()),
@@ -171,15 +172,21 @@ sub translate_program_to_Uxntal($stref,$program_name){
 		($stref->{'HasCLArgs'} ? @{$stref->{'Uxntal'}{'CLIHandling'}{'Preamble'}} : ()),
 		'','|0100',
 		($stref->{'UseCallStack'} ? 'init-call-stack' : ''),
-		($stref->{'HasCLArgs'} ? @{$stref->{'Uxntal'}{'CLIHandling'}{'Main'}} :
-		$stref->{'Uxntal'}{'Main'}{'Name'}),
+		($stref->{'HasCLArgs'} 
+			? @{$stref->{'Uxntal'}{'CLIHandling'}{'Main'}} 
+			: $stref->{'Uxntal'}{'Main'}{'Name'}."\n#80 .System/state DEO\n"
+		),
 		'BRK','',
-		($stref->{'HasCLArgs'} ? '@main !'.$stref->{'Uxntal'}{'Main'}{'Name'} : ''),
+		($stref->{'HasCLArgs'} 
+			? '@main '.$stref->{'Uxntal'}{'Main'}{'Name'} . "\n#80 .System/state DEO\nBRK"
+			: ''
+		),
 		($stref->{'HasCLArgs'} ?  $stref->{'Uxntal'}{'CLIHandling'}{'Lib'} : ''),'',
 		@{$stref->{'Uxntal'}{'Main'}{'TranslatedCode'}},
 		@{$stref->{'Uxntal'}{'Libraries'}{'List'}},
 		@{$stref->{'TranslatedCode'}}, # These are the subroutines
 		@used_uxntal_lib_subroutine_sources,
+		'@nl #0a18 DEO JMP2r',
 		@{$stref->{'Uxntal'}{'Globals'}{'List'}},
 		@{$stref->{'Uxntal'}{'Macros'}{'List'}},
 		($stref->{'UseCallStack'} ? @{$stref->{'Uxntal'}{'CallStack'}} : ()),
@@ -2837,7 +2844,7 @@ sub _emit_list_print_Uxntal($stref,$f,$line,$info,$unit,$advance,$list_to_print)
 
 	my $line_Uxntal = '';
 	for my $elt ( @{$list_to_print} ) {
-		my $ref = \$elt; $ref=~s/REF..//;$ref=~s/\)//;
+		my $ref = \$elt; $ref=~s/REF...//;$ref=~s/\)//;
 		my $iter="iter$ref";
 		# An array as arg is caught in _emit_print_from_ast so I should handle the slice there as well
 		my $print_fn_Uxntal = _emit_print_from_ast($stref,$f,$line,$info,$unit,$elt);
@@ -2966,7 +2973,7 @@ sub _emit_print_from_ast($stref,$f,$line,$info,$unit,$elt){
 		: $stref->{'Subroutines'}{$fname}{'Signature'}{'ReturnType'};
 		my $return_type_attr = $stref->{'Subroutines'}{$fname}{'Signature'}{'ReturnTypeAttr'} // '';
 		if ($return_type eq 'character(*)' ) {
-			$return_type eq 'character';
+			$return_type = 'character';
 			$return_type_attr ='(*)';
 		}
 		# I am assuming the return type can only be integer(kind=2), character, string or boolean
