@@ -112,8 +112,8 @@ use Exporter;
   mark_blocks_between_calls
   build_call_graph
   analyse_lines
-  initialise_per_code_unit_tables
 );
+# initialise_per_code_unit_tables
 
 # -----------------------------------------------------------------------------
 # parse_fortran_src() parses the source but does perform only limited context-free analysis
@@ -3286,7 +3286,6 @@ sub __parse_f95_decl {
 		$info->{'ParseError'}=1;
 		return ( $Sf, $info );
 	}
-
 	# But this could be a parameter declaration, with an assignment ...
 	if ( $line =~ /,\s*parameter\s*.*?::\s*(\w+\s*=\s*.+?)\s*$/ ) {
 		# F95-style parameters
@@ -3302,6 +3301,7 @@ sub __parse_f95_decl {
 		if (not exists $info->{'ParsedVarDecl'}
 			and not exists $info->{'VarDecl'} )
 		{
+
 
 			# Halos and Partitions pragma
 			# $decl->{'Halos'} = [[ilh,ihh],[jlh,jhh],[klh,khh]];
@@ -3337,7 +3337,8 @@ sub __parse_f95_decl {
 				# }
             }
 
-			if (not exists $pt->{'Attributes'}{'Allocatable'}) {
+			if ((not exists $pt->{'Attributes'}{'Allocatable'}) or 
+				$pt->{'TypeTup'}{'Kind'} eq ':' ) {
 				# This is a HACK because we changed the structure of Dim in the case of allocatable arrays
 				$info->{'ParsedVarDecl'} = $pt;
 				# Note that scalars have a 'Dim' => [0] field! FIXME!

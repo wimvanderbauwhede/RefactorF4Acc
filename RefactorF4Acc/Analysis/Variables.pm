@@ -363,11 +363,13 @@ sub analyse_variables {
 			 $retvar=$Sf->{'Signature'}{'ResultVar'};
 		  }
 	       my $subset = in_nested_set($Sf,'Vars',$retvar);
+		   
            if ($subset) { # The function variable is declared somewhere in the function. Use this for the return type. If this is the function name we should probably delete it, but I do this later during refactoring
                 my $decl =  $Sf->{$subset}{'Set'}{$retvar} ;
                 $Sf->{'Signature'}{'ReturnType'}=$decl->{'Type'};
                 $Sf->{'Signature'}{'ReturnTypeAttr'}=$decl->{'Attr'};
             } else {
+				
                 # The function does not contain a declaration for $retvar. Use implicits to type it
                 my ($type, $array_or_scalar, $attr) =type_via_implicits( $stref,  $f, $retvar);
                 $Sf->{'Signature'}{'ReturnType'}=$type;

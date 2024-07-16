@@ -219,7 +219,7 @@ sub fold_constants_no_iters {
                     if ($decl->{'Attr'}) {
                         my $len_expr= $decl->{'Attr'}; 
                         $len_expr=~s/len\s*=\s*//;
-                        if ($len_expr ne '(*)') {
+                        if ($len_expr ne '(*)' and $len_expr ne '(:)' ) {
                             my $expr_str = $len_expr;
                             my ($ast,$str_,$error_,$has_funcs_)=parse_expression_no_context($expr_str);
                             my ($const_ast, $retval_) = replace_consts_in_ast_no_iters($stref, $f, $ast, $info);

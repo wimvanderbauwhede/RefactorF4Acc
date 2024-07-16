@@ -2479,7 +2479,11 @@ sub __emit_call_arg_Uxntal_expr($stref,$f,$info,$subname,$call_arg_expr_str,$ast
 		if ($arg_expr_ast->[0] == 10 and scalar @{$arg_expr_ast}==3) { # an array or string access, need a substring or subarray
 				my $var = $arg_expr_ast->[1];
 				if (is_array($stref,$f,$var)) {
-					error("Array slice is not supported: $var in $f");
+					if ($arg_expr_ast->[2][0] == 12) {
+						croak("Array slice is not supported: $var in $f: ".Dumper($arg_expr_ast)) ;
+					} else {
+					 return _emit_expression_Uxntal($arg_expr_ast, $stref, $f,$info);
+					}
 				}
 				my $var_access = __var_access($stref,$f,$var);
 				my $idx_expr_b = $arg_expr_ast->[2][0] == 12 ? # ib:ie
@@ -2989,7 +2993,7 @@ sub _emit_print_from_ast($stref,$f,$line,$info,$unit,$elt){
 		elsif ($return_type eq 'character' and $return_type_attr=~/(?:len=)?\d+/) {
 			return 'print-string'.$suffix;
 		} else {
-			error('Unsupported type in print statement: '.$return_type_attr.'('.$return_type_attr.')');
+			error("Unsupported type in print statement in $fname: ".$return_type.'('.$return_type_attr.') in <'.$line.'>'.Dumper($stref->{'Subroutines'}{$fname}{'Signature'}));
 		}
 	}
 	elsif ($code>=29) {

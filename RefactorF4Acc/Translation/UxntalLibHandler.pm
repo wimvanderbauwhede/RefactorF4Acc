@@ -70,6 +70,10 @@ our %uxntal_lib_subroutines = (
 'ishft' => [
     '@ishft',' ( TODO ) SF2 JMP2r'
 ],
+'exit' => [
+    '@exit', 'POP2','#80 .System/state DEO', 'BRK'
+],
+
 );
 
 sub load_uxntal_lib_subroutines(@uxntal_lib_sources) {

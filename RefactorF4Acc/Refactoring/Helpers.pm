@@ -1489,7 +1489,8 @@ sub parsedVarDecl_to_Decl { my ($pvd, $decl) = @_;
             : 0;
         if ($alloc_dim==0) {
             if ($pvd->{'TypeTup'}{'Kind'} eq ':'	) {
-                error("TODO: allocatable character string");
+                warn('allocatable character string');
+                # error("TODO: allocatable character string".Dumper($mdecl));
             }
         } else {
         # So what we do is replace every value with this pair of empty strings.
