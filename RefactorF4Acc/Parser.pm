@@ -292,6 +292,7 @@ sub analyse_lines {
 		for my $index ( 0 .. scalar( @{$srcref} ) - 1 ) {
 			my $attr = '';
 			( my $lline, my $info ) = @{ $srcref->[$index] };
+			# croak $lline,Dumper($info) if $lline=~/string\s*=/ and not exists $info->{'Comments'};
 			# say "294 LINE: $lline";
 			# Get indent
 			$lline =~ /^(\s+).*/ && do { $indent = $1; }; # This is not OK for lines with labels of course.

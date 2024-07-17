@@ -213,6 +213,7 @@ sub translate_module_decls_to_Uxntal($stref, $mod_name){
 
         if (exists $info->{'VarDecl'}) {
                 my $var = $info->{'VarDecl'}{'Name'};
+				# This never uses that stack as module vars are never automatic
 				$c_line = _emit_var_decl_Uxntal( $stref, $mod_name, $info, $var);
 				$skip=0;
         }
@@ -434,6 +435,7 @@ Instead of the nice but cumbersome approach we had until now, from now on it is 
 	$stref->{'HasCLArgs'} = $pass_state->{'CLArgs'} unless (exists $stref->{'HasCLArgs'} and $stref->{'HasCLArgs'}==1);
 
 # --------------------------------------------------------------------------------------------
+# If the routine uses a call stack, add vars to be allocated on the stack to StackAllocInfo
  	# $Sf->{'UseCallStack'}=1; # override for debugging
 	my $use_stack = __use_stack($stref,$f);
 	my @stack_alloc_info_nbytes=();
@@ -456,7 +458,9 @@ Instead of the nice but cumbersome approach we had until now, from now on it is 
 				croak "ArgDecl should also be allocated on the stack!"
 			} elsif (exists $info->{'Signature'} && exists $info->{'Signature'}{'ResultVar'}) {
 				my $var = $info->{'Signature'}{'ResultVar'};
-				push @{$pass_state->{'StackAllocInfo'}}, _stack_allocation($stref,$f,$var);
+				if (not is_array_or_string($stref,$f,$var)) { # otherwise we allocate statically
+					push @{$pass_state->{'StackAllocInfo'}}, _stack_allocation($stref,$f,$var);
+				}
 			}
 			return ([$annline],[$stref,$f,$pass_state]);
 		};
@@ -474,7 +478,7 @@ Instead of the nice but cumbersome approach we had until now, from now on it is 
 			$stack_alloc_nbytes+=$entry->[1];
 		}
 		@stack_alloc_info = map {$_->[0]} @stack_alloc_info_nbytes
-	}
+	} # use stack
 
 # --------------------------------------------------------------------------------------------
 	my $pass_translate_to_Uxntal = sub ($annline, $state){
@@ -816,11 +820,12 @@ Instead of the nice but cumbersome approach we had until now, from now on it is 
 			my $short_mode =  $wordsz == 2 ? '2' : '';
 			if (is_array_or_string($stref,$f,$res)) {
 				# We return the address
-				if ($use_stack) {
-					$c_line =  __stack_access($stref,$f,$res).' !pop-frame';	
-				} else {
+				# ResultVar should always be statically allocated if it is an array or string
+				# if ($use_stack) {
+				# 	$c_line =  __stack_access($stref,$f,$res).' !pop-frame';	
+				# } else {
 					$c_line = ';'. __create_fq_varname($stref,$f,$res). ' JMP2r';
-				}
+				# }
 			} else {
 				# We return the value
 				if ($use_stack) {
@@ -1806,6 +1811,7 @@ sub _emit_subroutine_sig_Uxntal($stref, $f, $annline){
 	    my $name = $info->{'Signature'}{'Name'};
 		my $args_ref = $info->{'Signature'}{'Args'}{'List'};
 # The ResultVar should be declared like a local, and be returned by value unless it is an array or string;
+# If it is an array or string it should be allocated statically
 # @intToStr_cs $2 should be @intToStr_cs 0006 $6 instead
 # ;intToStr_cs STA2 at the start should not be there
 # ;intToStr_cs LDA2 should be ;intToStr_cs unless it is a scalar
@@ -1826,7 +1832,7 @@ sub _emit_subroutine_sig_Uxntal($stref, $f, $annline){
 				unshift @{$uxntal_arg_decls},$uxntal_arg_decl;
 				unshift @{$uxntal_args_to_store},$uxntal_arg_store;
 			} else {
-				if (is_string($stref,$f,$result_var)) {
+				if (is_array_or_string($stref,$f,$result_var)) {
 					my $uxntal_res_decl = _emit_var_decl_Uxntal ($stref,$f,$info,$result_var);
 					unshift @{$uxntal_arg_decls},$uxntal_res_decl;
 				} else {
@@ -1957,7 +1963,11 @@ sub _emit_var_decl_Uxntal ($stref,$f,$info,$var){
 				$strlen=~s/^\(//;
 				$strlen=~s/\)$//;
 				# croak $decl->{'Attr'}.$strlen;
-				$dim *= $strlen;
+				if ($strlen eq '*' or $strlen eq ':') {
+croak "Dynamic string $var in $f";
+				} else {
+					$dim *= $strlen;
+				}
 			}
 		}
 		my $fkind = $decl->{'Attr'};
@@ -2991,6 +3001,11 @@ sub _emit_print_from_ast($stref,$f,$line,$info,$unit,$elt){
 			return 'print-char'.$suffix;
 		}
 		elsif ($return_type eq 'character' and $return_type_attr=~/(?:len=)?\d+/) {
+			return 'print-string'.$suffix;
+		}
+		elsif ($return_type eq 'character' and $return_type_attr=~/(?:len=)?[\*\:]/) {
+			# croak "Dynamic string as return type for $fname";
+			# We assume that the length field will be set correctly
 			return 'print-string'.$suffix;
 		} else {
 			error("Unsupported type in print statement in $fname: ".$return_type.'('.$return_type_attr.') in <'.$line.'>'.Dumper($stref->{'Subroutines'}{$fname}{'Signature'}));

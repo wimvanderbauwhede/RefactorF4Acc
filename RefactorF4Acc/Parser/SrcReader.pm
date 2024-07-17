@@ -1330,7 +1330,8 @@ sub _removeCont {
             $line =~ s/\&\s*//;
         }
     }
-    if ( $line =~ /.\!.*$/ ) {    # FIXME: trailing comments are discarded!
+    if ( $line =~ /.\!.*$/ ) { # FIXME: trailing comments are discarded!
+    # This line has a trailing comment
         my $tline = $line;
         my $nline = '';
         my $i     = 0;
@@ -1426,12 +1427,14 @@ sub _procLine {
         $info->{'Contains'} = 1;
     }
 
-    # FIXME: trailing comments. I think they are discarded!
+    # F77 trailing comments. 
     elsif ( $line =~ /.\!.*$/ ) {
+      # This line has a trailing comment
         my $tline = $line;
         my $nline = '';
         my $i     = 0;
         my %phs   = ();
+        # replace Z'...' hex notation with decimal
         while ($tline =~ /[zZ]\'([A-Fa-f0-9]+?)\'/) {
           my $hex = hex($1);
           if ($hex<256) {
@@ -1442,6 +1445,7 @@ sub _procLine {
           }
           $tline =~ s/[zZ](\'.+?\')/$hex/;
         }
+        # replace Z"..." hex notation with decimal
         while ($tline =~ /[zZ]\"([A-Fa-f0-9]+?)\"/) {
           my $hex = hex($1);
           if ($hex<256) {
@@ -1452,35 +1456,40 @@ sub _procLine {
           }
           $tline =~ s/[zZ](\".+?\")/$hex/;
         }
-
+        # Find single-quoted strings and replace by placeholders
         while ( $tline =~ /(\'.+?\')/ ) {
             $phs{"__PH${i}__"} = $1;
             $tline =~ s/(\'.+?\')/__PH${i}__/;
             $i++;
         }
+        # Find double-quoted strings and replace by placeholders
         while ( $tline =~ /(\".+?\")/ ) {
             $phs{"__PH${i}__"} = $1;
             $tline =~ s/(\".+?\")/__PH${i}__/;
             $i++;
         }
-
+        # Identify the traisingling comment
         my $cline = $line;
         $cline =~ s/^.+?\!//;    # FIXME: not quite correct
 
         if ( $tline =~ /\!.*$/ ) {
+            # remove the trailing comment
             $nline = ( split( /\!/, $tline ) )[0];
+            # put the strings back
             for my $phk ( keys %phs ) {
                 $nline =~ s/$phk/$phs{$phk}/;
             }
             $line = $nline;
         }
         else {
+          # put the strings back
             for my $phk ( keys %phs ) {
                 $tline =~ s/$phk/$phs{$phk}/;
             }
             $line = $tline;
         }
         $info->{'TrailingComment'} = $cline;
+
     }
     else {
         # Label processing
@@ -1603,7 +1612,6 @@ sub _procLine {
         else {
             # replace string constants by placeholders
             my $phs_ref = {};
-
 
             my $tline=$line;
         while ($tline =~ /[zZ]\'([A-Fa-f0-9]+?)\'/) {

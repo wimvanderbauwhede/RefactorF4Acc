@@ -19,7 +19,7 @@ use Data::Dumper;
 $Data::Dumper::Indent = 1;
 
 use Fortran::Expression::Evaluator::Parser;
-use RefactorF4Acc::F95SpecWords qw( %F95_reserved_words %F95_function_like_reserved_words %F95_intrinsics %F95_other_intrinsics %F95_intrinsic_functions );
+use RefactorF4Acc::F95SpecWords qw( %F95_reserved_words %F95_function_like_reserved_words %F95_intrinsics %F95_other_intrinsics %F95_intrinsic_functions %F95_intrinsic_attributes );
 use Exporter;
 
 @RefactorF4Acc::Parser::Expressions::ISA = qw(Exporter);
@@ -1276,7 +1276,7 @@ sub _replace_function_calls_in_ast {
 								$stref->{$code_unit}{$f}{'ReferencedLabels'}{$label}=$label;
 							}
 						}
-                        
+
                         if (exists $F95_intrinsic_functions{$mvar}) {
                             push @{ $info->{'IntrinsicFunctionCalls'} },  {
                                 'Name' => $mvar,
@@ -1467,13 +1467,20 @@ sub find_vars_in_ast { my ( $ast, $vars)=@_;
         }
     } elsif (($ast->[0] & 0xFF) == 2) { # scalar variable
         my $mvar = $ast->[1];
-        if (not exists $Config{'Macros'}{uc($mvar)} ) {
+        if (not exists $Config{'Macros'}{uc($mvar)} 
+        # and not exists $F95_intrinsic_attributes{$mvar}
+        ) {
             $vars->{$mvar}={'Type'=>'Scalar'} ;
         }
     } elsif (($ast->[0] & 0xFF) > 28) { # constants
         # constants
     } else { # other operators
-        for my $idx (1 .. scalar @{$ast}-1) {
+        my $start_idx = 1;
+        if ($ast->[0]  ==  9) { # And assignment inside an expression
+            $start_idx = (($ast->[1][0] == 2) and (exists $F95_intrinsic_attributes{$ast->[1][1]}))
+            ? 2 : 1;
+        }
+        for my $idx ($start_idx .. scalar @{$ast}-1) {
             $vars = find_vars_in_ast($ast->[$idx],$vars);
         }
     }

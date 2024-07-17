@@ -549,11 +549,13 @@ sub identify_vars_on_line {
 				}
 			} elsif ( exists $info->{'Do'} ) {
 				# if ($line=~/do.+int.+len/ ) {
-				# 	say $line;
-				# 	croak Dumper($info->{'Do'});
+					# say $line;
+					# carp Dumper($info->{'Do'});
 				# }
 				@chunks = exists $info->{'Do'}{'Iterator'} ? ( @chunks, $info->{'Do'}{'Iterator'}, @{ $info->{'Do'}{'Range'}{'Vars'} } ) : ();
 			} elsif ( (exists $info->{'Assignment'} and not exists $info->{'Data'}) or  exists $info->{'StatementFunction'}) {
+					say "LINE:<$line>";
+					carp Dumper($info);
 				@chunks = ( @chunks, $info->{'Lhs'}{'VarName'}, @{ $info->{'Lhs'}{'IndexVars'}{'List'} }, @{ $info->{'Rhs'}{'Vars'}{'List'} } );
 			} elsif ( exists $info->{'ParamDecl'} ) {
 				@chunks = ( @chunks, keys %{ $info->{'ModuleParameters'} } );

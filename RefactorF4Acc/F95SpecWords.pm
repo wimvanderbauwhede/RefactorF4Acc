@@ -24,6 +24,7 @@ use Exporter;
     %F95_function_like_reserved_words
     %F95_intrinsics
     %F95_intrinsic_functions
+    %F95_intrinsic_attributes
     %F95_intrinsic_functions_for_eval
     %F95_assoc_intrinsic_functions
     %F95_other_intrinsics
@@ -262,6 +263,24 @@ zsin
 zsqrt
 );
 our %F95_intrinsic_functions = map { $_=>1 } @F95_intrinsic_functions_list;
+
+# I think we only really need kind
+my @F95_intrinsic_attributes_list =qw(
+kind
+len
+stat
+unit
+fmt
+nml
+rec
+iostat
+err
+end
+eor
+advance
+size
+);
+our %F95_intrinsic_attributes = map { $_=>1 } @F95_intrinsic_attributes_list;
 
 my @F95_assoc_intrinsic_functions_list = qw(
 max
