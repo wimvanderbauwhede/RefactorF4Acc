@@ -394,12 +394,15 @@ sub analyse_used_variables {
 	my $__analyse_vars_on_line = sub {
 		( my $annline, my $state ) = @_;
 		( my $line,    my $info )  = @{$annline};
+
 # TODO: use the grouped labels Control, IO etc
 		if (   exists $info->{'Assignment'}
 			or exists $info->{'StatementFunction'}
 			or exists $info->{'SubroutineCall'}
 			or exists $info->{'If'} # Control
 			or exists $info->{'ElseIf'} # Control
+			or exists $info->{'Select'} # Control
+			or exists $info->{'Case'} # Control
 			or exists $info->{'Do'} # Control
 			or exists $info->{'Return'}# Control
 			or exists $info->{'WriteCall'}# IO
@@ -424,7 +427,7 @@ sub analyse_used_variables {
 			# -------------------------------------------------------------------------------------------------------------------
 
 			for my $mvar (@chunks) {
-				croak $line,Dumper(@chunks) if $mvar eq 'advance';
+
                 next if exists $stref->{'Subroutines'}{$f}{'CalledSubs'}{'Set'}{$mvar};    # Means it's a function
 				next if $mvar =~ /^\d+(?:_[1248])?$/;
 				next if not defined $mvar or $mvar eq '';
@@ -487,6 +490,8 @@ sub identify_vars_on_line {
 		or exists $info->{'SubroutineCall'}
 		or exists $info->{'If'} # Control
 		or exists $info->{'ElseIf'} # Control
+		or exists $info->{'Select'} # Control
+		or exists $info->{'Case'} # Control
 		or exists $info->{'Do'} # Control
 		or exists $info->{'Return'} # Control
 		or exists $info->{'WriteCall'}# IO
@@ -504,6 +509,12 @@ sub identify_vars_on_line {
 			my @chunks = ();
 			if ( exists $info->{'If'} or exists $info->{'ElseIf'} ) {
 				@chunks = @{ $info->{'Cond'}{'Vars'}{'List'} };
+			}
+			if ( exists  $info->{'Select'} ) {
+				@chunks = ( $info->{'CaseVar'}[1] );
+			}
+			elsif ( exists $info->{'Case'} ) {
+				@chunks =  @{$info->{'CaseVals'}};
 			}
 			if (   exists $info->{'PrintCall'}
 				or exists $info->{'WriteCall'}
@@ -553,9 +564,7 @@ sub identify_vars_on_line {
 					# carp Dumper($info->{'Do'});
 				# }
 				@chunks = exists $info->{'Do'}{'Iterator'} ? ( @chunks, $info->{'Do'}{'Iterator'}, @{ $info->{'Do'}{'Range'}{'Vars'} } ) : ();
-			} elsif ( (exists $info->{'Assignment'} and not exists $info->{'Data'}) or  exists $info->{'StatementFunction'}) {
-					say "LINE:<$line>";
-					carp Dumper($info);
+			} elsif ( (exists $info->{'Assignment'} and not exists $info->{'Data'}) or exists $info->{'StatementFunction'}) {
 				@chunks = ( @chunks, $info->{'Lhs'}{'VarName'}, @{ $info->{'Lhs'}{'IndexVars'}{'List'} }, @{ $info->{'Rhs'}{'Vars'}{'List'} } );
 			} elsif ( exists $info->{'ParamDecl'} ) {
 				@chunks = ( @chunks, keys %{ $info->{'ModuleParameters'} } );

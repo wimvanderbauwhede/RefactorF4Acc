@@ -273,7 +273,7 @@ sub eval_expression_with_parameters { (my $expr_str,my $info, my $stref, my $f, 
 		# my $evaled_val = eval_expression_with_parameters($val_expr_str,$info, $stref, $f) ;
 		# TODO: this only works if the args are constant literals. Need to eval the args.
 		my $expr_val_ast = eval_intrinsic($evaled_expr_str,$expr_ast2);
-		carp "INTRINSIC EXPR <$expr_str> TO EVAL: $evaled_expr_str => ",Dumper($expr_val_ast);
+		carp "INTRINSIC EXPR <$expr_str> TO EVAL: $evaled_expr_str => ",Dumper($expr_val_ast) if $DBG;
 		if ($expr_val_ast->[0] != 29) {
 			if ($err) {
 				error("$expr_str does not reduce to an integer");

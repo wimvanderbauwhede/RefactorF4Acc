@@ -112,6 +112,9 @@ sub replace_case_by_if { my ( $stref, $f, $annlines ) = @_;
 	}
 	];
  	($stref,$state) = stateful_pass_inplace($stref,$f,$pass_replace_case_by_if, $state,'pass_replace_case_by_if() ' . __LINE__  ) ;
+	my $Sf = $stref->{'Subroutines'}{$f};
+
+	croak Dumper $Sf->{'AnnLines'} if $f eq 'decodeTokenStr';
 	return $stref;
 } # END of replace_case_by_if
 

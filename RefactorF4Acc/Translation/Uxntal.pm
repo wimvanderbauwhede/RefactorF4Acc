@@ -450,7 +450,10 @@ Instead of the nice but cumbersome approach we had until now, from now on it is 
 
 			if (exists $info->{'VarDecl'}  ) {
 				my $var = $info->{'VarDecl'}{'Name'};
-				if (not exists $stref->{'Subroutines'}{$var}) { # otherwise it is a function
+				if (not exists $stref->{'Subroutines'}{$var}
+				and (not exists $stref->{'Subroutines'}{$f}{'Signature'}{'ResultVar'} 
+				or $var ne $stref->{'Subroutines'}{$f}{'Signature'}{'ResultVar'} )
+				) { # otherwise it is a function
 				# say "Stack alloc for $var in $f";
 					push @{$pass_state->{'StackAllocInfo'}}, _stack_allocation($stref,$f,$var);
 				}
@@ -755,20 +758,24 @@ Instead of the nice but cumbersome approach we had until now, from now on it is 
 			$c_line .= $indent.' '."&branch$branch_id";
 		}
         elsif (exists $info->{'IfThen'} and not exists $info->{'ElseIf'} ) {
+			# say "EX-CASE: $line => If IfId = $id" if $f eq 'decodeTokenStr';
             $pass_state->{'IfBranchId'} = $id;
             push @{$pass_state->{'IfStack'}},$id;
             $pass_state->{'IfId'}=$id;
 			push @{$pass_state->{'BranchStack'}},$id;
 			$c_line = _emit_ifthen_Uxntal($stref, $f, $info, $id);
         } elsif (exists $info->{'ElseIf'} ) {
+			# say "EX-CASE: $line => ElseIf IfId=$id" if $f eq 'decodeTokenStr';
 			($c_line, my $branch_id) = _emit_ifbranch_end_Uxntal($id,$pass_state);
 			$c_line .= _emit_ifthen_Uxntal($stref, $f, $info, $branch_id);
 			push @{$pass_state->{'BranchStack'}},$branch_id;
         } elsif (exists $info->{'Else'} ) {
+			# say "EX-CASE: $line => Else IfId=$id" if $f eq 'decodeTokenStr';
 			($c_line, my $branch_id) = _emit_ifbranch_end_Uxntal($id,$pass_state);
             $c_line .= "&branch$branch_id";
 			push @{$pass_state->{'BranchStack'}},$branch_id;
         } elsif (exists $info->{'EndIf'} ) {
+			# say "EX-CASE: $line => EndIf IfId=$id" if $f eq 'decodeTokenStr';
 			# my $branch_id = $pass_state->{'IfBranchId'};
 			my $branch_id = pop @{$pass_state->{'BranchStack'}};
 			my $if_id = $pass_state->{'IfId'};
@@ -944,7 +951,6 @@ sub _get_word_sizes($stref,$f){
 	my $Sf = $stref->{'Subroutines'}{$f};
 
 	for my $var (@{$Sf->{'AllVarsAndPars'}{'List'}}) {
-
 		# my $subset = in_nested_set($Sf,'Vars',$var);
 		# if ($subset eq '') {
 		# 	croak "$f $var";
@@ -1076,49 +1082,51 @@ sub _var_access_read($stref,$f,$info,$ast) {
 	my $Sf = $stref->{'Subroutines'}{$f};
 	my $short_mode = $Sf->{'WordSizes'}{$var} == 2 ? '2' : '';
 	my $uxntal_code = '';
-	my $var_access = __var_access($stref,$f,$var);
+	
 	if (is_param($stref,$f,$var)) {
 		$uxntal_code = __create_fq_varname($stref,$f,$var);
-	}
-    elsif (is_array($stref,$f,$var) and $idx_expr_type == 1) {
-		my $idx = _emit_expression_Uxntal($idxs,$stref,$f,$info);
-		my $idx_expr = defined $idx ? ($idx eq '#0000') ? '' :
-		"$idx ".( $short_mode ? ' #0002 MUL2 ': '') .' ADD2 ' : '';
-		$uxntal_code = 	"$var_access $idx_expr LDA$short_mode"; # index, load the value
-	} elsif (is_array($stref,$f,$var) and $idx_expr_type == 2) {
-		croak('Array slice is not yet supported: '.Dumper($ast));
-		error('Array slice is not yet supported: '.Dumper($ast));
-	} elsif  (is_string($stref,$f,$var) and $idx_expr_type == 2) {
-		my $idx_expr_b = _emit_expression_Uxntal($idxs->[1], $stref, $f,$info);
-		my $idx_expr_e = _emit_expression_Uxntal($idxs->[2], $stref, $f,$info);
-		if ($idx_expr_b eq $idx_expr_e) { # access a single character, so return a byte as value
-			my $idx_expr =  ($idx_expr_b eq '#0000') ? '' : "$idx_expr_b ADD2 ";
-			$uxntal_code =  "$var_access INC2 $idx_expr LDA" # load a pointer, index, load the value
-		} else {
-			# extract a substring
-			# my $decl = get_var_record_from_set($Sf->{'Vars'},$var);
-			my $decl = getDecl($stref,$f,$var);
-			my $id=$info->{'LineID'};
-			if($decl->{'Attr'}!~/len/) {
-				croak 'String with index>1 but the type is character', Dumper $ast;
-			}
-			my $len = __get_len_from_Attr($decl);
-			$uxntal_code = __gen_substr($var_access, $idx_expr_b,$idx_expr_e, $len, $id);
-
-		}
-	} elsif (is_array_or_string($stref,$f,$var) and $idx_expr_type == 0) {
-		# the array or string itself, likely as argument to a function
-		$uxntal_code =  "$var_access";
-	} elsif  ($ast->[0] == 2) { # a scalar
-		$uxntal_code =  "$var_access LDA$short_mode";
 	} else {
-		croak('WRONG! <',Dumper($ast),'>');
-		if (is_arg($stref,$f,$var)) {
-		# 		passed by value, so
-				$uxntal_code = "$var_access LDA$short_mode";
+		my $var_access = __var_access($stref,$f,$var);
+		if (is_array($stref,$f,$var) and $idx_expr_type == 1) {
+			my $idx = _emit_expression_Uxntal($idxs,$stref,$f,$info);
+			my $idx_expr = defined $idx ? ($idx eq '#0000') ? '' :
+			"$idx ".( $short_mode ? ' #0002 MUL2 ': '') .' ADD2 ' : '';
+			$uxntal_code = 	"$var_access $idx_expr LDA$short_mode"; # index, load the value
+		} elsif (is_array($stref,$f,$var) and $idx_expr_type == 2) {
+			croak('Array slice is not yet supported: '.Dumper($ast));
+			error('Array slice is not yet supported: '.Dumper($ast));
+		} elsif  (is_string($stref,$f,$var) and $idx_expr_type == 2) {
+			my $idx_expr_b = _emit_expression_Uxntal($idxs->[1], $stref, $f,$info);
+			my $idx_expr_e = _emit_expression_Uxntal($idxs->[2], $stref, $f,$info);
+			if ($idx_expr_b eq $idx_expr_e) { # access a single character, so return a byte as value
+				my $idx_expr =  ($idx_expr_b eq '#0000') ? '' : "$idx_expr_b ADD2 ";
+				$uxntal_code =  "$var_access INC2 $idx_expr LDA" # load a pointer, index, load the value
+			} else {
+				# extract a substring
+				# my $decl = get_var_record_from_set($Sf->{'Vars'},$var);
+				my $decl = getDecl($stref,$f,$var);
+				my $id=$info->{'LineID'};
+				if($decl->{'Attr'}!~/len/) {
+					croak 'String with index>1 but the type is character', Dumper $ast;
+				}
+				my $len = __get_len_from_Attr($decl);
+				$uxntal_code = __gen_substr($var_access, $idx_expr_b,$idx_expr_e, $len, $id);
+
+			}
+		} elsif (is_array_or_string($stref,$f,$var) and $idx_expr_type == 0) {
+			# the array or string itself, likely as argument to a function
+			$uxntal_code =  "$var_access";
+		} elsif  ($ast->[0] == 2) { # a scalar
+			$uxntal_code =  "$var_access LDA$short_mode";
 		} else {
-		# 		not passed, so
-				$uxntal_code = "$var_access LDA$short_mode";
+			croak('WRONG! <',Dumper($ast),'>');
+			if (is_arg($stref,$f,$var)) {
+			# 		passed by value, so
+					$uxntal_code = "$var_access LDA$short_mode";
+			} else {
+			# 		not passed, so
+					$uxntal_code = "$var_access LDA$short_mode";
+			}
 		}
 	}
 	return $uxntal_code;
@@ -1559,6 +1567,7 @@ sub __calc_len($e,$b){
 
 # This returns the address of the var on the stack
 sub __stack_access($stref,$f,$var) {
+	# carp "__stack_access($f,$var)";
 	my $Sf = $stref->{'Subroutines'}{$f};
 	my $offset = $Sf->{'StackOffset'}{$var};
 	if ($offset>0) {
@@ -1589,7 +1598,7 @@ sub _stack_allocation($stref,$f,$var) {
 		# 		not passed, so
 			my $subset = in_nested_set( $Sf, 'DeclaredOrigLocalVars', $var );
 			my $decl = get_var_record_from_set($Sf->{$subset},$var);
-			croak Dumper $decl ;
+			croak Dumper $decl if $var eq 'res';
 			# my $decl = getDecl($stref,$f,$var);
 			# my $dim =  __C_array_size($decl->{'Dim'});
 			my $dim = exists $decl->{'ConstDim'} 
@@ -1870,6 +1879,12 @@ sub _emit_arg_decl_Uxntal($stref,$f,$arg, $name){
 	my $uxntal_write_arg = $iodir eq 'out' or $iodir eq 'inout' ? 1 : 0 ;
 	my $fq_name = $name.'_'.$arg;
 	my $use_stack = __use_stack($stref,$f);
+	# But if $arg is a ResultVar, it should not go on the stack
+	if (($use_stack==1) and exists $stref->{'Subroutines'}{$f}{'Signature'}{'ResultVar'}
+	and $stref->{'Subroutines'}{$f}{'Signature'}{'ResultVar'} eq $arg
+	) {
+		$use_stack=0;
+		}
 	# If the arg is an Out arg, we need to put its address on the stack
 	# TODO: I need to check the handling of a RESULT string from a function. 
 	# If we don't use the stack we can allocate this as a local and return the address
@@ -1962,12 +1977,11 @@ sub _emit_var_decl_Uxntal ($stref,$f,$info,$var){
 				$strlen=~s/len=//;
 				$strlen=~s/^\(//;
 				$strlen=~s/\)$//;
-				# croak $decl->{'Attr'}.$strlen;
 				if ($strlen eq '*' or $strlen eq ':') {
-croak "Dynamic string $var in $f";
-				} else {
-					$dim *= $strlen;
+					warning('Allocating 64 bytes for dynamic ('.$strlen.') string '.$var.' in '.$f);
+					$strlen = 64; # AD-HOC, 64 characters ought to be enough for anyone
 				}
+				$dim *= $strlen;
 			}
 		}
 		my $fkind = $decl->{'Attr'};
@@ -1985,7 +1999,7 @@ croak "Dynamic string $var in $f";
 		if (not defined $sz) {
 			croak "$f $var ".Dumper($decl);
 		}
-		# toUxntalType($ftype,$fkind)*$dim;
+
 		if (($ftype eq 'character') and ($strlen >1)) {
 			my $len = toRawHex($strlen,2);
 			my $padding = $len;
@@ -2027,6 +2041,7 @@ sub _emit_ifthen_Uxntal ($stref, $f, $info, $branch_id){
 
 sub _emit_ifbranch_end_Uxntal ($id, $state){
 	# my $branch_id = $state->{'IfBranchId'};
+	carp $id;
 	my $branch_id = pop @{$state->{'BranchStack'}};
 	my $if_id = $state->{'IfId'};
 	my $r_line = ";&cond_end${if_id} JMP2 \n";
