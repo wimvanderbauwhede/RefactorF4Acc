@@ -1329,7 +1329,13 @@ sub __var_access($stref,$f,$var) {
 	# my $iodir = exists $decl->{'IODir'} ? $decl->{'IODir'} : 'Unknown';
 	my $uxntal_write_arg = __is_write_arg($stref,$f,$var);
 	# $iodir eq 'out' or $iodir eq 'inout' ? 1 : 0 ;
-
+	# Module vars are globals, so don't allocate on the stack
+	if (__is_module_var($stref,$f,$var) ) {
+		$use_stack=0;
+	}
+	elsif (__is_result_var($stref,$f,$var) ) {
+		$use_stack=0;
+	}
 	return
 		(
 			$use_stack
@@ -1458,7 +1464,7 @@ sub __copy_substr($stref, $f, $info, $lhs_ast, $rhs_ast) {
 			}
 			# croak "NOT a substr copy! ".Dumper($lhs_ast,$rhs_ast);
 		}
-	} else {
+	} else { # RHS is not a literal or expression
 		my ($rhs_var,$rhs_idxs,$rhs_idx_expr_type) = __unpack_var_access_ast($rhs_ast);
 		my $lhs_var_access = __var_access($stref,$f,$lhs_var);
 		my $rhs_var_access = __var_access($stref,$f,$rhs_var);
@@ -1510,7 +1516,7 @@ sub __copy_substr($stref, $f, $info, $lhs_ast, $rhs_ast) {
 			elsif ($rhs_ast->[0] == 1) { # a function call
 				# get the return type of the function
 				my $sig = $stref->{'Subroutines'}{$rhs_ast->[1]}{'Signature'};
-				croak Dumper($sig);
+				croak 'TODO: function on RHS of strcpy: '.Dumper($sig);
 			}
 		} elsif ($lhs_idx_expr_type == 0 and $rhs_idx_expr_type == 2) {
 			# RHS is a slice, LHS is a string variable
@@ -1531,6 +1537,28 @@ sub __copy_substr($stref, $f, $info, $lhs_ast, $rhs_ast) {
 				add_to_used_lib_subs('min');
 				add_to_used_lib_subs('strncpy');
 			}
+		} elsif ($lhs_idx_expr_type == 0 and $rhs_idx_expr_type == 0) { # no indexing on either side
+		# I am assuming the LHS is a string
+		# The RHS could be a char or a string
+			if ($rhs_ast->[0] == 2 and is_string($stref,$f,$rhs_var) ) {
+		# if a string, copy as much of the RHS into the LHS as will fit
+				$uxntal_code = "$rhs_var_access $lhs_var_access ".
+				" $rhs_var_access LDA2 $lhs_var_access LDA2 min strncpy ".
+				" $rhs_var_access LDA2 $lhs_var_access LDA2 min $lhs_var_access STA2 ";
+				add_to_used_lib_subs('min');
+				add_to_used_lib_subs('strncpy');
+		# if a char, it's easy:
+		# #0001 $rhs_var_access STA2
+		# $lhs_var_access LDA2 $rhs_var_access #0002 ADD2 STA2
+			}
+			elsif (($rhs_ast->[0] == 2 and is_character($stref,$f,$rhs_var)) or $rhs_ast->[0] == 32) {
+				# it's a character-type scalar or a character constant.
+				# we set the rhs to a string of length 1 with this char
+				# s_to(b:b) = 'c'
+				# $lhs_ast = ['@',$s,[':',$i_expr]
+				my $rhs_Uxntal_expr = _emit_expression_Uxntal ($rhs_ast, $stref, $f, $info);
+				$uxntal_code = "$rhs_Uxntal_expr $lhs_var_access #0002 ADD2 STA #0001 $rhs_var_access STA2";
+			}
 		} elsif ($lhs_idx_expr_type == 2 and $rhs_idx_expr_type == 1) {
 			# Special case: RHS is array assignment.
 			# This can be either an array of chars or an array of strings
@@ -1548,7 +1576,7 @@ sub __copy_substr($stref, $f, $info, $lhs_ast, $rhs_ast) {
 
 		} else {
 			say $lhs_idx_expr_type,$rhs_idx_expr_type ;
-			error('Unsupported index expression: '.Dumper($lhs_ast,$rhs_ast),$DBG,'ERROR');
+			error("Unsupported index expression in __copy_substr($f) : $lhs_idx_expr_type , $rhs_idx_expr_type ".Dumper($lhs_ast,$rhs_ast),$DBG,'ERROR');
 		}
 	}
 	return $uxntal_code.' ( COPY SUBSTR )';
@@ -1567,9 +1595,9 @@ sub __calc_len($e,$b){
 
 # This returns the address of the var on the stack
 sub __stack_access($stref,$f,$var) {
-	# carp "__stack_access($f,$var)";
 	my $Sf = $stref->{'Subroutines'}{$f};
 	my $offset = $Sf->{'StackOffset'}{$var};
+	croak "INVALID __stack_access($f,$var)" unless defined $offset;
 	if ($offset>0) {
 		my $offset_hex = toHex($offset,2);
 		# my $uxntal_code = '';
@@ -1654,6 +1682,17 @@ sub __create_fq_varname($stref,$f,$var_name) {
 	return $fq_varname;
 } # END of __create_fq_varname
 
+sub __is_module_var($stref,$f,$var_name) {
+	# carp Dumper $var_name;
+	my $Sf = $stref->{'Subroutines'}{$f};
+	return in_nested_set($Sf,'ModuleVars',$var_name) ? 1 : 0;
+} # END of __is_module_var
+
+sub __is_result_var($stref,$f,$var_name) {
+	return ( exists $stref->{'Subroutines'}{$f}{'Signature'}{'ResultVar'}
+	and $stref->{'Subroutines'}{$f}{'Signature'}{'ResultVar'} eq $var_name
+	) ? 1 : 0;
+}
 sub __string_access($stref,$f,$info,$var_name,$ast){
 	my $Sf = $stref->{'Subroutines'}{$f};
 	my $strn = __create_fq_varname($stref,$f,$var_name);
@@ -2041,7 +2080,6 @@ sub _emit_ifthen_Uxntal ($stref, $f, $info, $branch_id){
 
 sub _emit_ifbranch_end_Uxntal ($id, $state){
 	# my $branch_id = $state->{'IfBranchId'};
-	carp $id;
 	my $branch_id = pop @{$state->{'BranchStack'}};
 	my $if_id = $state->{'IfId'};
 	my $r_line = ";&cond_end${if_id} JMP2 \n";

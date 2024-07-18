@@ -18,6 +18,7 @@ use RefactorF4Acc::Refactoring::Helpers qw(
 	stateful_pass_inplace
 	splice_additional_lines_cond_inplace
 	);
+use RefactorF4Acc::Emitter qw( emit_AnnLines );
 
 use vars qw( $VERSION );
 $VERSION = "5.1.0";
@@ -61,6 +62,7 @@ sub replace_case_by_if { my ( $stref, $f, $annlines ) = @_;
 		# my $skip=0;
 		if (exists $info->{'CaseVar'}) {
 			push @{$pass_state->{'CaseStack'}}, dclone($info->{'CaseVar'});
+			$pass_state->{'CaseElseIf'}=0;
 			delete $info->{'CaseVar'};
 			delete $info->{'Select'};
 			$info->{'Deleted'}=1;
@@ -99,6 +101,7 @@ sub replace_case_by_if { my ( $stref, $f, $annlines ) = @_;
 			$info->{'EndIf'} = 1;
 			delete $info->{'EndSelect'};
 			$info->{'End'} = 'if';
+			$info->{'TrailingComment'} = ' ex-case';
 			pop @{$pass_state->{'CaseStack'}};
 		}
 
@@ -112,9 +115,9 @@ sub replace_case_by_if { my ( $stref, $f, $annlines ) = @_;
 	}
 	];
  	($stref,$state) = stateful_pass_inplace($stref,$f,$pass_replace_case_by_if, $state,'pass_replace_case_by_if() ' . __LINE__  ) ;
-	my $Sf = $stref->{'Subroutines'}{$f};
-
-	croak Dumper $Sf->{'AnnLines'} if $f eq 'decodeTokenStr';
+	# my $Sf = $stref->{'Subroutines'}{$f};
+	# $stref = emit_AnnLines($stref,$f,$Sf->{'RefactoredCode'});
+	# die Dumper pp_annlines($Sf->{'RefactoredCode'}) if $f eq 'decodeTokenStr';
 	return $stref;
 } # END of replace_case_by_if
 

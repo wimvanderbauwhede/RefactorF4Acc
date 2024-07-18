@@ -391,7 +391,6 @@ sub emit_AnnLines {
     my $pass_emit_RefactoredCode = sub {
         ( my $annline, my $used_modules ) = @_;
         ( my $line, my $info ) = @{$annline};
-        # warn "LINE $line\n";
 
         my $rline  = $line;
         # This allows to emit lines for which there is no proper $info
@@ -462,7 +461,7 @@ sub emit_AnnLines {
               : '';
 
             $rline = $indent . "use $module_name $maybe_only ! emit_AnnLines($f)";
-            # warn "EMIT $rline\n";
+
             } else {
                 $rline = $indent . "! use $module_name ! emit_AnnLines($f)";
             }
@@ -747,33 +746,19 @@ sub emit_AnnLines {
         } else {
             $block_info='';
         }
-        # if ($block_info ne '') {
-        # return [
-        #     [ $block_info, {}],
-        #     [ $rline, $info ]
-        # ];
-        # } else {
-        # say $rline;
-#say Dumper([ $rline.$block_info, $info ]);
 
         $rline = __substitute_PlaceHolders($rline,$info);
-
+        my $maybe_trailing_comment = (exists $info->{'TrailingComment'}) ? ' ! '.$info->{'TrailingComment'} : '';
         return ([
-            [ $rline.$block_info, $info ]
+            [ $rline.$block_info.$maybe_trailing_comment, $info ]
         ], $used_modules);
         # }
     };
 
-    # my $refactored_code_before = dclone( $Sf->{'RefactoredCode'} );
     my $used_modules = {};
     (my $new_annlines,$used_modules) = stateful_pass( $annlines, $pass_emit_RefactoredCode, $used_modules,
         "pass_emit_RefactoredCode($f) " . __LINE__ );
 
-    # if ($f=~/test_loop/) {
-    # map { say $_} @{ pp_annlines( $new_annlines ) };
-    # die;
-    # }
-    # say "LEAVE emit_AnnLines: $code_unit $f";
     $Sf->{'RefactoredCode'}=$new_annlines;
     return $stref;
 
