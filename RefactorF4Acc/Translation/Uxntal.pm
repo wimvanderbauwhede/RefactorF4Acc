@@ -582,7 +582,6 @@ Instead of the nice but cumbersome approach we had until now, from now on it is 
 		}
 
 		if (exists $info->{'Assignment'} ) {
-			# say "Assignment line: $line";
 			($c_line,$pass_state) = _emit_assignment_Uxntal($stref, $f, $info,$pass_state) ;
 			if (exists $info->{'If'} and not exists $info->{'IfThen'}) {
 				my $indent = $info->{'Indent'};
@@ -1380,6 +1379,7 @@ sub __unpack_var_access_ast($ast) {
 		}
 		return ($var,$idxs,$idx_expr_type);
 	} else {
+		croak Dumper($ast);
 		error('AST must be a list: '.Dumper($ast));
 	}
 } # END of __unpack_var_access_ast
@@ -1448,6 +1448,10 @@ sub __copy_substr($stref, $f, $info, $lhs_ast, $rhs_ast) {
 
 				# carp $rhs_Uxntal_expr,Dumper ($info,$rhs_ast);
 				my $lhs_len = __get_len_from_Attr($decl);
+				if ($lhs_len eq ':' or $lhs_len eq '*') {
+					warning('Allocating 64 bytes for dynamic ('.$lhs_len.') string '.$lhs_var.' in '.$f);
+					$lhs_len = 64; # AD-HOC!
+				}
 				my $rhs_len = $rhs_ast->[0] == 34
 					? length($info->{'PlaceHolders'}{$rhs_ast->[1]})-2 # -2 for the quotes
 					: $lhs_len; # a hack, TODO
@@ -2140,23 +2144,24 @@ sub _emit_expression_Uxntal ($ast, $stref, $f, $info) {
 				# This is not even always possible, in principle this has to be a runtime operation
 				# But for constant shifts it can be done
 				my $val_to_shift = _emit_expression_Uxntal($args->[1], $stref, $f,$info);
-				if ($args->[2][0]==29) {
-					my $shift_nbits = $args->[2][1];
-					if ($shift_nbits >= 0) {
-						my $sft = toHex($shift_nbits,1);
+				if ($args->[2][0]==29 or ($args->[2][0]==4 and $args->[2][1][0]==29)) {
+					my $shift_dir = $args->[2][0] == 4 ? 'right' : 'left';
+					
+					my $shift_nbits = $shift_dir eq 'left' ? $args->[2][1] : $args->[2][1][1];
+					my $sft = toHex($shift_nbits,1);
+					if ($shift_dir eq 'left') {
 						return "$val_to_shift $sft #40 SFT SFT2"
 					} else {
-						my $sft = toHex(-$shift_nbits,1);
 						return "$val_to_shift $sft SFT2"
 					}
 				} else {
-					croak 'TODO ISHFT RUNTIME';
+					croak 'TODO ISHFT RUNTIME: '.Dumper($args);
 				}
 			} else {
 				return _emit_function_call_expr_Uxntal($stref,$f,$info,$ast);
 			}
 		}
-		elsif ($opcode == 28) {
+		elsif ($opcode == 28) { # (/ 
 			# this is very lazy, but it works
 			my $lst_expr = _emit_expression_Uxntal($ast->[1], $stref, $f,$info);
 			$lst_expr =~s/\#//g;
@@ -2393,11 +2398,12 @@ sub _emit_subroutine_call_expr_Uxntal($stref,$f,$line,$info){
 				my $var = $arg_expr_ast->[1];
 				my $var_access = __var_access($stref,$f,$var);
 				my $idx_expr_b = $arg_expr_ast->[2][0] == 12 ? # ib:ie
-				_emit_expression_Uxntal($arg_expr_ast->[2][1], $stref, $f,$info)
-				: $arg_expr_ast->[2];
+					_emit_expression_Uxntal($arg_expr_ast->[2][1], $stref, $f,$info)
+					: _emit_expression_Uxntal($arg_expr_ast->[2], $stref, $f,$info);
 				my $idx_expr_e = $arg_expr_ast->[2][0] == 12 ? # ib:ie
-				_emit_expression_Uxntal($arg_expr_ast->[2][2], $stref, $f,$info)
-				: $idx_expr_b;
+					_emit_expression_Uxntal($arg_expr_ast->[2][2], $stref, $f,$info)
+					: $idx_expr_b;
+				croak Dumper($arg_expr_ast) if ref($idx_expr_b) eq 'ARRAY';
 				if ($idx_expr_b eq $idx_expr_e) { # access a single character, so return a byte as value
 					my $idx_expr =  ($idx_expr_b eq '#0000') ? '' : "$idx_expr_b ADD2 ";
 					push @call_arg_expr_strs_Uxntal,  "$var_access $idx_expr LDA".' ( CHAR )' # load a pointer, index, load the value
@@ -2441,11 +2447,14 @@ sub _emit_function_call_expr_Uxntal($stref,$f,$info,$ast){
 			my $idx=0;
 			for my $call_arg_ast (@call_arg_asts) {
 				$idx++;
-				my $call_arg_expr_str =
-				($call_arg_ast->[0] == 2 or $call_arg_ast->[0] == 10 or $call_arg_ast->[0] > 28)
-				? $call_arg_ast->[1] : '';
+				if (not ($call_arg_ast->[0]==9 and $call_arg_ast->[1][1] eq 'kind') 
+				) { # skip kind=... argument as we don't use it anyway
+					my $call_arg_expr_str =
+					($call_arg_ast->[0] == 2 or $call_arg_ast->[0] == 10 or $call_arg_ast->[0] > 28)
+					? $call_arg_ast->[1] : '';
 
-				push @call_arg_expr_strs_Uxntal, __emit_call_arg_Uxntal_expr($stref,$f,$info,$subname,$call_arg_expr_str,$call_arg_ast,$idx,'in');
+					push @call_arg_expr_strs_Uxntal, __emit_call_arg_Uxntal_expr($stref,$f,$info,$subname,$call_arg_expr_str,$call_arg_ast,$idx,'in');
+				}
 			}
 		}
 	} else {
@@ -2483,6 +2492,7 @@ sub __emit_call_arg_Uxntal_expr($stref,$f,$info,$subname,$call_arg_expr_str,$ast
 	# Maybe I should add IntrinsicFunctionCalls to make it easy
 	my $call_info = $info->{'SubroutineCall'};
 	if (exists $info->{'Assignment'} ) {
+		# Get the function call info
 		if  (exists $info->{'FunctionCalls'} and scalar @{$info->{'FunctionCalls'}}>0) {
 			for my $fcall (@{$info->{'FunctionCalls'}}) {
 				if ($fcall->{'Name'} eq $subname) {

@@ -1435,7 +1435,7 @@ sub _substitute_placeholders_per_source { (my $stref,my $f) =@_;
 	return $stref
 } # END of _substitute_placeholders_per_source
 
-sub parsedVarDecl_to_Decl { my ($pvd, $decl) = @_;
+sub parsedVarDecl_to_Decl { my ($pvd, $decl,$f) = @_;
 # carp 'parsedVarDecl_to_Decl: '.Dumper( $decl);
     my $mdecl = dclone($decl);
     $mdecl->{'ArrayOrScalar'} = 'Scalar';
@@ -1489,7 +1489,7 @@ sub parsedVarDecl_to_Decl { my ($pvd, $decl) = @_;
             : 0;
         if ($alloc_dim==0) {
             if ($pvd->{'TypeTup'}{'Kind'} eq ':'	) {
-                warn('allocatable character string');
+                warning("allocatable character string ".$mdecl->{'Name'}." in $f");
                 # error("TODO: allocatable character string".Dumper($mdecl));
             }
         } else {

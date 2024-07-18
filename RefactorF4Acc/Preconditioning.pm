@@ -738,7 +738,7 @@ sub __split_multivar_ParsedVarDecl { my ($line,$info,$stref,$f,$Sf,$nextLineID,$
             # say "SUBSET <$subset> for VAR <$var> in $f";
             # say 'DECL:'.Dumper()
             my $init_decl = $subset ne '' ? $Sf->{$subset}{'Set'}{$var} : { 'Name' => $var};
-            $Sf->{$subset}{'Set'}{$var} = parsedVarDecl_to_Decl($rinfo{'ParsedVarDecl'}, $init_decl);
+            $Sf->{$subset}{'Set'}{$var} = parsedVarDecl_to_Decl($rinfo{'ParsedVarDecl'}, $init_decl,$f);
 
             my $rline = emit_f95_parsed_var_decl($rinfo{'ParsedVarDecl'});
             push @{$new_annlines}, [$rline, {%rinfo}];
@@ -777,7 +777,7 @@ sub __split_multivar_ParsedParDecl { my ($line,$info,$stref,$f,$Sf,$nextLineID,$
             $rinfo{'ParsedParDecl'}{'Vars'} = [ $var ];
             $rinfo{'ParsedParDecl'}{'Pars'} = { 'Var' => $var, 'Val' =>$val, 'AST' => $ast };
             delete $rinfo{'ParsedParDecl'}{'ParPairs'};
-            $Sf->{$subset}{'Set'}{$var} = parsedVarDecl_to_Decl($rinfo{'ParsedParDecl'}, $Sf->{$subset}{'Set'}{$var});
+            $Sf->{$subset}{'Set'}{$var} = parsedVarDecl_to_Decl($rinfo{'ParsedParDecl'}, $Sf->{$subset}{'Set'}{$var},$f,$f);
             my $rline = emit_f95_parsed_var_decl($rinfo{'ParsedParDecl'});
             push @{$new_annlines}, [$rline, {%rinfo}];
         }
@@ -885,7 +885,7 @@ sub __split_multivar_VarDecl { my ($line,$info,$stref,$f,$Sf,$nextLineID,$new_an
             }
         }
         # croak "VARS: $rline",Dumper $info;
-        $Sf->{$subset}{'Set'}{$var} = parsedVarDecl_to_Decl($rinfo{'ParsedVarDecl'}, $Sf->{$subset}{'Set'}{$var});
+        $Sf->{$subset}{'Set'}{$var} = parsedVarDecl_to_Decl($rinfo{'ParsedVarDecl'}, $Sf->{$subset}{'Set'}{$var},$f,$f);
         push @{$new_annlines}, [$rline, {%rinfo}];
     }    # for each $var
     return ($new_annlines,$nextLineID);
@@ -948,7 +948,7 @@ sub __split_multipar_ParamDecl { my ($line, $info, $stref, $f, $Sf,$nextLineID,$
         # my $rline = emit_f95_var_decl($param_decl);
         my $rline = emit_f95_parsed_var_decl($rinfo{'ParsedParDecl'});
         ++$idx;
-        $Sf->{'LocalParameters'}{'Set'}{$var} = parsedVarDecl_to_Decl($rinfo{'ParsedParDecl'}, $param_decl);
+        $Sf->{'LocalParameters'}{'Set'}{$var} = parsedVarDecl_to_Decl($rinfo{'ParsedParDecl'}, $param_decl,$f);
         push @{$new_annlines}, [$rline, {%rinfo}];
     }
     return ($new_annlines,$nextLineID);

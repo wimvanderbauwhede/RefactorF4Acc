@@ -3,7 +3,12 @@ use v5.10;
 use RefactorF4Acc::Config;
 use RefactorF4Acc::Utils;
 use RefactorF4Acc::Analysis::Includes qw( find_root_for_includes lift_param_includes);
-use RefactorF4Acc::Analysis::Variables qw( analyse_variables analyse_used_variables get_vars_pars_from_containers_and_modules populate_UsesTransitively );
+use RefactorF4Acc::Analysis::Variables qw( 
+	analyse_variables 
+	analyse_used_variables 
+	get_vars_pars_from_containers_and_modules 
+	populate_UsesTransitively 
+	);
 use RefactorF4Acc::Analysis::Arguments qw(
 	determine_ExGlobArgs
 	find_argument_declarations
@@ -89,6 +94,8 @@ sub analyse_all {
 		if (not exists $Sf->{'BlockData'} or $Sf->{'BlockData'} == 0 ) {
 			if ($Sf->{'Status'} >= $PARSED) {
 			## Here we populate UsesTransitively for every code unit.
+			## This does a full rec descent through the used module hierarchy
+			## Here is where we detect missing modules in the source
 			$stref = populate_UsesTransitively( $stref,$f);
 			## Here we populate VarsFromContainers and ParametersFromContainers, where "Container" is any enclosing unit.
 			$stref = get_vars_pars_from_containers_and_modules($stref,$f);

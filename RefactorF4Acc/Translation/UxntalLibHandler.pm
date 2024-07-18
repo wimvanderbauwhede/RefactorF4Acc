@@ -67,11 +67,17 @@ our %uxntal_lib_subroutines = (
 'iand' => [
     '@iand','AND2 JMP2r'
 ],
-'ishft' => [
-    '@ishft',' ( TODO ) SF2 JMP2r'
+'ishft' => [ # ishft() 
+    '@ishft',' ( TODO ) SFT2 JMP2r'
 ],
 'exit' => [
     '@exit', 'POP2','#80 .System/state DEO', 'BRK'
+],
+'trim' => [
+    '@trim', '( a NOOP, TODO! )','JMP2r'
+],
+'adjustl' => [
+    '@adjustl', '( a NOOP, TODO! )','JMP2r'
 ],
 
 );
@@ -176,5 +182,11 @@ sub remove_comments($str_with_comments) {
     return $str_no_comments;
 
 }
+
+ # ISHFT returns a value corresponding to I with all of the bits shifted SHIFT places. 
+ # A value of SHIFT greater than zero corresponds to a left shift, 
+ # A value of zero corresponds to no shift, 
+ # A value less than zero corresponds to a right shift
+ 
 
 1;

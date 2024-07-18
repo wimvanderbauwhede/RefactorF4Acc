@@ -19,7 +19,7 @@ use strict;
 use Carp;
 use Data::Dumper;
 use Storable qw( dclone );
-
+use Cwd;
 use Exporter;
 
 our @ISA = qw(Exporter);
@@ -683,9 +683,18 @@ sub populate_UsesTransitively { my ($stref,$f) = @_;
 sub _build_UsesTransitively_rec { my ($stref,$f) = @_;
     my $sub_incl_or_mod = sub_func_incl_mod($f, $stref);
     my $Sf = $stref->{$sub_incl_or_mod}{$f};
-	if (not exists $Sf->{'UsesTransitively'}) {
-		croak "$sub_incl_or_mod $f:".Dumper( $Sf);
-	}
+	if (not exists $stref->{$sub_incl_or_mod}{$f}{'Source'}) {
+		my $sm = substr(lc($sub_incl_or_mod),0,-1);
+		
+		error( "No source for $sm $f",0,'ERROR404');
+	} 
+	elsif (not exists $Sf->{'UsesTransitively'}) {
+		if (not -e $stref->{$sub_incl_or_mod}{$f}{'Source'}) {
+			error( "No such module source: ".$stref->{$sub_incl_or_mod}{$f}{'Source'}." for $f",0,'ERROR404');
+		} else {
+			croak "No UsesTransitively for $sub_incl_or_mod $f:".Dumper( $Sf);
+		}
+	} 
 	# say "$sub_incl_or_mod $f".$Sf->{'UsesTransitively'};
     if (exists $Sf->{'Uses'} and scalar keys %{$Sf->{'Uses'}}>0) {
         $Sf->{'UsesTransitively'} = {%{$Sf->{'UsesTransitively'}},%{$Sf->{'Uses'}}};

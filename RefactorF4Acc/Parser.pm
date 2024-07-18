@@ -3357,7 +3357,7 @@ sub __parse_f95_decl {
 				'MemSpace' => $pragmas->{'MemSpace'},
 			};
 
-			my $decls = __create_Decls_from_ParsedVarDecl($info,$init_decl);
+			my $decls = __create_Decls_from_ParsedVarDecl($info,$init_decl,$f);
 			for my $decl (@{$decls}) {
 				my $tvar = $decl->{'Name'} ;
 
@@ -5398,7 +5398,7 @@ sub __move_var_from_UndeclaredOrigArgs_to_DeclaredOrigArgs { my ($Sf, $tvar, $de
 }
 
 
-sub __create_Decls_from_ParsedVarDecl { my ($info,$init_decl) = @_;
+sub __create_Decls_from_ParsedVarDecl { my ($info,$init_decl,$f) = @_;
 	my $decls=[];
     if (exists $info->{'ParsedVarDecl'}{'Vars'}) {
 		my $pvd = dclone($info->{'ParsedVarDecl'});
@@ -5436,7 +5436,7 @@ sub __create_Decls_from_ParsedVarDecl { my ($info,$init_decl) = @_;
             }
 			$pvd->{'Vars'}=[$var];
 
-            push @{$decls} , parsedVarDecl_to_Decl($pvd, $init_decl);
+            push @{$decls} , parsedVarDecl_to_Decl($pvd, $init_decl,$f);
         }
     }
 
