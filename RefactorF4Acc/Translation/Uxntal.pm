@@ -1078,6 +1078,7 @@ sub __use_stack($stref,$f) {
 
 sub _var_access_read($stref,$f,$info,$ast) {
 	my ($var,$idxs,$idx_expr_type) = __unpack_var_access_ast($ast);
+	
 	my $Sf = $stref->{'Subroutines'}{$f};
 	my $short_mode = $Sf->{'WordSizes'}{$var} == 2 ? '2' : '';
 	my $uxntal_code = '';
@@ -1665,9 +1666,12 @@ sub _store_arg_on_stack($stref,$f,$arg) {
 
 sub __create_fq_varname($stref,$f,$var_name) {
 	# carp Dumper $var_name;
+	my $fq_varname = $f.'_'.$var_name;
 	my $Sf = $stref->{'Subroutines'}{$f};
 	my $decl = get_var_record_from_set($Sf->{'ModuleVars'},$var_name);
-	my $fq_varname = $f.'_'.$var_name;
+	if (not defined $decl) {
+		$decl = get_var_record_from_set($Sf->{'ModuleParameters'},$var_name);
+	}
 	if (defined $decl) {
 		my $mod_name ='';
 		if (exists $decl->{'ModuleName'}) {
