@@ -563,6 +563,13 @@ Instead of the nice but cumbersome approach we had until now, from now on it is 
 				$c_line = '&while_loop_'.$f.'_'.$id . "\n" ;
 			} else {
 			my $do_iterator = $f.'_'.$info->{'Do'}{'Iterator'};
+			my $uxntal_do_iter_decl = '@'.$do_iterator.' $2';
+			if (not exists $pass_state->{'Subroutine'}{'LocalVars'}{'Set'}{$uxntal_do_iter_decl}) {
+				$pass_state->{'Subroutine'}{'LocalVars'}{'Set'}{$uxntal_do_iter_decl}=$uxntal_do_iter_decl;
+				$skip_comment=1;
+				push @{$pass_state->{'Subroutine'}{'LocalVars'}{'List'}}, "( ____ $line )" unless $skip_comment;
+				push @{$pass_state->{'Subroutine'}{'LocalVars'}{'List'}},$uxntal_do_iter_decl;
+			} 
 			my $do_step = $info->{'Do'}{'Range'}{'Expressions'}[2];
 				if ($do_step!~/^\-?\d+$/) {
 					error("Only DO with constant integer STEP is supported: $line in $f",0,'ERROR');
@@ -3061,7 +3068,8 @@ sub _emit_print_from_ast($stref,$f,$line,$info,$unit,$elt){
 		if ($return_type eq 'logical') {
 			return 'print-bool'.$suffix;
 		}
-		elsif ($return_type eq 'integer' and $return_type_attr=~/(?:kind=)?2/) {
+		elsif ($return_type eq 'integer' and ($return_type_attr=~/(?:kind=)?2/
+		or $return_type_attr eq '')) {
 			return 'print-int'.$suffix;
 		}
 		elsif ($return_type eq 'character' and ($return_type_attr eq '' or $return_type_attr=~/(?:len=)?1/)) {
