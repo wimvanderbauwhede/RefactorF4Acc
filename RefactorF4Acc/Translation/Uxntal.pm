@@ -331,55 +331,55 @@ Instead of the nice but cumbersome approach we had until now, from now on it is 
 				$state->{'Pointers'}{$var}=''; # means should be treated as a scalar, i.e. LDA
 				$state->{'LocalVars'}{$var}=1;
 			}
-			my $wordsz=0;
+			my $word_sz=0;
 			my $type = $info->{'ParsedVarDecl'}{'TypeTup'}{'Type'};
 			if ($type eq 'integer') {
 				my $kind = $info->{'ParsedVarDecl'}{'TypeTup'}{'Kind'};
 				if ($kind>2) {
 					die "Integers must be 8-bit or 16-bit: $var in $f is $kind\n";
 				}
-				$wordsz=$kind;
+				$word_sz=$kind;
 			}
 			elsif ($type eq 'logical') {
-				$wordsz=1;
+				$word_sz=1;
 			}
 			elsif ($type eq 'character') {
-					$wordsz=1;
+					$word_sz=1;
 			} elsif ($type =~/^character\(/) {
-					$wordsz=2;
+					$word_sz=2;
 			} else {
 				die "Supported types are integer, character, string and logical: $var in $f is $type\n";
 			}
 			if (not exists $Sf->{'WordSizes'}{$var}) {
 				# carp 'MISSING WORDSZ for '.$var;
 				# The previous analysis does not include unused variables
-				$state->{'WordSizes'}{$var}=$wordsz;
-			} elsif ($Sf->{'WordSizes'}{$var} != $wordsz ) {
-				carp 'CONFLICTING WORDSZ for '.$var.': '.$Sf->{'WordSizes'}{$var}.' != '.$wordsz;
+				$state->{'WordSizes'}{$var}=$word_sz;
+			} elsif ($Sf->{'WordSizes'}{$var} != $word_sz ) {
+				carp 'CONFLICTING WORDSZ for '.$var.': '.$Sf->{'WordSizes'}{$var}.' != '.$word_sz;
 			}
 		}
 		elsif ( exists $info->{'ParamDecl'} ) {
 			my $var = $info->{'ParamDecl'}{'Var'};
 			$state->{'Pointers'}{$var}='';
 			$state->{'Parameters'}{$var}=1;
-			my $wordsz=0;
+			my $word_sz=0;
 			my $type = $info->{'ParsedParDecl'}{'TypeTup'}{'Type'};
 			if ($type eq 'integer') {
 				my $kind = $info->{'ParsedParDecl'}{'TypeTup'}{'Kind'};
 				if ($kind>2) {
 					die "Integers must be 8-bit or 16-bit: $var in $f is $kind\n";
 				}
-				$wordsz=$kind;
+				$word_sz=$kind;
 			} elsif ($type eq 'logical') {
-				$wordsz=1;
+				$word_sz=1;
 			} elsif ($type eq 'character') {
-				$wordsz=1;
+				$word_sz=1;
 			} elsif ($type =~/^character\(/) {
-					$wordsz=2;
+					$word_sz=2;
 			} else {
 				die "Supported types are integer, character, string and logical: $var in $f is $type\n";
 			}
-			$state->{'WordSizes'}{$var}=$wordsz;
+			$state->{'WordSizes'}{$var}=$word_sz;
 		}
 		# FIXME: this is because of the presence of an empty $info->{'SubroutineCall'} record.
 		elsif (exists $info->{'SubroutineCall'} and exists $info->{'SubroutineCall'}{'Name'}) {
@@ -579,6 +579,8 @@ Instead of the nice but cumbersome approach we had until now, from now on it is 
 				my $do_start= _emit_expression_Uxntal($info->{'Do'}{'Range'}{'ExpressionASTs'}[0],$stref, $f, $info);
 				my $do_stop =  _emit_expression_Uxntal($info->{'Do'}{'Range'}{'ExpressionASTs'}[1],$stref, $f, $info);
 				$c_line = $do_stop . ' INC2 ' . $do_start . "\n" .
+				# 'DUP2 EQU2k ;&loop_end_'.$f.'_'.$id.' JCN2'. "\n" .
+				'OVR2 OVR2 SUB2 #fff7 GTH2 ;&loop_end_'.$f.'_'.$id.' JCN2'. "\n" .
 				'&loop_'.$f.'_'.$id . "\n" .
 				';'.$do_iterator.' STA2 ';
 			}
@@ -798,7 +800,11 @@ Instead of the nice but cumbersome approach we had until now, from now on it is 
 					# croak Dumper $f,$annline,$do_tup;
 					my ($do_id, $do_iter, $do_step) = @{$do_tup};
 					my $inc = $do_step == 1 ? 'INC2' : toHex($do_step,2). ($do_step>0 ? ' ADD2' : ' SUB2');
-					$c_line = ";$do_iter LDA2 $inc OVR2 OVR2 NEQ2 ".';&loop_'.$f.'_'.$do_id.' JCN2 '."\n;$do_iter LDA2 $inc ;$do_iter STA2";
+					my $dec = $do_step == 1 ? '#0001 SUB2' : toHex($do_step,2). ($do_step<0 ? ' ADD2' : ' SUB2');
+					# This says, INC and then compare, if it is not equal, loop again
+					# But fortran says compare then INC
+					$c_line = ";$do_iter LDA2 $inc OVR2 OVR2 NEQ2 ".';&loop_'.$f.'_'.$do_id.' JCN2 '."\n;$do_iter LDA2 $inc ;$do_iter STA2\n".
+					'&loop_end_'.$f."_$do_id POP2 POP2\n";
 				} else { # while
 				# croak Dumper $do_tup;
 					my ($do_id, $do_while_cond) = @{$do_tup};
@@ -829,8 +835,8 @@ Instead of the nice but cumbersome approach we had until now, from now on it is 
 			my $res = exists $stref->{'Subroutines'}{$fname}{'Signature'}{'ResultVar'}
 				?  $stref->{'Subroutines'}{$fname}{'Signature'}{'ResultVar'}
 				: $fname;
-			my $wordsz = $stref->{'Subroutines'}{$fname}{'WordSizes'}{$res};
-			my $short_mode =  $wordsz == 2 ? '2' : '';
+			my $word_sz = $stref->{'Subroutines'}{$fname}{'WordSizes'}{$res};
+			my $short_mode =  $word_sz == 2 ? '2' : '';
 			if (is_array_or_string($stref,$f,$res)) {
 				# We return the address
 				# ResultVar should always be statically allocated if it is an array or string
@@ -963,7 +969,7 @@ sub _get_word_sizes($stref,$f){
 		# }
 		# my $decl = get_var_record_from_set($Sf->{$subset},$var);
 		my $decl = getDecl($stref,$f,$var);
-		my $wordsz=0;
+		my $word_sz=0;
 		my $type = $decl->{'Type'};
 		if ($type eq 'integer') {
 			my $kind = $decl->{'Attr'};
@@ -979,28 +985,28 @@ sub _get_word_sizes($stref,$f){
 			if ($kind>2) {
 				die "Integers must be 8-bit or 16-bit: $var in $f is $kind\n";
 			}
-			$wordsz=$kind;
+			$word_sz=$kind;
 		}
 		elsif ($type eq 'logical') {
-			$wordsz=1;
+			$word_sz=1;
 		}
 		elsif ($type eq 'character') {
 				# if (exists $decl->{'Attr'} and $decl->{'Attr'} ne '' and $decl->{'Attr'}!~/len=1/) {
 				# 	# It's a string, not a character, so we store the address, not the value.
 				# 	# croak('WRONG! Need to disambiguate between the pointer and the value!');
-				# 	$wordsz=2;
+				# 	$word_sz=2;
 				# } else {
-					$wordsz=1;
+					$word_sz=1;
 				# }
 		} elsif ($type =~/^character\(/) {
-				$wordsz=2;
+				$word_sz=2;
 		} else {
 			die "Supported types are integer, character, string and logical: $var in $f is $type\n";
 		}
-		$Sf->{'WordSizes'}{$var} = $wordsz;
+		$Sf->{'WordSizes'}{$var} = $word_sz;
 		# carp Dumper($decl) if $var eq 'funktalGlobalCharArray';
 		if (exists $decl->{'ModuleName'}) {
-			$stref->{'Modules'}{$decl->{'ModuleName'}}{'WordSizes'}{$var} = $wordsz;
+			$stref->{'Modules'}{$decl->{'ModuleName'}}{'WordSizes'}{$var} = $word_sz;
 		}
 	}
 	return $stref;
@@ -1076,7 +1082,7 @@ sub __use_stack($stref,$f) {
 # ['$',$var] : 2, 2 args,
 # WV 2024-05-12 Maybe I should do this differently: 'ST' always means an assignment, so maybe I should split var_access in read and write?
 # If read
-# If single word (i.e. '$', 2): ";$fq_var LD$wordsz"
+# If single word (i.e. '$', 2): ";$fq_var LD$word_sz"
 # If slice and string, then it is a substring, and it split var_access in read and write?
 # If it's read, and it's a single word, then it's just an LD
 # But if it is a slice, then it is a substring, and it will need a memwrite-string
@@ -1162,19 +1168,19 @@ ASSIGN
 The RHS is via read, except for array and string slices AND for array and string assignments
 ARG
     SCALAR:  f(v) where v is an (in)out and we have v=expr
-	Which means v *must* be a pointer, so we have <expr> ;v LDA2 STA$wordsz
+	Which means v *must* be a pointer, so we have <expr> ;v LDA2 STA$word_sz
     ARRAY => copy
     STRING => copy
-    ARRAY INDEX <expr> ;s LDA2 $idx_expr ADD2 STA$wordsz
+    ARRAY INDEX <expr> ;s LDA2 $idx_expr ADD2 STA$word_sz
 	STRING INDEX <expr> ;s LDA2 $idx_expr ADD2 STA
     STRING SLICE => copy
     ARRAY SLICE => copy
 LOCAL
     SCALAR:  v=expr
-	Which means v is an addr, so we have <expr> ;v STA$wordsz
+	Which means v is an addr, so we have <expr> ;v STA$word_sz
     ARRAY  => copy
     STRING => copy
-    ARRAY INDEX <expr> ;s $idx_expr ADD2 STA$wordsz
+    ARRAY INDEX <expr> ;s $idx_expr ADD2 STA$word_sz
 	STRING INDEX <expr> ;s $idx_expr ADD2 STA
     STRING SLICE => copy
     ARRAY SLICE => copy
@@ -1625,7 +1631,7 @@ sub __stack_access($stref,$f,$var) {
 # i.e. __stack_access($stref,$f,$var). "STA$short_mode"
 sub _stack_allocation($stref,$f,$var) {
 	my $Sf = $stref->{'Subroutines'}{$f};
-	my $wordsz = $Sf->{'WordSizes'}{$var} ;
+	my $word_sz = $Sf->{'WordSizes'}{$var} ;
 	my $uxntal_code = '';
 	my $offset = $Sf->{'CurrentOffset'};
 	my $nbytes=2;
@@ -1644,13 +1650,13 @@ sub _stack_allocation($stref,$f,$var) {
 			my $dim = exists $decl->{'ConstDim'} 
 				? __C_array_size($decl->{'ConstDim'})
 				: __C_array_size($decl->{'Dim'}) ;
-			my $nbytes= $dim*$wordsz;
+			my $nbytes= $dim*$word_sz;
 			$Sf->{'CurrentOffset'} += $nbytes;
 			# my $nbytes_Uxn=toHex($nbytes,2);
 			$uxntal_code = "( allocated $nbytes bytes at $offset for $var )";
 		}
 	} else { # Scalars
-		my $nbytes = __is_write_arg($stref,$f,$var) ? 2 : $wordsz;
+		my $nbytes = __is_write_arg($stref,$f,$var) ? 2 : $word_sz;
 		$Sf->{'CurrentOffset'} += $nbytes;
 		$uxntal_code = "( allocated $nbytes bytes at $offset for $var )";
 	}
@@ -1747,49 +1753,49 @@ sub _pointer_analysis($stref,$f) {
 				$state->{'Pointers'}{$var}=''; # means should be treated as a scalar, i.e. LDA
 				$state->{'LocalVars'}{$var}=1;
 			}
-			my $wordsz=0;
+			my $word_sz=0;
 			my $type = $info->{'ParsedVarDecl'}{'TypeTup'}{'Type'};
 			if ($type eq 'integer') {
 				my $kind = $info->{'ParsedVarDecl'}{'TypeTup'}{'Kind'};
 				if ($kind>2) {
 					die "Integers must be 8-bit or 16-bit: $var in $f is $kind\n";
 				}
-				$wordsz=$kind;
+				$word_sz=$kind;
 			}
 			elsif ($type eq 'logical') {
-				$wordsz=1;
+				$word_sz=1;
 			}
 			elsif ($type eq 'character') {
-				$wordsz=1;
+				$word_sz=1;
 			} elsif ($type =~/^character\(/) {
-				$wordsz=2;
+				$word_sz=2;
 			} else {
 				die "Supported types are integer, character, string and logical: $var in $f is $type\n";
 			}
-			$state->{'WordSizes'}{$var}=$wordsz;
+			$state->{'WordSizes'}{$var}=$word_sz;
 		}
 		elsif ( exists $info->{'ParamDecl'} ) {
 			my $var = $info->{'ParamDecl'}{'Var'};
 			$state->{'Pointers'}{$var}='';
 			$state->{'Parameters'}{$var}=1;
-			my $wordsz=0;
+			my $word_sz=0;
 			my $type = $info->{'ParsedParDecl'}{'TypeTup'}{'Type'};
 			if ($type eq 'integer') {
 				my $kind = $info->{'ParsedParDecl'}{'TypeTup'}{'Kind'};
 				if ($kind>2) {
 					die "Integers must be 8-bit or 16-bit: $var in $f is $kind\n";
 				}
-				$wordsz=$kind;
+				$word_sz=$kind;
 			} elsif ($type eq 'logical') {
-				$wordsz=1;
+				$word_sz=1;
 			} elsif ($type eq 'character') {
-				$wordsz=1;
+				$word_sz=1;
 			} elsif ($type =~/^character\(/) {
-				$wordsz=2;
+				$word_sz=2;
 			} else {
 				die "Supported types are integer, character, string and logical: $var in $f is $type\n";
 			}
-			$state->{'WordSizes'}{$var}=$wordsz;
+			$state->{'WordSizes'}{$var}=$word_sz;
 		}
 		# FIXME: this is because of the presence of an empty $info->{'SubroutineCall'} record.
 		elsif (exists $info->{'SubroutineCall'} and exists $info->{'SubroutineCall'}{'Name'}) {
@@ -2407,6 +2413,8 @@ sub _emit_subroutine_call_expr_Uxntal($stref,$f,$line,$info){
 		# But this could be e.g. str(ib:ie), in which case it is a substring, TODO!
 			if ($arg_expr_ast->[0] == 10 and scalar @{$arg_expr_ast}==3) { # an array or string access, need a substring or subarray
 				my $var = $arg_expr_ast->[1];
+				my $word_sz = $Sf->{'WordSizes'}{$var};
+				my $short_mode =  $word_sz == 2 ? '2' : '';
 				my $var_access = __var_access($stref,$f,$var);
 				my $idx_expr_b = $arg_expr_ast->[2][0] == 12 ? # ib:ie
 					_emit_expression_Uxntal($arg_expr_ast->[2][1], $stref, $f,$info)
@@ -2417,7 +2425,7 @@ sub _emit_subroutine_call_expr_Uxntal($stref,$f,$line,$info){
 				croak Dumper($arg_expr_ast) if ref($idx_expr_b) eq 'ARRAY';
 				if ($idx_expr_b eq $idx_expr_e) { # access a single character, so return a byte as value
 					my $idx_expr =  ($idx_expr_b eq '#0000') ? '' : "$idx_expr_b ADD2 ";
-					push @call_arg_expr_strs_Uxntal,  "$var_access $idx_expr LDA".' ( CHAR )' # load a pointer, index, load the value
+					push @call_arg_expr_strs_Uxntal,  "$var_access $idx_expr LDA$short_mode".' ( BYTE/SHORT )' # load a pointer, index, load the value
 				} else {
 					# extract a substring
 					# my $decl = get_var_record_from_set($Sf->{'Vars'},$var);
@@ -3004,7 +3012,7 @@ sub _emit_print_from_ast($stref,$f,$line,$info,$unit,$elt){
 	my $code = $elt->[0];
 	if ($code == 2 or $code == 10) { # A scalar, but can be an unindexed string or array
 		my $var_name = $elt->[1];
-		# my $wordsz = $stref->{'Subroutines'}{$f}{'WordSizes'}{$var_name};
+		# my $word_sz = $stref->{'Subroutines'}{$f}{'WordSizes'}{$var_name};
 		# my $decl = get_var_record_from_set($Sf->{'Vars'},$var_name);
 		my $decl = getDecl($stref,$f,$var_name);
 		my $type = $decl->{'Type'};
