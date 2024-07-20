@@ -2957,7 +2957,7 @@ sub _emit_list_print_Uxntal($stref,$f,$line,$info,$unit,$advance,$list_to_print)
 			my $arg_to_print_Uxntal = _emit_expression_Uxntal($elt_iter,$stref, $f, $info);
 			my $elt_0 = [10,$elt->[1],[29,'0']];
 			my $print_fn_Uxntal = _emit_print_from_ast($stref,$f,$line,$info,$unit,$elt_0);
-			$line_Uxntal = '{ ( iter ) ,&'.$iter.' STR2 '.$arg_to_print_Uxntal.' '.$print_fn_Uxntal.' JMP2r } STH2r '.toHex($array_length-1,2).' #0000  range-map-short';
+			$line_Uxntal = '{ ( iter ) ,&'.$iter.' STR2 '.$arg_to_print_Uxntal.' '.$print_fn_Uxntal.' JMP2r } STH2r '.toHex($array_length-1,2).' #0000  range-map-short ( print-array )';
 			# croak $line_Uxntal;
 		}
 		elsif ($print_fn_Uxntal eq 'print-array-slice') {
@@ -2968,7 +2968,7 @@ sub _emit_list_print_Uxntal($stref,$f,$line,$info,$unit,$advance,$list_to_print)
 			my $arg_to_print_Uxntal = _emit_expression_Uxntal($elt,$stref, $f, $info);
 			my $elt_0 = [10,$elt->[1],[29,'0']];
 			my $print_fn_Uxntal = _emit_print_from_ast($stref,$f,$line,$info,$unit,$elt_0);
-			$line_Uxntal = '{ ( iter ) ,&'.$iter.' STR2 '.$arg_to_print_Uxntal.' '.$print_fn_Uxntal." JMP2r } STH2r $e #0001 SUB2 $b #0001 SUB2 range-map-short";
+			$line_Uxntal = '{ ( iter ) ,&'.$iter.' STR2 '.$arg_to_print_Uxntal.' '.$print_fn_Uxntal." JMP2r } STH2r $e #0001 SUB2 $b #0001 SUB2 range-map-short ( print-array-slice )";
 			# croak $line_Uxntal;
 		} else {
 			my $arg_to_print_Uxntal = _emit_expression_Uxntal($elt,$stref, $f, $info);
