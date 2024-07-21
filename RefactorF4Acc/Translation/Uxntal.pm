@@ -18,8 +18,8 @@ use RefactorF4Acc::Refactoring::Fixes qw(
 	__has_module_level_declaration
 	);
 use RefactorF4Acc::Refactoring::CaseToIf qw( replace_case_by_if )	;
-use RefactorF4Acc::Refactoring::FoldConstants qw( 
-	fold_constants_all 
+use RefactorF4Acc::Refactoring::FoldConstants qw(
+	fold_constants_all
 	fold_constants_in_decls
 	);
 # use RefactorF4Acc::Parser::Expressions qw( @sigils );
@@ -63,7 +63,7 @@ our @sigils = ('(', '&', '$', 'ADD', 'SUB', 'MUL', 'DIV', 'mod', 'pow', '=', '@'
 #                27   28
                ,',', '(/',
 # Constants
-#                29         30      31         32           33         34             35       36     
+#                29         30      31         32           33         34             35       36
                ,'integer', 'real', 'logical', 'character', 'complex', 'PlaceHolder', 'Label', 'BLANK'
               );
 
@@ -172,12 +172,12 @@ sub translate_program_to_Uxntal($stref,$program_name){
 		($stref->{'HasCLArgs'} ? @{$stref->{'Uxntal'}{'CLIHandling'}{'Preamble'}} : ()),
 		'','|0100',
 		($stref->{'UseCallStack'} ? 'init-call-stack' : ''),
-		($stref->{'HasCLArgs'} 
-			? @{$stref->{'Uxntal'}{'CLIHandling'}{'Main'}} 
+		($stref->{'HasCLArgs'}
+			? @{$stref->{'Uxntal'}{'CLIHandling'}{'Main'}}
 			: $stref->{'Uxntal'}{'Main'}{'Name'}."\n#80 .System/state DEO\n"
 		),
 		'BRK','',
-		($stref->{'HasCLArgs'} 
+		($stref->{'HasCLArgs'}
 			? '@main '.$stref->{'Uxntal'}{'Main'}{'Name'} . "\n#80 .System/state DEO\nBRK"
 			: ''
 		),
@@ -203,7 +203,7 @@ sub translate_program_to_Uxntal($stref,$program_name){
 # TODO: This should include handling of 'use' declarations.
 # Unfortunately for those we will need to split the module level declarations from the subroutines.
 sub translate_module_decls_to_Uxntal($stref, $mod_name){
-	
+
     my $pass_emit_module_declarations = sub ($annline, $state){
         (my $line,my $info)=@{$annline};
 		# say "MOD LINE: <$line>";
@@ -428,7 +428,7 @@ Instead of the nice but cumbersome approach we had until now, from now on it is 
 	my $pass_state = {'Pointers'=>{},'CLArgs'=>0,'Args' =>{},'LocalVars' =>{}, 'Parameters'=>{}, 'WordSizes'=>{}};
 	(my $new_annlines_,$pass_state) = stateful_pass($annlines,$pass_analysis,$pass_state,"pass_analysis($f)");
 	$Sf->{'Pointers'} = $pass_state->{'Pointers'};
-	$Sf->{'WordSizes'} = 
+	$Sf->{'WordSizes'} =
 		exists $Sf->{'WordSizes'}
 		? { %{$Sf->{'WordSizes'}}, %{$pass_state->{'WordSizes'}}}
 		: { %{$pass_state->{'WordSizes'}}};
@@ -451,7 +451,7 @@ Instead of the nice but cumbersome approach we had until now, from now on it is 
 			if (exists $info->{'VarDecl'}  ) {
 				my $var = $info->{'VarDecl'}{'Name'};
 				if (not exists $stref->{'Subroutines'}{$var}
-				and (not exists $stref->{'Subroutines'}{$f}{'Signature'}{'ResultVar'} 
+				and (not exists $stref->{'Subroutines'}{$f}{'Signature'}{'ResultVar'}
 				or $var ne $stref->{'Subroutines'}{$f}{'Signature'}{'ResultVar'} )
 				) { # otherwise it is a function
 				# say "Stack alloc for $var in $f";
@@ -569,7 +569,7 @@ Instead of the nice but cumbersome approach we had until now, from now on it is 
 				$skip_comment=1;
 				push @{$pass_state->{'Subroutine'}{'LocalVars'}{'List'}}, "( ____ $line )" unless $skip_comment;
 				push @{$pass_state->{'Subroutine'}{'LocalVars'}{'List'}},$uxntal_do_iter_decl;
-			} 
+			}
 			my $do_step = $info->{'Do'}{'Range'}{'Expressions'}[2];
 				if ($do_step!~/^\-?\d+$/) {
 					error("Only DO with constant integer STEP is supported: $line in $f",0,'ERROR');
@@ -685,7 +685,7 @@ Instead of the nice but cumbersome approach we had until now, from now on it is 
 				my $unit= $info->{'UnitVar'};
 				my $fq_unit= __create_fq_varname($stref,$f,$unit);
 				my $iostat = __create_fq_varname($stref,$f,$info->{'IOStat'});
-				$c_line = _var_access_read($stref,$f,$info, [2,$info->{'FileNameVar'}]). 
+				$c_line = _var_access_read($stref,$f,$info, [2,$info->{'FileNameVar'}]).
 				" #0002 ADD2 .File/name DEO2";
 				if (not exists $stref->{'Subroutines'}{$f}{'FileHandle'}) {
 					$stref->{'Subroutines'}{$f}{'FileHandle'}{$unit}={
@@ -704,7 +704,7 @@ Instead of the nice but cumbersome approach we had until now, from now on it is 
 			}
 			elsif (exists $info->{'ReadCall'}) {
 				$stref->{'HasReadFile'}=1;
-				# read(unit=$src,iostat=$stat,rec=$i) $cbuf 
+				# read(unit=$src,iostat=$stat,rec=$i) $cbuf
 				my $rec = __create_fq_varname($stref,$f,$info->{'RecVar'});
 				# croak Dumper sort keys %{$info};
 				if ($info->{'IOList'}{'AST'}[0] != 2) {
@@ -721,7 +721,7 @@ Instead of the nice but cumbersome approach we had until now, from now on it is 
 				if ($decl->{'Type'} ne 'character') {
 					die "READ is only supported with a character buffer\n";
 				} else {
-					if (exists $decl->{'Attr'} and $decl->{'Attr'}=~/len/) { 
+					if (exists $decl->{'Attr'} and $decl->{'Attr'}=~/len/) {
 						$len=$decl->{'Attr'}; $len=~s/^\(len=//;$len=~s/\)$//;
 					} else {
 						$len=1;
@@ -730,7 +730,7 @@ Instead of the nice but cumbersome approach we had until now, from now on it is 
 				my $uxntal_len = toHex($len,2);
 				my $fq_cbuf = __create_fq_varname($stref,$f,$cbuf);
 				my $iostat = __create_fq_varname($stref,$f,$info->{'IOStat'});
-				$c_line = "$uxntal_len .File/length DEO2\n" 
+				$c_line = "$uxntal_len .File/length DEO2\n"
 				. ";$fq_cbuf .File/read DEO2\n"
 				. ";$rec LDA2 INC2 ;$rec STA2\n"
 				. ".File/success DEI2 #0001 SUB2 ;$iostat STA2";
@@ -841,14 +841,14 @@ Instead of the nice but cumbersome approach we had until now, from now on it is 
 				# We return the address
 				# ResultVar should always be statically allocated if it is an array or string
 				# if ($use_stack) {
-				# 	$c_line =  __stack_access($stref,$f,$res).' !pop-frame';	
+				# 	$c_line =  __stack_access($stref,$f,$res).' !pop-frame';
 				# } else {
 					$c_line = ';'. __create_fq_varname($stref,$f,$res). ' JMP2r';
 				# }
 			} else {
 				# We return the value
 				if ($use_stack) {
-					$c_line =  __stack_access($stref,$f,$res).' LDA'.$short_mode.' !pop-frame';	
+					$c_line =  __stack_access($stref,$f,$res).' LDA'.$short_mode.' !pop-frame';
 				} else {
 					$c_line = ';'. __create_fq_varname($stref,$f,$res).' LDA'.$short_mode .' JMP2r';
 				}
@@ -1091,19 +1091,22 @@ sub __use_stack($stref,$f) {
 
 sub _var_access_read($stref,$f,$info,$ast) {
 	my ($var,$idxs,$idx_expr_type) = __unpack_var_access_ast($ast);
-	
+
 	my $Sf = $stref->{'Subroutines'}{$f};
 	my $short_mode = $Sf->{'WordSizes'}{$var} == 2 ? '2' : '';
+	my $idx_offset = __get_array_index_offset($stref,$f,$var);
+	my $idx_offset_Uxntal =  toHex($idx_offset,2);
+	my $idx_offset_expr = $idx_offset==0? '' : $idx_offset_Uxntal.' SUB2';
 	my $uxntal_code = '';
-	
+
 	if (is_param($stref,$f,$var)) {
 		$uxntal_code = __create_fq_varname($stref,$f,$var);
 	} else {
 		my $var_access = __var_access($stref,$f,$var);
 		if (is_array($stref,$f,$var) and $idx_expr_type == 1) {
 			my $idx = _emit_expression_Uxntal($idxs,$stref,$f,$info);
-			my $idx_expr = defined $idx ? ($idx eq '#0000') ? '' :
-			"$idx ".( $short_mode ? ' #0002 MUL2 ': '') .' ADD2 ' : '';
+			my $idx_expr = defined $idx ? ($idx eq $idx_offset_Uxntal) ? '' :
+			"$idx $idx_offset_expr".( $short_mode ? ' #0002 MUL2 ': '') .' ADD2 ' : '';
 			$uxntal_code = 	"$var_access $idx_expr LDA$short_mode"; # index, load the value
 		} elsif (is_array($stref,$f,$var) and $idx_expr_type == 2) {
 			croak('Array slice is not yet supported: '.Dumper($ast));
@@ -1112,7 +1115,7 @@ sub _var_access_read($stref,$f,$info,$ast) {
 			my $idx_expr_b = _emit_expression_Uxntal($idxs->[1], $stref, $f,$info);
 			my $idx_expr_e = _emit_expression_Uxntal($idxs->[2], $stref, $f,$info);
 			if ($idx_expr_b eq $idx_expr_e) { # access a single character, so return a byte as value
-				my $idx_expr =  ($idx_expr_b eq '#0000') ? '' : "$idx_expr_b ADD2 ";
+				my $idx_expr =  ($idx_expr_b eq  $idx_offset_Uxntal) ? '' : "$idx_expr_b  $idx_offset_expr ADD2 ";
 				$uxntal_code =  "$var_access INC2 $idx_expr LDA" # load a pointer, index, load the value
 			} else {
 				# extract a substring
@@ -1191,6 +1194,9 @@ sub _var_access_assign($stref,$f,$info,$lhs_ast,$rhs_ast) {
 	my $Sf = $stref->{'Subroutines'}{$f};
 	my $word_sz= $Sf->{'WordSizes'}{$var};
 	my $short_mode = $word_sz == 2 ? '2' : '';
+	my $lhs_idx_offset = __get_array_index_offset($stref,$f,$var);
+	my $lhs_idx_offset_Uxntal =  toHex($lhs_idx_offset,2);
+	my $lhs_idx_offset_expr = $lhs_idx_offset==0? '' : $lhs_idx_offset_Uxntal.' SUB2';
 	my $uxntal_code = '';
 	my $use_stack = __use_stack($stref,$f);
 	my $lhs_var_access = __var_access($stref,$f,$var);
@@ -1198,7 +1204,7 @@ sub _var_access_assign($stref,$f,$info,$lhs_ast,$rhs_ast) {
     if  (is_array($stref,$f,$var) and $idx_expr_type == 1) { # array(i) = rhs_expr
 		my $rhs_expr_Uxntal = _emit_expression_Uxntal($rhs_ast,$stref,$f,$info);
 		my $idx = _emit_expression_Uxntal($idxs,$stref,$f,$info);
-		my $idx_expr = defined $idx ? ($idx eq '#0000') ? '' : "$idx ".( $short_mode ? ' #0002 MUL2 ': '') .' ADD2 ' : '';
+		my $idx_expr = defined $idx ? ($idx eq $lhs_idx_offset_Uxntal) ? '' : "$idx $lhs_idx_offset_expr".( $short_mode ? ' #0002 MUL2 ': '') .' ADD2 ' : '';
 		$uxntal_code = "$rhs_expr_Uxntal  $lhs_var_access $idx_expr STA$short_mode"; # index, load the value
 	} elsif  (is_array($stref,$f,$var) and $idx_expr_type == 2) {
 		error('Array slice is not yet supported: '.Dumper($lhs_ast));
@@ -1235,7 +1241,7 @@ sub _var_access_assign($stref,$f,$info,$lhs_ast,$rhs_ast) {
 			my $decl = getDecl($stref,$f,$var);
 			if (is_character($stref,$f,$var) ) { # Array of characters
 			# If so, we set every elt to that string
-				my $dim = exists $decl->{'ConstDim'} 
+				my $dim = exists $decl->{'ConstDim'}
 					? __C_array_size($decl->{'ConstDim'})
 					: __C_array_size($decl->{'Dim'});
 				# my $dim =  __C_array_size($decl->{'Dim'});
@@ -1265,7 +1271,7 @@ sub _var_access_assign($stref,$f,$info,$lhs_ast,$rhs_ast) {
 				my $short_mode = $mkind==2 ? '2' : '';
 				my $rhs_int_literal = toHex($rhs_ast->[1],$mkind);
 				my $ref = \$rhs_ast; $ref=~s/REF..//;$ref=~s/\)//;
-				$uxntal_code = 
+				$uxntal_code =
 					"{ ( iter ) $rhs_int_literal ". ( $short_mode eq '2' ? ' SWP2' : ' ROT ROT' ).' '.
 					"$lhs_var_access ADD2 STA$short_mode JMP2r } STH2r ".
 					toHex($array_length-1,2)
@@ -1280,7 +1286,7 @@ sub _var_access_assign($stref,$f,$info,$lhs_ast,$rhs_ast) {
 			if ( is_logical($stref,$f,$var) ) {
 				my $rhs_bool_literal = $rhs_ast->[1] eq '.true' ? '#01' : '#00';
 				my $ref = \$rhs_ast; $ref=~s/REF..//;$ref=~s/\)//;
-				$uxntal_code = 
+				$uxntal_code =
 					"{ ( iter ) $rhs_bool_literal ".  'ROT ROT'  .
 					"$lhs_var_access ADD2 STA JMP2r } STH2r ".
 					toHex($array_length-1,2)
@@ -1647,7 +1653,7 @@ sub _stack_allocation($stref,$f,$var) {
 			croak Dumper $decl if $var eq 'res';
 			# my $decl = getDecl($stref,$f,$var);
 			# my $dim =  __C_array_size($decl->{'Dim'});
-			my $dim = exists $decl->{'ConstDim'} 
+			my $dim = exists $decl->{'ConstDim'}
 				? __C_array_size($decl->{'ConstDim'})
 				: __C_array_size($decl->{'Dim'}) ;
 			my $nbytes= $dim*$word_sz;
@@ -1946,13 +1952,13 @@ sub _emit_arg_decl_Uxntal($stref,$f,$arg, $name){
 		$use_stack=0;
 		}
 	# If the arg is an Out arg, we need to put its address on the stack
-	# TODO: I need to check the handling of a RESULT string from a function. 
+	# TODO: I need to check the handling of a RESULT string from a function.
 	# If we don't use the stack we can allocate this as a local and return the address
 	# But if we do use the stack the allocation should be done by the caller.
 	# So to do this right, the allocation should always be done by the caller.
-	# What if we have something like f(str(...)) and str returns a string? 
+	# What if we have something like f(str(...)) and str returns a string?
 	# The only good way seems to do something like tmp_str = str(...); f(tmp_str)
-	# What this means is that a call to a function that is used as an arg should have a strcpy 
+	# What this means is that a call to a function that is used as an arg should have a strcpy
 	my $uxntal_arg_store = ($use_stack
 		? __stack_access($stref,$f,$arg)
 		: ";$fq_name"
@@ -2025,9 +2031,9 @@ sub _emit_var_decl_Uxntal ($stref,$f,$info,$var){
 		# croak "$subset $f ". Dumper( $decl) if $decl->{'Type'} eq 'real';
 		# croak "$subset $f ". Dumper( $decl) if $var eq 'funktalTokens';
 		my $dim = $array
-			? exists $decl->{'ConstDim'} 
+			? exists $decl->{'ConstDim'}
 				? __C_array_size($decl->{'ConstDim'})
-				: __C_array_size($decl->{'Dim'}) 
+				: __C_array_size($decl->{'Dim'})
 			: 1;
 		my $ftype = $decl->{'Type'};
 		my $strlen=0;
@@ -2157,13 +2163,13 @@ sub _emit_expression_Uxntal ($ast, $stref, $f, $info) {
 				return _emit_expression_Uxntal($uxn_ast, $stref, $f,$info);
 			}
 			elsif ($name eq 'ishft') {
-				# We need to translate the negative into a shift over 4 
+				# We need to translate the negative into a shift over 4
 				# This is not even always possible, in principle this has to be a runtime operation
 				# But for constant shifts it can be done
 				my $val_to_shift = _emit_expression_Uxntal($args->[1], $stref, $f,$info);
 				if ($args->[2][0]==29 or ($args->[2][0]==4 and $args->[2][1][0]==29)) {
 					my $shift_dir = $args->[2][0] == 4 ? 'right' : 'left';
-					
+
 					my $shift_nbits = $shift_dir eq 'left' ? $args->[2][1] : $args->[2][1][1];
 					my $sft = toHex($shift_nbits,1);
 					if ($shift_dir eq 'left') {
@@ -2178,7 +2184,7 @@ sub _emit_expression_Uxntal ($ast, $stref, $f, $info) {
 				return _emit_function_call_expr_Uxntal($stref,$f,$info,$ast);
 			}
 		}
-		elsif ($opcode == 28) { # (/ 
+		elsif ($opcode == 28) { # (/
 			# this is very lazy, but it works
 			my $lst_expr = _emit_expression_Uxntal($ast->[1], $stref, $f,$info);
 			$lst_expr =~s/\#//g;
@@ -2396,7 +2402,7 @@ sub _emit_subroutine_call_expr_Uxntal($stref,$f,$line,$info){
 		: 0;
 		my $arg_expr_ast = $info->{'SubroutineCall'}{'ExpressionAST'}[0] == 27 ? $info->{'SubroutineCall'}{'ExpressionAST'}[$idx] : $info->{'SubroutineCall'}{'ExpressionAST'};
 		if ($isConstOrExpr) { # Not a var; but it can still be a string.
-		# look at the signature 
+		# look at the signature
 			if ($arg_expr_ast->[0] == 34) { # special case
 				if (exists $rec->{'Attr'} and $rec->{'Attr'} ne ''
 				and $rec->{'Attr'}!~/len=1$/) {
@@ -2466,7 +2472,7 @@ sub _emit_function_call_expr_Uxntal($stref,$f,$info,$ast){
 			my $idx=0;
 			for my $call_arg_ast (@call_arg_asts) {
 				$idx++;
-				if (not ($call_arg_ast->[0]==9 and $call_arg_ast->[1][1] eq 'kind') 
+				if (not ($call_arg_ast->[0]==9 and $call_arg_ast->[1][1] eq 'kind')
 				) { # skip kind=... argument as we don't use it anyway
 					my $call_arg_expr_str =
 					($call_arg_ast->[0] == 2 or $call_arg_ast->[0] == 10 or $call_arg_ast->[0] > 28)
@@ -2831,10 +2837,16 @@ sub toUxntalType($ftype,$kind ){
 sub toHex($n,$sz){
 	croak if not defined $n;
 	my $szx2 = $sz*2;
+	if ($n<0) {
+		$n=(2*($sz*8))-$n;
+	}
 	return sprintf("#%0${szx2}x",$n);
 }
 sub toRawHex($n,$sz){
 	my $szx2 = $sz*2;
+	if ($n<0) {
+		$n=(2*($sz*8))-$n;
+	}
 	return sprintf("%0${szx2}x",$n);
 }
 
@@ -2945,9 +2957,13 @@ sub _emit_list_print_Uxntal($stref,$f,$line,$info,$unit,$advance,$list_to_print)
 		# An array as arg is caught in _emit_print_from_ast so I should handle the slice there as well
 		my $print_fn_Uxntal = _emit_print_from_ast($stref,$f,$line,$info,$unit,$elt);
 		# croak("HANDLE ARRAY SLICE HERE!");
+		my $var_name = $elt->[1];
+		my $idx_offset = __get_array_index_offset($stref,$f,$var_name);
+		my $idx_offset_Uxntal =  toHex($idx_offset,2);
+		my $idx_offset_expr = $idx_offset==0? '' : $idx_offset_Uxntal.' SUB2';
+
 		if ($print_fn_Uxntal eq 'print-array') {
 			# transforming the array into an index access mighr be best
-			my $var_name = $elt->[1];
 			my $decl = getDecl($stref,$f,$var_name);
 			# carp Dumper($decl);
 			my $array_length = exists $decl->{'ConstDim'}
@@ -2968,7 +2984,7 @@ sub _emit_list_print_Uxntal($stref,$f,$line,$info,$unit,$advance,$list_to_print)
 			my $arg_to_print_Uxntal = _emit_expression_Uxntal($elt,$stref, $f, $info);
 			my $elt_0 = [10,$elt->[1],[29,'0']];
 			my $print_fn_Uxntal = _emit_print_from_ast($stref,$f,$line,$info,$unit,$elt_0);
-			$line_Uxntal = '{ ( iter ) ,&'.$iter.' STR2 '.$arg_to_print_Uxntal.' '.$print_fn_Uxntal." JMP2r } STH2r $e #0001 SUB2 $b #0001 SUB2 range-map-short ( print-array-slice )";
+			$line_Uxntal = '{ ( iter ) ,&'.$iter.' STR2 '.$arg_to_print_Uxntal.' '.$print_fn_Uxntal." JMP2r } STH2r $e $idx_offset_expr $b $idx_offset_expr range-map-short ( print-array-slice )";
 			# croak $line_Uxntal;
 		} else {
 			my $arg_to_print_Uxntal = _emit_expression_Uxntal($elt,$stref, $f, $info);
@@ -3022,9 +3038,9 @@ sub _emit_print_from_ast($stref,$f,$line,$info,$unit,$elt){
 			# this should be a range-map-short over the entire array
 			# { ( iter ) $array ADD2 LDA$short_mode $   }
 		}
-		elsif ($code == 10 and $elt->[2][0] == 12 and exists $decl->{'Dim'}) { 
+		elsif ($code == 10 and $elt->[2][0] == 12 and exists $decl->{'Dim'}) {
 			return 'print-array-slice';
-			croak("Printing an array slice is currently unsupported",Dumper($elt,$decl)) 
+			croak("Printing an array slice is currently unsupported",Dumper($elt,$decl))
 		}
 		# Detect and handle an array slice here. That should be [10, 'array', [':',...]]
 		if ( $decl->{'Type'} eq 'character') {
@@ -3138,16 +3154,16 @@ sub _emit_print_from_ast($stref,$f,$line,$info,$unit,$elt){
 # Returns a list of print calls and offsets
 
 
-# How do we print 
+# How do we print
 
 # funktalTokens(1:funktalTokensIdx-1)
 
-# We need essentially  
+# We need essentially
 # {
 # $print_item JMP2r
 # } STH2r funktalTokensIdx-2 0 range-map-short
 
-# where $print_item depends on the type of the array. 
+# where $print_item depends on the type of the array.
 # I think the most pragmatic approach is to support only a single array argument, and add a special case, detected in _analyse_write_call: if there is a single arg and it is an array
 # (if there are more args and one is an array, )
 
@@ -3302,7 +3318,7 @@ sub __parse_fmt($fmt_str,$stref,$f,$info){
 			} elsif ($nchars=~/^(\d)$/) {
 				$nchars=$1;
 			} else { # For formats without numbers, we need to count the characters for each item in the IO list
-				my $val_ast = ($info->{'IOList'}{'AST'}[0]==27) 
+				my $val_ast = ($info->{'IOList'}{'AST'}[0]==27)
 					# more than one argument in the IO list
 					? $info->{'IOList'}{'AST'}[$chunk_idx]
 					: $info->{'IOList'}{'AST'};
@@ -3313,13 +3329,13 @@ sub __parse_fmt($fmt_str,$stref,$f,$info){
 					my $decl = getDecl($stref,$f,$var);
 					my $len=0;
 					if ($decl->{'Type'} eq 'character') {
-						if (exists $decl->{'Attr'} and $decl->{'Attr'}=~/len/) { 
+						if (exists $decl->{'Attr'} and $decl->{'Attr'}=~/len/) {
 							$len=$decl->{'Attr'}; $len=~s/^\(len=//;$len=~s/\)$//;
 						} else {
 							$len=1;
 						}
 					} elsif ($decl->{'Type'} eq 'integer') {
-						if (exists $decl->{'Attr'} and $decl->{'Attr'}=~/kind/) { 
+						if (exists $decl->{'Attr'} and $decl->{'Attr'}=~/kind/) {
 							$len=$decl->{'Attr'}; $len=~s/^\(kind=//;$len=~s/\)$//;
 						} else {
 							$len=1;
@@ -3375,7 +3391,7 @@ sub __parse_fmt($fmt_str,$stref,$f,$info){
 				}
 			}
 			elsif ( $c eq '*' ) {
-				my $val_ast = ($info->{'IOList'}{'AST'}[0]==27) 
+				my $val_ast = ($info->{'IOList'}{'AST'}[0]==27)
 					# more than one argument in the IO list
 					? $info->{'IOList'}{'AST'}[$chunk_idx]
 					: $info->{'IOList'}{'AST'};
@@ -3428,7 +3444,7 @@ sub __get_len_from_AST($val_ast, $phs){
 	} else {
 		croak("Unsupported arg type for fmt: ".Dumper($val_ast));
 	}
-}
+} # END of __get_len_from_AST
 
 sub __get_type_len_from_AST($val_ast, $phs){
 #                29         30      31         32           33         34             35       36
@@ -3459,7 +3475,7 @@ sub __get_type_len_from_AST($val_ast, $phs){
 	} else {
 		croak("Unsupported arg type for fmt: ".Dumper($val_ast));
 	}
-}
+} # END of __get_type_len_from_AST
 
 sub __get_len_from_Attr($decl){
 	if (exists $decl->{'Attr'} and $decl->{'Attr'} ne '') {
@@ -3471,11 +3487,42 @@ sub __get_len_from_Attr($decl){
 	} else {
 		croak "Decl has no Attr: ".Dumper($decl);
 	}
-}
+} # END of __get_len_from_Attr
+sub  __get_array_index_offset($stref,$f,$var){
+	my $decl=getDecl($stref,$f,$var);
+	if (exists $decl->{'Dim'} and scalar $decl->{'Dim'} > 0) {
+		if ($decl->{'Dim'} == 1) {
+			return $decl->{'Dim'}[0][0];
+		} else {
+			croak "Only 1-Dim arrays are supported: ".Dumper($decl);
+		}
+	} else {
+		croak "Decl has no Dim: ".Dumper($decl);
+	}
+} # END of __get_array_index_offset_from_Dim
+sub  __get_array_index_offset_from_Dim($decl){
+	if (exists $decl->{'ConstDim'} and scalar $decl->{'ConstDim'} > 0) {
+		if ($decl->{'ConstDim'} == 1) {
+			return $decl->{'ConstDim'}[0][0];
+		} else {
+			croak "Only 1-Dim arrays are supported: ".Dumper($decl);
+		}
+	}
+	elsif (exists $decl->{'Dim'} and scalar $decl->{'Dim'} > 0) {
+		if ($decl->{'Dim'} == 1) {
+			return $decl->{'Dim'}[0][0];
+		} else {
+			croak "Only 1-Dim arrays are supported: ".Dumper($decl);
+		}
+	} else {
+		croak "Decl has no Dim: ".Dumper($decl);
+	}
+} # END of __get_array_index_offset_from_Dim
+
 sub __emit_list_based_print_write($stref,$f,$line,$info,$unit, $advance){
 # carp Dumper $info->{'IOCall'}{'Args'}{'AST'};
 	my $port = $unit eq 'STDERR' ? '#19' : '#18';
-	# 
+	#
 	my $ast =  $info->{'IO'} eq 'print'
 		? $info->{'IOCall'}{'Args'}{'AST'}
 		:  [1,'write',[27,[32,'*'],
@@ -3483,7 +3530,7 @@ sub __emit_list_based_print_write($stref,$f,$line,$info,$unit, $advance){
 			? @{ $info->{'IOList'}{'AST'} }[
 				1 ..
 				scalar  @{ $info->{'IOList'}{'AST'} } - 1
-				] 
+				]
 			: $info->{'IOList'}{'AST'}
 		)
 		] ] ;
@@ -3512,9 +3559,10 @@ sub __emit_list_based_print_write($stref,$f,$line,$info,$unit, $advance){
 			add_to_used_lib_subs($print_call);
 			$c_line.= _emit_expression_Uxntal($arg_ast,$stref, $f, $info).' '.$print_call. " #20 $port DEO"."\n";
 		}
+		$c_line .= " #0a $port DEO";
 	}
 	# if ($unit eq 'STDERR') {
-		return $c_line . " #0a $port DEO";
+		return $c_line;
 	# }
 	# else {
 	# 	return $c_line . ' #0a #18 DEO'."  ( unit: <$unit> ) ";
@@ -3546,7 +3594,7 @@ sub getDecl($stref,$f,$var) {
 		return undef;
 	}
 	my $Sf = exists $stref->{'Modules'}{$f}
-		? $stref->{'Modules'}{$f} 
+		? $stref->{'Modules'}{$f}
 		: $stref->{'Subroutines'}{$f};
 
 	my $subset = in_restricted_nested_set( $Sf, 'Vars', $var ,
@@ -3565,7 +3613,7 @@ sub getDecl($stref,$f,$var) {
 	? $decl->{'ParentModule'}
 	: $f;
 	# croak "$subset $f $var" if not exists $decl->{'ConstDim'};
-	# Module var decl records are copied into the state of the subroutines that use them 
+	# Module var decl records are copied into the state of the subroutines that use them
 	# before constant folding is done. So we need to get the originals instead.
 	if( $subset eq 'ModuleVars') {
 		# carp Dumper $decl;
@@ -3781,7 +3829,7 @@ We need at least a
 	$Sf->{'FileHandle'}{$src}={
 	file =>
 	iostat =>
-		... 
+		...
 	}
 
 # Open
@@ -3808,10 +3856,10 @@ File/success* will be less than File/length* if the file is shorter, so if lengh
 $stat is a scalar default INTEGER variable that is assigned a positive value if an error condition occurs, a negative value if an end-of-file or end-of-record condition occurs, and zero
 otherwise.
 
-		read(unit=$src,iostat=$stat,rec=$i) $cbuf 
+		read(unit=$src,iostat=$stat,rec=$i) $cbuf
 
 		=>
-		. "$len .File/length DEO2\n" 
+		. "$len .File/length DEO2\n"
 		. ";&$cbuf .File/read DEO2\n"
 		. ";$i LDA2 INC2 ;$i STA2\n"
         . ".File/success DEI2 #0001 SUB2 ;&$stat STA2";
@@ -3819,7 +3867,7 @@ otherwise.
 # Write
 
 For file writes, I think I will only support the following:
-	write($src,*) $data 
+	write($src,*) $data
 	. "$len .File/length DEO2\n"
 	. ";$data .File/write DEO2" ;
 =cut
