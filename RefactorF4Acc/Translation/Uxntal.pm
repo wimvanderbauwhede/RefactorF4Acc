@@ -539,8 +539,8 @@ Instead of the nice but cumbersome approach we had until now, from now on it is 
 				}
 				push @{$pass_state->{'DoStack'}}, [
 					$id,$do_iterator,$do_step,'Do'];
-				my $do_start= _emit_expression_Uxntal($info->{'Do'}{'Range'}{'ExpressionASTs'}[0],$stref, $f, $info);
-				my $do_stop =  _emit_expression_Uxntal($info->{'Do'}{'Range'}{'ExpressionASTs'}[1],$stref, $f, $info);
+				my ($do_start,$word_sz)= _emit_expression_Uxntal($info->{'Do'}{'Range'}{'ExpressionASTs'}[0],$stref, $f, $info);
+				(my $do_stop,$word_sz) =  _emit_expression_Uxntal($info->{'Do'}{'Range'}{'ExpressionASTs'}[1],$stref, $f, $info);
 				$c_line = $do_stop . ' INC2 ' . $do_start . "\n" .
 				# 'DUP2 EQU2k ;&loop_end_'.$f.'_'.$id.' JCN2'. "\n" .
 				'OVR2 OVR2 SUB2 #fff7 GTH2 ;&loop_end_'.$f.'_'.$id.' JCN2'. "\n" .
@@ -559,7 +559,7 @@ Instead of the nice but cumbersome approach we had until now, from now on it is 
 				my $indent = $info->{'Indent'};
 				my $branch_id = $info->{'LineID'};
 				my $cond_expr_ast=$info->{'Cond'}{'AST'};
-				my $cond_expr = _emit_expression_Uxntal($cond_expr_ast,$stref,$f,$info);
+				my ($cond_expr,$word_sz) = _emit_expression_Uxntal($cond_expr_ast,$stref,$f,$info);
 				$c_line = "\n$cond_expr #00 EQU ,&branch$branch_id JCN\n" . $indent.$c_line;
 				$c_line .= "\n&branch$branch_id";
 			}
@@ -571,7 +571,7 @@ Instead of the nice but cumbersome approach we had until now, from now on it is 
 				my $indent = $info->{'Indent'};
 				my $branch_id = $info->{'LineID'};
 				my $cond_expr_ast=$info->{'Cond'}{'AST'};
-				my $cond_expr = _emit_expression_Uxntal($cond_expr_ast,$stref,$f,$info);
+				my ($cond_expr,$word_sz) = _emit_expression_Uxntal($cond_expr_ast,$stref,$f,$info);
 			# What we have is e.g.
 			# if (fl(1:2) == __PH0__) VV = .true.
 			# What we need is
@@ -607,13 +607,14 @@ Instead of the nice but cumbersome approach we had until now, from now on it is 
 				} else {
 					# if ($unit eq 'STDOUT' or $unit eq 'STDERR') {
 					add_to_used_lib_subs('update-len');
+					my ($uxntal_expr_str,$word_sz) = _emit_expression_Uxntal([2,$unit],$stref, $f, $info);
 					my $update_len = ($unit eq 'STDOUT' or $unit eq 'STDERR') ? '' :
-						' '._emit_expression_Uxntal([2,$unit],$stref, $f, $info). ' update-len ';
+						' '.$uxntal_expr_str. ' update-len ';
 					$c_line = ($unit eq 'STDOUT' or $unit eq 'STDERR') ? '' :
-						' #0000 '._emit_expression_Uxntal([2,$unit],$stref, $f, $info). ' STA2 ';
+						' #0000 '.$uxntal_expr_str. ' STA2 ';
 					my $maybe_str = ($unit eq 'STDOUT' or $unit eq 'STDERR')
 						? ''
-						: _emit_expression_Uxntal([2,$unit],$stref, $f, $info);
+						: $uxntal_expr_str;
 					# ";$unit ";
 					my $idx=1;
 					for my $print_call (@{$print_calls}) {
@@ -632,7 +633,7 @@ Instead of the nice but cumbersome approach we had until now, from now on it is 
 							$arg_ast = $iolist_ast;
 						}
 						# say Dumper( $offsets->[$idx-1] -($idx<1?0:$offsets->[$idx-2]), $arg_ast);
-						my $arg_exp_Uxntal = _emit_expression_Uxntal($arg_ast,$stref, $f, $info);
+						my ($arg_exp_Uxntal,$word_sz) = _emit_expression_Uxntal($arg_ast,$stref, $f, $info);
 						if ($arg_exp_Uxntal=~/\#\d+/ and $print_call=~/string/) {
 							$print_call=~s/string/char/;
 						}
@@ -706,7 +707,7 @@ Instead of the nice but cumbersome approach we had until now, from now on it is 
 				my $indent = $info->{'Indent'};
 				my $branch_id = $info->{'LineID'};
 				my $cond_expr_ast=$info->{'Cond'}{'AST'};
-				my $cond_expr = _emit_expression_Uxntal($cond_expr_ast,$stref,$f,$info);
+				my ($cond_expr,$word_sz) = _emit_expression_Uxntal($cond_expr_ast,$stref,$f,$info);
 			# What we have is e.g.
 			# if (fl(1:2) == __PH0__) VV = .true.
 			# What we need is
@@ -725,7 +726,7 @@ Instead of the nice but cumbersome approach we had until now, from now on it is 
 			my $indent = $info->{'Indent'};
 			my $branch_id = $info->{'LineID'};
 			my $cond_expr_ast=$info->{'Cond'}{'AST'};
-			my $cond_expr = _emit_expression_Uxntal($cond_expr_ast,$stref,$f,$info);
+			my ($cond_expr,$word_sz) = _emit_expression_Uxntal($cond_expr_ast,$stref,$f,$info);
 			$c_line = "\n( If without Then )\n" . $indent.' '."$cond_expr #00 EQU ;&branch$branch_id JCN2\n" . $c_line;
 			$c_line .= $indent.' '."&branch$branch_id";
 		}
@@ -772,7 +773,7 @@ Instead of the nice but cumbersome approach we had until now, from now on it is 
 				} else { # while
 				# croak Dumper $do_tup;
 					my ($do_id, $do_while_cond) = @{$do_tup};
-					$c_line =  _emit_expression_Uxntal($do_while_cond,$stref, $f, $info);
+					($c_line,my $word_sz) =  _emit_expression_Uxntal($do_while_cond,$stref, $f, $info);
 					$c_line .= "\n".';&while_loop_'.$f.'_'.$do_id.' JCN2';
 				}
 		}
@@ -1053,50 +1054,61 @@ sub __use_stack($stref,$f) {
 # In other words, it is either read or assign: even an OUT arg must be assigned somewhere.
 # And except for the memwrite-string and memwrite-array, having a read access function still makes sense.
 
+# Returns the Uxntal expression and its word size
 sub _var_access_read($stref,$f,$info,$ast) {
 	my ($var,$idxs,$idx_expr_type) = __unpack_var_access_ast($ast);
 
 	my $Sf = $stref->{'Subroutines'}{$f};
 	my $word_sz = $Sf->{'WordSizes'}{$var};
 	my $short_mode = $word_sz == 2 ? '2' : '';
-	my $idx_offset = __get_array_index_offset($stref,$f,$var);
-	my $idx_offset_Uxntal =  toHex($idx_offset,2);
-	my $idx_offset_expr = $idx_offset==0? '' : $idx_offset_Uxntal.' SUB2';
 	my $uxntal_code = '';
 
 	if (is_param($stref,$f,$var)) {
 		$uxntal_code = __create_fq_varname($stref,$f,$var);
 	} else {
 		my $var_access = __var_access($stref,$f,$var);
-		if (is_array($stref,$f,$var) and $idx_expr_type == 1) {
-			my $idx = _emit_expression_Uxntal($idxs,$stref,$f,$info);
-			my $idx_expr = defined $idx ? ($idx eq $idx_offset_Uxntal) ? '' :
-			"$idx $idx_offset_expr".( $short_mode ? ' #0002 MUL2 ': '') .' ADD2 ' : '';
-			$uxntal_code = 	"$var_access $idx_expr LDA$short_mode"; # index, load the value
-		} elsif (is_array($stref,$f,$var) and $idx_expr_type == 2) {
-			croak('Array slice is not yet supported: '.Dumper($ast));
-			error('Array slice is not yet supported: '.Dumper($ast));
-		} elsif  (is_string($stref,$f,$var) and $idx_expr_type == 2) {
-			my $idx_expr_b = _emit_expression_Uxntal($idxs->[1], $stref, $f,$info);
-			my $idx_expr_e = _emit_expression_Uxntal($idxs->[2], $stref, $f,$info);
-			if ($idx_expr_b eq $idx_expr_e) { # access a single character, so return a byte as value
-				my $idx_expr =  ($idx_expr_b eq  $idx_offset_Uxntal) ? '' : "$idx_expr_b  $idx_offset_expr ADD2 ";
-				$uxntal_code =  "$var_access INC2 $idx_expr LDA" # load a pointer, index, load the value
-			} else {
-				# extract a substring
-				# my $decl = get_var_record_from_set($Sf->{'Vars'},$var);
-				my $decl = getDecl($stref,$f,$var);
-				my $id=$info->{'LineID'};
-				if($decl->{'Attr'}!~/len/) {
-					croak 'String with index>1 but the type is character', Dumper $ast;
-				}
-				my $len = __get_len_from_Attr($decl);
-				$uxntal_code = __gen_substr($var_access, $idx_expr_b,$idx_expr_e, $len, $id);
-
+		if (is_array($stref,$f,$var)) {
+			if ($idx_expr_type == 1) {
+				my $idx_offset = __get_array_index_offset($stref,$f,$var);
+				my $idx_offset_Uxntal =  toHex($idx_offset,2);
+				my $idx_offset_expr = $idx_offset==0? '' : $idx_offset_Uxntal.' SUB2';
+				(my $idx,my $idx_word_sz) = _emit_expression_Uxntal($idxs,$stref,$f,$info);
+				my $idx_expr = defined $idx ? ($idx eq $idx_offset_Uxntal) ? '' :
+				"$idx $idx_offset_expr".( $short_mode ? ' #0002 MUL2 ': '') .' ADD2 ' : '';
+				$uxntal_code = 	"$var_access $idx_expr LDA$short_mode"; # index, load the value
+			} elsif ($idx_expr_type == 2) {
+				croak('Array slice is not yet supported: '.Dumper($ast));
+				error('Array slice is not yet supported: '.Dumper($ast));
+			} elsif ($idx_expr_type == 0) {
+				# the array or string itself, likely as argument to a function
+				$uxntal_code =  "$var_access";
 			}
-		} elsif (is_array_or_string($stref,$f,$var) and $idx_expr_type == 0) {
-			# the array or string itself, likely as argument to a function
-			$uxntal_code =  "$var_access";
+		} elsif  (is_string($stref,$f,$var)) {
+			if ($idx_expr_type == 0) {
+				# the array or string itself, likely as argument to a function
+				$uxntal_code =  "$var_access";
+			}
+			elsif( $idx_expr_type == 2) {
+				(my $idx_expr_b,my $idx_word_sz) = _emit_expression_Uxntal($idxs->[1], $stref, $f,$info);
+				(my $idx_expr_e,$idx_word_sz) = _emit_expression_Uxntal($idxs->[2], $stref, $f,$info);
+				if ($idx_expr_b eq $idx_expr_e) { # access a single character, so return a byte as value
+					my $idx_offset = 1;
+					my $idx_offset_Uxntal =  toHex($idx_offset,2);
+					my $idx_offset_expr = $idx_offset==0? '' : $idx_offset_Uxntal.' SUB2';
+					my $idx_expr =  ($idx_expr_b eq  $idx_offset_Uxntal) ? '' : "$idx_expr_b  $idx_offset_expr ADD2 ";
+					$uxntal_code =  "$var_access INC2 $idx_expr LDA" # load a pointer, index, load the value
+				} else {
+					# extract a substring
+					# my $decl = get_var_record_from_set($Sf->{'Vars'},$var);
+					my $decl = getDecl($stref,$f,$var);
+					my $id=$info->{'LineID'};
+					if($decl->{'Attr'}!~/len/) {
+						croak 'String with index>1 but the type is character', Dumper $ast;
+					}
+					my $len = __get_len_from_Attr($decl);
+					$uxntal_code = __gen_substr($var_access, $idx_expr_b,$idx_expr_e, $len, $id);
+				}
+			}
 		} elsif  ($ast->[0] == 2) { # a scalar
 			$uxntal_code =  "$var_access LDA$short_mode";
 		} else {
@@ -1159,140 +1171,137 @@ sub _var_access_assign($stref,$f,$info,$lhs_ast,$rhs_ast) {
 	my $Sf = $stref->{'Subroutines'}{$f};
 	my $word_sz= $Sf->{'WordSizes'}{$var};
 	my $short_mode = $word_sz == 2 ? '2' : '';
-	my $lhs_idx_offset = __get_array_index_offset($stref,$f,$var);
-	my $lhs_idx_offset_Uxntal =  toHex($lhs_idx_offset,2);
-	my $lhs_idx_offset_expr = $lhs_idx_offset==0? '' : $lhs_idx_offset_Uxntal.' SUB2';
 	my $uxntal_code = '';
 	my $use_stack = __use_stack($stref,$f);
 	my $lhs_var_access = __var_access($stref,$f,$var);
-
-    if  (is_array($stref,$f,$var) and $idx_expr_type == 1) { # array(i) = rhs_expr
-		my $rhs_expr_Uxntal = _emit_expression_Uxntal($rhs_ast,$stref,$f,$info);
-		my $idx = _emit_expression_Uxntal($idxs,$stref,$f,$info);
-		my $idx_expr = defined $idx ? ($idx eq $lhs_idx_offset_Uxntal) ? '' : "$idx $lhs_idx_offset_expr".( $short_mode ? ' #0002 MUL2 ': '') .' ADD2 ' : '';
-		$uxntal_code = "$rhs_expr_Uxntal  $lhs_var_access $idx_expr STA$short_mode"; # index, load the value
-	} elsif  (is_array($stref,$f,$var) and $idx_expr_type == 2) {
-		error('Array slice is not yet supported: '.Dumper($lhs_ast));
-	} elsif  (is_string($stref,$f,$var) ) {
-		$uxntal_code =  __copy_substr($stref, $f, $info, $lhs_ast, $rhs_ast)
-	} elsif  (is_array($stref,$f,$var) and $idx_expr_type == 0) {
-		# array = rhs_expr
-		# my $subset = in_nested_set( $Sf, 'Vars', $var );
-		# my $decl = get_var_record_from_set($Sf->{'Vars'},$var);
-		my $decl = getDecl($stref,$f,$var);
-		# It looks like ModuleVars are *copied* per function, not linked.
-		# So I need to get the actual decl from the module
-		# croak "$f $subset ".Dumper( $decl).'; '.Dumper($stref->{'Modules'}{$decl->{'ParentModule'}}{'ModuleVars'}{'Set'}{$var});
-		my $dim = exists $decl->{'ConstDim'}
-			? __C_array_size($decl->{'ConstDim'})
-			: __C_array_size($decl->{'Dim'});
-		my $array_length = $dim;
-		if ($rhs_ast->[0] == 28) { # Array literal
-			my $rhs_array_literal = _emit_expression_Uxntal($rhs_ast, $stref,$f, $info);
-			# unique ID the cheap way
-			my $ref = \$rhs_ast; $ref=~s/REF..//;$ref=~s/\)//;
-			$uxntal_code = "$rhs_array_literal ;&$ref STA2 " .
-			"{ ( iter ) ".
-				( $word_sz==2 ? '#0002 MUL2' : '')
-				.' DUP2 LIT2 &'.$ref.' $2 ADD2 LDA' .$short_mode.
-				( $short_mode eq '2' ? ' SWP2' : ' ROT ROT' )
-				. " $lhs_var_access ADD2 STA$short_mode JMP2r } STH2r ".
-				toHex($array_length-1,2)
-				. ' #0000 range-map-short';
-			add_to_used_lib_subs('range-map-short');
-		} elsif ($rhs_ast->[0] == 34) { # the RHS is a string
-		# We should check that the LHS is an array of strings
-			# my $decl = get_var_record_from_set($Sf->{'Vars'},$var);
+	if  (is_array($stref,$f,$var)) {
+		my $lhs_idx_offset = __get_array_index_offset($stref,$f,$var);
+		my $lhs_idx_offset_Uxntal =  toHex($lhs_idx_offset,2);
+		my $lhs_idx_offset_expr = $lhs_idx_offset==0? '' : $lhs_idx_offset_Uxntal.' SUB2';
+		if  ($idx_expr_type == 1) { # array(i) = rhs_expr
+			my ($rhs_expr_Uxntal, $rhs_word_sz) = _emit_expression_Uxntal($rhs_ast,$stref,$f,$info);
+			if ($rhs_word_sz!=$word_sz){
+				croak "LHS and RHS word sizes don't match: $word_sz <> $rhs_word_sz for assignment to $var in $f";
+			}
+			my ($idx,$idx_word_sz) = _emit_expression_Uxntal($idxs,$stref,$f,$info);
+			my $idx_expr = defined $idx ? ($idx eq $lhs_idx_offset_Uxntal) ? '' : "$idx $lhs_idx_offset_expr".( $short_mode ? ' #0002 MUL2 ': '') .' ADD2 ' : '';
+			$uxntal_code = "$rhs_expr_Uxntal  $lhs_var_access $idx_expr STA$short_mode"; # index, load the value
+		} elsif  ($idx_expr_type == 0) { # array = rhs_expr
 			my $decl = getDecl($stref,$f,$var);
-			if (is_character($stref,$f,$var) ) { # Array of characters
-			# If so, we set every elt to that string
-				my $dim = exists $decl->{'ConstDim'}
-					? __C_array_size($decl->{'ConstDim'})
-					: __C_array_size($decl->{'Dim'});
-				# my $dim =  __C_array_size($decl->{'Dim'});
-				my $array_length = $dim;
-				my $isChar=1;
-				my $rhs_char_literal = __substitute_PlaceHolders_Uxntal($rhs_ast->[1],$info,$isChar);
+			# It looks like ModuleVars are *copied* per function, not linked.
+			# So I need to get the actual decl from the module
+			my $dim = exists $decl->{'ConstDim'}
+				? __C_array_size($decl->{'ConstDim'})
+				: __C_array_size($decl->{'Dim'});
+			my $array_length = $dim;
+			if ($rhs_ast->[0] == 28) { # Array literal
+				my ($rhs_array_literal,$rhs_word_sz) = _emit_expression_Uxntal($rhs_ast, $stref,$f, $info);
 				# unique ID the cheap way
 				my $ref = \$rhs_ast; $ref=~s/REF..//;$ref=~s/\)//;
-				$uxntal_code =
-					"{ ( iter ) $rhs_char_literal ROT ROT ".
-					"$lhs_var_access ADD2 STA JMP2r } STH2r ".
-					toHex($array_length-1,2)
-					. ' #0000 range-map-short';
-				add_to_used_lib_subs('range-map-short');
-			} elsif (is_string($stref,$f,$var) ) { # Array of strings
-				croak 'TODO: ASSIGNMENT TO ARRAY OF STRINGS';
-			} else {
-				error("RHS is string, LHS is array");
-			}
-		} elsif ($rhs_ast->[0] >= 29) { # the RHS is a constant
-		if ($rhs_ast->[0]==29) {
-			# integer, check type and kind of LHS.
-			my $mkind = is_integer($stref,$f,$var);
-			if ($mkind==0 or $mkind==4) {
-				error('Only integer of kind 1 or 2 is supported on the RHS of an array assignment');
-			} else {
-				my $short_mode = $mkind==2 ? '2' : '';
-				my $rhs_int_literal = toHex($rhs_ast->[1],$mkind);
-				my $ref = \$rhs_ast; $ref=~s/REF..//;$ref=~s/\)//;
-				$uxntal_code =
-					"{ ( iter ) $rhs_int_literal ". ( $short_mode eq '2' ? ' SWP2' : ' ROT ROT' ).' '.
-					"$lhs_var_access ADD2 STA$short_mode JMP2r } STH2r ".
-					toHex($array_length-1,2)
-					. ' #0000 range-map-short';
-				add_to_used_lib_subs('range-map-short');
-			}
-		}
-		elsif ($rhs_ast->[0]==31) {
-			# logical, check type and kind of LHS. Encode as 1 or 0 byte
-			croak 'TODO: ASSIGNMENT TO ARRAY OF LOGICALS';
-			# integer, check type and kind of LHS.
-			if ( is_logical($stref,$f,$var) ) {
-				my $rhs_bool_literal = $rhs_ast->[1] eq '.true' ? '#01' : '#00';
-				my $ref = \$rhs_ast; $ref=~s/REF..//;$ref=~s/\)//;
-				$uxntal_code =
-					"{ ( iter ) $rhs_bool_literal ".  'ROT ROT'  .
-					"$lhs_var_access ADD2 STA JMP2r } STH2r ".
-					toHex($array_length-1,2)
-					. ' #0000 range-map-short';
-				add_to_used_lib_subs('range-map-short');
-
-			} else {
-				error('Only integer of kind 1 or 2 is supported on the RHS of an array assignment');
-			}
-		}
-		elsif ($rhs_ast->[0]==32) {
-			croak "CHARACTER assignment to ARRAY ".Dumper($rhs_ast);
-		}
-		else {
-			error('Only integer and logical are supported on the RHS of an array assignment');
-		}
-
-		} else {
-			my ($rhs_var,$idxs,$idx_expr_type) = __unpack_var_access_ast($rhs_ast);
-			if (is_array($stref,$f,$rhs_var)) {
-				# if the rhs is also an array we need an array copy
-				# This is a range-map
-				my $rhs_var_access = __var_access($stref,$f,$rhs_var);
-				$uxntal_code = "{ ( iter ) ".
+				$uxntal_code = "$rhs_array_literal ;&$ref STA2 " .
+				"{ ( iter ) ".
 					( $word_sz==2 ? '#0002 MUL2' : '')
-					." DUP2 $rhs_var_access ADD2 LDA$short_mode " .
-					( $short_mode eq '2' ? 'SWP2' : 'ROT ROT' ). ' '
-					. "$lhs_var_access ADD2 STA$short_mode JMP2r } STH2r ".
+					.' DUP2 LIT2 &'.$ref.' $2 ADD2 LDA' .$short_mode.
+					( $short_mode eq '2' ? ' SWP2' : ' ROT ROT' )
+					. " $lhs_var_access ADD2 STA$short_mode JMP2r } STH2r ".
 					toHex($array_length-1,2)
 					. ' #0000 range-map-short';
 				add_to_used_lib_subs('range-map-short');
+			} elsif ($rhs_ast->[0] == 34) { # the RHS is a string
+			# We should check that the LHS is an array of strings
+				# my $decl = get_var_record_from_set($Sf->{'Vars'},$var);
+				my $decl = getDecl($stref,$f,$var);
+				if (is_character($stref,$f,$var) ) { # Array of characters
+				# If so, we set every elt to that string
+					my $dim = exists $decl->{'ConstDim'}
+						? __C_array_size($decl->{'ConstDim'})
+						: __C_array_size($decl->{'Dim'});
+					# my $dim =  __C_array_size($decl->{'Dim'});
+					my $array_length = $dim;
+					my $isChar=1;
+					my $rhs_char_literal = __substitute_PlaceHolders_Uxntal($rhs_ast->[1],$info,$isChar);
+					# unique ID the cheap way
+					my $ref = \$rhs_ast; $ref=~s/REF..//;$ref=~s/\)//;
+					$uxntal_code =
+						"{ ( iter ) $rhs_char_literal ROT ROT ".
+						"$lhs_var_access ADD2 STA JMP2r } STH2r ".
+						toHex($array_length-1,2)
+						. ' #0000 range-map-short';
+					add_to_used_lib_subs('range-map-short');
+				} elsif (is_string($stref,$f,$var) ) { # Array of strings
+					croak 'TODO: ASSIGNMENT TO ARRAY OF STRINGS';
+				} else {
+					error("RHS is string, LHS is array");
+				}
+			} elsif ($rhs_ast->[0] >= 29) { # the RHS is a constant
+				if ($rhs_ast->[0]==29) { # integer, check type and kind of LHS.
+					my $mkind = is_integer($stref,$f,$var);
+					if ($mkind==0 or $mkind==4) {
+						error('Only integer of kind 1 or 2 is supported on the RHS of an array assignment');
+					} else {
+						my $short_mode = $mkind==2 ? '2' : '';
+						my $rhs_int_literal = toHex($rhs_ast->[1],$mkind);
+						my $ref = \$rhs_ast; $ref=~s/REF..//;$ref=~s/\)//;
+						$uxntal_code =
+							"{ ( iter ) $rhs_int_literal ". ( $short_mode eq '2' ? ' SWP2' : ' ROT ROT' ).' '.
+							"$lhs_var_access ADD2 STA$short_mode JMP2r } STH2r ".
+							toHex($array_length-1,2)
+							. ' #0000 range-map-short';
+						add_to_used_lib_subs('range-map-short');
+					}
+				}
+				elsif ($rhs_ast->[0]==31) { # logical, check type and kind of LHS. Encode as 1 or 0 byte
+					croak 'TODO: ASSIGNMENT TO ARRAY OF LOGICALS';
+					# integer, check type and kind of LHS.
+					if ( is_logical($stref,$f,$var) ) {
+						my $rhs_bool_literal = $rhs_ast->[1] eq '.true' ? '#01' : '#00';
+						my $ref = \$rhs_ast; $ref=~s/REF..//;$ref=~s/\)//;
+						$uxntal_code =
+							"{ ( iter ) $rhs_bool_literal ".  'ROT ROT'  .
+							"$lhs_var_access ADD2 STA JMP2r } STH2r ".
+							toHex($array_length-1,2)
+							. ' #0000 range-map-short';
+						add_to_used_lib_subs('range-map-short');
+
+					} else {
+						error('Only integer of kind 1 or 2 is supported on the RHS of an array assignment');
+					}
+				}
+				elsif ($rhs_ast->[0]==32) { # character constant, I think this is unused
+					croak "CHARACTER assignment to ARRAY ".Dumper($rhs_ast);
+				}
+				else {
+					error('Only integer and logical are supported on the RHS of an array assignment');
+				}
+
 			} else {
-			# if not, it is an error
-				error("LHS is an array but RHS isn't");
+				my ($rhs_var,$idxs,$idx_expr_type) = __unpack_var_access_ast($rhs_ast);
+				if (is_array($stref,$f,$rhs_var)) {
+					# if the rhs is also an array we need an array copy
+					# This is a range-map
+					my $rhs_var_access = __var_access($stref,$f,$rhs_var);
+					$uxntal_code = "{ ( iter ) ".
+						( $word_sz==2 ? '#0002 MUL2' : '')
+						." DUP2 $rhs_var_access ADD2 LDA$short_mode " .
+						( $short_mode eq '2' ? 'SWP2' : 'ROT ROT' ). ' '
+						. "$lhs_var_access ADD2 STA$short_mode JMP2r } STH2r ".
+						toHex($array_length-1,2)
+						. ' #0000 range-map-short';
+					add_to_used_lib_subs('range-map-short');
+				} else {
+				# if not, it is an error
+					error("LHS is an array but RHS isn't");
+				}
 			}
+		} elsif  ( $idx_expr_type == 2) {
+			error('Array slice is not yet supported: '.Dumper($lhs_ast));
+		} else {
+			croak "Unknown index expression type: $idx_expr_type";
 		}
-	} else {
-		# TODO, this should be a
-		# v = <anything not a string>
-		# carp Dumper $rhs_ast;
-		my $rhs_expr_Uxntal = _emit_expression_Uxntal($rhs_ast,$stref,$f,$info);
+	} elsif  (is_string($stref,$f,$var) ) {
+		$uxntal_code =  __copy_substr($stref, $f, $info, $lhs_ast, $rhs_ast)
+	} else { # v = <anything not a string>
+		my ($rhs_expr_Uxntal, $word_sz) = _emit_expression_Uxntal($rhs_ast,$stref,$f,$info);
 		$uxntal_code = "$rhs_expr_Uxntal $lhs_var_access STA$short_mode ( scalar )";
 	}
 	return $uxntal_code;
@@ -1392,12 +1401,14 @@ sub __copy_substr($stref, $f, $info, $lhs_ast, $rhs_ast) {
 	my ($lhs_var,$lhs_idxs,$lhs_idx_expr_type) = __unpack_var_access_ast($lhs_ast);
 	if ($rhs_ast->[0] == 34 or $rhs_ast->[0] == 1 or $rhs_ast->[0] == 13) { # string literal or function returning a string or char
 		my $lhs_var_access = __var_access($stref,$f,$lhs_var);
-		my $rhs_Uxntal_expr =
-			($rhs_ast->[0] == 1 or $rhs_ast->[0] == 13)
-			? _emit_expression_Uxntal($rhs_ast, $stref, $f,$info)
-			: $rhs_ast->[0] == 34
-				? __substitute_PlaceHolders_Uxntal($rhs_ast->[1],$info,0) # 0 means always as string
-				: croak "PROBLEM: ".Dumper($rhs_ast);
+		my $rhs_Uxntal_expr = '';
+		if ($rhs_ast->[0] == 1 or $rhs_ast->[0] == 13) {
+			($rhs_Uxntal_expr, my $rhs_word_sz) = _emit_expression_Uxntal($rhs_ast, $stref, $f,$info)
+		} elsif ($rhs_ast->[0] == 34) {
+			$rhs_Uxntal_expr = __substitute_PlaceHolders_Uxntal($rhs_ast->[1],$info,0) # 0 means always as string
+		} else {
+			croak "PROBLEM: ".Dumper($rhs_ast);
+		}
 		if ($lhs_idx_expr_type == 2) { # slice
 			# s_to(b1:e1) = "str"
 			# This is a full string copy
@@ -1405,8 +1416,8 @@ sub __copy_substr($stref, $f, $info, $lhs_ast, $rhs_ast) {
 			# the LHS is the slice; we use the LHS value
 			# So we copy ce-cb+1 bytes from the RHS to the LHS, starting at position cb
 			# <rhs-string> ;lhs_str <cb> ADD2 <ce-cb+1> strncpy
-			my $lhs_idx_expr_b = _emit_expression_Uxntal($lhs_idxs->[1], $stref, $f,$info);
-			my $lhs_idx_expr_e = _emit_expression_Uxntal($lhs_idxs->[2], $stref, $f,$info);
+			my ($lhs_idx_expr_b,$idx_word_sz) = _emit_expression_Uxntal($lhs_idxs->[1], $stref, $f,$info);
+			(my $lhs_idx_expr_e,$idx_word_sz) = _emit_expression_Uxntal($lhs_idxs->[2], $stref, $f,$info);
 			if ($lhs_idx_expr_b eq $lhs_idx_expr_e ) {
 				# simplyfied case of s_to(b1:b1) = "X"
 				my $lhs_idx_expr =  ($lhs_idx_expr_b eq '#0000') ? '' : "$lhs_idx_expr_b ADD2 ";
@@ -1460,10 +1471,10 @@ sub __copy_substr($stref, $f, $info, $lhs_ast, $rhs_ast) {
 		if ($lhs_idx_expr_type == 2 and $rhs_idx_expr_type == 2) {
 			# both are slices
 			# get the slice index expressions
-			my $lhs_idx_expr_b = _emit_expression_Uxntal($lhs_idxs->[1], $stref, $f,$info);
-			my $lhs_idx_expr_e = _emit_expression_Uxntal($lhs_idxs->[2], $stref, $f,$info);
-			my $rhs_idx_expr_b = _emit_expression_Uxntal($rhs_idxs->[1], $stref, $f,$info);
-			my $rhs_idx_expr_e = _emit_expression_Uxntal($rhs_idxs->[2], $stref, $f,$info);
+			my ($lhs_idx_expr_b,$idx_word_sz) = _emit_expression_Uxntal($lhs_idxs->[1], $stref, $f,$info);
+			(my $lhs_idx_expr_e,$idx_word_sz) = _emit_expression_Uxntal($lhs_idxs->[2], $stref, $f,$info);
+			(my $rhs_idx_expr_b,$idx_word_sz) = _emit_expression_Uxntal($rhs_idxs->[1], $stref, $f,$info);
+			(my $rhs_idx_expr_e,$idx_word_sz) = _emit_expression_Uxntal($rhs_idxs->[2], $stref, $f,$info);
 
 			if ($lhs_idx_expr_b eq $lhs_idx_expr_e and $rhs_idx_expr_b eq $rhs_idx_expr_e) {
 				# simplyfied case of s_to(b1:b1) = s_from(b2:b2)
@@ -1484,8 +1495,8 @@ sub __copy_substr($stref, $f, $info, $lhs_ast, $rhs_ast) {
 		} elsif ($lhs_idx_expr_type == 2 and $rhs_idx_expr_type == 0) {
 			# this is a special case of the above where we start the RHS string at 0; LHS is a slice
 			# s1(i:j) = s2
-			my $lhs_idx_expr_b = _emit_expression_Uxntal($lhs_idxs->[1], $stref, $f,$info);
-			my $lhs_idx_expr_e = _emit_expression_Uxntal($lhs_idxs->[2], $stref, $f,$info);
+			my ($lhs_idx_expr_b,$idx_word_sz) = _emit_expression_Uxntal($lhs_idxs->[1], $stref, $f,$info);
+			(my $lhs_idx_expr_e,$idx_word_sz) = _emit_expression_Uxntal($lhs_idxs->[2], $stref, $f,$info);
 			if ($rhs_ast->[0] == 2 and is_string($stref,$f,$rhs_var)) {
 				# RHS is a scalar, so a string-type variable, and it is a string
 				# s_to(b:e) = s_from where s_from is of length e-b
@@ -1498,8 +1509,8 @@ sub __copy_substr($stref, $f, $info, $lhs_ast, $rhs_ast) {
 				# it's a character-type scalar or a character constant.
 				# s_to(b:b) = 'c'
 				# $lhs_ast = ['@',$s,[':',$i_expr]
-				my $rhs_Uxntal_expr = _emit_expression_Uxntal ($rhs_ast, $stref, $f, $info);
-				my $idx_expr = _emit_expression_Uxntal ($lhs_ast->[2][1], $stref, $f, $info);
+				my ($rhs_Uxntal_expr,$rhs_word_sz) = _emit_expression_Uxntal ($rhs_ast, $stref, $f, $info);
+				my ($idx_expr,$idx_word_sz) = _emit_expression_Uxntal ($lhs_ast->[2][1], $stref, $f, $info);
 				$uxntal_code = "$rhs_Uxntal_expr $lhs_var_access $idx_expr ADD2 #0002 ADD2 STA";
 			}
 			elsif ($rhs_ast->[0] == 1) { # a function call
@@ -1510,8 +1521,8 @@ sub __copy_substr($stref, $f, $info, $lhs_ast, $rhs_ast) {
 		} elsif ($lhs_idx_expr_type == 0 and $rhs_idx_expr_type == 2) {
 			# RHS is a slice, LHS is a string variable
 			# s_to = s_from
-			my $rhs_idx_expr_b = _emit_expression_Uxntal($rhs_idxs->[1], $stref, $f,$info);
-			my $rhs_idx_expr_e = _emit_expression_Uxntal($rhs_idxs->[2], $stref, $f,$info);
+			my ($rhs_idx_expr_b,$idx_word_sz) = _emit_expression_Uxntal($rhs_idxs->[1], $stref, $f,$info);
+			(my $rhs_idx_expr_e,$idx_word_sz) = _emit_expression_Uxntal($rhs_idxs->[2], $stref, $f,$info);
 
 			# First, check for the special condition b==e
 			if ($rhs_idx_expr_b eq $rhs_idx_expr_e ) {
@@ -1545,16 +1556,16 @@ sub __copy_substr($stref, $f, $info, $lhs_ast, $rhs_ast) {
 				# we set the rhs to a string of length 1 with this char
 				# s_to(b:b) = 'c'
 				# $lhs_ast = ['@',$s,[':',$i_expr]
-				my $rhs_Uxntal_expr = _emit_expression_Uxntal ($rhs_ast, $stref, $f, $info);
+				my ($rhs_Uxntal_expr,$rhs_word_sz) = _emit_expression_Uxntal ($rhs_ast, $stref, $f, $info);
 				$uxntal_code = "$rhs_Uxntal_expr $lhs_var_access #0002 ADD2 STA #0001 $rhs_var_access STA2";
 			}
 		} elsif ($lhs_idx_expr_type == 2 and $rhs_idx_expr_type == 1) {
 			# Special case: RHS is array assignment.
 			# This can be either an array of chars or an array of strings
 			# So we need to get the array type, and the indices of the LHS slice
-			my $lhs_idx_expr_b = _emit_expression_Uxntal($lhs_idxs->[1], $stref, $f,$info);
-			my $lhs_idx_expr_e = _emit_expression_Uxntal($lhs_idxs->[2], $stref, $f,$info);
-			my $rhs_idx_expr = _emit_expression_Uxntal($rhs_idxs, $stref, $f,$info);
+			my ($lhs_idx_expr_b,$idx_word_sz) = _emit_expression_Uxntal($lhs_idxs->[1], $stref, $f,$info);
+			(my $lhs_idx_expr_e,$idx_word_sz) = _emit_expression_Uxntal($lhs_idxs->[2], $stref, $f,$info);
+			(my $rhs_idx_expr,$idx_word_sz) = _emit_expression_Uxntal($rhs_idxs, $stref, $f,$info);
 			# I will be lazy and simply trust the LHS indices
 			if ($lhs_idx_expr_b eq $lhs_idx_expr_e) {
 				my $lhs_idx_expr =  ($lhs_idx_expr_b eq '#0000') ? '' : "$lhs_idx_expr_b ADD2 ";
@@ -1944,7 +1955,7 @@ sub _emit_var_decl_Uxntal ($stref,$f,$info,$var){
 		}
 		elsif (exists $decl->{'AST'}) {
 			my $ast = $decl->{'AST'};
-			$val_str = _emit_expression_Uxntal($ast,$stref, $f, $info);
+			($val_str,my $word_sz) = _emit_expression_Uxntal($ast,$stref, $f, $info);
 		} else {
 			croak "ParsedParDecl without AST, FIXME!";
 		}
@@ -2033,7 +2044,7 @@ sub _emit_assignment_Uxntal ($stref, $f, $info, $pass_state){
 
 sub _emit_ifthen_Uxntal ($stref, $f, $info, $branch_id){
 	my $cond_expr_ast=$info->{'Cond'}{'AST'};
-	my $cond_expr = _emit_expression_Uxntal($cond_expr_ast,$stref,$f,$info);
+	my ($cond_expr,$word_sz) = _emit_expression_Uxntal($cond_expr_ast,$stref,$f,$info);
 	# $cond_expr=_change_operators_to_Uxntal($cond_expr);
 	# FIXME! fix for stray '+'
 	# $cond_expr=~s/\+\>/>/g;
@@ -2078,7 +2089,7 @@ The cases to consider are:
 - variables, will always be _var_access_read()
 - function calls, is _emit_subroutine_call_expr_Uxntal
 =cut
-# TODO: every expression should return its word size, so that we can make sure we get the right word size for operators
+# Return the Uxntal expression string and its word size.
 sub _emit_expression_Uxntal ($ast, $stref, $f, $info) {
 	my $Sf = $stref->{'Subroutines'}{$f};
 
@@ -2227,7 +2238,7 @@ sub _emit_expression_Uxntal ($ast, $stref, $f, $info) {
 				} 
 				my $short_mode = $l_word_sz == 2 ? '2' : '';
 				# Ideally, the _emit_expression_Uxntal should return the word size of the expression
-				return "$lv $rv  ". $sigils[$opcode].$short_mode ; # FIXME, needs refining
+				return ("$lv $rv  ". $sigils[$opcode].$short_mode, $l_word_sz ); # FIXME, needs refining
 			}
 		}
 		elsif (scalar @{$ast} > 3 and $opcode == 27) { # the ast is a comma-separated list ','
@@ -2235,7 +2246,8 @@ sub _emit_expression_Uxntal ($ast, $stref, $f, $info) {
                 my @args_lst_Uxntal=();
                 for my $idx (1 .. scalar @{$ast}-1) {
                     my $arg = $ast->[$idx];
-                    push @args_lst_Uxntal, _emit_expression_Uxntal($arg, $stref, $f,$info);
+					my ($uxntal_arg_expr,$word_sz) = _emit_expression_Uxntal($arg, $stref, $f,$info);
+                    push @args_lst_Uxntal, $uxntal_arg_expr;
                 }
                 return (join(' ',@args_lst_Uxntal),2 );
 		}
@@ -2341,7 +2353,8 @@ sub _emit_subroutine_call_expr_Uxntal($stref,$f,$line,$info){
 					push @call_arg_expr_strs_Uxntal, __substitute_PlaceHolders_Uxntal($arg_expr_ast->[1],$info,0).' ( STRING ) '; # treat as string
 				}
 			} else {
-				push @call_arg_expr_strs_Uxntal, _emit_expression_Uxntal($arg_expr_ast, $stref, $f,$info).' ( CONST/EXPR ARG by VAL ) ';
+				my ($uxntal_arg_expr,$word_sz) = _emit_expression_Uxntal($arg_expr_ast, $stref, $f,$info);
+				push @call_arg_expr_strs_Uxntal, $uxntal_arg_expr.' ( CONST/EXPR ARG by VAL ) ';
 			}
 		}
 		elsif (not is_array_or_string($stref,$f,$call_arg_expr_str) and $intent eq 'in' ) { # As Scalar var used as In
@@ -2355,12 +2368,16 @@ sub _emit_subroutine_call_expr_Uxntal($stref,$f,$line,$info){
 				my $word_sz = $Sf->{'WordSizes'}{$var};
 				my $short_mode =  $word_sz == 2 ? '2' : '';
 				my $var_access = __var_access($stref,$f,$var);
-				my $idx_expr_b = $arg_expr_ast->[2][0] == 12 ? # ib:ie
-					_emit_expression_Uxntal($arg_expr_ast->[2][1], $stref, $f,$info)
-					: _emit_expression_Uxntal($arg_expr_ast->[2], $stref, $f,$info);
-				my $idx_expr_e = $arg_expr_ast->[2][0] == 12 ? # ib:ie
-					_emit_expression_Uxntal($arg_expr_ast->[2][2], $stref, $f,$info)
-					: $idx_expr_b;
+				my $idx_expr_b = '';
+				if ($arg_expr_ast->[2][0] == 12 ) { # ib:ie
+					($idx_expr_b,my $word_sz) = _emit_expression_Uxntal($arg_expr_ast->[2][1], $stref, $f,$info);
+				} else {
+					($idx_expr_b,my $word_sz) =  _emit_expression_Uxntal($arg_expr_ast->[2], $stref, $f,$info);
+				}
+				my $idx_expr_e = $idx_expr_b;
+				if ($arg_expr_ast->[2][0] == 12 ){ # ib:ie
+					($idx_expr_e,my $word_sz) = _emit_expression_Uxntal($arg_expr_ast->[2][2], $stref, $f,$info);
+				}
 				croak Dumper($arg_expr_ast) if ref($idx_expr_b) eq 'ARRAY';
 				if ($idx_expr_b eq $idx_expr_e) { # access a single character, so return a byte as value
 					my $idx_expr =  ($idx_expr_b eq '#0000') ? '' : "$idx_expr_b ADD2 ";
@@ -2415,8 +2432,8 @@ sub _emit_function_call_expr_Uxntal($stref,$f,$info,$ast){
 					my $call_arg_expr_str =
 					($call_arg_ast->[0] == 2 or $call_arg_ast->[0] == 10 or $call_arg_ast->[0] > 28)
 					? $call_arg_ast->[1] : '';
-
-					push @call_arg_expr_strs_Uxntal, __emit_call_arg_Uxntal_expr($stref,$f,$info,$subname,$call_arg_expr_str,$call_arg_ast,$idx,'in');
+					my ($uxntal_expr,$word_sz) = __emit_call_arg_Uxntal_expr($stref,$f,$info,$subname,$call_arg_expr_str,$call_arg_ast,$idx,'in');
+					push @call_arg_expr_strs_Uxntal, $uxntal_expr;
 				}
 			}
 		}
@@ -2436,7 +2453,8 @@ sub _emit_function_call_expr_Uxntal($stref,$f,$info,$ast){
 						$idx++; # So starts at 1, because 0 is the sigil
 						my $intent = $Ssubname->{'RefactoredArgs'}{'Set'}{$sig_arg}{'IODir'};
 						my $call_arg_expr_str = $argmap->{$sig_arg} // $sig_arg;
-						push @call_arg_expr_strs_Uxntal, __emit_call_arg_Uxntal_expr($stref,$f,$info,$subname,$call_arg_expr_str,$ast,$idx,$intent);
+						my ($uxntal_expr,$word_sz) = __emit_call_arg_Uxntal_expr($stref,$f,$info,$subname,$call_arg_expr_str,$ast,$idx,$intent);
+						push @call_arg_expr_strs_Uxntal, $uxntal_expr;
 					}
 				last;
 			}
@@ -2447,6 +2465,7 @@ sub _emit_function_call_expr_Uxntal($stref,$f,$info,$ast){
 
 } # END of _emit_function_call_expr_Uxntal
 
+# Returns the call arg Uxntal expression and its word size
 sub __emit_call_arg_Uxntal_expr($stref,$f,$info,$subname,$call_arg_expr_str,$ast_from_info,$idx,$intent){
 	my $Sf = $stref->{'Subroutines'}{$f};
 	# croak Dumper($subname,$call_arg_expr_str,$ast_from_info) if $subname eq 'modulo';
@@ -2509,10 +2528,12 @@ sub __emit_call_arg_Uxntal_expr($stref,$f,$info,$subname,$call_arg_expr_str,$ast
 		return _emit_expression_Uxntal($arg_expr_ast, $stref, $f,$info);#.' ( CONST/EXPR ARG by VAL ) ';
 	}
 	elsif (not is_array_or_string($stref,$f,$call_arg_expr_str) and $intent eq 'in' ) { # a Scalar var used as In
-		return _var_access_read($stref,$f,$info,$arg_expr_ast).' ( SCALAR IN ARG by VAL ) ';
+	my ($uxntal_expr,$word_sz) = _var_access_read($stref,$f,$info,$arg_expr_ast);
+		return ($uxntal_expr.' ( SCALAR IN ARG by VAL ) '.$word_sz);
 	}
 	elsif ( $arg_is_not_string ) { # An string access used as In in an intrinsic
-		return _var_access_read($stref,$f,$info,$arg_expr_ast).' ( INTRINSIC ARG by VAL ) ';
+	my ($uxntal_expr,$word_sz) = _var_access_read($stref,$f,$info,$arg_expr_ast);
+		return ($uxntal_expr .' ( INTRINSIC ARG by VAL ) '.$word_sz);
 	}
 	else { # A var, either not scalar or scalar but used as Out or InOut
 	# But this could be e.g. str(ib:ie), in which case it is a substring, TODO!
@@ -2526,12 +2547,15 @@ sub __emit_call_arg_Uxntal_expr($stref,$f,$info,$subname,$call_arg_expr_str,$ast
 					}
 				}
 				my $var_access = __var_access($stref,$f,$var);
-				my $idx_expr_b = $arg_expr_ast->[2][0] == 12 ? # ib:ie
-				_emit_expression_Uxntal($arg_expr_ast->[2][1], $stref, $f,$info)
-				: $arg_expr_ast->[2];
-				my $idx_expr_e = $arg_expr_ast->[2][0] == 12 ? # ib:ie
-				_emit_expression_Uxntal($arg_expr_ast->[2][2], $stref, $f,$info)
-				: $idx_expr_b;
+				my $idx_expr_b = $arg_expr_ast->[2];
+				if ($arg_expr_ast->[2][0] == 12) { # ib:ie
+					($idx_expr_b,my $word_sz) = _emit_expression_Uxntal($arg_expr_ast->[2][1], $stref, $f,$info)
+				}
+				my $idx_expr_e = $idx_expr_b;
+				if ($arg_expr_ast->[2][0] == 12 ){ # ib:ie
+					($idx_expr_e,my $word_sz) = _emit_expression_Uxntal($arg_expr_ast->[2][2], $stref, $f,$info)
+				}
+
 				if ($idx_expr_b eq $idx_expr_e) { # access a single character, so return a byte as value
 					my $idx_expr =  ($idx_expr_b eq '#0000') ? '' : "$idx_expr_b ADD2 ";
 					return  ("$var_access INC2 $idx_expr LDA ", 1) # load a pointer, index, load the value
@@ -2738,9 +2762,6 @@ sub _emit_list_print_Uxntal($stref,$f,$line,$info,$unit,$advance,$list_to_print)
 		my $print_fn_Uxntal = _emit_print_from_ast($stref,$f,$line,$info,$unit,$elt);
 		# croak("HANDLE ARRAY SLICE HERE!");
 		my $var_name = $elt->[1];
-		my $idx_offset = __get_array_index_offset($stref,$f,$var_name);
-		my $idx_offset_Uxntal =  toHex($idx_offset,2);
-		my $idx_offset_expr = $idx_offset==0? '' : $idx_offset_Uxntal.' SUB2';
 
 		if ($print_fn_Uxntal eq 'print-array') {
 			# transforming the array into an index access mighr be best
@@ -2750,24 +2771,27 @@ sub _emit_list_print_Uxntal($stref,$f,$line,$info,$unit,$advance,$list_to_print)
 			? __C_array_size($decl->{'ConstDim'})
 			: __C_array_size($decl->{'Dim'});
 			my $elt_iter = [10,$elt->[1],[36,'LIT2 &'.$iter.' $2']];
-			my $arg_to_print_Uxntal = _emit_expression_Uxntal($elt_iter,$stref, $f, $info);
+			my ($arg_to_print_Uxntal,$word_sz) = _emit_expression_Uxntal($elt_iter,$stref, $f, $info);
 			my $elt_0 = [10,$elt->[1],[29,'0']];
 			my $print_fn_Uxntal = _emit_print_from_ast($stref,$f,$line,$info,$unit,$elt_0);
 			$line_Uxntal = '{ ( iter ) ,&'.$iter.' STR2 '.$arg_to_print_Uxntal.' '.$print_fn_Uxntal.' JMP2r } STH2r '.toHex($array_length-1,2).' #0000  range-map-short ( print-array )';
 			# croak $line_Uxntal;
 		}
 		elsif ($print_fn_Uxntal eq 'print-array-slice') {
+			my $idx_offset = __get_array_index_offset($stref,$f,$var_name);
+			my $idx_offset_Uxntal =  toHex($idx_offset,2);
+			my $idx_offset_expr = $idx_offset==0? '' : $idx_offset_Uxntal.' SUB2';
 			# croak Dumper $elt;
-			my $b = _emit_expression_Uxntal($elt->[2][1],$stref, $f, $info);
-			my $e = _emit_expression_Uxntal($elt->[2][2],$stref, $f, $info);
+			my ($b,$word_sz_b) = _emit_expression_Uxntal($elt->[2][1],$stref, $f, $info);
+			my ($e,$word_sz_e) = _emit_expression_Uxntal($elt->[2][2],$stref, $f, $info);
 			$elt = [10,$elt->[1],[36,'LIT2 &'.$iter.' $2']];
-			my $arg_to_print_Uxntal = _emit_expression_Uxntal($elt,$stref, $f, $info);
+			my ($arg_to_print_Uxntal,$word_sz) = _emit_expression_Uxntal($elt,$stref, $f, $info);
 			my $elt_0 = [10,$elt->[1],[29,'0']];
 			my $print_fn_Uxntal = _emit_print_from_ast($stref,$f,$line,$info,$unit,$elt_0);
 			$line_Uxntal = '{ ( iter ) ,&'.$iter.' STR2 '.$arg_to_print_Uxntal.' '.$print_fn_Uxntal." JMP2r } STH2r $e $idx_offset_expr $b $idx_offset_expr range-map-short ( print-array-slice )";
 			# croak $line_Uxntal;
 		} else {
-			my $arg_to_print_Uxntal = _emit_expression_Uxntal($elt,$stref, $f, $info);
+			my ($arg_to_print_Uxntal,$word_sz) = _emit_expression_Uxntal($elt,$stref, $f, $info);
 			# carp Dumper($print_fn_Uxntal,$arg_to_print_Uxntal);
 			# TODO: feels like a HACK
 			if ($print_fn_Uxntal eq 'print-char' and $elt->[0] == 2) {
@@ -3274,14 +3298,14 @@ sub __get_len_from_Attr($decl){
 sub  __get_array_index_offset($stref,$f,$var){
 	my $decl=getDecl($stref,$f,$var);
 	if (exists $decl->{'ConstDim'} and scalar $decl->{'ConstDim'} > 0) {
-		if ($decl->{'ConstDim'} == 1) {
+		if (scalar @{$decl->{'ConstDim'}} == 1) {
 			return $decl->{'ConstDim'}[0][0];
 		} else {
 			croak "Only 1-Dim arrays are supported: ".Dumper($decl);
 		}
 	}
 	elsif (exists $decl->{'Dim'} and scalar $decl->{'Dim'} > 0) {
-		if ($decl->{'Dim'} == 1) {
+		if (scalar @{$decl->{'Dim'}} == 1) {
 			return $decl->{'Dim'}[0][0];
 		} else {
 			croak "Only 1-Dim arrays are supported: ".Dumper($decl);
@@ -3329,7 +3353,8 @@ sub __emit_list_based_print_write($stref,$f,$line,$info,$unit, $advance){
 		for my $arg_ast (@{$call_arg_list}) {
 			my $print_call = shift @{$print_call_list};
 			add_to_used_lib_subs($print_call);
-			$c_line.= _emit_expression_Uxntal($arg_ast,$stref, $f, $info).' '.$print_call. " #20 $port DEO"."\n";
+			my ($uxntal_expr,$word_sz) = _emit_expression_Uxntal($arg_ast,$stref, $f, $info);
+			$c_line.= $uxntal_expr.' '.$print_call. " #20 $port DEO"."\n";
 		}
 		$c_line .= " #0a $port DEO";
 	}
