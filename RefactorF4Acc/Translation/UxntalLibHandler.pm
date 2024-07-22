@@ -68,7 +68,13 @@ our %uxntal_lib_subroutines = (
     '@iand','AND2 JMP2r'
 ],
 'ishft' => [ # ishft() 
-    '@ishft',' ( TODO ) SFT2 JMP2r'
+    '@ishft',
+    'DUP #07 SFT ?&right',
+    '#40 SFT ,&done JMP',
+    '&right',
+    '#00 SWP SUB',
+    '&done',
+    'SFT2 JMP2r'
 ],
 'exit' => [
     '@exit', 'POP2','#80 .System/state DEO', 'BRK'
