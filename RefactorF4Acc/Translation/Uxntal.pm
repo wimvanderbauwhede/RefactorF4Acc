@@ -1092,11 +1092,14 @@ sub _var_access_read($stref,$f,$info,$ast) {
 				(my $idx_expr_b,my $idx_word_sz) = _emit_expression_Uxntal($idxs->[1], $stref, $f,$info);
 				(my $idx_expr_e,$idx_word_sz) = _emit_expression_Uxntal($idxs->[2], $stref, $f,$info);
 				if ($idx_expr_b eq $idx_expr_e) { # access a single character, so return a byte as value
-					my $idx_offset = 1;
-					my $idx_offset_Uxntal =  toHex($idx_offset,2);
-					my $idx_offset_expr = $idx_offset==0? '' : $idx_offset_Uxntal.' SUB2';
-					my $idx_expr =  ($idx_expr_b eq  $idx_offset_Uxntal) ? '' : "$idx_expr_b  $idx_offset_expr ADD2 ";
-					$uxntal_code =  "$var_access INC2 $idx_expr LDA" # load a pointer, index, load the value
+					# my $idx_offset = 1; # assuming strings always start at 1
+					# my $idx_offset_Uxntal =  toHex($idx_offset,2);
+					# my $idx_offset_expr = $idx_offset==0? '' : $idx_offset_Uxntal.' SUB2';
+					# my $idx_expr =  ($idx_expr_b eq  $idx_offset_Uxntal) ? '' : "$idx_expr_b  $idx_offset_expr ADD2 ";
+					# The value is at 0-idx+2
+					# So if the offset is 1, we have idx-1+2, so idx+1, that is the INC2
+					# so in full we have
+					$uxntal_code =  "$var_access INC2 $idx_expr_b ADD2 LDA" # load a pointer, index, load the value
 				} else {
 					# extract a substring
 					# my $decl = get_var_record_from_set($Sf->{'Vars'},$var);
