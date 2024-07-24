@@ -1437,23 +1437,23 @@ sub _procLine {
         # replace Z'...' hex notation with decimal
         while ($tline =~ /[zZ]\'([A-Fa-f0-9]+?)\'/) {
           my $hex = hex($1);
-          if ($hex<256) {
-            $hex.='_1';
-          }
-          elsif ($hex<256*256) {
-            $hex.='_2';
-          }
+          # if ($hex<256) {
+          #   $hex.='_1';
+          # }
+          # elsif ($hex<256*256) {
+          #   $hex.='_2';
+          # }
           $tline =~ s/[zZ](\'.+?\')/$hex/;
         }
         # replace Z"..." hex notation with decimal
         while ($tline =~ /[zZ]\"([A-Fa-f0-9]+?)\"/) {
           my $hex = hex($1);
-          if ($hex<256) {
-            $hex.='_1';
-          }
-          elsif ($hex<256*256) {
-            $hex.='_2';
-          }
+          # if ($hex<256) {
+          #   $hex.='_1';
+          # }
+          # elsif ($hex<256*256) {
+          #   $hex.='_2';
+          # }
           $tline =~ s/[zZ](\".+?\")/$hex/;
         }
         # Find single-quoted strings and replace by placeholders
@@ -1616,22 +1616,22 @@ sub _procLine {
             my $tline=$line;
         while ($tline =~ /[zZ]\'([A-Fa-f0-9]+?)\'/) {
           my $hex = hex($1);
-          if ($hex<256) {
-            $hex.='_1';
-          }
-          elsif ($hex<256*256) {
-            $hex.='_2';
-          }
+          # if ($hex<256) {
+          #   $hex.='_1';
+          # }
+          # elsif ($hex<256*256) {
+          #   $hex.='_2';
+          # }
           $tline =~ s/[zZ](\'.+?\')/$hex/;
         }
         while ($tline =~ /[zZ]\"([A-Fa-f0-9]+?)\"/) {
           my $hex = hex($1);
-          if ($hex<256) {
-            $hex.='_1';
-          }
-          elsif ($hex<256*256) {
-            $hex.='_2';
-          }
+          # if ($hex<256) {
+          #   $hex.='_1';
+          # }
+          # elsif ($hex<256*256) {
+          #   $hex.='_2';
+          # }
           $tline =~ s/[zZ](\".+?\")/$hex/;
         }
             $line = $tline;

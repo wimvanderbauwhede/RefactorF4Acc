@@ -1,0 +1,27 @@
+0016        oneByte = .false. 
+0002        tokenLabel = getTokenLabel(token)
+0004        tokenVal = getTokenVal(token)
+0006        tokenExtBits = 0
+0015        cs = ''
+0002        tokenLabel
+000c        id
+000e        sidx
+0012        slen
+000a        ii
+
+* An empty string should be a string { 0000 } STH2r, not #00
+* The allocation for cs on the stack should be #0040 but is only #0001
+*             do i=sidx,sidx+slen-1_2
+                ii = i-sidx+1_2
+                
+is not correct: the expression for ii gets 0008 instead of i                
+
+.fp LDZ2 #0008 ADD2 LDA2 
+.fp LDZ2 #000e ADD2 LDA2  SUB2 #0001  ADD2 DUP2 print-int nl 
+.fp LDZ2 #000a ADD2 STA2 ( scalar )
+
+should be
+
+;decodeTokenStr_i LDA2 
+.fp LDZ2 #000e ADD2 LDA2  SUB2 #0001  ADD2
+.fp LDZ2 #000a ADD2 STA2

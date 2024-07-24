@@ -2444,7 +2444,7 @@ sub _emit_function_call_expr_Uxntal($stref,$f,$info,$ast){
             my $idx=0;
             for my $call_arg_ast (@call_arg_asts) {
                 $idx++;
-                if (not ($call_arg_ast->[0]==9 and $call_arg_ast->[1][1] eq 'kind')
+                if (not (($call_arg_ast->[0]==9) and ($call_arg_ast->[1][1] eq 'kind'))
                 ) { # skip kind=... argument as we don't use it anyway
                     my $call_arg_expr_str =
                     ($call_arg_ast->[0] == 2 or $call_arg_ast->[0] == 10 or $call_arg_ast->[0] > 28)
@@ -2453,6 +2453,7 @@ sub _emit_function_call_expr_Uxntal($stref,$f,$info,$ast){
                     push @call_arg_expr_strs_Uxntal, $uxntal_expr;
                 }
             }
+            # carp Dumper(@call_arg_asts,@call_arg_expr_strs_Uxntal) if $subname eq 'iand';
         }
     } else {
         my $Ssubname = $stref->{'Subroutines'}{$subname};
@@ -2496,7 +2497,7 @@ sub __emit_call_arg_Uxntal_expr($stref,$f,$info,$subname,$call_arg_expr_str,$ast
     # This does not work for intrinsics, they are not in FunctionCalls
     # Maybe I should add IntrinsicFunctionCalls to make it easy
     my $call_info = $info->{'SubroutineCall'};
-    if (exists $info->{'Assignment'} ) {
+    if (exists $info->{'Assignment'} or exists $info->{'SubroutineCall'} or exists $info->{'IOCall'}) {
         # Get the function call info
         if  (exists $info->{'FunctionCalls'} and scalar @{$info->{'FunctionCalls'}}>0) {
             for my $fcall (@{$info->{'FunctionCalls'}}) {
@@ -2517,7 +2518,7 @@ sub __emit_call_arg_Uxntal_expr($stref,$f,$info,$subname,$call_arg_expr_str,$ast
             }
         }
     }
-
+# carp Dumper($subname,$call_arg_expr_str,$ast_from_info,$call_info);
     my $isConstOrExpr = exists $call_info->{'Args'}{'Set'}{$call_arg_expr_str}
         ? (($call_info->{'Args'}{'Set'}{$call_arg_expr_str}{'Type'} eq 'Const' )
         or ($call_info->{'Args'}{'Set'}{$call_arg_expr_str}{'Type'} eq 'Expr')
@@ -2544,13 +2545,17 @@ sub __emit_call_arg_Uxntal_expr($stref,$f,$info,$subname,$call_arg_expr_str,$ast
     if ($isConstOrExpr) { # Not a var
         return _emit_expression_Uxntal($arg_expr_ast, $stref, $f,$info);#.' ( CONST/EXPR ARG by VAL ) ';
     }
-    elsif (not is_array_or_string($stref,$f,$call_arg_expr_str) and $intent eq 'in' ) { # a Scalar var used as In
-    my ($uxntal_expr,$word_sz) = _var_access_read($stref,$f,$info,$arg_expr_ast);
-        return ($uxntal_expr.' ( SCALAR IN ARG by VAL ) '.$word_sz);
+    elsif ($arg_is_intrinsic_call) {
+        my ($uxntal_expr,$word_sz) = _emit_expression_Uxntal($ast_from_info, $stref, $f,$info);
+        return ($uxntal_expr.' ( INTRINSIC CALL ) ',$word_sz);
     }
-    elsif ( $arg_is_not_string ) { # An string access used as In in an intrinsic
-    my ($uxntal_expr,$word_sz) = _var_access_read($stref,$f,$info,$arg_expr_ast);
-        return ($uxntal_expr .' ( INTRINSIC ARG by VAL ) '.$word_sz);
+    elsif (not is_array_or_string($stref,$f,$call_arg_expr_str) and $intent eq 'in' ) { # a Scalar var used as In
+        my ($uxntal_expr,$word_sz) = _var_access_read($stref,$f,$info,$arg_expr_ast);
+        return ($uxntal_expr.' ( SCALAR IN ARG by VAL ) ',$word_sz);
+    }
+    elsif ( $arg_is_not_string ) { # A string access used as In in an intrinsic
+        my ($uxntal_expr,$word_sz) = _var_access_read($stref,$f,$info,$arg_expr_ast);
+        return ($uxntal_expr .' ( INTRINSIC ARG by VAL ) ',$word_sz);
     }
     else { # A var, either not scalar or scalar but used as Out or InOut
     # But this could be e.g. str(ib:ie), in which case it is a substring, TODO!
