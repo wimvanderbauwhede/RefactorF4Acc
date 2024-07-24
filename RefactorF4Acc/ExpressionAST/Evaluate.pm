@@ -285,6 +285,9 @@ sub eval_expression_with_parameters { (my $expr_str,my $info, my $stref, my $f, 
 	} else {
 		$evaled_expr_str=~s/\-/ -/g;
 		$evaled_expr_str=~s/\/\//./g;
+		while ($evaled_expr_str=~/\d+_[1248]/) {
+			$evaled_expr_str=~s/(\d+)_[1248]/$1/;
+		}
 		my $expr_val=eval($evaled_expr_str);
 		# croak "EXPR <$expr_str> TO EVAL: $evaled_expr_str => $expr_val".Dumper($info) if $expr_str_no_ph =~/CONCAT/;
 		# carp Dumper($evaled_expr_str,$info);

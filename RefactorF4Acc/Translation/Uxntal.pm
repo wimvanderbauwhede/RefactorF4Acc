@@ -500,6 +500,7 @@ Instead of the nice but cumbersome approach we had until now, from now on it is 
 			# A parameter should become a macro
 			my $var = $info->{'ParamDecl'}{'Var'};
 			($stref,my $uxntal_par) = _emit_var_decl_Uxntal($stref,$f,$info,$var);
+			# croak Dumper($info,$uxntal_par) if $var eq 'idx';
 			if (not exists $stref->{'Uxntal'}{'Macros'}{'Set'}{$uxntal_par}) {
 				$stref->{'Uxntal'}{'Macros'}{'Set'}{$uxntal_par}=$uxntal_par;
 				push @{$stref->{'Uxntal'}{'Macros'}{'List'}},$uxntal_par;
@@ -607,7 +608,8 @@ Instead of the nice but cumbersome approach we had until now, from now on it is 
 				} else {
 					# if ($unit eq 'STDOUT' or $unit eq 'STDERR') {
 					add_to_used_lib_subs('update-len');
-					my ($uxntal_expr_str,$word_sz) = _emit_expression_Uxntal([2,$unit],$stref, $f, $info);
+					my ($uxntal_expr_str,$word_sz) = ($unit eq 'STDOUT' or $unit eq 'STDERR') ? '' :
+					_emit_expression_Uxntal([2,$unit],$stref, $f, $info);
 					my $update_len = ($unit eq 'STDOUT' or $unit eq 'STDERR') ? '' :
 						' '.$uxntal_expr_str. ' update-len ';
 					$c_line = ($unit eq 'STDOUT' or $unit eq 'STDERR') ? '' :
@@ -1059,6 +1061,7 @@ sub _var_access_read($stref,$f,$info,$ast) {
 	my ($var,$idxs,$idx_expr_type) = __unpack_var_access_ast($ast);
 
 	my $Sf = $stref->{'Subroutines'}{$f};
+
 	my $word_sz = $Sf->{'WordSizes'}{$var};
 	my $short_mode = $word_sz == 2 ? '2' : '';
 	my $uxntal_code = '';
@@ -1947,11 +1950,13 @@ sub _emit_var_decl_Uxntal ($stref,$f,$info,$var){
 
 	if (defined $decl->{'Parameter'}) {
 		$val = $decl->{'Val'};
+		# carp "VAL: $val";
 		my $val_str = $val;
 		if ($val=~/[\'\"'](.+?)[\'\"]/) {
 			$val_str = '"'.$1;
 		}
 		elsif ($val=~/^\d+(?:_[1248])?$/) {
+			# carp 'HERE';
 			my $sz=2;
 			if ($val=~s/_([1248])$//) { $sz=$1}
 			$val_str = toHex($val,$sz);
@@ -2643,6 +2648,8 @@ sub toUxntalType($ftype,$kind ){
 
 sub toHex($n,$sz){
 	croak if not defined $n;
+	croak if $n eq '1_2';
+	$n=~s/_\d$//; # strip _2 
 	my $szx2 = $sz*2;
 	if ($n<0) {
 		$n=(2*($sz*8))-$n;
@@ -2650,7 +2657,9 @@ sub toHex($n,$sz){
 	return sprintf("#%0${szx2}x",$n);
 }
 sub toRawHex($n,$sz){
+	croak if $n eq '1_2';
 	my $szx2 = $sz*2;
+	$n=~s/_\d$//; # strip _2
 	if ($n<0) {
 		$n=(2*($sz*8))-$n;
 	}
@@ -3010,6 +3019,9 @@ sub _analyse_write_call($stref,$f,$info){
 			# carp 'ATTR:'.Dumper( $attr);
 			++$i;
 			if ($attr->[0] eq 'fmt') {
+				# if ($attr->[1] eq '*') {
+				# 	$advance='yes';
+				# }
 				($print_calls,$offsets) = __parse_fmt($attr->[1],$stref,$f,$info);
 			}
 			elsif ($attr->[0] eq 'unit') {
@@ -3131,28 +3143,36 @@ sub __parse_fmt($fmt_str,$stref,$f,$info){
 					# more than one argument in the IO list
 					? $info->{'IOList'}{'AST'}[$chunk_idx]
 					: $info->{'IOList'}{'AST'};
-
 				$nchars = __get_len_from_AST($val_ast,$info->{'PlaceHolders'});
-				if ($nchars==0 and $val_ast->[0] == 2) { # A variable
-					my $var = $val_ast->[1];
-					my $decl = getDecl($stref,$f,$var);
-					my $len=0;
-					if ($decl->{'Type'} eq 'character') {
-						if (exists $decl->{'Attr'} and $decl->{'Attr'}=~/len/) {
-							$len=$decl->{'Attr'}; $len=~s/^\(len=//;$len=~s/\)$//;
+				if ($nchars==0) {
+					if ( $val_ast->[0] == 2) { # A variable
+						my $var = $val_ast->[1];
+						my $decl = getDecl($stref,$f,$var);
+						my $len=0;
+						if ($decl->{'Type'} eq 'character') {
+							if (exists $decl->{'Attr'} and $decl->{'Attr'}=~/len/) {
+								$len=$decl->{'Attr'}; $len=~s/^\(len=//;$len=~s/\)$//;
+							} else {
+								$len=1;
+							}
+						} elsif ($decl->{'Type'} eq 'integer') {
+							if (exists $decl->{'Attr'} and $decl->{'Attr'}=~/kind/) {
+								my $klen=$decl->{'Attr'}; $klen=~s/^\(kind=//;$klen=~s/\)$//;
+								$len = $klen==1 ? 4 : 6; # including space for the sign
+							} else {
+								$len=11; # assuming signed 4-byte
+							}
 						} else {
-							$len=1;
+							die "FMT without size is only supported with a character or integer\n";
 						}
-					} elsif ($decl->{'Type'} eq 'integer') {
-						if (exists $decl->{'Attr'} and $decl->{'Attr'}=~/kind/) {
-							$len=$decl->{'Attr'}; $len=~s/^\(kind=//;$len=~s/\)$//;
-						} else {
-							$len=1;
-						}
-					} else {
-						die "FMT without size is only supported with a character or integer\n";
+						$nchars=$len;
 					}
-					$nchars=$len;
+					elsif ($val_ast->[0] >= 3 and $val_ast->[0]<=8) { # An integer expression
+						$nchars=6; # Let's assume it's all shorts 
+					}
+					elsif ($val_ast->[0] >= 15 and $val_ast->[0]<=26) { # A boolean expression
+						$nchars=1;
+					}
 				}
 
 			}
@@ -3232,7 +3252,7 @@ sub __get_len_from_AST($val_ast, $phs){
 	} elsif ($val_ast->[0] == 30) {
 		return length($val_ast->[1].'');
 	} elsif ($val_ast->[0] == 31) {
-		return 1;
+		return 1; # We print 'T' or 'F'
 	} elsif ($val_ast->[0] == 32) {
 		return 1;
 	} elsif ($val_ast->[0] == 33) {
@@ -3251,7 +3271,8 @@ sub __get_len_from_AST($val_ast, $phs){
 	} elsif ($val_ast->[0] == 1) {
 		return 0;
 	} else {
-		croak("Unsupported arg type for fmt: ".Dumper($val_ast));
+		return 0;
+		# croak("Unsupported arg type for fmt: ".Dumper($val_ast));
 	}
 } # END of __get_len_from_AST
 
@@ -3282,7 +3303,8 @@ sub __get_type_len_from_AST($val_ast, $phs){
 	} elsif ($val_ast->[0] == 1) {
 		return ('FUNCTION',0);
 	} else {
-		croak("Unsupported arg type for fmt: ".Dumper($val_ast));
+		return ('EXPR',0);
+		# croak("Unsupported arg type for fmt: ".Dumper($val_ast));
 	}
 } # END of __get_type_len_from_AST
 
@@ -3359,8 +3381,8 @@ sub __emit_list_based_print_write($stref,$f,$line,$info,$unit, $advance){
 			my ($uxntal_expr,$word_sz) = _emit_expression_Uxntal($arg_ast,$stref, $f, $info);
 			$c_line.= $uxntal_expr.' '.$print_call. " #20 $port DEO"."\n";
 		}
-		$c_line .= " #0a $port DEO";
 	}
+		$c_line .= " #0a $port DEO" if $advance eq 'yes';
 	# if ($unit eq 'STDERR') {
 		return $c_line;
 	# }
