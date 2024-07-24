@@ -521,19 +521,19 @@ Instead of the nice but cumbersome approach we had until now, from now on it is 
         }
         elsif (exists $info->{'Do'} ) {
             if (exists $info->{'Do'}{'While'}) {
-                # say 'TODO: Do While: '.Dumper($info->{'Do'}{'ExpressionsAST'});
                 push @{$pass_state->{'DoStack'}}, [$id,$info->{'Do'}{'ExpressionsAST'},'While'];
                 $c_line = '&while_loop_'.$f.'_'.$id . "\n" ;
             } else {
-            my $do_iterator = $f.'_'.$info->{'Do'}{'Iterator'};
-            my $uxntal_do_iter_decl = '@'.$do_iterator.' $2';
-            if (not exists $pass_state->{'Subroutine'}{'LocalVars'}{'Set'}{$uxntal_do_iter_decl}) {
-                $pass_state->{'Subroutine'}{'LocalVars'}{'Set'}{$uxntal_do_iter_decl}=$uxntal_do_iter_decl;
-                $skip_comment=1;
-                push @{$pass_state->{'Subroutine'}{'LocalVars'}{'List'}}, "( ____ $line )" unless $skip_comment;
-                push @{$pass_state->{'Subroutine'}{'LocalVars'}{'List'}},$uxntal_do_iter_decl;
-            }
-            my $do_step = $info->{'Do'}{'Range'}{'Expressions'}[2];
+                my $do_iterator = $f.'_'.$info->{'Do'}{'Iterator'};
+                $Sf->{'DoIterators'}{$do_iterator}=1;
+                my $uxntal_do_iter_decl = '@'.$do_iterator.' $2';
+                if (not exists $pass_state->{'Subroutine'}{'LocalVars'}{'Set'}{$uxntal_do_iter_decl}) {
+                    $pass_state->{'Subroutine'}{'LocalVars'}{'Set'}{$uxntal_do_iter_decl}=$uxntal_do_iter_decl;
+                    $skip_comment=1;
+                    push @{$pass_state->{'Subroutine'}{'LocalVars'}{'List'}}, "( ____ $line )" unless $skip_comment;
+                    push @{$pass_state->{'Subroutine'}{'LocalVars'}{'List'}},$uxntal_do_iter_decl;
+                }
+                my $do_step = $info->{'Do'}{'Range'}{'Expressions'}[2];
                 if ($do_step!~/^\-?\d+$/) {
                     error("Only DO with constant integer STEP is supported: $line in $f",0,'ERROR');
                 }
@@ -879,12 +879,13 @@ Instead of the nice but cumbersome approach we had until now, from now on it is 
             'ArgDecls'=>[],
             'LocalVars'=> {'Set' =>{}, 'List' => [] },
             # 'LocalVarDecls' =>[],
+            # 'DoIterators' => {'Set' =>{}, 'List' => [] },
             'ReadArgs' => [],
             'Sig' => '',
         },
         'IfStack'=>[],'IfId' =>0,
         'BranchStack'=>[],'IfBranchId' =>0,
-        'DoStack'=>[], 'DoIter'=>'', 'DoId' => 0,
+        'DoStack'=>[], 'DoId' => 0,
     }
     ];
      ($stref,$state) = stateful_pass_inplace($stref,$f,$pass_translate_to_Uxntal, $state,'pass_translate_to_Uxntal() ' . __LINE__  ) ;
@@ -1333,6 +1334,9 @@ sub __var_access($stref,$f,$var) {
     elsif (__is_result_var($stref,$f,$var) ) {
         $use_stack=0;
     }
+    if (exists $stref->{'Subroutines'}{$f}{'DoIterators'}{$var}) {
+        $use_stack=0;
+    }
     return
         (
             $use_stack
@@ -1635,25 +1639,31 @@ sub _stack_allocation($stref,$f,$var) {
     if  (is_array_or_string($stref,$f,$var)) {
          if (is_arg($stref,$f,$var)) {
         #         passed by reference, so
-            $Sf->{'CurrentOffset'} += $nbytes;
+            $Sf->{'CurrentOffset'} += 2;
             $uxntal_code = "( allocated 2 bytes at $offset for $var )";
         } else {
         #         not passed, so
             my $subset = in_nested_set( $Sf, 'DeclaredOrigLocalVars', $var );
             my $decl = get_var_record_from_set($Sf->{$subset},$var);
+            if (is_array($stref,$f,$var)) {
             croak Dumper $decl if $var eq 'res';
             # my $decl = getDecl($stref,$f,$var);
             # my $dim =  __C_array_size($decl->{'Dim'});
             my $dim = exists $decl->{'ConstDim'}
                 ? __C_array_size($decl->{'ConstDim'})
                 : __C_array_size($decl->{'Dim'}) ;
-            my $nbytes= $dim*$word_sz;
+            $nbytes= $dim*$word_sz;
+            } 
+            elsif (is_string($stref,$f,$var)) {
+                my $len = __get_len_from_Attr($decl);
+                $nbytes = $len;
+            }
             $Sf->{'CurrentOffset'} += $nbytes;
             # my $nbytes_Uxn=toHex($nbytes,2);
             $uxntal_code = "( allocated $nbytes bytes at $offset for $var )";
         }
     } else { # Scalars
-        my $nbytes = __is_write_arg($stref,$f,$var) ? 2 : $word_sz;
+        $nbytes = __is_write_arg($stref,$f,$var) ? 2 : $word_sz;
         $Sf->{'CurrentOffset'} += $nbytes;
         $uxntal_code = "( allocated $nbytes bytes at $offset for $var )";
     }
@@ -2297,8 +2307,8 @@ sub __substitute_PlaceHolders_Uxntal($expr_str,$info,$isChar){
         my $len = toRawHex(length($expr_str)-1,2);
         if ($len eq '0001' and $isChar) {
             $expr_str = toHex(ord(substr($expr_str,1,1)),1);
-        } elsif ($len eq '0000') { # empty string, I set this to 0 ad-hoc
-            $expr_str = '#00'; # "{ 0000 } STH2r";
+        } elsif ($len eq '0000') { # empty string is a string!
+            $expr_str = "{ 0000 } STH2r"; #  '#00'; #
         } else {
             # replace space and nl by their ascii code
             # ' ' => ' 20 "'
