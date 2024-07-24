@@ -525,7 +525,7 @@ Instead of the nice but cumbersome approach we had until now, from now on it is 
                 $c_line = '&while_loop_'.$f.'_'.$id . "\n" ;
             } else {
                 my $do_iterator = $f.'_'.$info->{'Do'}{'Iterator'};
-                $Sf->{'DoIterators'}{$do_iterator}=1;
+                $stref->{'Subroutines'}{$f}{'DoIterators'}{$info->{'Do'}{'Iterator'}}=$do_iterator;
                 my $uxntal_do_iter_decl = '@'.$do_iterator.' $2';
                 if (not exists $pass_state->{'Subroutine'}{'LocalVars'}{'Set'}{$uxntal_do_iter_decl}) {
                     $pass_state->{'Subroutine'}{'LocalVars'}{'Set'}{$uxntal_do_iter_decl}=$uxntal_do_iter_decl;
@@ -1069,6 +1069,7 @@ sub _var_access_read($stref,$f,$info,$ast) {
         $uxntal_code = __create_fq_varname($stref,$f,$var);
     } else {
         my $var_access = __var_access($stref,$f,$var);
+
         if (is_array($stref,$f,$var)) {
             if ($idx_expr_type == 1) {
                 my $idx_offset = __get_array_index_offset($stref,$f,$var);
@@ -1177,7 +1178,7 @@ sub _var_access_assign($stref,$f,$info,$lhs_ast,$rhs_ast) {
     my $word_sz= $Sf->{'WordSizes'}{$var};
     my $short_mode = $word_sz == 2 ? '2' : '';
     my $uxntal_code = '';
-    my $use_stack = __use_stack($stref,$f);
+    # my $use_stack = __use_stack($stref,$f);
     my $lhs_var_access = __var_access($stref,$f,$var);
     if  (is_array($stref,$f,$var)) {
         my $lhs_idx_offset = __get_array_index_offset($stref,$f,$var);
@@ -1473,7 +1474,9 @@ sub __copy_substr($stref, $f, $info, $lhs_ast, $rhs_ast) {
                     $rhs_len =~s/\(len=//;$rhs_len =~s/\)//;
                 }
                 my $len = toHex(min($lhs_len,$rhs_len),2);
-                $uxntal_code = "$rhs_Uxntal_expr $lhs_var_access $len strncpy";
+                $uxntal_code = $len eq '#0000' 
+                ? "{ 0000 } STH2r $lhs_var_access $len strncpy"
+                : "$rhs_Uxntal_expr $lhs_var_access $len strncpy";
                 add_to_used_lib_subs('strncpy');
             }
             # croak "NOT a substr copy! ".Dumper($lhs_ast,$rhs_ast);
@@ -2308,7 +2311,7 @@ sub __substitute_PlaceHolders_Uxntal($expr_str,$info,$isChar){
         if ($len eq '0001' and $isChar) {
             $expr_str = toHex(ord(substr($expr_str,1,1)),1);
         } elsif ($len eq '0000') { # empty string is a string!
-            $expr_str = "{ 0000 } STH2r"; #  '#00'; #
+            $expr_str = '#00'; #"{ 0000 } STH2r"; #  '#00'; #
         } else {
             # replace space and nl by their ascii code
             # ' ' => ' 20 "'

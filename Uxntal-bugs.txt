@@ -25,3 +25,14 @@ should be
 ;decodeTokenStr_i LDA2 
 .fp LDZ2 #000e ADD2 LDA2  SUB2 #0001  ADD2
 .fp LDZ2 #000a ADD2 STA2
+
+When copying a substr we must make sure the length is set 
+
+.fp LDZ2 #0015 ADD2 .fp LDZ2 #000a ADD2 LDA2 INC2 ADD2 STA (  WV20240723: WRONG? )  ( COPY SUBSTR )
+.fp LDZ2 #000a ADD2 LDA2 #0001  ADD2 .fp LDZ2 #000a ADD2 STA2 ( scalar )
+.fp LDZ2 #000a ADD2 LDA2 #0001 SUB2 .fp LDZ2 #0015 ADD2 STA2
+
+I think we should use the max of the current value and the index to account for random access. But that is silly, so we should use the original length
+Check where we overwrite that!
+
+
