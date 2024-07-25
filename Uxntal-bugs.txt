@@ -34,5 +34,15 @@ When copying a substr we must make sure the length is set
 
  The root cause is that when we allocate a string on the stack we should write its length!
  And we should do this for arrays as well, because otherwise SIZE does not work; to support SHAPE as well we'd need to tag the dims onto the end which we can do once we know the size. So arrays and strings should both have a 2-byte field. 
+ 
+ ====
+@decodeTokenStrI_res is declared twice
+
+ decodeTokenStrI call returns char should be string
+ 
+ The spurious value on the stack is gone in decodeTokenStrI which only has the IdentifierLabel case, so now I can put the other cases back and see where it goes wrong. The odd thing is that none of them is ever reached so how can they put things on the stack?
+ 
+ 
+ 
 
 
