@@ -401,8 +401,9 @@ Instead of the nice but cumbersome approach we had until now, from now on it is 
 # If the routine uses a call stack, add vars to be allocated on the stack to StackAllocInfo
      # $Sf->{'UseCallStack'}=1; # override for debugging
     my $use_stack = __use_stack($stref,$f);
-    my @stack_alloc_info_nbytes=();
+    my @stack_alloc_info_nbytes_inits=();
     my @stack_alloc_info=();
+    my @stack_array_string_inits=();
     my $stack_alloc_nbytes = 0;
     if ($use_stack) {
         $Sf->{'CurrentOffset'}=0;
@@ -438,12 +439,13 @@ Instead of the nice but cumbersome approach we had until now, from now on it is 
             }
             ];
         ($stref,$stack_alloc_state) = stateful_pass_inplace($stref,$f,$pass_stack_allocation, $stack_alloc_state,'pass_stack_allocation() ' . __LINE__  ) ;
-        @stack_alloc_info_nbytes=@{$stack_alloc_state->[2]{'StackAllocInfo'}};
+        @stack_alloc_info_nbytes_inits=@{$stack_alloc_state->[2]{'StackAllocInfo'}};
 
-        for my $entry (@stack_alloc_info_nbytes) {
+        for my $entry (@stack_alloc_info_nbytes_inits) {
             $stack_alloc_nbytes+=$entry->[1];
         }
-        @stack_alloc_info = map {$_->[0]} @stack_alloc_info_nbytes
+        @stack_alloc_info = map {$_->[0]} @stack_alloc_info_nbytes_inits;
+        @stack_array_string_inits= grep { !/^\s*$/ } map {$_->[2]} @stack_alloc_info_nbytes_inits;
     } # use stack
 
 # --------------------------------------------------------------------------------------------
@@ -899,6 +901,7 @@ Instead of the nice but cumbersome approach we had until now, from now on it is 
         @{$sub_uxntal_code->{'ArgDecls'}},
         @{$sub_uxntal_code->{'LocalVars'}{'List'}},
         @{$sub_uxntal_code->{'Sig'}},
+        @stack_array_string_inits,
         @{$sub_uxntal_code->{'ReadArgs'}},
         @{$sub_uxntal_code->{'TranslatedCode'}},
         # @{$stref->{'TranslatedCode'}},'',
@@ -1559,13 +1562,17 @@ sub __copy_substr($stref, $f, $info, $lhs_ast, $rhs_ast) {
                 add_to_used_lib_subs('strncpy');
             }
         } elsif ($lhs_idx_expr_type == 0 and $rhs_idx_expr_type == 0) { # no indexing on either side
+        # s_lhs = s_rhs
         # I am assuming the LHS is a string
         # The RHS could be a char or a string
             if ($rhs_ast->[0] == 2 and is_string($stref,$f,$rhs_var) ) {
-        # if a string, copy as much of the RHS into the LHS as will fit
+                # if a string, copy as much of the RHS into the LHS as will fit
                 $uxntal_code = "$rhs_var_access $lhs_var_access ".
-                " $rhs_var_access LDA2 $lhs_var_access LDA2 min strncpy ".
-                " $rhs_var_access LDA2 $lhs_var_access LDA2 min $lhs_var_access STA2 ";
+                " $rhs_var_access LDA2 $lhs_var_access LDA2 min strncpy ";
+                # This changes the length of the LHS string. I don't think that is OK
+                # LEN returns the allocated length
+                # TRIM_LEN returns the length skipping trailing spaces (and I assume 0s)
+                # " $rhs_var_access LDA2 $lhs_var_access LDA2 min $lhs_var_access STA2 ";
                 add_to_used_lib_subs('min');
                 add_to_used_lib_subs('strncpy');
         # if a char, it's easy:
@@ -1639,6 +1646,7 @@ sub _stack_allocation($stref,$f,$var) {
     my $uxntal_code = '';
     my $offset = $Sf->{'CurrentOffset'};
     my $nbytes=2;
+    my $array_string_init='';
     if  (is_array_or_string($stref,$f,$var)) {
          if (is_arg($stref,$f,$var)) {
         #         passed by reference, so
@@ -1649,17 +1657,21 @@ sub _stack_allocation($stref,$f,$var) {
             my $subset = in_nested_set( $Sf, 'DeclaredOrigLocalVars', $var );
             my $decl = get_var_record_from_set($Sf->{$subset},$var);
             if (is_array($stref,$f,$var)) {
-            croak Dumper $decl if $var eq 'res';
-            # my $decl = getDecl($stref,$f,$var);
-            # my $dim =  __C_array_size($decl->{'Dim'});
-            my $dim = exists $decl->{'ConstDim'}
-                ? __C_array_size($decl->{'ConstDim'})
-                : __C_array_size($decl->{'Dim'}) ;
-            $nbytes= $dim*$word_sz;
-            } 
+                croak Dumper $decl if $var eq 'res';
+                # my $decl = getDecl($stref,$f,$var);
+                # my $dim =  __C_array_size($decl->{'Dim'});
+                my $dim = exists $decl->{'ConstDim'}
+                    ? __C_array_size($decl->{'ConstDim'})
+                    : __C_array_size($decl->{'Dim'}) ;
+                $nbytes= $dim*$word_sz+2; # 2 bytes for size field
+                my $init_array = toHex($dim,2).' .fp LDZ2 '.toHex($offset,2). ' ADD2 STA2';
+                $array_string_init=$init_array;
+            }
             elsif (is_string($stref,$f,$var)) {
                 my $len = __get_len_from_Attr($decl);
-                $nbytes = $len;
+                $nbytes = $len+2; # 2 bytes for the len field
+                my $init_string = toHex($len,2).' .fp LDZ2 '.toHex($offset,2). ' ADD2 STA2';
+                $array_string_init=$init_string;
             }
             $Sf->{'CurrentOffset'} += $nbytes;
             # my $nbytes_Uxn=toHex($nbytes,2);
@@ -1671,7 +1683,7 @@ sub _stack_allocation($stref,$f,$var) {
         $uxntal_code = "( allocated $nbytes bytes at $offset for $var )";
     }
     $Sf->{'StackOffset'}{$var}= $offset;
-    return [$uxntal_code,$nbytes];
+    return [$uxntal_code,$nbytes,$array_string_init];
 } # END of _stack_allocation()
 
 sub __create_fq_varname($stref,$f,$var_name) {
