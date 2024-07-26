@@ -3883,3 +3883,15 @@ For file writes, I think I will only support the following:
     . "$len .File/length DEO2\n"
     . ";$data .File/write DEO2" ;
 =cut
+
+sub __create_string_zeroing($str,$len) {
+    return "{ ( iter ) #00 ROT ROT ;$str ADD2 STA JMP2r } STH2r ".toHex($len+1,2).' #0002 range-map-short';
+}
+
+sub __create_byte_array_zeroing($str,$len) {
+    return "{ ( iter ) #00 ROT ROT ;$str ADD2 STA JMP2r } STH2r ".toHex($len-1,2).' #0000 range-map-short';
+}
+
+sub __create_short_array_zeroing($str,$len) {
+    return "{ ( iter ) #0000 SWP2 #0002 MUL ;$str ADD2 STA2 JMP2r } STH2r ".toHex($len-1,2).' #0000 range-map-short';
+}
