@@ -485,14 +485,17 @@ Instead of the nice but cumbersome approach we had until now, from now on it is 
                     $c_line='( '.$line.' )';
                     # croak 'WHY?'.$line;
                 } else {
-                    ($stref,my $uxntal_var_decl) =  _emit_var_decl_Uxntal($stref,$f,$info,$var);
-                    if (not exists $pass_state->{'Subroutine'}{'LocalVars'}{'Set'}{$uxntal_var_decl}) {
-                        $pass_state->{'Subroutine'}{'LocalVars'}{'Set'}{$uxntal_var_decl}=$uxntal_var_decl;
-                        $skip_comment=1;
-                        push @{$pass_state->{'Subroutine'}{'LocalVars'}{'List'}}, "( ____ $line )" unless $skip_comment;
-                        push @{$pass_state->{'Subroutine'}{'LocalVars'}{'List'}},$uxntal_var_decl;
-                    } else {
-                        croak "Vars should be unique: $uxntal_var_decl";
+                    if (not (exists $stref->{'Subroutines'}{$f}{'Signature'}{'ResultVar'} 
+                    and $stref->{'Subroutines'}{$f}{'Signature'}{'ResultVar'} eq $var)) {
+                        ($stref,my $uxntal_var_decl) =  _emit_var_decl_Uxntal($stref,$f,$info,$var);
+                        if (not exists $pass_state->{'Subroutine'}{'LocalVars'}{'Set'}{$uxntal_var_decl}) {
+                            $pass_state->{'Subroutine'}{'LocalVars'}{'Set'}{$uxntal_var_decl}=$uxntal_var_decl;
+                            $skip_comment=1;
+                            push @{$pass_state->{'Subroutine'}{'LocalVars'}{'List'}}, "( ____ $line )" unless $skip_comment;
+                            push @{$pass_state->{'Subroutine'}{'LocalVars'}{'List'}},$uxntal_var_decl;
+                        } else {
+                            croak "Vars should be unique: $uxntal_var_decl";
+                        }
                     }
             }
             }
@@ -588,6 +591,7 @@ Instead of the nice but cumbersome approach we had until now, from now on it is 
                 # say "PRINT: $line";
                 # say Dumper $info;
                 $c_line = __emit_list_based_print_write($stref,$f,$line,$info, '*','yes');
+                # croak Dumper($c_line) if $line=~/decodeTokenStrI/;    
                 # say "UXNTAL: $c_line";
             } elsif (exists $info->{'WriteCall'}) {
                 # carp Dumper $info;
@@ -1973,7 +1977,7 @@ sub __nBytes ($wordSz, $isArrayOrString){
 sub _emit_var_decl_Uxntal ($stref,$f,$info,$var){
     my $sub_or_module = sub_func_incl_mod( $f, $stref );
     my $Sf = $stref->{$sub_or_module}{$f};
-    # say "_emit_var_decl_Uxntal: VAR $var in $f ";
+    # carp "_emit_var_decl_Uxntal: VAR $var in $f " if $var eq 'res' and $f eq 'decodeTokenStrI';
     # my $decl =  get_var_record_from_set($stref->{$sub_or_module}{$f}{'Vars'},$var);
     my $decl = getDecl($stref,$f,$var);
 
@@ -2839,7 +2843,7 @@ sub _emit_list_print_Uxntal($stref,$f,$line,$info,$unit,$advance,$list_to_print)
             my ($arg_to_print_Uxntal,$word_sz) = _emit_expression_Uxntal($elt,$stref, $f, $info);
             my $elt_0 = [10,$elt->[1],[29,'0']];
             my $print_fn_Uxntal = _emit_print_from_ast($stref,$f,$line,$info,$unit,$elt_0);
-            $line_Uxntal = '{ ( iter ) ,&'.$iter.' STR2 '.$arg_to_print_Uxntal.' '.$print_fn_Uxntal." JMP2r } STH2r $e $idx_offset_expr $b $idx_offset_expr range-map-short ( print-array-slice )";
+            $line_Uxntal = '{ ( iter ) ,&'.$iter.' STR2 '.$arg_to_print_Uxntal.' '.$print_fn_Uxntal." #20 $port DEO JMP2r } STH2r $e $idx_offset_expr $b $idx_offset_expr range-map-short ( print-array-slice )";
             # croak $line_Uxntal;
         } else {
             my ($arg_to_print_Uxntal,$word_sz) = _emit_expression_Uxntal($elt,$stref, $f, $info);
@@ -2851,7 +2855,7 @@ sub _emit_list_print_Uxntal($stref,$f,$line,$info,$unit,$advance,$list_to_print)
                 $arg_to_print_Uxntal = $uxntal_var_access. ' LDA';
             }
             # If a string is a single char, we treat it as a char, so we must print a char
-            if ($print_fn_Uxntal eq 'print-string' and $arg_to_print_Uxntal=~/^\s*\#|LDA$/ ) { #
+            if ($print_fn_Uxntal eq 'print-string' and $arg_to_print_Uxntal=~/^(?:\s*\#|LDA)$/ ) { #
                 $print_fn_Uxntal = 'print-char';
             }
             $line_Uxntal .= "$arg_to_print_Uxntal $print_fn_Uxntal #20 $port DEO ( , )\n";
@@ -3401,13 +3405,14 @@ sub __emit_list_based_print_write($stref,$f,$line,$info,$unit, $advance){
         shift @list_to_print; shift @list_to_print;
         # croak 'WRONG!'.Dumper( $ast,$info,@list_to_print) if $line=~/funktalTokensIdx/;
         $c_line = _emit_list_print_Uxntal($stref,$f,$line,$info,$unit, $advance,\@list_to_print);
-
+        # carp "HERE: $c_line";
 	} else {
 		my $fmt_ast = $ast->[2][1];
 		if ($fmt_ast->[0]==29) {
 			error("Unsupported: PRINT with label arg: $line",0,'ERROR');
 		}
 		my $print_fmt = __analyse_write_call_arg($stref,$f,$info,$fmt_ast,0);
+        carp "FMT: $print_fmt";
 		my ($print_call_list, $offsets) = __parse_fmt($print_fmt->[1],$stref,$f,$info);
 		my $call_arg_list = $ast->[2]; shift @{$call_arg_list};shift @{$call_arg_list};
 		if (scalar @{$print_call_list} != scalar @{$call_arg_list}) {
