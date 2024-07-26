@@ -452,7 +452,7 @@ Instead of the nice but cumbersome approach we had until now, from now on it is 
 # --------------------------------------------------------------------------------------------
     my $pass_translate_to_Uxntal = sub ($annline, $state){
         (my $line,my $info)=@{$annline};
-        my $c_line= $line eq '' ? '' : "( TODO $line )";
+        my $c_line= $line eq '' ? '' : "( $line )";
         (my $stref, my $f, my $pass_state)=@{$state};
         my $id = $info->{'LineID'};
         my $skip=0;
@@ -494,13 +494,22 @@ Instead of the nice but cumbersome approach we had until now, from now on it is 
                             $skip_comment=1;
                             push @{$pass_state->{'Subroutine'}{'LocalVars'}{'List'}}, "( ____ $line )" unless $skip_comment;
                             push @{$pass_state->{'Subroutine'}{'LocalVars'}{'List'}},$uxntal_var_decl;
+                            $pass_state = _gen_array_string_inits($stref,$f,$var,$pass_state);
+
                         } else {
                             croak "Vars should be unique: $uxntal_var_decl";
                         }
-                    }
+                }
             }
             }
             $skip=1;
+        }
+        elsif (exists $info->{'VarDecl'} and $use_stack ) {
+            my $var = $info->{'VarDecl'}{'Name'};
+            if (exists $stref->{'Subroutines'}{$f}{'Signature'}{'ResultVar'} 
+                    and $stref->{'Subroutines'}{$f}{'Signature'}{'ResultVar'} eq $var) {
+                $pass_state = _gen_array_string_inits($stref,$f,$var,$pass_state);
+            }
         }
         elsif ( exists $info->{'ParamDecl'} ) {
             # A parameter should become a macro
@@ -885,6 +894,7 @@ Instead of the nice but cumbersome approach we had until now, from now on it is 
             'IsMain' => '',
             'TranslatedCode'=>[],
             'ArgDecls'=>[],
+            'ArrayStringInits'=>[],
             'LocalVars'=> {'Set' =>{}, 'List' => [] },
             # 'LocalVarDecls' =>[],
             # 'DoIterators' => {'Set' =>{}, 'List' => [] },
@@ -908,6 +918,7 @@ Instead of the nice but cumbersome approach we had until now, from now on it is 
         @{$sub_uxntal_code->{'LocalVars'}{'List'}},
         @{$sub_uxntal_code->{'Sig'}},
         @stack_array_string_inits,
+        @{$sub_uxntal_code->{'ArrayStringInits'}},
         @{$sub_uxntal_code->{'ReadArgs'}},
         @{$sub_uxntal_code->{'TranslatedCode'}},
         # @{$stref->{'TranslatedCode'}},'',
@@ -1674,13 +1685,22 @@ sub _stack_allocation($stref,$f,$var) {
                     ? __C_array_size($decl->{'ConstDim'})
                     : __C_array_size($decl->{'Dim'}) ;
                 $nbytes= $dim*$word_sz+2; # 2 bytes for size field
-                my $init_array = toHex($dim,2).' .fp LDZ2 '.toHex($offset,2). ' ADD2 STA2';
+                my $init_array = toHex($dim,2).' .fp LDZ2 '.toHex($offset,2). ' ADD2 STA2' ."\n";
+                $init_array.= __create_array_zeroing(
+                    '.fp LDZ2 '.toHex($offset,2). ' ADD2',
+                    $dim,
+                    $word_sz
+                );
                 $array_string_init=$init_array;
             }
             elsif (is_string($stref,$f,$var)) {
                 my $len = __get_len_from_Attr($decl);
                 $nbytes = $len+2; # 2 bytes for the len field
-                my $init_string = toHex($len,2).' .fp LDZ2 '.toHex($offset,2). ' ADD2 STA2';
+                my $init_string = toHex($len,2).' .fp LDZ2 '.toHex($offset,2). ' ADD2 STA2'."\n";
+                $init_string.= __create_string_zeroing(
+                    '.fp LDZ2 '.toHex($offset,2). ' ADD2',
+                    $len
+                );
                 $array_string_init=$init_string;
             }
             $Sf->{'CurrentOffset'} += $nbytes;
@@ -1950,7 +1970,7 @@ sub _emit_arg_decl_Uxntal($stref,$f,$arg, $name){
     and $stref->{'Subroutines'}{$f}{'Signature'}{'ResultVar'} eq $arg
     ) {
         $use_stack=0;
-        }
+    }
     # If the arg is an Out arg, we need to put its address on the stack
     # TODO: I need to check the handling of a RESULT string from a function.
     # If we don't use the stack we can allocate this as a local and return the address
@@ -3885,13 +3905,45 @@ For file writes, I think I will only support the following:
 =cut
 
 sub __create_string_zeroing($str,$len) {
-    return "{ ( iter ) #00 ROT ROT ;$str ADD2 STA JMP2r } STH2r ".toHex($len+1,2).' #0002 range-map-short';
+    return "{ ( iter ) #00 ROT ROT $str ADD2 STA JMP2r } STH2r ".toHex($len+1,2).' #0002 range-map-short';
 }
 
+sub __create_array_zeroing($arr,$sz,$word_sz) {
+    if ($word_sz==1) {
+        __create_byte_array_zeroing($arr,$sz)
+    } elsif ($word_sz==2) {
+        __create_short_array_zeroing($arr,$sz)
+    } else {croak 'BOOM!'}
+}
 sub __create_byte_array_zeroing($str,$len) {
-    return "{ ( iter ) #00 ROT ROT ;$str ADD2 STA JMP2r } STH2r ".toHex($len-1,2).' #0000 range-map-short';
+    return "{ ( iter ) #00 ROT ROT $str ADD2 STA JMP2r } STH2r ".toHex($len-1,2).' #0000 range-map-short';
 }
 
 sub __create_short_array_zeroing($str,$len) {
-    return "{ ( iter ) #0000 SWP2 #0002 MUL ;$str ADD2 STA2 JMP2r } STH2r ".toHex($len-1,2).' #0000 range-map-short';
+    return "{ ( iter ) #0000 SWP2 #0002 MUL $str ADD2 STA2 JMP2r } STH2r ".toHex($len-1,2).' #0000 range-map-short';
+}
+sub _gen_array_string_inits($stref,$f,$var,$pass_state) {
+    my $uxntal_array_string_init = '';
+    my $decl = getDecl($stref,$f,$var);
+    my $fq_var = __create_fq_varname($stref,$f,$var);
+
+    if (is_array($stref,$f,$var)) {
+        my $word_sz = $stref->{'Subroutines'}{$f}{'WordSizes'}{$var};
+        my $sz = exists $decl->{'ConstDim'}
+        ? __C_array_size($decl->{'ConstDim'})
+        : __C_array_size($decl->{'Dim'}) ;
+        $uxntal_array_string_init = __create_array_zeroing(";$fq_var",$sz,$word_sz);
+        # carp "INIT ARRAY $var in $f";
+    } 
+    elsif (is_string($stref,$f,$var)) {
+        my $len = __get_len_from_Attr($decl);
+        if ($len eq ':' or $len eq '*') {
+            $len = 64; # AD-HOC
+        }
+        $uxntal_array_string_init = __create_string_zeroing(";$fq_var",$len);
+        # carp "INIT STRING $var in $f";
+    }
+    
+    push @{$pass_state->{'Subroutine'}{'ArrayStringInits'}},$uxntal_array_string_init unless $uxntal_array_string_init eq '';
+    return $pass_state;
 }
