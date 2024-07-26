@@ -2431,9 +2431,19 @@ sub _emit_subroutine_call_expr_Uxntal($stref,$f,$line,$info){
                     ($idx_expr_e,my $word_sz) = _emit_expression_Uxntal($arg_expr_ast->[2][2], $stref, $f,$info);
                 }
                 croak Dumper($arg_expr_ast) if ref($idx_expr_b) eq 'ARRAY';
-                if ($idx_expr_b eq $idx_expr_e) { # access a single character, so return a byte as value
-                    my $idx_expr =  ($idx_expr_b eq '#0000') ? '' : "$idx_expr_b ADD2 ";
-                    push @call_arg_expr_strs_Uxntal,  "$var_access $idx_expr LDA$short_mode".' ( BYTE/SHORT )' # load a pointer, index, load the value
+                if ($idx_expr_b eq $idx_expr_e) { # access a single element, so return a byte/short as value
+                    my $idx_offset = __get_array_index_offset($stref,$f,$var);
+                    my $idx_offset_Uxntal =  toHex($idx_offset,2);
+                    my $idx_offset_expr = $idx_offset==0? '' : $idx_offset_Uxntal.' SUB2';
+                    my $idx = $idx_expr_b;
+                    # my $idx_word_sz = 
+                    my $idx_expr = defined $idx ? ($idx eq $idx_offset_Uxntal) ? '' :
+                    "$idx $idx_offset_expr".( $short_mode ? ' #0002 MUL2 ': '') .' ADD2 ' : '';
+                    push @call_arg_expr_strs_Uxntal, "$var_access $idx_expr LDA$short_mode".' ( BYTE/SHORT )' # load a pointer, index, load the value
+
+
+                    # my $idx_expr =  ($idx_expr_b eq '#0000') ? '' : "$idx_expr_b ADD2 ";
+                    # push @call_arg_expr_strs_Uxntal,  "$var_access $idx_expr LDA$short_mode".' ( BYTE/SHORT )' # load a pointer, index, load the value
                 } else {
                     # extract a substring
                     # my $decl = get_var_record_from_set($Sf->{'Vars'},$var);

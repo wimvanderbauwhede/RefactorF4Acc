@@ -42,6 +42,11 @@ When copying a substr we must make sure the length is set
  
  The spurious value on the stack is gone in decodeTokenStrI which only has the IdentifierLabel case, so now I can put the other cases back and see where it goes wrong. The odd thing is that none of them is ever reached so how can they put things on the stack?
  
+====
+
+I think if we return a pointer to a string or array, then esp. for a string, that should be cleared. So at the start of the call we should zero the string.
+
+
  
  
 
