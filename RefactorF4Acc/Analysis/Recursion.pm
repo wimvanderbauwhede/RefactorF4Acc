@@ -271,7 +271,8 @@ sub analyse_recursion($stref,$f){
 			$stref->{'Subroutines'}{$f}{'Recursion'}='No';
 		}
 	}
-	say "$f: ".$stref->{'Subroutines'}{$f}{'Recursion'}." recursion" if $V;
+	say "$f: ".$stref->{'Subroutines'}{$f}{'Recursion'}." recursion";# if $V;
+	say '-' x 8;
 	return $stref;
 } # END of analyse_recursion
 

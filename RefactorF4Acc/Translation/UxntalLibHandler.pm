@@ -86,6 +86,10 @@ our %uxntal_lib_subroutines = (
     '@adjustl', '( a NOOP, TODO! )','JMP2r'
 ],
 
+'wst' =>[ '','( show number of bytes on the WST. Takes an arbitrary char to print as info )',
+    '@wst', '#5718 DEO #18 DEO #2018 DEO .System/wst DEI #01 SUB #00 SWP print-int nl','JMP2r'
+]
+
 );
 
 sub load_uxntal_lib_subroutines(@uxntal_lib_sources) {

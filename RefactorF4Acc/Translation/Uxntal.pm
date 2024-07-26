@@ -154,6 +154,7 @@ sub translate_program_to_Uxntal($stref,$program_name){
         ], {}
     );
 
+    add_to_used_lib_subs( 'wst' );
     if ($stref->{'UseCallStack'} ) {
         add_to_used_lib_subs( 'init-call-stack' );
         add_to_used_lib_subs( 'push-frame' );
@@ -186,7 +187,7 @@ sub translate_program_to_Uxntal($stref,$program_name){
         @{$stref->{'Uxntal'}{'Libraries'}{'List'}},
         @{$stref->{'TranslatedCode'}}, # These are the subroutines
         @used_uxntal_lib_subroutine_sources,
-        '@nl #0a18 DEO JMP2r',
+        # '@nl #0a18 DEO JMP2r',
         @{$stref->{'Uxntal'}{'Globals'}{'List'}},
         @{$stref->{'Uxntal'}{'Macros'}{'List'}},
         ($stref->{'UseCallStack'} ? @{$stref->{'Uxntal'}{'CallStack'}} : ()),
@@ -810,7 +811,8 @@ Instead of the nice but cumbersome approach we had until now, from now on it is 
             if (is_array_or_string($stref,$f,$res)) {
                 # We return the address
                 # ResultVar should always be statically allocated if it is an array or string
-                $c_line = ';'. __create_fq_varname($stref,$f,$res). ' JMP2r';
+                $c_line = ';'. __create_fq_varname($stref,$f,$res)."\n";
+                $c_line .= $use_stack ?  ' !pop-frame' : ' JMP2r' ;
             } else {
                 # We return the value
                 if ($use_stack) {
@@ -1479,10 +1481,14 @@ sub __copy_substr($stref, $f, $info, $lhs_ast, $rhs_ast) {
                     my $fname = $info->{'FunctionCalls'}[0]{'Name'};
                     $rhs_len = $stref->{'Subroutines'}{$fname}{'RefactoredCode'}[0][1]{'Signature'}{'ReturnTypeAttr'};
                     $rhs_len =~s/\(len=//;$rhs_len =~s/\)//;
+                    if ($rhs_len eq ':' or $rhs_len eq '*') {
+                        $rhs_len=64; # AD-HOC
+                    }
                 }
+
                 my $len = toHex(min($lhs_len,$rhs_len),2);
                 $uxntal_code = $len eq '#0000' 
-                ? "{ 0000 } STH2r $lhs_var_access $len strncpy"
+                ? "{ 0000 } STH2r $lhs_var_access #0000 strncpy"
                 : "$rhs_Uxntal_expr $lhs_var_access $len strncpy";
                 add_to_used_lib_subs('strncpy');
             }
