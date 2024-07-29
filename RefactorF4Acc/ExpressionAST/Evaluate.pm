@@ -484,6 +484,7 @@ sub _try_to_eval_via_vars  {my ($stref, $f, $var) = @_;
 } # END of _try_to_eval_via_vars
 
 sub eval_intrinsic { my ($val_expr_str,$val_expr_ast) = @_;
+
     my $intr = $val_expr_str;
     $intr=~s/\s*\(.+$//;
     my $intr_args_str = $val_expr_str;

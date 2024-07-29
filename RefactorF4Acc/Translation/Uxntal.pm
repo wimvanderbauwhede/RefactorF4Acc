@@ -619,7 +619,7 @@ Instead of the nice but cumbersome approach we had until now, from now on it is 
                 ) {
                     # add_to_used_lib_subs($print_calls->[0]);
                     $c_line = __emit_list_based_print_write($stref,$f,$line,$info, $unit,$advance);
-                    # say "UXNTAL SINGLE WRITE: $c_line";
+                    # say "UXNTAL SINGLE WRITE: $c_line $advance";
                 } else {
                     # if ($unit eq 'STDOUT' or $unit eq 'STDERR') {
                     add_to_used_lib_subs('update-len');
@@ -1299,7 +1299,9 @@ sub _var_access_assign($stref,$f,$info,$lhs_ast,$rhs_ast) {
                 else {
                     error('Only integer and logical are supported on the RHS of an array assignment');
                 }
-
+            } elsif ($rhs_ast->[0] ==1) {
+                # A function call, need to check the type 
+                croak "TODO: _var_access_assign($f):", Dumper($lhs_ast,$rhs_ast);
             } else {
                 my ($rhs_var,$idxs,$idx_expr_type) = __unpack_var_access_ast($rhs_ast);
                 if (is_array($stref,$f,$rhs_var)) {
@@ -2255,7 +2257,7 @@ sub _emit_expression_Uxntal ($ast, $stref, $f, $info) {
             # Special cases
             # Uxn does not have pow or mod so these would have to be functions
             # TODO these are not implemented yet
-            if ($opcode ==19 or $opcode == 20) {
+            if ($opcode == 19 or $opcode == 20) {
                 add_to_used_lib_subs($sigils[$opcode].'2'); # FIXME: use word size!
             }
             if (($opcode == 21 or $opcode == 4 or $opcode == 3) and scalar @{$ast} == 2) {#  '.not.', '-' or '+'
@@ -2306,11 +2308,13 @@ sub _emit_expression_Uxntal ($ast, $stref, $f, $info) {
                 return ("$lv $rv".' { 0100 $100 } STH2r concat',2);
             } else {
                 if ($l_word_sz!=$r_word_sz) {
-                    croak "Word sizes for ".$sigils[$opcode]." must be the same: $l_word_sz <> $r_word_sz ( $lv $rv )";
-                } 
-                my $short_mode = $l_word_sz == 2 ? '2' : '';
+                    croak "Word sizes for ".$sigils[$opcode]." must be the same: $l_word_sz <> $r_word_sz ( $lv <> $rv )";
+                }
+                my $word_sz =  ($opcode >=15 && $opcode<=26 ) 
+                ? 1 : $l_word_sz;
+                my $short_mode = $word_sz == 2 ? '2' : '';
                 # Ideally, the _emit_expression_Uxntal should return the word size of the expression
-                return ("$lv $rv  ". $sigils[$opcode].$short_mode, $l_word_sz ); # FIXME, needs refining
+                return ("$lv $rv  ". $sigils[$opcode].$short_mode, $word_sz ); # FIXME, needs refining
             }
         }
         elsif (scalar @{$ast} > 3 and $opcode == 27) { # the ast is a comma-separated list ','
@@ -2796,29 +2800,29 @@ sub __gen_substr($str_addr, $cb, $ce, $len, $id){
 sub isStrCmp($ast, $stref, $f,$info){
     if ($ast->[0] >=15 && $ast->[0]<=26 ) {
         # it is a comparison; are the args strings?
-    my $lhs_name = $ast->[1][0] == 10 ? $ast->[1][1] : '';
-    my $rhs_name = $ast->[2][0] == 10 ? $ast->[2][1] : '';
-    my $lhs_is_str = $ast->[1][0] == 34 ? 1 : 0;
-    my $rhs_is_str = $ast->[2][0] == 34 ? 1 : 0;
-    if (not $lhs_is_str) {
-        if ($lhs_name ne '') {
-            # my $decl = get_var_record_from_set($stref->{'Subroutines'}{$f}{'Vars'},$lhs_name);
-            my $decl = getDecl($stref,$f,$lhs_name);
-            if ($decl->{'Type'} eq 'character') {
-                $lhs_is_str=1;
+        my $lhs_name = $ast->[1][0] == 10 ? $ast->[1][1] : '';
+        my $rhs_name = $ast->[2][0] == 10 ? $ast->[2][1] : '';
+        my $lhs_is_str = $ast->[1][0] == 34 ? 1 : 0;
+        my $rhs_is_str = $ast->[2][0] == 34 ? 1 : 0;
+        if (not $lhs_is_str) {
+            if ($lhs_name ne '') {
+                # my $decl = get_var_record_from_set($stref->{'Subroutines'}{$f}{'Vars'},$lhs_name);
+                my $decl = getDecl($stref,$f,$lhs_name);
+                if ($decl->{'Type'} eq 'character') {
+                    $lhs_is_str=1;
+                }
             }
         }
-    }
-    if (not $rhs_is_str) {
-        if ($rhs_name ne '') {
-            # my $decl = get_var_record_from_set($stref->{'Subroutines'}{$f}{'Vars'},$rhs_name);
-            my $decl = getDecl($stref,$f,$rhs_name);
-            if ($decl->{'Type'} eq 'character') {
-                $rhs_is_str=1;
+        if (not $rhs_is_str) {
+            if ($rhs_name ne '') {
+                # my $decl = get_var_record_from_set($stref->{'Subroutines'}{$f}{'Vars'},$rhs_name);
+                my $decl = getDecl($stref,$f,$rhs_name);
+                if ($decl->{'Type'} eq 'character') {
+                    $rhs_is_str=1;
+                }
             }
         }
-    }
-    return $lhs_is_str * $rhs_is_str;
+        return $lhs_is_str * $rhs_is_str;
     } else {
         # it is not a comparison
         return 0
@@ -2855,6 +2859,15 @@ sub _emit_list_print_Uxntal($stref,$f,$line,$info,$unit,$advance,$list_to_print)
         my $var_name = $elt->[1];
 
         if ($print_fn_Uxntal eq 'print-array') {
+            # The range must be the original Fortran one: we correct for the offset in the var access
+            my $idx_offset = __get_array_index_offset($stref,$f,$var_name);
+            my $idx_offset_Uxntal =  toHex($idx_offset,2);
+            my $idx_offset_expr = $idx_offset==0 
+                ? '' 
+                    : $idx_offset==1
+                        ? 'INC2' 
+                        : $idx_offset_Uxntal.' ADD2';
+
             # transforming the array into an index access mighr be best
             my $decl = getDecl($stref,$f,$var_name);
             # carp Dumper($decl);
@@ -2865,13 +2878,14 @@ sub _emit_list_print_Uxntal($stref,$f,$line,$info,$unit,$advance,$list_to_print)
             my ($arg_to_print_Uxntal,$word_sz) = _emit_expression_Uxntal($elt_iter,$stref, $f, $info);
             my $elt_0 = [10,$elt->[1],[29,'0']];
             my $print_fn_Uxntal = _emit_print_from_ast($stref,$f,$line,$info,$unit,$elt_0);
-            $line_Uxntal = '{ ( iter ) ,&'.$iter.' STR2 '.$arg_to_print_Uxntal.' '.$print_fn_Uxntal.' JMP2r } STH2r '.toHex($array_length-1,2).' #0000  range-map-short ( print-array )';
+            $line_Uxntal = '{ ( iter ) ,&'.$iter.' STR2 '.$arg_to_print_Uxntal.' '.$print_fn_Uxntal.' JMP2r } STH2r '.toHex($array_length-1,2)." $idx_offset_expr #0000 $idx_offset_expr range-map-short ( print-array )";
             # croak $line_Uxntal;
         }
         elsif ($print_fn_Uxntal eq 'print-array-slice') {
-            my $idx_offset = __get_array_index_offset($stref,$f,$var_name);
-            my $idx_offset_Uxntal =  toHex($idx_offset,2);
-            my $idx_offset_expr = $idx_offset==0? '' : $idx_offset_Uxntal.' SUB2';
+            # The range must be the original Fortran one: we correct for the offset in the var access
+            # my $idx_offset = __get_array_index_offset($stref,$f,$var_name);
+            # my $idx_offset_Uxntal =  toHex($idx_offset,2);
+            # my $idx_offset_expr = $idx_offset==0? '' : $idx_offset_Uxntal.' SUB2';
             # croak Dumper $elt;
             my ($b,$word_sz_b) = _emit_expression_Uxntal($elt->[2][1],$stref, $f, $info);
             my ($e,$word_sz_e) = _emit_expression_Uxntal($elt->[2][2],$stref, $f, $info);
@@ -2879,7 +2893,8 @@ sub _emit_list_print_Uxntal($stref,$f,$line,$info,$unit,$advance,$list_to_print)
             my ($arg_to_print_Uxntal,$word_sz) = _emit_expression_Uxntal($elt,$stref, $f, $info);
             my $elt_0 = [10,$elt->[1],[29,'0']];
             my $print_fn_Uxntal = _emit_print_from_ast($stref,$f,$line,$info,$unit,$elt_0);
-            $line_Uxntal = '{ ( iter ) ,&'.$iter.' STR2 '.$arg_to_print_Uxntal.' '.$print_fn_Uxntal." #20 $port DEO JMP2r } STH2r $e $idx_offset_expr $b $idx_offset_expr range-map-short ( print-array-slice )";
+            $line_Uxntal = '{ ( iter ) ,&'.$iter.' STR2 '.$arg_to_print_Uxntal.' '.$print_fn_Uxntal." #20 $port DEO JMP2r } STH2r $e $b range-map-short ( print-array-slice )";
+            # $e $idx_offset_expr $b $idx_offset_expr 
             # croak $line_Uxntal;
         } else {
             my ($arg_to_print_Uxntal,$word_sz) = _emit_expression_Uxntal($elt,$stref, $f, $info);
