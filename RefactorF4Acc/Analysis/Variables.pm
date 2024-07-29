@@ -5,6 +5,9 @@ use RefactorF4Acc::Utils;
 use RefactorF4Acc::F95SpecWords qw( %F95_reserved_words %F95_intrinsics );
 use RefactorF4Acc::Refactoring::Helpers qw( get_f95_var_decl stateful_pass_inplace stateless_pass_inplace );
 use RefactorF4Acc::Utils::Functional qw( ordered_union ordered_difference );
+use RefactorF4Acc::Parser::Expressions qw(
+    get_vars_from_expression
+);
 #
 #   (c) 2010-2017 Wim Vanderbauwhede <wim@dcs.gla.ac.uk>
 #
@@ -427,6 +430,7 @@ sub analyse_used_variables {
 			# -------------------------------------------------------------------------------------------------------------------
 
 			for my $mvar (@chunks) {
+				croak $f.' '.Dumper($mvar) if ref($mvar) eq 'ARRAY' or $mvar=~/ARRAY/;
 
                 next if exists $stref->{'Subroutines'}{$f}{'CalledSubs'}{'Set'}{$mvar};    # Means it's a function
 				next if $mvar =~ /^\d+(?:_[1248])?$/;
@@ -504,87 +508,89 @@ sub identify_vars_on_line {
 		or exists $info->{'ParamDecl'}
 		or exists $info->{'Data'}
 		or exists $info->{'Equivalence'}
-		) {
+	) {
 
-			my @chunks = ();
-			if ( exists $info->{'If'} or exists $info->{'ElseIf'} ) {
-				@chunks = @{ $info->{'Cond'}{'Vars'}{'List'} };
+		my @chunks = ();
+		if ( exists $info->{'If'} or exists $info->{'ElseIf'} ) {
+			@chunks = @{ $info->{'Cond'}{'Vars'}{'List'} };
+		}
+		if ( exists  $info->{'Select'} ) {
+			@chunks = ( $info->{'CaseVar'}[1] );
+		}
+		elsif ( exists $info->{'Case'} ) {
+			my $caseval_ast =  $info->{'CaseVals'};
+			my $vars_in_cond_expr =  get_vars_from_expression( $caseval_ast,{});
+			@chunks = sort keys %{$vars_in_cond_expr};
+		}
+		if (   exists $info->{'PrintCall'}
+			or exists $info->{'WriteCall'}
+			or exists $info->{'ReadCall'}
+			or exists $info->{'InquireCall'}
+			or exists $info->{'RewindCall'}
+			or exists $info->{'Return'}
+			) {
+
+			@chunks = ( @chunks, @{ $info->{'Vars'}{'Written'}{'List'} }, @{ $info->{'Vars'}{'Read'}{'List'} } );
+			if (exists $info->{'CallAttrs'}) {
+				@chunks = ( @chunks,@{$info->{'CallAttrs'}{'List'}} );
 			}
-			if ( exists  $info->{'Select'} ) {
-				@chunks = ( $info->{'CaseVar'}[1] );
+			if (exists $info->{'ImpliedDoVars'}) {
+				@chunks = ( @chunks, @{ $info->{'ImpliedDoVars'}{'List'} } );
 			}
-			elsif ( exists $info->{'Case'} ) {
-				@chunks =  @{$info->{'CaseVals'}};
+			if (exists $info->{'ImpliedDoRangeVars'}) {
+				@chunks = ( @chunks, @{ $info->{'ImpliedDoRangeVars'}{'List'} } );
 			}
-			if (   exists $info->{'PrintCall'}
-				or exists $info->{'WriteCall'}
-				or exists $info->{'ReadCall'}
-				or exists $info->{'InquireCall'}
-				or exists $info->{'RewindCall'}
-				or exists $info->{'Return'}
+		} elsif ( exists $info->{'SubroutineCall'} ) {
+			# croak Dumper $info if $info->{'SubroutineCall'}{'Name'} eq 'tokeniseFunktal';
+			for my $var_expr ( @{ $info->{'SubroutineCall'}{'Args'}{'List'} } ) {
+				# carp Dumper( $info->{'SubroutineCall'}{'Args'}{'Set'});
+				if ( exists $info->{'SubroutineCall'}{'Args'}{'Set'}{$var_expr}{'Arg'} ) {
+					push @chunks, $info->{'SubroutineCall'}{'Args'}{'Set'}{$var_expr}{'Arg'};
+					# carp Dumper($info->{'SubroutineCall'}{'Args'}{'Set'}{$var_expr});
+				} elsif(
+					exists $info->{'SubroutineCall'}{'Args'}{'Set'}{$var_expr}{'Vars'}
 				) {
+					@chunks = (@chunks, sort keys %{$info->{'SubroutineCall'}{'Args'}{'Set'}{$var_expr}{'Vars'}});
+				} elsif ($info->{'SubroutineCall'}{'Args'}{'Set'}{$var_expr}{'Type'} ne 'Const' ) {
+					push @chunks, $var_expr;
+				}
+			}
+			for my $expr_var ( @{ $info->{'ExprVars'}{'List'} } ) {
+				push @chunks, $expr_var;
+			}
 
-				@chunks = ( @chunks, @{ $info->{'Vars'}{'Written'}{'List'} }, @{ $info->{'Vars'}{'Read'}{'List'} } );
-				if (exists $info->{'CallAttrs'}) {
-					@chunks = ( @chunks,@{$info->{'CallAttrs'}{'List'}} );
-				}
-				if (exists $info->{'ImpliedDoVars'}) {
-				    @chunks = ( @chunks, @{ $info->{'ImpliedDoVars'}{'List'} } );
-				}
-                if (exists $info->{'ImpliedDoRangeVars'}) {
-                    @chunks = ( @chunks, @{ $info->{'ImpliedDoRangeVars'}{'List'} } );
-                }
-			} elsif ( exists $info->{'SubroutineCall'} ) {
-				# croak Dumper $info if $info->{'SubroutineCall'}{'Name'} eq 'tokeniseFunktal';
-				for my $var_expr ( @{ $info->{'SubroutineCall'}{'Args'}{'List'} } ) {
-					# carp Dumper( $info->{'SubroutineCall'}{'Args'}{'Set'});
-					if ( exists $info->{'SubroutineCall'}{'Args'}{'Set'}{$var_expr}{'Arg'} ) {
-						push @chunks, $info->{'SubroutineCall'}{'Args'}{'Set'}{$var_expr}{'Arg'};
-						# carp Dumper($info->{'SubroutineCall'}{'Args'}{'Set'}{$var_expr});
-					} elsif(
-						exists $info->{'SubroutineCall'}{'Args'}{'Set'}{$var_expr}{'Vars'}
-					) {
-						@chunks = (@chunks, sort keys %{$info->{'SubroutineCall'}{'Args'}{'Set'}{$var_expr}{'Vars'}});
-					} elsif ($info->{'SubroutineCall'}{'Args'}{'Set'}{$var_expr}{'Type'} ne 'Const' ) {
-						push @chunks, $var_expr;
-					}
-				}
-				for my $expr_var ( @{ $info->{'ExprVars'}{'List'} } ) {
-					push @chunks, $expr_var;
-				}
-
-			} elsif ( exists $info->{'OpenCall'} ) {
-				if ( exists $info->{'Vars'} ) {
-					@chunks = ( @chunks, @{ $info->{'Vars'}{'List'} } );
-					# croak Dumper @chunks;
-				}
-			} elsif ( exists $info->{'Do'} ) {
-				# if ($line=~/do.+int.+len/ ) {
-					# say $line;
-					# carp Dumper($info->{'Do'});
-				# }
-				@chunks = exists $info->{'Do'}{'Iterator'} ? ( @chunks, $info->{'Do'}{'Iterator'}, @{ $info->{'Do'}{'Range'}{'Vars'} } ) : ();
-			} elsif ( (exists $info->{'Assignment'} and not exists $info->{'Data'}) or exists $info->{'StatementFunction'}) {
-				@chunks = ( @chunks, $info->{'Lhs'}{'VarName'}, @{ $info->{'Lhs'}{'IndexVars'}{'List'} }, @{ $info->{'Rhs'}{'Vars'}{'List'} } );
-			} elsif ( exists $info->{'ParamDecl'} ) {
-				@chunks = ( @chunks, keys %{ $info->{'ModuleParameters'} } );
-			} elsif ( exists $info->{'Data'}
-			or exists $info->{'Equivalence'} ) {
+		} elsif ( exists $info->{'OpenCall'} ) {
+			if ( exists $info->{'Vars'} ) {
 				@chunks = ( @chunks, @{ $info->{'Vars'}{'List'} } );
-			} elsif ( not exists $info->{'IfThen'} ) {
-				# carp "HERE FOR IF ... GOTO $line" if $line=~/go\s*to/;
-				# $line=~s/go\s+to/goto/; # WV: HACK, should normalise this much earlier!
-				my @mchunks = split( /\W+/, $line );
-				for my $mvar (@mchunks) {
-					next if exists $F95_reserved_words{ $mvar };    # This should be, unless some idiot has assigned to a reserved word somewhere. We assume they only redefine intrinsic functions but who knows?
-					# next if exists $F95_other_intrinsics{$mvar};
-					next if exists $F95_intrinsics{$mvar};
+				# croak Dumper @chunks;
+			}
+		} elsif ( exists $info->{'Do'} ) {
+			# if ($line=~/do.+int.+len/ ) {
+				# say $line;
+				# carp Dumper($info->{'Do'});
+			# }
+			@chunks = exists $info->{'Do'}{'Iterator'} ? ( @chunks, $info->{'Do'}{'Iterator'}, @{ $info->{'Do'}{'Range'}{'Vars'} } ) : ();
+		} elsif ( (exists $info->{'Assignment'} and not exists $info->{'Data'}) or exists $info->{'StatementFunction'}) {
+			@chunks = ( @chunks, $info->{'Lhs'}{'VarName'}, @{ $info->{'Lhs'}{'IndexVars'}{'List'} }, @{ $info->{'Rhs'}{'Vars'}{'List'} } );
+		} elsif ( exists $info->{'ParamDecl'} ) {
+			@chunks = ( @chunks, keys %{ $info->{'ModuleParameters'} } );
+		} elsif ( exists $info->{'Data'}
+		or exists $info->{'Equivalence'} ) {
+			@chunks = ( @chunks, @{ $info->{'Vars'}{'List'} } );
+		} elsif ( not exists $info->{'IfThen'} ) {
+			# carp "HERE FOR IF ... GOTO $line" if $line=~/go\s*to/;
+			# $line=~s/go\s+to/goto/; # WV: HACK, should normalise this much earlier!
+			my @mchunks = split( /\W+/, $line );
+			for my $mvar (@mchunks) {
+				next if exists $F95_reserved_words{ $mvar };    # This should be, unless some idiot has assigned to a reserved word somewhere. We assume they only redefine intrinsic functions but who knows?
+				# next if exists $F95_other_intrinsics{$mvar};
+				next if exists $F95_intrinsics{$mvar};
 #					next if exists $stref->{'Subroutines'}{$f}{'CalledSubs'}{'Set'}{$mvar};    # Means it's a function
-					next if $mvar =~ /^__PH\d+__$/;
-					next if $mvar !~ /^[_a-z]\w*$/;
-					# say "VAR: <$mvar>";
-					push @chunks, $mvar;
-				}
+				next if $mvar =~ /^__PH\d+__$/;
+				next if $mvar !~ /^[_a-z]\w*$/;
+				# say "VAR: <$mvar>";
+				push @chunks, $mvar;
+			}
 # croak $line if $line=~/iachar/;
 		}
 		return [@chunks];

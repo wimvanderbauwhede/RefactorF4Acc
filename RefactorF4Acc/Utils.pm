@@ -789,7 +789,7 @@ sub is_string { my ($stref,$f,$var) = @_;
     } else {
         my $ftype = $decl->{'Type'};
         my $fkind = $decl->{'Attr'};
-        my $isString = ($decl->{'Type'} eq 'character' and (exists $decl->{'Attr'} and ($decl->{'Attr'} !~/len\s*=\s*1\)/))) ? 1 : 0;
+        my $isString = ($decl->{'Type'} eq 'character' and (exists $decl->{'Attr'} and ($decl->{'Attr'} ne '' and $decl->{'Attr'} !~/len\s*=\s*1\)/))) ? 1 : 0;
         # carp 'HERE2: <'.$isString.'>'.Dumper($decl);
         return $isString;
     }

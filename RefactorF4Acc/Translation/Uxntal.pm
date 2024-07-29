@@ -953,8 +953,8 @@ sub _get_word_sizes($stref,$f){
         # my $decl = get_var_record_from_set($Sf->{$subset},$var);
         my $decl = getDecl($stref,$f,$var);
         my $word_sz=0;
-        carp "VAR? $var";
         my $type = $decl->{'Type'};
+        # carp "VAR? ".Dumper($var,$decl);
         if ($type eq 'integer') {
             my $kind = $decl->{'Attr'};
             $kind=~s/kind\s*=\s*//;
@@ -2968,10 +2968,10 @@ sub _emit_print_from_ast($stref,$f,$line,$info,$unit,$elt){
         my $var_name = $elt->[1];
         # my $word_sz = $stref->{'Subroutines'}{$f}{'WordSizes'}{$var_name};
         # my $decl = get_var_record_from_set($Sf->{'Vars'},$var_name);
-        carp "VAR: $var_name in $f";
         my $decl = getDecl($stref,$f,$var_name);
+            # carp "VAR: $var_name in $f ",Dumper($decl);
         my $type = $decl->{'Type'};
-        if ($code == 2 and $decl->{'ArrayOrScalar'} eq 'Array') {
+        if ($code == 2 and exists $decl->{'ArrayOrScalar'} and $decl->{'ArrayOrScalar'} eq 'Array') {
             return 'print-array';
             croak("Printing an array is currently unsupported: $var_name");
             # this should be a range-map-short over the entire array
@@ -3569,6 +3569,30 @@ sub getDecl($stref,$f,$var) {
         # carp Dumper $decl;
         $decl = $stref->{'Modules'}{$module_name}{'ModuleVars'}{'Set'}{$var};
     }
+    if (not defined $decl) {
+        if (exists $stref->{'Subroutines'}{$f}{'InModule'}) {
+            # carp "getDecl: $f $subset $module_name $var ".
+            my $module_name = $stref->{'Subroutines'}{$f}{'InModule'};
+            my $Mf = $stref->{'Modules'}{$module_name};
+            # my $subset = in_restricted_nested_set( $Mf, 'Vars', $var ,
+            # { 'ExGlobArgs' => 1,
+            #     'UndeclaredCommonVars' => 1,
+            #     'DeclaredCommonVars' => 1
+            # }
+            # );
+            # if ($subset eq '') {
+            #     croak "No decl for $var in Vars for $f in $module_name";
+            # } else {
+            #     croak $subset;
+            # }
+            my $decl = get_var_record_from_set($stref->{'Modules'}{$module_name}{'Vars'},$var);
+            # croak Dumper $decl;
+            return $decl;
+            
+        }
+    }
+    
+    # carp "getDecl: $f $subset $module_name $var ".Dumper($decl);
     return $decl;
 }
 # ----------------------------------------------------------------------------------------------------

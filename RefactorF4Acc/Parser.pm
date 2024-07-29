@@ -1532,9 +1532,11 @@ or $line=~/^character\s*\(\s*len\s*=\s*[\w\*]+\s*\)/
 					# Those pairs are nested lists
 					# croak Dumper @case_vals if @case_vals>2;
 					my @nested_case_vals = map {
-							$_=~/:/ ? [  split(/:/,$_) ] : $_
+							$_=~/:/ ? [12, map {parse_expression($_,$info, $stref, $f)} split(/:/,$_) ] : parse_expression($_,$info, $stref, $f)
 						} @case_vals;
-					$info->{'CaseVals'} = [@nested_case_vals];
+					$info->{'CaseVals'} = scalar @nested_case_vals >1 
+					? [27,@nested_case_vals]
+					 : $nested_case_vals[0];
 					$info->{ 'Control' } = 1;
 					$info->{'NonSpecificationStatement'} = 1;
                 	$info->{'HasVars'} = 1;
