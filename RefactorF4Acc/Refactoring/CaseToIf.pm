@@ -55,7 +55,7 @@ sub replace_case_by_if { my ( $stref, $f, $annlines ) = @_;
 
 	my $pass_replace_case_by_if= sub { (my $annline, my $state)=@_;
 		(my $line,my $info)=@{$annline};
-		# say "LINE:<$line>";
+		# say "CASE STMT LINE:<$line>";
 		my $c_line=$line;
 		(my $stref, my $f, my $pass_state)=@{$state};
         my $id = $info->{'LineId'};
@@ -123,9 +123,10 @@ sub replace_case_by_if { my ( $stref, $f, $annlines ) = @_;
 
 sub __replace_seq_by_ors { my ($x,$seq) = @_;
 	#(AST,String,Error,HasFuncs)
+	# carp 'CASEVAL:'. Dumper($x,$seq) ;
 	if (scalar @{$seq} == 1) {
 		 my ($item_ast,$r,$e,$f) = parse_expression_no_context($seq->[0]);
-		 croak Dumper($item_ast,$r,$e,$f) if $seq->[0] =~/_1/;
+		#  carp 'CASEVAL:'. Dumper($item_ast,$r,$e,$f) ;
 		 return [15, $x,$item_ast];
 	} else {
 		my @item_asts=();

@@ -457,6 +457,7 @@ Instead of the nice but cumbersome approach we had until now, from now on it is 
         my $id = $info->{'LineID'};
         my $skip=0;
         my $skip_comment=0;
+        # say "460 LINE $line";
         if (exists $info->{'Signature'} ) {
             # subroutine f(x) becomes @f ;x LDA{sz} if x is read
             # but if x is write, then we have
@@ -569,7 +570,7 @@ Instead of the nice but cumbersome approach we had until now, from now on it is 
         }
 
         if (exists $info->{'Assignment'} ) {
-            say "Assignment: $line";
+            # say "Assignment: $line";
             ($c_line,$pass_state) = _emit_assignment_Uxntal($stref, $f, $info,$pass_state) ;
             if (exists $info->{'If'} and not exists $info->{'IfThen'}) {
                 my $indent = $info->{'Indent'};
