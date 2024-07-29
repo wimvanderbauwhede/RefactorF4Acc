@@ -163,7 +163,7 @@ sub fold_constants_no_iters {
 
     my $pass_fold_constants = sub { (my $annline)=@_;
         (my $line,my $info)=@{$annline};
-        # say "$f FOLD CONSTS ON LINE <$line>";
+        # say "$f FOLD CONSTS ON LINE <$line>" if $f eq 'tokeniseFunktal' and $line=~/achar/;
         # croak Dumper $info if $line=~/\s*[\(:]\s*funktalMaxNTokens/i;
         # From $info, find the lines that contain expressions that might have constants to fold.
         # These would the same types of lines as in identify_array_accesses_in_exprs()
@@ -321,8 +321,11 @@ sub fold_constants_no_iters {
                 }
 
                 my $rhs_ast  = $info->{'Rhs'}{'ExpressionAST'};
+                # say "$f FOLD CONSTS ON Assignment LINE <$line>" if $f eq 'tokeniseFunktal' and $line=~/achar/;
                 my $const_fold_rhs_ast = fold_constants_in_expr_no_iters($stref, $f, $rhs_ast,$info);
                 $info->{'Rhs'}{'ExpressionAST'}=$const_fold_rhs_ast;
+                # say "$f FOLDED CONSTS ON Assignment LINE <$line>:",Dumper($info->{'Rhs'}{'ExpressionAST'})  if $f eq 'tokeniseFunktal' and $line=~/achar/;
+                # die if $f eq 'tokeniseFunktal' and $line=~/achar/;
 			}
 	 		if (exists $info->{'If'} or exists $info->{'IfThen'} or exists $info->{'ElseIf'}) {
                 # FIXME: Surely conditions of if-statements can contain array accesses, so FIX THIS!
@@ -425,7 +428,7 @@ sub fold_constants_all {
 		next if $Sf->{'Status'} == $UNREAD;
 		next if $Sf->{'Status'} == $READ;
 		next if $Sf->{'Status'} == $FROM_BLOCK;
-
+        say "INFO: fold_constants_no_iters( $f ) in ",($stref->{'Subroutines'}{$f}{'InModule'} //'') if $I;
 		($stref, my $new_annlines) = fold_constants_no_iters( $stref, $f );
         $stref = fold_constants_in_decls( $stref, $f );
         $Sf->{'RefactoredCode'}=$new_annlines;

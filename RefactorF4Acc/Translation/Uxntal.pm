@@ -569,6 +569,7 @@ Instead of the nice but cumbersome approach we had until now, from now on it is 
         }
 
         if (exists $info->{'Assignment'} ) {
+            say "Assignment: $line";
             ($c_line,$pass_state) = _emit_assignment_Uxntal($stref, $f, $info,$pass_state) ;
             if (exists $info->{'If'} and not exists $info->{'IfThen'}) {
                 my $indent = $info->{'Indent'};
@@ -944,6 +945,7 @@ sub _get_word_sizes($stref,$f){
     my $Sf = $stref->{'Subroutines'}{$f};
 
     for my $var (@{$Sf->{'AllVarsAndPars'}{'List'}}) {
+        next if $var =~/__PH\d+__/; # FIXME: hack!
         # my $subset = in_nested_set($Sf,'Vars',$var);
         # if ($subset eq '') {
         #     croak "$f $var";
@@ -951,6 +953,7 @@ sub _get_word_sizes($stref,$f){
         # my $decl = get_var_record_from_set($Sf->{$subset},$var);
         my $decl = getDecl($stref,$f,$var);
         my $word_sz=0;
+        carp "VAR? $var";
         my $type = $decl->{'Type'};
         if ($type eq 'integer') {
             my $kind = $decl->{'Attr'};
@@ -1293,12 +1296,38 @@ sub _var_access_assign($stref,$f,$info,$lhs_ast,$rhs_ast) {
                         error('Only integer of kind 1 or 2 is supported on the RHS of an array assignment');
                     }
                 }
-                elsif ($rhs_ast->[0]==32) { # character constant, I think this is unused
-                    croak "CHARACTER assignment to ARRAY ".Dumper($rhs_ast);
+                elsif ($rhs_ast->[0] ==32) { # character constant, I think this is unused
+                    # croak "CHARACTER assignment to ARRAY ".Dumper($lhs_ast,$rhs_ast);
+                    (my $char_expr_Uxntal,my $rhs_word_sz) = _emit_expression_Uxntal($rhs_ast,$stref,$f,$info);
+                    my $ref = \$rhs_ast; $ref=~s/REF...//;$ref=~s/\)//;
+                    my $iter="iter$ref";
+            # The range must be the original Fortran one: we correct for the offset in the var access
+                    my $idx_offset = __get_array_index_offset($stref,$f,$var);
+                    my $idx_offset_Uxntal =  toHex($idx_offset,2);
+                    my $idx_offset_expr = $idx_offset==0 
+                        ? '' 
+                            : $idx_offset==1
+                                ? 'INC2' 
+                                : $idx_offset_Uxntal.' ADD2';
+
+                    # transforming the array into an index access mighr be best
+                    my $decl = getDecl($stref,$f,$var);
+                    # carp Dumper($decl);
+                    my $array_length = exists $decl->{'ConstDim'}
+                    ? __C_array_size($decl->{'ConstDim'})
+                    : __C_array_size($decl->{'Dim'});
+                    # my $elt_iter = [10,$elt->[1],[36,'LIT2 &'.$iter.' $2']];
+                    # my ($arg_to_print_Uxntal,$word_sz) = _emit_expression_Uxntal($elt_iter,$stref, $f, $info);
+                    # my $elt_0 = [10,$elt->[1],[29,'0']];
+                    # my $print_fn_Uxntal = _emit_print_from_ast($stref,$f,$line,$info,$unit,$elt_0);
+                    $uxntal_code = '{ ( iter ) '.$char_expr_Uxntal.' ROT ROT '.$lhs_var_access.' ADD2 STA  JMP2r } STH2r '.toHex($array_length-1,2)." #0000 range-map-short ( assign char to array )";
+                    # croak $uxntal_code ;
                 }
                 else {
                     error('Only integer and logical are supported on the RHS of an array assignment');
                 }
+            } elsif ($rhs_ast->[0] == 32) {
+                croak "TODO: _var_access_assign($f): character constant";
             } elsif ($rhs_ast->[0] ==1) {
                 # A function call, need to check the type 
                 croak "TODO: _var_access_assign($f):", Dumper($lhs_ast,$rhs_ast);
@@ -1481,10 +1510,6 @@ sub __copy_substr($stref, $f, $info, $lhs_ast, $rhs_ast) {
 
                 # carp $rhs_Uxntal_expr,Dumper ($info,$rhs_ast);
                 my $lhs_len = __get_len_from_Attr($decl);
-                if ($lhs_len eq ':' or $lhs_len eq '*') {
-                    warning('Allocating 64 bytes for dynamic ('.$lhs_len.') string '.$lhs_var.' in '.$f);
-                    $lhs_len = 64; # AD-HOC!
-                }
                 my $rhs_len = $rhs_ast->[0] == 34
                     ? length($info->{'PlaceHolders'}{$rhs_ast->[1]})-2 # -2 for the quotes
                     : $lhs_len; # a hack, TODO
@@ -1493,10 +1518,7 @@ sub __copy_substr($stref, $f, $info, $lhs_ast, $rhs_ast) {
                 scalar @{$info->{'FunctionCalls'}}==1) {
                     my $fname = $info->{'FunctionCalls'}[0]{'Name'};
                     $rhs_len = $stref->{'Subroutines'}{$fname}{'RefactoredCode'}[0][1]{'Signature'}{'ReturnTypeAttr'};
-                    $rhs_len =~s/\(len=//;$rhs_len =~s/\)//;
-                    if ($rhs_len eq ':' or $rhs_len eq '*') {
-                        $rhs_len=64; # AD-HOC
-                    }
+                    $rhs_len = __get_val_str_from_len_Attr($rhs_len);
                 }
 
                 my $len = toHex(min($lhs_len,$rhs_len),2);
@@ -2063,14 +2085,7 @@ sub _emit_var_decl_Uxntal ($stref,$f,$info,$var){
         my $strlen=0;
         if ($ftype eq 'character') {
             if (exists $decl->{'Attr'} and $decl->{'Attr'} ne '') {
-                $strlen = $decl->{'Attr'};
-                $strlen=~s/len=//;
-                $strlen=~s/^\(//;
-                $strlen=~s/\)$//;
-                if ($strlen eq '*' or $strlen eq ':') {
-                    warning('Allocating 64 bytes for dynamic ('.$strlen.') string '.$var.' in '.$f);
-                    $strlen = 64; # AD-HOC, 64 characters ought to be enough for anyone
-                }
+                $strlen = __get_len_from_Attr( $decl);
                 $dim *= $strlen;
             }
         }
@@ -2106,7 +2121,6 @@ sub _emit_var_decl_Uxntal ($stref,$f,$info,$var){
 } # END of _emit_var_decl_Uxntal
 
 
-# TODO use _var_access_assign !
 sub _emit_assignment_Uxntal ($stref, $f, $info, $pass_state){
     my $rhs_ast =  $info->{'Rhs'}{'ExpressionAST'};
     my $lhs_ast =  $info->{'Lhs'}{'ExpressionAST'};
@@ -2243,6 +2257,14 @@ sub _emit_expression_Uxntal ($ast, $stref, $f, $info) {
             }
             elsif ($exp eq '.false.') {
                 return ('#00',1);
+            }
+            elsif ($opcode == 32 ) {
+                if (length($exp)==3 and ord(substr($exp,0,0))==0 and ord(substr($exp,0,1))==39 and ord(substr($exp,0,2))==39) {
+                    return ('#00',1);
+                } else {
+                    croak "<$exp> ",length($exp),ord(substr($exp,0,0)), ord(substr($exp,0,1)) , ord(substr($exp,0,2));
+                    return ('LIT "'.$exp,1);
+                }
             }
             else {
                 my ($uxntal_str,$word_sz) = _var_access_read($stref,$f,$info, $ast);
@@ -2536,10 +2558,13 @@ sub _emit_function_call_expr_Uxntal($stref,$f,$info,$ast){
         for my $fcall (@{$info->{'FunctionCalls'}}) {
             if ($fcall->{'Name'} eq $subname) {
                 my $argmap = $fcall->{'ArgMap'};
-                    for my $sig_arg (sort keys %{$argmap}) {
+                # carp Dumper( $fcall, );
+                    for my $sig_arg (@{$Ssubname->{'RefactoredArgs'}{'List'}}){
+                        my $call_arg_expr_str = $argmap->{$sig_arg} // $sig_arg;
                         $idx++; # So starts at 1, because 0 is the sigil
                         my $intent = $Ssubname->{'RefactoredArgs'}{'Set'}{$sig_arg}{'IODir'};
-                        my $call_arg_expr_str = $argmap->{$sig_arg} // $sig_arg;
+                        # carp Dumper($Ssubname->{'RefactoredArgs'}{'Set'});
+                        # say "IDX: $idx; SIG_ARG: $sig_arg; CALL ARG: $call_arg_expr_str";say "INTENT $intent";
                         my ($uxntal_expr,$word_sz) = __emit_call_arg_Uxntal_expr($stref,$f,$info,$subname,$call_arg_expr_str,$ast,$idx,$intent);
                         push @call_arg_expr_strs_Uxntal, $uxntal_expr;
                     }
@@ -2587,7 +2612,7 @@ sub __emit_call_arg_Uxntal_expr($stref,$f,$info,$subname,$call_arg_expr_str,$ast
             }
         }
     }
-# carp Dumper($subname,$call_arg_expr_str,$ast_from_info,$call_info);
+# carp Dumper($subname,$call_arg_expr_str,$idx,$ast_from_info,$call_info);
     my $isConstOrExpr = exists $call_info->{'Args'}{'Set'}{$call_arg_expr_str}
         ? (($call_info->{'Args'}{'Set'}{$call_arg_expr_str}{'Type'} eq 'Const' )
         or ($call_info->{'Args'}{'Set'}{$call_arg_expr_str}{'Type'} eq 'Expr')
@@ -2743,6 +2768,7 @@ sub toRawHex($n,$sz){
 	croak if $n eq '1_2';
     my $szx2 = $sz*2;
 	$n=~s/_\d$//; # strip _2
+    carp 'len is *' if $n eq '*';
     if ($n<0) {
         $n=(2*($sz*8))-$n;
     }
@@ -2942,6 +2968,7 @@ sub _emit_print_from_ast($stref,$f,$line,$info,$unit,$elt){
         my $var_name = $elt->[1];
         # my $word_sz = $stref->{'Subroutines'}{$f}{'WordSizes'}{$var_name};
         # my $decl = get_var_record_from_set($Sf->{'Vars'},$var_name);
+        carp "VAR: $var_name in $f";
         my $decl = getDecl($stref,$f,$var_name);
         my $type = $decl->{'Type'};
         if ($code == 2 and $decl->{'ArrayOrScalar'} eq 'Array') {
@@ -2970,8 +2997,7 @@ sub _emit_print_from_ast($stref,$f,$line,$info,$unit,$elt){
                 }
             }
             elsif( $code == 10 and $decl->{'ArrayOrScalar'} eq 'Scalar') {
-                my $len = $decl->{'Attr'};
-                $len =~s/len=//;$len =~s/[\(\)]//g;
+                my $len = __get_len_from_Attr($decl);
                 if ($len>1) {
                     return 'print-string'.$suffix;
                 } else {
@@ -3402,13 +3428,20 @@ sub __get_type_len_from_AST($val_ast, $phs){
     }
 } # END of __get_type_len_from_AST
 
-sub __get_len_from_Attr($decl){
-    if (exists $decl->{'Attr'} and $decl->{'Attr'} ne '') {
-        my $len = $decl->{'Attr'};
+
+sub __get_val_str_from_len_Attr($len) {
         $len=~s/len=//;
         $len=~s/^\(//;
         $len=~s/\)$//;
+        if ($len eq ':' or $len eq '*') {
+            $len = 64; # AD-HOC
+        }
         return $len;
+}
+sub __get_len_from_Attr($decl){
+    if (exists $decl->{'Attr'} and $decl->{'Attr'} ne '') {
+        my $len = $decl->{'Attr'};
+        return __get_val_str_from_len_Attr($len)
     } else {
         croak "Decl has no Attr: ".Dumper($decl);
     }
@@ -3952,9 +3985,6 @@ sub _gen_array_string_inits($stref,$f,$var,$pass_state) {
     } 
     elsif (is_string($stref,$f,$var)) {
         my $len = __get_len_from_Attr($decl);
-        if ($len eq ':' or $len eq '*') {
-            $len = 64; # AD-HOC
-        }
         $uxntal_array_string_init = __create_string_zeroing(";$fq_var",$len);
         # carp "INIT STRING $var in $f";
     }

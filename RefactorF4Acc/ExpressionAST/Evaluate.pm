@@ -147,17 +147,17 @@ sub replace_consts_in_ast { (my $stref, my $f, my $block_id, my $ast, my $state,
 sub replace_consts_in_ast_no_iters { my ($stref, $f, $ast, $state)=@_;
 	my $retval=0;
 	# say "AST in replace_consts_in_ast_no_iters:".Dumper($ast);
-	if (ref($ast) eq 'ARRAY') {
+	if (ref($ast) eq 'ARRAY') { # if it is an AST
 		# But retval for arrays should only be 0 if it is 0 for every element!
 		# So we need to sum them!
 		for my  $idx (0 .. scalar @{$ast}-1) {
 			my $entry = $ast->[$idx];
-			if (ref($entry) eq 'ARRAY') {
+			if (ref($entry) eq 'ARRAY') { # If the entry is also an AST
 				(my $entry2, my $retval2) = replace_consts_in_ast_no_iters($stref,$f, $entry, $state);
 				$retval+=$retval2;
 				$ast->[$idx] = $entry2;
-			} else {
-				if ($idx==0 and (($entry & 0xFF) == 2)) { #eq '$'
+			} else { # Inside the lowest level of the AST
+				if ($idx==0 and (($entry & 0xFF) == 2)) { #eq '$', a scalar
 					my $mvar = $ast->[$idx+1];
 					my $sub_or_func = sub_func_incl_mod($f,$stref);
 					if (in_nested_set($stref->{$sub_or_func}{$f},'Parameters',$mvar)) {
@@ -173,17 +173,21 @@ sub replace_consts_in_ast_no_iters { my ($stref, $f, $ast, $state)=@_;
 						return ($ast,1);
 					}
 				}
-				elsif ($idx==0 and (($entry & 0xFF) == 1) ) { #eq '&'
+				elsif ($idx==0 and (($entry & 0xFF) == 1) ) { #eq '&', a subroutine or function call
 					my $fname = $ast->[$idx+1];
-					if (exists $F95_intrinsics{$fname}) {
+					if (exists $F95_intrinsics{$fname}) { 
 						# fold the arguments
-						my $entry = $ast->[$idx+2];
+						my $entry = $ast->[$idx+2]; # for example [1,'achar', [...]]
 						(my $entry2, my $retval2) = replace_consts_in_ast_no_iters($stref,$f, $entry, $state);
-						if ($retval2==1 ) {
-							my $evaled_expr_str= $fname.'('.emit_expr_from_ast($entry2).')';
+					# warn $fname,';',$retval2,';',Dumper($entry2);
+						# if ($retval2==1 ) {
+						if (scalar @{$entry2} >0) {
+							my $evaled_expr_str=  $fname.'('.emit_expr_from_ast($entry2).')';
+						# warn $evaled_expr_str;
 							my $expr_val_ast = eval_intrinsic($evaled_expr_str,[1,$fname,$entry2]);
 							return ($expr_val_ast,1);
 						}
+						# }
 					}
 				}
 			}
@@ -238,6 +242,7 @@ sub fold_constants_in_expr { (my $stref, my $f, my $block_id, my $ast)=@_;
 } # END of fold_constants_in_expr()
 
 sub fold_constants_in_expr_no_iters { my ($stref, $f, $ast, $info)=@_;
+
   		# - see if $val contains vars
   		my $vars=get_vars_from_expression($ast,{}) ;
   		# - if so, substitute them using replace_consts_in_ast
@@ -255,6 +260,8 @@ sub fold_constants_in_expr_no_iters { my ($stref, $f, $ast, $info)=@_;
 			$vars_str = join('',sort keys %{$vars});
 
   		}
+		# But it is possible that the AST does not contain any variables, and it can still be reduced, e.g. achar(0)
+		($ast, my $retval) = replace_consts_in_ast_no_iters($stref, $f, $ast, $info);
   		# - return to be eval'ed
 	return $ast;
 
@@ -484,7 +491,7 @@ sub _try_to_eval_via_vars  {my ($stref, $f, $var) = @_;
 } # END of _try_to_eval_via_vars
 
 sub eval_intrinsic { my ($val_expr_str,$val_expr_ast) = @_;
-
+# croak;
     my $intr = $val_expr_str;
     $intr=~s/\s*\(.+$//;
     my $intr_args_str = $val_expr_str;
@@ -501,13 +508,13 @@ sub eval_intrinsic { my ($val_expr_str,$val_expr_ast) = @_;
 		# This evals to a newline which we can't print in Fortran, so just keep it.
 		return $val_expr_ast;
 	}
-
     my $intr_calc = $F95_intrinsic_functions_for_eval{$intr};
 	my $sub_type = $F95_intrinsic_function_sigs{$intr}[-1];
 	my $res = $intr_calc->(@intr_args);
 	my $opcode = ($sub_type ne 'a')
 		? $sigil_codes{$sub_type}
 		: ($intr_args_str=~/\./) ? 30 : 29 ;
+	# carp 'RES:', Dumper(@intr_args), $opcode,$res;
 	return [$opcode,$res];
 } # END of eval_intrinsic
 
