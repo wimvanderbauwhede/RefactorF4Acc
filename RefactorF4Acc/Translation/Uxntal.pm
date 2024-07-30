@@ -67,6 +67,12 @@ our @sigils = ('(', '&', '$', 'ADD', 'SUB', 'MUL', 'DIV', 'mod', 'pow', '=', '@'
                ,'integer', 'real', 'logical', 'character', 'complex', 'PlaceHolder', 'Label', 'BLANK'
               );
 
+our $branch = 'b';
+our $loop = 'l';
+our $while_loop = 'w';
+our $cond = 'c';
+our $end = 'e';
+
 # TODO This needs to be changed so that only the used functions are emitted
 my @uxntal_lib_sources = (
     '../../uxntal-libs/fmt-print.tal',
@@ -457,7 +463,7 @@ Instead of the nice but cumbersome approach we had until now, from now on it is 
         my $id = $info->{'LineID'};
         my $skip=0;
         my $skip_comment=0;
-        say "460 LINE $line";
+        # say "460 LINE $line";
         if (exists $info->{'Signature'} ) {
             # subroutine f(x) becomes @f ;x LDA{sz} if x is read
             # but if x is write, then we have
@@ -538,7 +544,7 @@ Instead of the nice but cumbersome approach we had until now, from now on it is 
         elsif (exists $info->{'Do'} ) {
             if (exists $info->{'Do'}{'While'}) {
                 push @{$pass_state->{'DoStack'}}, [$id,$info->{'Do'}{'ExpressionsAST'},'While'];
-                $c_line = '&while_loop_'.$f.'_'.$id . "\n" ;
+                $c_line = '&'.$while_loop.'_'.$f.'_'.$id . "\n" ;
             } else {
                 my $do_iterator = $f.'_'.$info->{'Do'}{'Iterator'};
                 $stref->{'Subroutines'}{$f}{'DoIterators'}{$info->{'Do'}{'Iterator'}}=$do_iterator;
@@ -559,8 +565,8 @@ Instead of the nice but cumbersome approach we had until now, from now on it is 
                 (my $do_stop,$word_sz) =  _emit_expression_Uxntal($info->{'Do'}{'Range'}{'ExpressionASTs'}[1],$stref, $f, $info);
                 $c_line = $do_stop . ' INC2 ' . $do_start . "\n" .
                 # 'DUP2 EQU2k ;&loop_end_'.$f.'_'.$id.' JCN2'. "\n" .
-                'OVR2 OVR2 SUB2 #fff7 GTH2 ;&loop_end_'.$f.'_'.$id.' JCN2'. "\n" .
-                '&loop_'.$f.'_'.$id . "\n" .
+                'OVR2 OVR2 SUB2 #fff7 GTH2 ;&'.$loop.'_'.$end.'_'.$f.'_'.$id.' JCN2'. "\n" .
+                '&'.$loop.'_'.$f.'_'.$id . "\n" .
                 ';'.$do_iterator.' STA2 ';
             }
         }
@@ -577,8 +583,8 @@ Instead of the nice but cumbersome approach we had until now, from now on it is 
                 my $branch_id = $info->{'LineID'};
                 my $cond_expr_ast=$info->{'Cond'}{'AST'};
                 my ($cond_expr,$word_sz) = _emit_expression_Uxntal($cond_expr_ast,$stref,$f,$info);
-                $c_line = "\n$cond_expr #00 EQU ,&branch$branch_id JCN\n" . $indent.$c_line;
-                $c_line .= "\n&branch$branch_id";
+                $c_line = "\n$cond_expr #00 EQU ,&$branch$branch_id JCN\n" . $indent.$c_line;
+                $c_line .= "\n&$branch$branch_id";
             }
         }
         elsif (exists $info->{'SubroutineCall'} and not exists $info->{'IOCall'}) {
@@ -593,9 +599,9 @@ Instead of the nice but cumbersome approach we had until now, from now on it is 
             # if (fl(1:2) == __PH0__) VV = .true.
             # What we need is
             # NOT <cond> <label_end> JCN
-                $c_line = "\n$indent $cond_expr #00 EQU ;&branch$branch_id JCN2\n" . $c_line;
+                $c_line = "\n$indent $cond_expr #00 EQU ;&$branch$branch_id JCN2\n" . $c_line;
             # <expr>
-                $c_line .= $indent.' '."&branch$branch_id";
+                $c_line .= $indent.' '."&$branch$branch_id";
             }
         }
         elsif (exists $info->{'IOCall'}) {
@@ -729,9 +735,9 @@ Instead of the nice but cumbersome approach we had until now, from now on it is 
             # if (fl(1:2) == __PH0__) VV = .true.
             # What we need is
             # NOT <cond> <label_end> JCN
-                $c_line = "\n$indent $cond_expr #00 EQU ;&branch$branch_id JCN2\n" . $c_line;
+                $c_line = "\n$indent $cond_expr #00 EQU ;&$branch$branch_id JCN2\n" . $c_line;
             # <expr>
-                $c_line .= $indent.' '."&branch$branch_id";
+                $c_line .= $indent.' '."&$branch$branch_id";
             }
         }
         elsif (exists $info->{'If'} and not exists $info->{'IfThen'} ) {
@@ -744,8 +750,8 @@ Instead of the nice but cumbersome approach we had until now, from now on it is 
             my $branch_id = $info->{'LineID'};
             my $cond_expr_ast=$info->{'Cond'}{'AST'};
             my ($cond_expr,$word_sz) = _emit_expression_Uxntal($cond_expr_ast,$stref,$f,$info);
-            $c_line = "\n( If without Then )\n" . $indent.' '."$cond_expr #00 EQU ;&branch$branch_id JCN2\n" . $c_line;
-            $c_line .= $indent.' '."&branch$branch_id";
+            $c_line = "\n( If without Then )\n" . $indent.' '."$cond_expr #00 EQU ;&$branch$branch_id JCN2\n" . $c_line;
+            $c_line .= $indent.' '."&$branch$branch_id";
         }
         elsif (exists $info->{'IfThen'} and not exists $info->{'ElseIf'} ) {
             # say "EX-CASE: $line => If IfId = $id" if $f eq 'decodeTokenStr';
@@ -762,15 +768,15 @@ Instead of the nice but cumbersome approach we had until now, from now on it is 
         } elsif (exists $info->{'Else'} ) {
             # say "EX-CASE: $line => Else IfId=$id" if $f eq 'decodeTokenStr';
             ($c_line, my $branch_id) = _emit_ifbranch_end_Uxntal($id,$pass_state);
-            $c_line .= "&branch$branch_id";
+            $c_line .= "&$branch$branch_id";
             push @{$pass_state->{'BranchStack'}},$branch_id;
         } elsif (exists $info->{'EndIf'} ) {
             # say "EX-CASE: $line => EndIf IfId=$id" if $f eq 'decodeTokenStr';
             # my $branch_id = $pass_state->{'IfBranchId'};
             my $branch_id = pop @{$pass_state->{'BranchStack'}};
             my $if_id = $pass_state->{'IfId'};
-            $c_line = ';&cond_end'.$if_id.' JMP2 '."\n"
-            .'&branch'.$branch_id.'_end &cond_end'.$if_id;
+            $c_line = ';&'.$cond.'_'.$end.$if_id.' JMP2 '."\n"
+            .'&'.$branch.$branch_id.'_'.$end.' &'.$cond.'_'.$end.$if_id;
             pop @{$pass_state->{'IfStack'}};
             $pass_state->{'IfId'}=$pass_state->{'IfStack'}[-1];
         }
@@ -785,13 +791,13 @@ Instead of the nice but cumbersome approach we had until now, from now on it is 
                     my $dec = $do_step == 1 ? '#0001 SUB2' : toHex($do_step,2). ($do_step<0 ? ' ADD2' : ' SUB2');
                     # This says, INC and then compare, if it is not equal, loop again
                     # But fortran says compare then INC
-                    $c_line = ";$do_iter LDA2 $inc OVR2 OVR2 NEQ2 ".';&loop_'.$f.'_'.$do_id.' JCN2 '."\n;$do_iter LDA2 $inc ;$do_iter STA2\n".
-                    '&loop_end_'.$f."_$do_id POP2 POP2\n";
+                    $c_line = ";$do_iter LDA2 $inc OVR2 OVR2 NEQ2 ".';&'.$loop.'_'.$f.'_'.$do_id.' JCN2 '."\n;$do_iter LDA2 $inc ;$do_iter STA2\n".
+                    '&'.$loop.'_'.$end.'_'.$f."_$do_id POP2 POP2\n";
                 } else { # while
                 # croak Dumper $do_tup;
                     my ($do_id, $do_while_cond) = @{$do_tup};
                     ($c_line,my $word_sz) =  _emit_expression_Uxntal($do_while_cond,$stref, $f, $info);
-                    $c_line .= "\n".';&while_loop_'.$f.'_'.$do_id.' JCN2';
+                    $c_line .= "\n".';&'.$while_loop.'_'.$f.'_'.$do_id.' JCN2';
                 }
         }
         elsif ( exists $info->{'EndProgram'} ) {
@@ -2041,7 +2047,7 @@ sub _emit_var_decl_Uxntal ($stref,$f,$info,$var){
     my $val='';
 
     if (defined $decl->{'Parameter'}) {
-		carp "VAL: ".Dumper($decl);
+		# carp "VAL: ".Dumper($decl);
         $val = $decl->{'Val'};
         my $val_str = $val;
         if ($val=~/[\'\"'](.+?)[\'\"]/) {
@@ -2141,9 +2147,9 @@ sub _emit_ifthen_Uxntal ($stref, $f, $info, $branch_id){
     # FIXME! fix for stray '+'
     # $cond_expr=~s/\+\>/>/g;
     # my $rline = 'if ('.$cond_expr.') '. (exists $info->{'IfThen'} ? '{' : '');
-    my $rline = "$cond_expr ;&branch$branch_id JCN2\n" .
-                 ";&branch${branch_id}_end JMP2\n" .
-             "&branch${branch_id}";
+    my $rline = "$cond_expr ;&$branch$branch_id JCN2\n" .
+                 ";&$branch${branch_id}_$end JMP2\n" .
+             "&$branch$branch_id";
     return $rline;
 }
 
@@ -2151,8 +2157,8 @@ sub _emit_ifbranch_end_Uxntal ($id, $state){
     # my $branch_id = $state->{'IfBranchId'};
     my $branch_id = pop @{$state->{'BranchStack'}};
     my $if_id = $state->{'IfId'};
-    my $r_line = ";&cond_end${if_id} JMP2 \n";
-    $r_line .= "&branch${branch_id}_end\n";
+    my $r_line = ';&'.$cond.'_'.$end.$if_id." JMP2 \n";
+    $r_line .= "&$branch${branch_id}_$end\n";
     $state->{'IfBranchId'} = $id;
     $branch_id = $state->{'IfBranchId'};
     return ($r_line,$branch_id);
@@ -2910,6 +2916,12 @@ sub _emit_list_print_Uxntal($stref,$f,$line,$info,$unit,$advance,$list_to_print)
             my ($arg_to_print_Uxntal,$word_sz) = _emit_expression_Uxntal($elt_iter,$stref, $f, $info);
             my $elt_0 = [10,$elt->[1],[29,'0']];
             my $print_fn_Uxntal = _emit_print_from_ast($stref,$f,$line,$info,$unit,$elt_0);
+            if ($print_fn_Uxntal eq 'print-char') {
+                $print_fn_Uxntal = '#18 DEO';
+            }
+            elsif ($print_fn_Uxntal eq 'print-char-stderr') {
+                $print_fn_Uxntal = '#19 DEO';
+            }
             $line_Uxntal = '{ ( iter ) ,&'.$iter.' STR2 '.$arg_to_print_Uxntal.' '.$print_fn_Uxntal.' JMP2r } STH2r '.toHex($array_length-1,2)." $idx_offset_expr #0000 $idx_offset_expr range-map-short ( print-array )";
             # croak $line_Uxntal;
         }
@@ -2925,6 +2937,12 @@ sub _emit_list_print_Uxntal($stref,$f,$line,$info,$unit,$advance,$list_to_print)
             my ($arg_to_print_Uxntal,$word_sz) = _emit_expression_Uxntal($elt,$stref, $f, $info);
             my $elt_0 = [10,$elt->[1],[29,'0']];
             my $print_fn_Uxntal = _emit_print_from_ast($stref,$f,$line,$info,$unit,$elt_0);
+            if ($print_fn_Uxntal eq 'print-char') {
+                $print_fn_Uxntal = '#18 DEO';
+            }
+            elsif ($print_fn_Uxntal eq 'print-char-stderr') {
+                $print_fn_Uxntal = '#19 DEO';
+            }
             $line_Uxntal = '{ ( iter ) ,&'.$iter.' STR2 '.$arg_to_print_Uxntal.' '.$print_fn_Uxntal." #20 $port DEO JMP2r } STH2r $e $b range-map-short ( print-array-slice )";
             # $e $idx_offset_expr $b $idx_offset_expr 
             # croak $line_Uxntal;
