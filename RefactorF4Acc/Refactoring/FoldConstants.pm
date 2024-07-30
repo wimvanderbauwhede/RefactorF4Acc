@@ -415,6 +415,7 @@ sub fold_constants_all {
 
 	}
     # croak "DONE FOLDING IN MODULES";
+
 	for my $f ( sort keys %{ $stref->{'Subroutines'} } ) {
 		next if ( $f eq '' or $f eq 'UNKNOWN_SRC' or not defined $f );
 		# next if exists $stref->{'Entries'}{$f};
@@ -491,9 +492,15 @@ sub fold_constants_in_decls {
                 my $decl = get_var_record_from_set($Sf->{$subset},$var_name);
 
                 my $expr_str  = $decl->{'Val'};
-                my $evaled_str = eval_expression_with_parameters( $expr_str, $info,  $stref,  $f);
-                # say "$f PARAM DECL LINE:<$line> => $evaled_str ".Dumper( $var_name)." =>".Dumper($decl) if $decl->{'AST'}[0]==3;
-                $decl->{'Val'} = $evaled_str;
+                if ($expr_str!~/\.\w+\./ and
+                    $expr_str=~/[\(\)\+\-\*\/]/) { # meaning we only eval arithmetic expressions; probably still weak
+                    my $evaled_str = eval_expression_with_parameters( $expr_str, $info,  $stref,  $f) // $expr_str;
+                    # if ($line=~/VV.+false/) {
+                    #     say "$f PARAM DECL LINE:<$line> => $evaled_str ".Dumper( $var_name)." =>".Dumper($decl);# if $decl->{'AST'}[0]==3;
+                    #     die;
+                    # }
+                    $decl->{'Val'} = $evaled_str;
+                }
                 $Sf->{$subset}{'Set'}{$var_name}=$decl;
             }
         return [$annline];

@@ -125,8 +125,8 @@ sub translate_program_to_Uxntal($stref,$program_name){
         ]
     };
 
-
     $stref = fold_constants_all($stref) ;
+
     my $new_annlines = $stref->{'Subroutines'}{$program_name}{'RefactoredCode'};
     # croak Dumper pp_annlines($new_annlines);
     $stref->{'TranslatedCode'}=[];
@@ -457,7 +457,7 @@ Instead of the nice but cumbersome approach we had until now, from now on it is 
         my $id = $info->{'LineID'};
         my $skip=0;
         my $skip_comment=0;
-        # say "460 LINE $line";
+        say "460 LINE $line";
         if (exists $info->{'Signature'} ) {
             # subroutine f(x) becomes @f ;x LDA{sz} if x is read
             # but if x is write, then we have
@@ -611,7 +611,7 @@ Instead of the nice but cumbersome approach we had until now, from now on it is 
                 my $iolist_ast = $info->{'IOList'}{'AST'};
                 # TODO: check if this is a write to a file!
                 # say 'WRITE: IOCall Args:'.Dumper($call_ast),'IOList:',Dumper($iolist_ast);
-                say "WRITE: $line";
+                # say "WRITE: $line";
                 my ($print_calls, $offsets, $unit, $advance) = _analyse_write_call($stref,$f,$info);
                 if (scalar @{$print_calls} == 1 and
                     (
@@ -736,7 +736,7 @@ Instead of the nice but cumbersome approach we had until now, from now on it is 
         }
         elsif (exists $info->{'If'} and not exists $info->{'IfThen'} ) {
             if (exists $info->{'Goto'}) {
-                $c_line = ',&'.$f.'_'.$info->{'Goto'}{'Label'}.' JMP';
+                $c_line = ';&'.$f.'_'.$info->{'Goto'}{'Label'}.' JMP2';
             } else {
                 croak "If without Then, not assignment, goto or call: $line";
             }
@@ -863,7 +863,7 @@ Instead of the nice but cumbersome approach we had until now, from now on it is 
             $c_line = '#'.$line;
         }
         elsif (exists $info->{'Goto'} ) {
-            $c_line = ',&'.$f.'_'.$info->{'Goto'}{'Label'}.' JMP';
+            $c_line = ';&'.$f.'_'.$info->{'Goto'}{'Label'}.' JMP2';
         }
         elsif (exists $info->{'Continue'}) {
             $c_line='&'.$f.'_'.$info->{'Label'};
@@ -947,6 +947,7 @@ sub _get_word_sizes($stref,$f){
 
     for my $var (@{$Sf->{'AllVarsAndPars'}{'List'}}) {
         next if $var =~/__PH\d+__/; # FIXME: hack!
+
         # my $subset = in_nested_set($Sf,'Vars',$var);
         # if ($subset eq '') {
         #     croak "$f $var";
@@ -1085,7 +1086,9 @@ sub _var_access_read($stref,$f,$info,$ast) {
     }
     my $Sf = $stref->{'Subroutines'}{$f};
     my $word_sz = $Sf->{'WordSizes'}{$var};
-    
+    if (not defined $word_sz) {
+        croak "NO WORD SIZE for $var in $f";
+    }
     my $short_mode = $word_sz == 2 ? '2' : '';
     my $uxntal_code = '';
 
@@ -2038,8 +2041,8 @@ sub _emit_var_decl_Uxntal ($stref,$f,$info,$var){
     my $val='';
 
     if (defined $decl->{'Parameter'}) {
+		carp "VAL: ".Dumper($decl);
         $val = $decl->{'Val'};
-		# carp "VAL: $val";
         my $val_str = $val;
         if ($val=~/[\'\"'](.+?)[\'\"]/) {
             $val_str = '"'.$1;
@@ -2280,7 +2283,7 @@ sub _emit_expression_Uxntal ($ast, $stref, $f, $info) {
             # Special cases
             # Uxn does not have pow or mod so these would have to be functions
             # TODO these are not implemented yet
-            if ($opcode == 19 or $opcode == 20) {
+            if ($opcode == 19 or $opcode == 20) { 
                 add_to_used_lib_subs($sigils[$opcode].'2'); # FIXME: use word size!
             }
             if (($opcode == 21 or $opcode == 4 or $opcode == 3) and scalar @{$ast} == 2) {#  '.not.', '-' or '+'
@@ -2333,9 +2336,11 @@ sub _emit_expression_Uxntal ($ast, $stref, $f, $info) {
                 if ($l_word_sz!=$r_word_sz) {
                     croak "Word sizes for ".$sigils[$opcode]." must be the same: $l_word_sz <> $r_word_sz ( $lv <> $rv )";
                 }
-                my $word_sz =  ($opcode >=15 && $opcode<=26 ) 
-                ? 1 : $l_word_sz;
-                my $short_mode = $word_sz == 2 ? '2' : '';
+                my $short_mode =  $l_word_sz == 2 ? '2' : '';
+                if ($opcode == 19 or $opcode == 20) { # FIXME I guess?
+                    $short_mode = 2;
+                }
+                my $word_sz = ($opcode >=15 && $opcode<=26) ? 1 : $l_word_sz;
                 # Ideally, the _emit_expression_Uxntal should return the word size of the expression
                 return ("$lv $rv  ". $sigils[$opcode].$short_mode, $word_sz ); # FIXME, needs refining
             }
@@ -2937,8 +2942,8 @@ sub _emit_list_print_Uxntal($stref,$f,$line,$info,$unit,$advance,$list_to_print)
                 $print_fn_Uxntal = 'print-char';
             }
             $line_Uxntal .= "$arg_to_print_Uxntal $print_fn_Uxntal #20 $port DEO ( , )\n";
-            add_to_used_lib_subs($print_fn_Uxntal);
         }
+        add_to_used_lib_subs($print_fn_Uxntal);
     }
     if ($advance eq 'yes') {
         if ($unit eq 'STDOUT') {
@@ -3544,10 +3549,13 @@ sub getDecl($stref,$f,$var) {
         # even if it is an array or string access, too bad
         return undef;
     }
-    my $Sf = exists $stref->{'Modules'}{$f}
-        ? $stref->{'Modules'}{$f}
-        : $stref->{'Subroutines'}{$f};
 
+    my $sub_or_mod = (exists $stref->{'Modules'}{$f} and exists $stref->{'Modules'}{$f}{'Status'})
+        ? 'Modules'
+        : 'Subroutines';
+    my $Sf =  $stref->{$sub_or_mod}{$f};
+
+# carp "WHAT $f ".Dumper($Sf) if $f eq 'addIdentifierIfNew';
     my $subset = in_restricted_nested_set( $Sf, 'Vars', $var ,
     { 'ExGlobArgs' => 1,
         'UndeclaredCommonVars' => 1,
@@ -3555,9 +3563,10 @@ sub getDecl($stref,$f,$var) {
     }
     );
     if ($subset eq '') {
-        croak "No decl for $var in Vars for $f";
+        croak "No decl for $var in Vars for $f ".Dumper($Sf);
     }
     my $decl = get_var_record_from_set($Sf->{'Vars'},$var);
+    # say "DECL from $sub_or_mod $subset $f $var";
     my $module_name = exists $decl->{'ModuleName'}
     ? $decl->{'ModuleName'}
     : exists $decl->{'ParentModule'}
@@ -3567,8 +3576,11 @@ sub getDecl($stref,$f,$var) {
     # Module var decl records are copied into the state of the subroutines that use them
     # before constant folding is done. So we need to get the originals instead.
     if( $subset eq 'ModuleVars') {
-        # carp Dumper $decl;
+        # croak $var if $f eq 'addIdentifierIfNew';
+
+
         $decl = $stref->{'Modules'}{$module_name}{'ModuleVars'}{'Set'}{$var};
+        # say "DECL from Modules $module_name $subset $var (1)";
     }
     if (not defined $decl) {
         if (exists $stref->{'Subroutines'}{$f}{'InModule'}) {
@@ -3587,6 +3599,7 @@ sub getDecl($stref,$f,$var) {
             #     croak $subset;
             # }
             my $decl = get_var_record_from_set($stref->{'Modules'}{$module_name}{'Vars'},$var);
+            # say "DECL from Modules $module_name Vars $var (2)";
             # croak Dumper $decl;
             return $decl;
             

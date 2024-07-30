@@ -83,11 +83,11 @@ sub replace_case_by_if { my ( $stref, $f, $annlines ) = @_;
 			# The comma-separated expressions:
 			# Turn into ( $expr == $v )
 			# The nested pairs are b,e => (b <= v) and  (v <= e)
-			my $case_expr_lst = dclone($info->{'CaseVals'});
-			if (ref($case_expr_lst) ne 'ARRAY') {
-				$case_expr_lst = [$case_expr_lst];
-			}
-			$info->{'Cond'}{'AST'} =  __replace_seq_by_ors($select_expr_ast,$case_expr_lst);
+			my $case_expr_ast = dclone($info->{'CaseVals'});
+			# if (ref($case_expr_ast) ne 'ARRAY') {
+			# 	$case_expr_ast = [$case_expr_ast];
+			# }
+			$info->{'Cond'}{'AST'} =  __replace_seq_by_ors($select_expr_ast,$case_expr_ast);
 			$info->{'Cond'}{'Expr'}  = emit_expr_from_ast($info->{'Cond'}{'AST'});
 			$info->{'CondVars'}{'Set'} = get_vars_from_expression($info->{'Cond'}{'AST'});
 			$info->{'CondVars'}{'List'} = [sort keys %{$info->{'CondVars'}{'Set'}}];
@@ -115,27 +115,34 @@ sub replace_case_by_if { my ( $stref, $f, $annlines ) = @_;
 	}
 	];
  	($stref,$state) = stateful_pass_inplace($stref,$f,$pass_replace_case_by_if, $state,'pass_replace_case_by_if() ' . __LINE__  ) ;
-	# my $Sf = $stref->{'Subroutines'}{$f};
-	# $stref = emit_AnnLines($stref,$f,$Sf->{'RefactoredCode'});
-	# die Dumper pp_annlines($Sf->{'RefactoredCode'}) if $f eq 'decodeTokenStr';
+	my $Sf = $stref->{'Subroutines'}{$f};
+	$stref = emit_AnnLines($stref,$f,$Sf->{'RefactoredCode'});
+	# die Dumper pp_annlines($Sf->{'RefactoredCode'}) if $f eq 'normaliseTypeId';
 	return $stref;
 } # END of replace_case_by_if
 
 sub __replace_seq_by_ors { my ($x,$seq) = @_;
 	#(AST,String,Error,HasFuncs)
 	# carp 'CASEVAL:'. Dumper($x,$seq) ;
-	if (scalar @{$seq} == 1) {
-		 my ($item_ast,$r,$e,$f) = parse_expression_no_context($seq->[0]);
+	if ($seq->[0] == 12) {
+		return __replace_range_by_inequalities($x,$seq);
+	} elsif ($seq->[0] != 27) {
+		#  my ($item_ast,$r,$e,$f) = parse_expression_no_context($seq);
 		#  carp 'CASEVAL:'. Dumper($item_ast,$r,$e,$f) ;
-		 return [15, $x,$item_ast];
+		 return [15, $x,$seq];
 	} else {
 		my @item_asts=();
+		my $first=1;
 		for my $item (@{$seq}) {
-			if (ref($item) eq 'ARRAY') {
-				push @item_asts, __replace_range_by_inequalities($x,@{$item});
+			if ($first) {
+				$first=0;
+				next;
+			}
+			if ($item->[0] == 12) {
+				push @item_asts, __replace_range_by_inequalities($x,$item);
 			} else {
-				my ($item_ast,$r,$e,$f) = parse_expression_no_context($item);
-				push @item_asts, [15, $x,$item_ast];
+				# my ($item_ast,$r,$e,$f) = parse_expression_no_context($item);
+				push @item_asts, [15, $x,$item];
 			}
 		}
 		# croak Dumper @item_asts;
@@ -143,7 +150,7 @@ sub __replace_seq_by_ors { my ($x,$seq) = @_;
 		# croak emit_expr_from_ast( __build_or_seq_rec( @item_asts ) ) if @item_asts>2;
 		return __build_or_seq_rec( @item_asts );
 	}
-} # END of __replace_range_by_inequalities
+} # END of __replace_seq_by_ors
 
 sub __build_or_seq_rec { my @item_asts = @_;
 	if (scalar @item_asts == 1) {
@@ -155,12 +162,14 @@ sub __build_or_seq_rec { my @item_asts = @_;
 	}
 }
 
-sub __replace_range_by_inequalities { my ($x,$lb,$ub) = @_;
+sub __replace_range_by_inequalities { my ($x,$item) = @_;
 #(AST,String,Error,HasFuncs)
-	my ($lb_ast,$r1,$e1,$f1) = parse_expression_no_context($lb);
-	my ($ub_ast,$r2,$e2,$f2) = parse_expression_no_context($ub);
-	# croak Dumper emit_expr_from_ast([0, [22,[20,$x,$lb_ast],[19,$x,$ub_ast] ]]);
-	return [0,[22,[20,$x,$lb_ast],[19,$x,$ub_ast] ]];
+	# my ($lb_ast,$r1,$e1,$f1) = parse_expression_no_context($lb);
+	# my ($ub_ast,$r2,$e2,$f2) = parse_expression_no_context($ub);
+	# croak Dumper emit_expr_from_ast([0, [22,[20,$x,$lb_ast],[19,$x,$ub_ast] ]]); 
+	my $lb = $item->[1];
+	my $ub = $item->[2];
+	return [0,[22,[20,$x,$lb],[19,$x,$ub] ]];
 } # END of __replace_range_by_inequalities
 
 1;

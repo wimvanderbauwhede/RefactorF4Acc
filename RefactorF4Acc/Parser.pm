@@ -3284,6 +3284,7 @@ sub __parse_f95_decl {
     my $is_module = (exists $stref->{'Modules'}{$f}) ? 1 : 0;
 
 	my $pt = parse_F95_var_decl($line);
+	
 	if (exists $pt->{'ParseError'}) {
 		warning( 'Parse error on F90 variable declaration on line '.$info->{'LineID'}.' in '. $Sf->{'Source'}.":\n\n\t$line\n\nProbably unsupported mixed F77/F90 syntax; trying F77 parser", 0, 'PARSE ERROR');
 		$info->{'ParseError'}=1;
@@ -3475,6 +3476,7 @@ sub __parse_f95_decl {
 	}
 	# croak Dumper $Sf if (not exists $Sf->{'Source'} or not defined $Sf->{'Source'});
 	push @{ $info->{'Ann'} }, annotate( $Sf->{'Source'}, __LINE__ );
+
 	return ( $Sf, $info );
 
 }    # END of __parse_f95_decl()
@@ -3533,7 +3535,7 @@ sub _parse_f77_par_decl {
 	# This returns be a {($var,{Epxr => $exp, AST=>$ast})} Set + [$var] List
 	my $var_val_pairs = _get_var_val_pairs($ast);
 	my @param_names=@{ $var_val_pairs->{'List'} };
-# carp Dumper ($ast,$var_val_pairs) if $line=~/p1/;
+#  carp Dumper ($ast,$var_val_pairs) if $line=~/VV/;
 	$info->{'ParamDecl'}{'Names'}=\@param_names;
 	for my $var (@param_names) {
 		my $val = $var_val_pairs->{'Set'}{$var}{'Expr'};
@@ -3667,6 +3669,7 @@ sub _parse_f77_par_decl {
 			'Status'    => 0,
 			'Implicit' => 0
 		};
+
 
 		if ($is_module) {
 			$param_decl->{'ModuleName'} = $f;
@@ -4307,7 +4310,7 @@ sub _parse_read_write_print {
 	        }
 	        if (exists $attr_pairs->{'iostat'}) {
 	        	my $ios = $attr_pairs->{'iostat'}[1];
-	        	$info->{'Vars'}{'Written'}{'Set'}{$ios}=1;
+	        	$info->{'Vars'}{'Written'}{'Set'}{$ios}={'Type' => 'Scalar'};
 				$info->{'IOStat'}=$ios;
 				# croak Dumper $ios;
 	        }
@@ -4317,41 +4320,41 @@ sub _parse_read_write_print {
 	            my $ios = $attr_pairs->{'iostat'}[1];
 				# croak Dumper $ios;
 				$info->{'IOStat'}=$ios;
-	            $info->{'Vars'}{'Written'}{'Set'}{$ios}=1;
+	            $info->{'Vars'}{'Written'}{'Set'}{$ios}={'Type' => 'Scalar'};
 	        }
 	        if (exists $attr_pairs->{'rec'}) {
                 my $rn = $attr_pairs->{'rec'}[1];
 				$info->{'RecVar'}=$rn;
-                $info->{'Vars'}{'Read'}{'Set'}{$rn}=1;
+                $info->{'Vars'}{'Read'}{'Set'}{$rn}={'Type' => 'Scalar'};
             }
 	        # This must be the iolist case. First check for implied do; then call args_vars. All args are Written, the rest is Read
-	            (my $args, my $other_vars) = @{ find_args_vars_in_ast($exprs_ast)  };
-	            if (%{$impl_do_pairs}) {
-		            for my $idv (sort keys %{$impl_do_pairs}) {
-		                if (exists $args->{'Set'}{$idv}) {
-		                    delete $args->{'Set'}{$idv};
+			(my $args, my $other_vars) = @{ find_args_vars_in_ast($exprs_ast)  };
+			if (%{$impl_do_pairs}) {
+				for my $idv (sort keys %{$impl_do_pairs}) {
+					if (exists $args->{'Set'}{$idv}) {
+						delete $args->{'Set'}{$idv};
 #		                    @{$args->{'List'}} =  sort keys %{$args->{'Set'}};
-		                }
-		            }
-	            }
-	            $info->{'Vars'}{'Written'}{'Set'}= {%{$args->{'Set'} }, %{$info->{'Vars'}{'Written'}{'Set'}}};
-	            $info->{'Vars'}{'Written'}{'List'}= [sort keys %{ $info->{'Vars'}{'Written'}{'Set'} } ];
-	            $info->{'Vars'}{'Read'}=$other_vars;
+					}
+				}
+			}
+			$info->{'Vars'}{'Written'}{'Set'}= {%{$args->{'Set'} }, %{$info->{'Vars'}{'Written'}{'Set'}}};
+			$info->{'Vars'}{'Written'}{'List'}= [sort keys %{ $info->{'Vars'}{'Written'}{'Set'} } ];
+			$info->{'Vars'}{'Read'}=$other_vars;
 		} else {# $case==3
 	    #If case 3, and more than one arg, process iolist as in ACCEPT
   	# This must be the iolist case. First check for implied do; then call args_vars. All args are Written, the rest is Read
 
-	            (my $args, my $other_vars) = @{ find_args_vars_in_ast($exprs_ast)  };
-	            if (%{$impl_do_pairs}) {
+			(my $args, my $other_vars) = @{ find_args_vars_in_ast($exprs_ast)  };
+			if (%{$impl_do_pairs}) {
 	            for my $idv (sort keys %{$impl_do_pairs}) {
 	                if (exists $args->{'Set'}{$idv}) {
 	                    delete $args->{'Set'}{$idv};
 	                    @{$args->{'List'}} =  sort keys %{$args->{'Set'}};
 	                }
 	            }
-	            }
-	            $info->{'Vars'}{'Written'}=$args;
-	            $info->{'Vars'}{'Read'}=$other_vars;
+			}
+			$info->{'Vars'}{'Written'}=$args;
+			$info->{'Vars'}{'Read'}=$other_vars;
 		}
 #        croak $case.Dumper($info->{'Vars'}) if $line=~/read.*time/;
 #carp Dumper($info->{'Vars'}) if $f eq 'ifdata' and $line=~/time/;
@@ -4372,7 +4375,7 @@ sub _parse_read_write_print {
             for my $idv (sort keys %{$impl_do_pairs}) {
                 if (exists $vars->{'Set'}{$idv}) {
                     delete $vars->{'Set'}{$idv};
-                    @{$vars->{'List'}} =  sort keys %{$vars->{'Set'}};
+                    @{$vars->{'List'}} = sort keys %{$vars->{'Set'}};
                 }
             }
             }
@@ -4419,7 +4422,7 @@ sub _parse_read_write_print {
 		#If case 1 or 2, add IOSTAT var to Written to
 	   if (exists $attr_pairs->{'iostat'}) {
                 my $ios = $attr_pairs->{'iostat'}[1];
-                $info->{'Vars'}{'Written'}{'Set'}{$ios}=1;
+                $info->{'Vars'}{'Written'}{'Set'}{$ios}={'Type' => 'Scalar'};
        }
 
 
@@ -4429,7 +4432,7 @@ sub _parse_read_write_print {
         for my $attr (keys %{ $attr_pairs } ) {
         	if ($attr ne 'err') {
         	   my $attr_val = $attr_pairs->{$attr}[1]; # should always be the name of a $ or @
-        	   $info->{'Vars'}{'Written'}{'Set'}{$attr_val}=1;
+        	   $info->{'Vars'}{'Written'}{'Set'}{$attr_val}={'Type' => 'Scalar'};
         	}
         }
 
@@ -4477,7 +4480,7 @@ sub _parse_read_write_print {
         # REWIND ( [ UNIT=] u [, IOSTAT=ios ] [, ERR= s ])
             if (exists $attr_pairs->{'iostat'}) {
                 my $ios = $attr_pairs->{'iostat'}[1];
-                $info->{'Vars'}{'Written'}{'Set'}{$ios}=1;
+                $info->{'Vars'}{'Written'}{'Set'}{$ios}={'Type' => 'Scalar'};
             }
         }
 	} else {

@@ -83,7 +83,7 @@ sub analyse_variables {
 			( my $stref, my $f, my $identified_vars, my $grouped_messages ) = @{$state};
 
 			my $Sf     = $stref->{'Subroutines'}{$f};
-		    my $chunks_ref = identify_vars_on_line($annline);
+		    my $chunks_ref = identify_vars_on_line($annline,$f);
 			my @chunks = @{ $chunks_ref };
 
 			# -------------------------------------------------------------------------------------------------------------------
@@ -423,7 +423,7 @@ sub analyse_used_variables {
 			) {
 			( my $stref, my $f, my $identified_vars ) = @{$state};
 			my $Sf     = $stref->{'Subroutines'}{$f};
-		    my $chunks_ref = identify_vars_on_line($annline);
+		    my $chunks_ref = identify_vars_on_line($annline,$f);
 			my @chunks = @{ $chunks_ref };
 
 
@@ -486,7 +486,7 @@ sub analyse_used_variables {
 }    # END of analyse_used_variables()
 
 sub identify_vars_on_line {
-	( my $annline ) = @_;
+	( my $annline, my $f ) = @_;
 	( my $line,    my $info )  = @{$annline};
 
 	if (   exists $info->{'Assignment'}
@@ -531,6 +531,22 @@ sub identify_vars_on_line {
 			) {
 
 			@chunks = ( @chunks, @{ $info->{'Vars'}{'Written'}{'List'} }, @{ $info->{'Vars'}{'Read'}{'List'} } );
+			my %unique_index_vars = ();
+			my @index_vars = ();
+			for my $rw ('Written','Read') {
+				for my $var (@{ $info->{'Vars'}{$rw}{'List'} }) {
+					# say "LINE $line VAR $rw $var ".Dumper($info->{'Vars'}{$rw});
+					if (exists $info->{'Vars'}{$rw}{'Set'}{$var}{'IndexVars'}) { 
+						for my $index_var (sort keys %{ $info->{'Vars'}{$rw}{'Set'}{$var}{'IndexVars'} }) {
+								if (not exists $unique_index_vars{$index_var}) {
+									$unique_index_vars{$index_var}=1;
+									push @index_vars,$index_var;
+								}
+						}
+					}
+				}
+			}
+			@chunks = ( @chunks, @index_vars ) unless scalar @index_vars==0;
 			if (exists $info->{'CallAttrs'}) {
 				@chunks = ( @chunks,@{$info->{'CallAttrs'}{'List'}} );
 			}
@@ -540,6 +556,7 @@ sub identify_vars_on_line {
 			if (exists $info->{'ImpliedDoRangeVars'}) {
 				@chunks = ( @chunks, @{ $info->{'ImpliedDoRangeVars'}{'List'} } );
 			}
+
 		} elsif ( exists $info->{'SubroutineCall'} ) {
 			# croak Dumper $info if $info->{'SubroutineCall'}{'Name'} eq 'tokeniseFunktal';
 			for my $var_expr ( @{ $info->{'SubroutineCall'}{'Args'}{'List'} } ) {

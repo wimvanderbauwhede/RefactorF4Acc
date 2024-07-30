@@ -289,6 +289,7 @@ sub main {
             say "RUNNING CUSTOM PASS $pass";
             say "--------------------". ('-' x length($pass)) ;
         }
+
         if ($code_unit_name eq '' and scalar @{ $Config{'SOURCEFILES'} }>0) {
         # $code_unit_name is empty, i.e. no TOP routine. So we go through all sources one by one by file name
             for my $fp ( @{ $Config{'SOURCEFILES'} } ) {
