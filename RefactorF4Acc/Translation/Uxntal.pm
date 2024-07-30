@@ -67,12 +67,16 @@ our @sigils = ('(', '&', '$', 'ADD', 'SUB', 'MUL', 'DIV', 'mod', 'pow', '=', '@'
                ,'integer', 'real', 'logical', 'character', 'complex', 'PlaceHolder', 'Label', 'BLANK'
               );
 
+# For shorter labels
+
 our $branch = 'b';
 our $loop = 'l';
 our $while_loop = 'w';
 our $cond = 'c';
 our $end = 'e';
-
+our $fqp = 'fq';
+our $fqn_counter = 0;
+our %fqns = ();
 # TODO This needs to be changed so that only the used functions are emitted
 my @uxntal_lib_sources = (
     '../../uxntal-libs/fmt-print.tal',
@@ -170,7 +174,7 @@ sub translate_program_to_Uxntal($stref,$program_name){
     my @used_uxntal_lib_subroutine_sources=emit_used_uxntal_lib_subroutine_sources();
 
     $stref->{'TranslatedCode'}=[
-        '|00 @System &vector $2 &expansion $2 &wst $1 &rst $1 &metadata $2 &r $2 &g $2 &b $2 &debug $1 &state $1',
+        '    |00 @System &vector $2 &expansion $2 &wst $1 &rst $1 &metadata $2 &r $2 &g $2 &b $2 &debug $1 &state $1',
         ($stref->{'HasCLArgs'} ? @{$stref->{'Uxntal'}{'Console'}} :()),
         ($stref->{'HasReadFile'} ? @{$stref->{'Uxntal'}{'ReadFile'}} :()),
         ($stref->{'HasWriteFile'} ? @{$stref->{'Uxntal'}{'WriteFile'}} :()),
@@ -546,7 +550,7 @@ Instead of the nice but cumbersome approach we had until now, from now on it is 
                 push @{$pass_state->{'DoStack'}}, [$id,$info->{'Do'}{'ExpressionsAST'},'While'];
                 $c_line = '&'.$while_loop.'_'.$f.'_'.$id . "\n" ;
             } else {
-                my $do_iterator = $f.'_'.$info->{'Do'}{'Iterator'};
+                my $do_iterator =  __shorten_fq_name( $f.'_'.$info->{'Do'}{'Iterator'});
                 $stref->{'Subroutines'}{$f}{'DoIterators'}{$info->{'Do'}{'Iterator'}}=$do_iterator;
                 my $uxntal_do_iter_decl = '@'.$do_iterator.' $2';
                 if (not exists $pass_state->{'Subroutine'}{'LocalVars'}{'Set'}{$uxntal_do_iter_decl}) {
@@ -742,7 +746,7 @@ Instead of the nice but cumbersome approach we had until now, from now on it is 
         }
         elsif (exists $info->{'If'} and not exists $info->{'IfThen'} ) {
             if (exists $info->{'Goto'}) {
-                $c_line = ';&'.$f.'_'.$info->{'Goto'}{'Label'}.' JMP2';
+                $c_line = ';&'.__shorten_fq_name($f.'_'.$info->{'Goto'}{'Label'}).' JMP2';
             } else {
                 croak "If without Then, not assignment, goto or call: $line";
             }
@@ -869,10 +873,10 @@ Instead of the nice but cumbersome approach we had until now, from now on it is 
             $c_line = '#'.$line;
         }
         elsif (exists $info->{'Goto'} ) {
-            $c_line = ';&'.$f.'_'.$info->{'Goto'}{'Label'}.' JMP2';
+            $c_line = ';&'.__shorten_fq_name($f.'_'.$info->{'Goto'}{'Label'}).' JMP2';
         }
         elsif (exists $info->{'Continue'}) {
-            $c_line='&'.$f.'_'.$info->{'Label'};
+            $c_line='&'.__shorten_fq_name( $f.'_'.$info->{'Label'});
         }
         elsif (exists $info->{'Common'}) {
             $c_line='';
@@ -1753,6 +1757,7 @@ sub _stack_allocation($stref,$f,$var) {
 sub __create_fq_varname($stref,$f,$var_name) {
     # carp Dumper $var_name;
     my $fq_varname = $f.'_'.$var_name;
+
     my $Sf = $stref->{'Subroutines'}{$f};
     my $decl = get_var_record_from_set($Sf->{'ModuleVars'},$var_name);
     if (not defined $decl) {
@@ -1773,9 +1778,22 @@ sub __create_fq_varname($stref,$f,$var_name) {
             }
         }
     }
-    return $fq_varname;
+
+    return __shorten_fq_name($fq_varname);
 } # END of __create_fq_varname
 
+sub __shorten_fq_name ($fq_varname) {
+    # Somehow BROKEN, probably because I missed some
+    if (not exists $fqns{$fq_varname}) {
+        my $short_name = "$fqp$fqn_counter";
+        $fqns{$fq_varname} = $short_name;
+        $fq_varname = $short_name;
+        $fqn_counter++;
+    } else {
+        $fq_varname = $fqns{$fq_varname} 
+    }
+    return $fq_varname;
+}
 sub __is_module_var($stref,$f,$var_name) {
     # carp Dumper $var_name;
     my $Sf = $stref->{'Subroutines'}{$f};
@@ -1997,7 +2015,7 @@ sub _emit_arg_decl_Uxntal($stref,$f,$arg, $name){
     my $short_mode = __nBytes($word_sz, $isArrayOrString)==1?'':'2';
     # croak "$f $arg: $word_sz != $uxntal_size" if $word_sz != $uxntal_size;
     my $uxntal_write_arg = $iodir eq 'out' or $iodir eq 'inout' ? 1 : 0 ;
-    my $fq_name = $name.'_'.$arg;
+    my $fq_name = __shorten_fq_name($name.'_'.$arg);
     my $use_stack = __use_stack($stref,$f);
     # But if $arg is a ResultVar, it should not go on the stack
     if (($use_stack==1) and exists $stref->{'Subroutines'}{$f}{'Signature'}{'ResultVar'}
@@ -2068,7 +2086,8 @@ sub _emit_var_decl_Uxntal ($stref,$f,$info,$var){
         # Define parameter as macro
         # my $par_decl_str = '%'.$f.'_'.$var.' { '. $val_str .' }';
         # Better: define parameter as function
-        my $par_decl_str = '@'.$f.'_'.$var.' '. $val_str .' JMP2r';
+        my $fq_parname = __create_fq_varname($stref,$f,$var);
+        my $par_decl_str = '@'.$fq_parname.' '. $val_str .' JMP2r';
         return ($stref,$par_decl_str);
         # $const = 'const ';
         # $val = ' = '.$decl->{'Val'};
@@ -2114,17 +2133,17 @@ sub _emit_var_decl_Uxntal ($stref,$f,$info,$var){
         if (not defined $sz) {
             croak "$f $var ".Dumper($decl);
         }
-
+        my $fq_varname = __create_fq_varname($stref,$f,$var);
         if (($ftype eq 'character') and ($strlen >1)) {
             my $len = toRawHex($strlen,2);
             my $padding = $len;
             $padding =~s/^0+//;
-            my $c_var_decl = '@'.$f.'_'.$var.' '.$len.' $'. $padding;
+            my $c_var_decl = '@'.$fq_varname.' '.$len.' $'. $padding;
             return ($stref,$c_var_decl);
         } else {
             my $padding = toRawHex($sz*$dim,2);
             $padding =~s/^0+//;
-            my $c_var_decl = '@'.$f.'_'.$var.' $'. $padding;
+            my $c_var_decl = '@'.$fq_varname.' $'. $padding;
             return ($stref,$c_var_decl);
         }
     }
