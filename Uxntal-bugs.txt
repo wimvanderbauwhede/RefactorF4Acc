@@ -1,5 +1,32 @@
 Somehow, what should be an embedded constant becomes a regular constant. 
+
+;tokeniseFunktal_numVal LDA2 #0000 #0080 SUB2  gte2 
+;tokeniseFunktal_numVal LDA2 #0080  LTH2  AND 
+;tokeniseFunktal_charIdx LDA2 #0005  EQU2  AND 
+;&b204 JCN2
+
+
 The bug is in calcByteHexConst, but really it is that we should emit gte instead of gte2
+
+Furthermore, lte, gte, LTH and GTH are for unsigned integers. 
+1) gte
+if L==R, true -- OVR2 OVR2 ,&r STR2 ,&l STR2 EQU2 ,&true JCN
+else
+,&l LDR2 2^16 GTH ,&l_is_neg STR
+,&r LDR2 2^16 GTH ,&r_is_neg STR
+Lsign = L>2^15 ? 1 : 0
+Rsign = R>2^15 ? 1 : 0
+so 10 >= -180 
+check the sign. If both are pos, ordinary
+if Lsign and Rsign then L > R
+if both are neg, remove sign and invert. removing sign can be done by shifting 1 bit to the left and then back, but there is no reason to shift back
+-10 > -180 so 10 < 180
+1-Lsign and 1-Rsign then
+L<<1 < R<<1
+Lsign and 1-Rsign
+if sign(L) neg and sign(R) pos, false
+1-Lsign and Rsign
+if sign(L) pos and sign(R) neg, true
 
 ;calcByteHexConst_hinibc LDA #30  gte2 ;calcByteHexConst_hinibc LDA #39  lte2  AND ;&b3 JCN2
 

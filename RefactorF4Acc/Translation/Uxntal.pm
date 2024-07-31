@@ -2336,6 +2336,7 @@ sub _emit_expression_Uxntal ($ast, $stref, $f, $info) {
             # TODO these are not implemented yet
             if ($opcode == 19 or $opcode == 20) { # <= or >=
                 add_to_used_lib_subs($sigils[$opcode].'2'); # FIXME: use word size!
+                add_to_used_lib_subs($sigils[$opcode]); 
             }
             if (($opcode == 21 or $opcode == 4 or $opcode == 3) and scalar @{$ast} == 2) {#  '.not.', '-' or '+'
                 (my $opcode, my $exp) =@{$ast};
@@ -2388,9 +2389,9 @@ sub _emit_expression_Uxntal ($ast, $stref, $f, $info) {
                     croak "Word sizes for ".$sigils[$opcode]." must be the same: $l_word_sz <> $r_word_sz ( $lv <> $rv )";
                 }
                 my $short_mode =  $l_word_sz == 2 ? '2' : '';
-                if ($opcode == 19 or $opcode == 20) { # FIXME I guess?
-                    $short_mode = 2;
-                }
+                # if ($opcode == 19 or $opcode == 20) { # FIXME I guess?
+                #     $short_mode = 2;
+                # }
                 my $word_sz = ($opcode >=15 && $opcode<=26) ? 1 : $l_word_sz;
                 # Ideally, the _emit_expression_Uxntal should return the word size of the expression
                 return ("$lv $rv  ". $sigils[$opcode].$short_mode, $word_sz ); # FIXME, needs refining
