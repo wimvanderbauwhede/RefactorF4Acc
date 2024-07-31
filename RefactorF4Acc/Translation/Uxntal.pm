@@ -69,11 +69,13 @@ our @sigils = ('(', '&', '$', 'ADD', 'SUB', 'MUL', 'DIV', 'mod', 'pow', '=', '@'
 
 # For shorter labels
 
+our $shorten_var_names = 1;
 our $branch = 'b';
 our $loop = 'l';
 our $while_loop = 'w';
 our $cond = 'c';
 our $end = 'e';
+our $substr = 's';
 our $fqp = 'fq';
 our $fqn_counter = 0;
 our %fqns = ();
@@ -1784,13 +1786,15 @@ sub __create_fq_varname($stref,$f,$var_name) {
 
 sub __shorten_fq_name ($fq_varname) {
     # Somehow BROKEN, probably because I missed some
-    if (not exists $fqns{$fq_varname}) {
-        my $short_name = "$fqp$fqn_counter";
-        $fqns{$fq_varname} = $short_name;
-        $fq_varname = $short_name;
-        $fqn_counter++;
-    } else {
-        $fq_varname = $fqns{$fq_varname} 
+    if ($shorten_var_names){
+        if (not exists $fqns{$fq_varname}) {
+            my $short_name = "$fqp$fqn_counter";
+            $fqns{$fq_varname} = $short_name;
+            $fq_varname = $short_name;
+            $fqn_counter++;
+        } else {
+            $fq_varname = $fqns{$fq_varname} 
+        }
     }
     return $fq_varname;
 }
@@ -2402,8 +2406,8 @@ sub __substitute_PlaceHolders_Uxntal($expr_str,$info,$isChar){
         while ($expr_str =~ /(__PH\d+__)/) {
             my $ph=$1;
             my $ph_str = $info->{'PlaceHolders'}{$ph};
-            $ph_str=~s/[\'\"]$//;
-            $ph_str=~s/^[\']/\"/;
+            $ph_str=~s/[\'\"]$//; # remove closing quotes
+            $ph_str=~s/^[\']/\"/; # make opening quote "
             $expr_str=~s/$ph/$ph_str/;
         }
         my $len = toRawHex(length($expr_str)-1,2);
@@ -2417,6 +2421,7 @@ sub __substitute_PlaceHolders_Uxntal($expr_str,$info,$isChar){
             $expr_str =~s/\s/ 20 \"/g;
             $expr_str =~s/\n/ 0a \"/g;
             $expr_str =~s/\"\s*$//;
+            $expr_str =~s/^\"\s+//; # remove opening quote if first char was \s or \n
             $expr_str = "{ $len $expr_str } STH2r";
         }
     }
@@ -2567,6 +2572,7 @@ sub _emit_function_call_expr_Uxntal($stref,$f,$info,$ast){
             for my $call_arg_ast (@call_arg_asts) {
                 $idx++;
                 if (not (($call_arg_ast->[0]==9) and ($call_arg_ast->[1][1] eq 'kind'))
+                and not $F95_intrinsic_function_sigs{$subname}[0][$idx-1] eq 'kind'
                 ) { # skip kind=... argument as we don't use it anyway
                     my $call_arg_expr_str =
                     ($call_arg_ast->[0] == 2 or $call_arg_ast->[0] == 10 or $call_arg_ast->[0] > 28)
@@ -2847,10 +2853,10 @@ sub __gen_substr($str_addr, $cb, $ce, $len, $id){
         return
         '{ DUP #00 SWP '.$str_addr.' ADD2 INC2 LDA' . "\n" .
         '  SWP #00 SWP '.$cb.' SUB2' . "\n" .
-        '  ;&substr_'.$id.' ADD2 STA'  . "\n" .
+        '  ;&'.$substr.$id.' ADD2 STA'  . "\n" .
         '  JMP2r'  . "\n" .
         '} STH2r '.$ceb.' '.$cbb.' range-map'  . "\n" .
-        '{ '.toRawHex($len,2).' &substr_'.$id.' $'.toRawHex($len,1).' } STH2r'; # string with a 2-byte length field
+        '{ '.toRawHex($len,2).' &'.$substr.$id.' $'.toRawHex($len,1).' } STH2r'; # string with a 2-byte length field
     }
 } # END of __gen_substr
 
@@ -2969,14 +2975,14 @@ sub _emit_list_print_Uxntal($stref,$f,$line,$info,$unit,$advance,$list_to_print)
             my ($arg_to_print_Uxntal,$word_sz) = _emit_expression_Uxntal($elt,$stref, $f, $info);
             # carp Dumper($print_fn_Uxntal,$arg_to_print_Uxntal);
             # TODO: feels like a HACK
-            if ($print_fn_Uxntal eq 'print-char' and $elt->[0] == 2) {
+            if (substr($print_fn_Uxntal,0,10) eq 'print-char' and $elt->[0] == 2) {
                 my ($uxntal_var_access, $word_sz) = _var_access_read($stref,$f,$info,$elt);
                 croak "$uxntal_var_access: word size is $word_sz" if $word_sz !=1;
                 $arg_to_print_Uxntal = $uxntal_var_access. ' LDA';
             }
             # If a string is a single char, we treat it as a char, so we must print a char
-            if ($print_fn_Uxntal eq 'print-string' and $arg_to_print_Uxntal=~/^(?:\s*\#|LDA)$/ ) { #
-                $print_fn_Uxntal = 'print-char';
+            if (substr($print_fn_Uxntal,0,12) eq 'print-string' and $arg_to_print_Uxntal=~/(:?^\s*\#[0-9a-f]+\s*$|LDA\s*$)/ ) { #
+                $print_fn_Uxntal = "$port DEO";
             }
             $line_Uxntal .= "$arg_to_print_Uxntal $print_fn_Uxntal #20 $port DEO ( , )\n";
         }

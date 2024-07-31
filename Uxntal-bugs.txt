@@ -1,53 +1,34 @@
-0016        oneByte = .false. 
-0002        tokenLabel = getTokenLabel(token)
-0004        tokenVal = getTokenVal(token)
-0006        tokenExtBits = 0
-0015        cs = ''
-0002        tokenLabel
-000c        id
-000e        sidx
-0012        slen
-000a        ii
+- printing of leading space is wrong: ' ac' results in  { 0003 " 20 "ac }, the quote should go
+- printing of characters in list-style write is wrong: it uses print-string-stderr,should be print-char which is inlined
+- iachar keeps the kind, it should have been removed; in fact, iachar should be inlined. 2573: we only remove kind=...
 
-* An empty string should be a string { 0000 } STH2r, not #00
-* The allocation for cs on the stack should be #0040 but is only #0001
-*             do i=sidx,sidx+slen-1_2
-                ii = i-sidx+1_2
-                
-is not correct: the expression for ii gets 0008 instead of i                
+The produced tokens are not all correct either:
+1033 6177 5121 5122 7171 2061 -28662  2061  21505   2061   6168   6177
+1024 6177 5120 5121 7171 7171  7171   7171  21649   6165   6168   6177 
 
-.fp LDZ2 #0008 ADD2 LDA2 
-.fp LDZ2 #000e ADD2 LDA2  SUB2 #0001  ADD2 DUP2 print-int nl 
-.fp LDZ2 #000a ADD2 STA2 ( scalar )
+1 1024 1 0 
+2 6177 6 33 
+3 5120 5 0 
+4 5121 5 1 
+5 7171 7 3 
+6 7171 7 3 
+7 7171 7 3 
+8 7171 7 3 
+9 21649 5 145 
+10 6165 6 21 
+11 6168 6 24 
+12 6177 6 33 
 
-should be
-
-;decodeTokenStr_i LDA2 
-.fp LDZ2 #000e ADD2 LDA2  SUB2 #0001  ADD2
-.fp LDZ2 #000a ADD2 STA2
-
-When copying a substr we must make sure the length is set 
-
-.fp LDZ2 #0015 ADD2 .fp LDZ2 #000a ADD2 LDA2 INC2 ADD2 STA (  WV20240723: WRONG? )  ( COPY SUBSTR )
-.fp LDZ2 #000a ADD2 LDA2 #0001  ADD2 .fp LDZ2 #000a ADD2 STA2 ( scalar )
-.fp LDZ2 #000a ADD2 LDA2 #0001 SUB2 .fp LDZ2 #0015 ADD2 STA2
-
- The root cause is that when we allocate a string on the stack we should write its length!
- And we should do this for arrays as well, because otherwise SIZE does not work; to support SHAPE as well we'd need to tag the dims onto the end which we can do once we know the size. So arrays and strings should both have a 2-byte field. 
- 
- ====
-@decodeTokenStrI_res is declared twice
-
- decodeTokenStrI call returns char should be string
- 
- The spurious value on the stack is gone in decodeTokenStrI which only has the IdentifierLabel case, so now I can put the other cases back and see where it goes wrong. The odd thing is that none of them is ever reached so how can they put things on the stack?
- 
-====
-
-I think if we return a pointer to a string or array, then esp. for a string, that should be cleared. So at the start of the call we should zero the string.
-
-
- 
- 
-
+      1   1033      1      9
+      2   6177      6     33
+      3   5121      5      1
+      4   5122      5      2
+      5   7171      7      3
+      6   2061      2     13
+      7 -28662      4     10
+      8   2061      2     13
+      9  21505      5      1
+     10   2061      2     13
+     11   6168      6     24
+     12   6177      6     33
 
