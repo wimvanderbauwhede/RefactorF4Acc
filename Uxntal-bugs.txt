@@ -1,6 +1,7 @@
-- printing of leading space is wrong: ' ac' results in  { 0003 " 20 "ac }, the quote should go
-- printing of characters in list-style write is wrong: it uses print-string-stderr,should be print-char which is inlined
-- iachar keeps the kind, it should have been removed; in fact, iachar should be inlined. 2573: we only remove kind=...
+- printing of leading space is wrong: ' ac' results in  { 0003 " 20 "ac }, the quote should go; OK
+- printing of characters in list-style write is wrong: it uses print-string-stderr,should be print-char which is inlined OK
+- iachar keeps the kind, it should have been removed; in fact, iachar should be inlined. 2573: we only remove kind=... OK
+- strcmp is used when the args are characters rather than strings
 
 The produced tokens are not all correct either:
 1033 6177 5121 5122 7171 2061 -28662  2061  21505   2061   6168   6177
