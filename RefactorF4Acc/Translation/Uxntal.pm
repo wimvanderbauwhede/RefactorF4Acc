@@ -614,9 +614,7 @@ Instead of the nice but cumbersome approach we had until now, from now on it is 
             if (exists $info->{'PrintCall'}) {
                 # say "PRINT: $line";
                 # say Dumper $info;
-                $c_line = __emit_list_based_print_write($stref,$f,$line,$info, '*','yes');
-                # croak Dumper($c_line) if $line=~/decodeTokenStrI/;    
-                # say "UXNTAL: $c_line";
+                $c_line = __emit_list_based_print_write($stref,$f,$line,$info, 'STDOUT','yes');
             } elsif (exists $info->{'WriteCall'}) {
                 # carp Dumper $info;
                 my $call_ast = $info->{'IOCall'}{'Args'}{'AST'};
@@ -2062,7 +2060,7 @@ sub _emit_var_decl_Uxntal ($stref,$f,$info,$var){
     # carp "_emit_var_decl_Uxntal: VAR $var in $f " if $var eq 'res' and $f eq 'decodeTokenStrI';
     # my $decl =  get_var_record_from_set($stref->{$sub_or_module}{$f}{'Vars'},$var);
     my $decl = getDecl($stref,$f,$var);
-
+    my $initial_value = $decl->{'InitialValue'} // '';
     my $array = (exists $decl->{'ArrayOrScalar'} and $decl->{'ArrayOrScalar'} eq 'Array') ? 1 : 0;
 
     my $const = '';
@@ -2145,9 +2143,33 @@ sub _emit_var_decl_Uxntal ($stref,$f,$info,$var){
             my $c_var_decl = '@'.$fq_varname.' '.$len.' $'. $padding;
             return ($stref,$c_var_decl);
         } else {
-            my $padding = toRawHex($sz*$dim,2);
-            $padding =~s/^0+//;
-            my $c_var_decl = '@'.$fq_varname.' $'. $padding;
+            my $c_var_decl = '@'.$fq_varname.' ';
+            # $initial_value = '';
+            if ($initial_value eq '') {
+                my $padding = toRawHex($sz*$dim,2);
+                $padding =~s/^0+//;
+                $c_var_decl.='$'. $padding;
+            } else {
+                if ($initial_value =~/^\d+/ ) {
+                    $initial_value =~s/\_[1248]\s*$//;
+                    my $hex_val = toRawHex($initial_value,$sz);
+                    $c_var_decl .= "$hex_val " x $dim;
+                    # my $padding = toRawHex($sz*$dim,2);
+                    # $padding =~s/^0+//;
+                    # $c_var_decl.='$'. $padding;
+                } elsif ($initial_value eq '.true.') {
+                    $c_var_decl .= '01 ' x $dim;
+                } elsif ($initial_value eq '.false.') {
+                    $c_var_decl .= '00 ' x $dim;
+                } elsif ($initial_value =~/achar\(\s*([\w_]+)\s*\)/) {
+                    my $val = $1;
+                    my $hex_val = toRawHex($val,1);
+                    $c_var_decl .= "$hex_val " x $dim; 
+                } else {
+                    croak "Unsupported initial value: $initial_value for $var";
+                }
+                say "DECL: $initial_value => $c_var_decl";
+            }
             return ($stref,$c_var_decl);
         }
     }
@@ -3011,6 +3033,7 @@ sub _emit_list_print_Uxntal($stref,$f,$line,$info,$unit,$advance,$list_to_print)
             $line_Uxntal .= ' #20 #19 DEO';
         }
     }
+
     return $line_Uxntal;
 
 } # END of _emit_list_print_Uxntal
@@ -3546,14 +3569,14 @@ sub __emit_list_based_print_write($stref,$f,$line,$info,$unit, $advance){
         shift @list_to_print; shift @list_to_print;
         # croak 'WRONG!'.Dumper( $ast,$info,@list_to_print) if $line=~/funktalTokensIdx/;
         $c_line = _emit_list_print_Uxntal($stref,$f,$line,$info,$unit, $advance,\@list_to_print);
-        # carp "HERE: $c_line";
+         
 	} else {
 		my $fmt_ast = $ast->[2][1];
 		if ($fmt_ast->[0]==29) {
 			error("Unsupported: PRINT with label arg: $line",0,'ERROR');
 		}
 		my $print_fmt = __analyse_write_call_arg($stref,$f,$info,$fmt_ast,0);
-        carp "FMT: $print_fmt";
+        # carp "FMT: $print_fmt";
 		my ($print_call_list, $offsets) = __parse_fmt($print_fmt->[1],$stref,$f,$info);
 		my $call_arg_list = $ast->[2]; shift @{$call_arg_list};shift @{$call_arg_list};
 		if (scalar @{$print_call_list} != scalar @{$call_arg_list}) {
@@ -3566,8 +3589,9 @@ sub __emit_list_based_print_write($stref,$f,$line,$info,$unit, $advance){
 			my ($uxntal_expr,$word_sz) = _emit_expression_Uxntal($arg_ast,$stref, $f, $info);
 			$c_line.= $uxntal_expr.' '.$print_call. " #20 $port DEO"."\n";
 		}
-	}
 		$c_line .= " #0a $port DEO" if $advance eq 'yes';
+	}
+    
 	# if ($unit eq 'STDERR') {
 		return $c_line;
 	# }
