@@ -1,29 +1,9 @@
-1 1033 1 9  ContextLabel Main   main {
-2 6177 6 33 SeparatorLabel ExprSeparator "\n"
-3 5120 5 0  => should be TokenLabel 5 (ConstantLabel), TokenVal 1, not 0; this is 6
-4 5121 5 1  => should be TokenLabel 5 (ConstantLabel), TokenVal 2, not 1; this is 7 
-5 7171 7 3 OperatorLabel *
-6 2061 2 13 IdentifierLabel print
-7 54274 5 2 => Should be 4     10 EmbeddedConstantLabel
-8 2061 2 13 IdentifierLabel print
-9 21504 5 0 Should be 1 instead of 0
-10 2061 2 13 IdentifierLabel print
-11 6168 6 24 SeparatorLabel BlockClose }
-12 6177 6 33 SeparatorLabel ExprSeparator "\n"
-END loop 
-      1   1033      1      9
-      2   6177      6     33
-      3   5121      5      1
-      4   5122      5      2
-      5   7171      7      3
-      6   2061      2     13
-      7 -28662      4     10
-      8   2061      2     13
-      9  21505      5      1
-     10   2061      2     13
-     11   6168      6     24
-     12   6177      6     33
- END loop
+Somehow, what should be an embedded constant becomes a regular constant. 
+The bug is in calcByteHexConst, but really it is that we should emit gte instead of gte2
 
-  integer(kind=2) :: numConstId=1 is not done right:
-  @tokeniseFunktal_numConstId $2
+;calcByteHexConst_hinibc LDA #30  gte2 ;calcByteHexConst_hinibc LDA #39  lte2  AND ;&b3 JCN2
+
+
+Another bug: if we print an array slice, whatever comes before is not printed
+
+

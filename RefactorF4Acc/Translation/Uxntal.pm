@@ -2168,7 +2168,7 @@ sub _emit_var_decl_Uxntal ($stref,$f,$info,$var){
                 } else {
                     croak "Unsupported initial value: $initial_value for $var";
                 }
-                say "DECL: $initial_value => $c_var_decl";
+                # say "DECL: $initial_value => $c_var_decl";
             }
             return ($stref,$c_var_decl);
         }
