@@ -69,7 +69,7 @@ our @sigils = ('(', '&', '$', 'ADD', 'SUB', 'MUL', 'DIV', 'mod', 'pow', '=', '@'
 
 # For shorter labels
 
-our $shorten_var_names = 1;
+our $shorten_var_names = 0;
 our $branch = 'b';
 our $loop = 'l';
 our $while_loop = 'w';
@@ -1383,9 +1383,8 @@ sub _var_access_assign($stref,$f,$info,$lhs_ast,$rhs_ast) {
 sub __is_write_arg($stref,$f,$var) {
     # my $decl =  get_var_record_from_set($stref->{'Subroutines'}{$f}{'Vars'},$var) ;
     my $decl = getDecl($stref,$f,$var);
-    # carp("<$var>",Dumper $decl);
     my $iodir = exists $decl->{'IODir'} ? $decl->{'IODir'} : 'Unknown';
-    my $uxntal_write_arg = $iodir eq 'out' or $iodir eq 'inout' ? 1 : 0 ;
+    my $uxntal_write_arg = ($iodir eq 'out' or $iodir eq 'inout') ? 1 : 0 ;
     return $uxntal_write_arg;
 }
 sub __var_access($stref,$f,$var) {
@@ -1405,6 +1404,7 @@ sub __var_access($stref,$f,$var) {
     if (exists $stref->{'Subroutines'}{$f}{'DoIterators'}{$var}) {
         $use_stack=0;
     }
+    # croak("<$var>",$uxntal_write_arg,is_arg($stref,$f,$var)) if $var eq 'context' and $f eq 'updateContext';
     return
         (
             $use_stack
@@ -1414,7 +1414,7 @@ sub __var_access($stref,$f,$var) {
         .
         (
             (is_arg($stref,$f,$var) and (is_array_or_string($stref,$f,$var) or $uxntal_write_arg))
-            ? ' LDA2' # passed by reference
+            ? ' LDA2 ' # passed by reference
             : '' # not passed
         );
 }
@@ -2312,7 +2312,7 @@ sub _emit_expression_Uxntal ($ast, $stref, $f, $info) {
             # Special cases
             # Uxn does not have pow or mod so these would have to be functions
             # TODO these are not implemented yet
-            if ($opcode == 19 or $opcode == 20) { 
+            if ($opcode == 19 or $opcode == 20) { # <= or >=
                 add_to_used_lib_subs($sigils[$opcode].'2'); # FIXME: use word size!
             }
             if (($opcode == 21 or $opcode == 4 or $opcode == 3) and scalar @{$ast} == 2) {#  '.not.', '-' or '+'
@@ -2333,7 +2333,7 @@ sub _emit_expression_Uxntal ($ast, $stref, $f, $info) {
                 }
             }
             (my $opcode, my $lexp, my $rexp) =@{$ast};
-            if ($opcode == 8) { # eq '^'
+            if ($opcode == 8) { # eq '^' pow
                 $ast = [1,'pow',[27,$lexp,$rexp] ] ;
                 return _emit_function_call_expr_Uxntal($stref,$f,$info,$ast);
             }
@@ -2861,28 +2861,36 @@ sub __gen_substr($str_addr, $cb, $ce, $len, $id){
 } # END of __gen_substr
 
 sub isStrCmp($ast, $stref, $f,$info){
-    if ($ast->[0] >=15 && $ast->[0]<=26 ) {
+    if ($ast->[0] >=15 && $ast->[0]<=26 ) { # '==', '/=', '<', '>', '<=', '>=', '.not.', '.and.', '.or.', '.xor.', '.eqv.', '.neqv.'
+    # TODO:  '.eqv.', '.neqv.'
         # it is a comparison; are the args strings?
         my $lhs_name = $ast->[1][0] == 10 ? $ast->[1][1] : '';
         my $rhs_name = $ast->[2][0] == 10 ? $ast->[2][1] : '';
-        my $lhs_is_str = $ast->[1][0] == 34 ? 1 : 0;
-        my $rhs_is_str = $ast->[2][0] == 34 ? 1 : 0;
+        # If it is a literal string, it could still be a single character. In that case, it depends on the other side if it is treated as a string or not.
+        my $lhs_is_str = $ast->[1][0] == 34 
+            ? length($info->{'PlaceHolders'}{$ast->[1][1]})==3 ? 0 : 1
+            : 0; 
+        my $rhs_is_str = $ast->[2][0] == 34 
+        ? length($info->{'PlaceHolders'}{$ast->[2][1]})==3 ? 0 : 1
+        : 0;
         if (not $lhs_is_str) {
             if ($lhs_name ne '') {
-                # my $decl = get_var_record_from_set($stref->{'Subroutines'}{$f}{'Vars'},$lhs_name);
-                my $decl = getDecl($stref,$f,$lhs_name);
-                if ($decl->{'Type'} eq 'character') {
-                    $lhs_is_str=1;
-                }
+                # # my $decl = get_var_record_from_set($stref->{'Subroutines'}{$f}{'Vars'},$lhs_name);
+                # my $decl = getDecl($stref,$f,$lhs_name);
+                # if ($decl->{'Type'} eq 'character') {
+                #     $lhs_is_str=1;
+                # }
+                $lhs_is_str = is_string($stref,$f,$lhs_name)
             }
         }
         if (not $rhs_is_str) {
             if ($rhs_name ne '') {
                 # my $decl = get_var_record_from_set($stref->{'Subroutines'}{$f}{'Vars'},$rhs_name);
-                my $decl = getDecl($stref,$f,$rhs_name);
-                if ($decl->{'Type'} eq 'character') {
-                    $rhs_is_str=1;
-                }
+                # my $decl = getDecl($stref,$f,$rhs_name);
+                # if ($decl->{'Type'} eq 'character') {
+                #     $rhs_is_str=1;
+                # }
+                $rhs_is_str = is_string($stref,$f,$rhs_name)
             }
         }
         return $lhs_is_str * $rhs_is_str;
