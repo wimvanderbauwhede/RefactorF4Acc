@@ -48,22 +48,22 @@ our %uxntal_lib_subroutines = (
 	'@iachar', # HACK: ignoring kind, returns a short
 	'#00 SWP JMP2r'
 ],
-'lte2' => [
-    '@lte2', 
-    'GTH2 #01 SWP SUB JMP2r'
-],
-'lte' => [
-    '@lte', 
-    'GTH #01 SWP SUB JMP2r'
-],
-'gte2' => [
-    '@gte2', 
-    'LTH2 #01 SWP SUB JMP2r'
-],
-'gte' => [
-    '@gte', 
-    'GTH #01 SWP SUB JMP2r'
-],
+# 'lte2' => [
+#     '@lte2', 
+#     'GTH2 #01 SWP SUB JMP2r'
+# ],
+# 'lte' => [
+#     '@lte', 
+#     'GTH #01 SWP SUB JMP2r'
+# ],
+# 'gte2' => [
+#     '@gte2', 
+#     'LTH2 #01 SWP SUB JMP2r'
+# ],
+# 'gte' => [
+#     '@gte', 
+#     'GTH #01 SWP SUB JMP2r'
+# ],
 'iand' => [
     '@iand','AND2 JMP2r'
 ],

@@ -59,7 +59,7 @@ use feature qw(signatures);
 #               0    1    2    3      4      5      6      7      8      9   10   11   12   13    14
 our @sigils = ('(', '&', '$', 'ADD', 'SUB', 'MUL', 'DIV', 'mod', 'pow', '=', '@', '#', ':' ,'//', ')('
 #                15    16      17    18      19     20     21     22     23     24       25       26
-               ,'EQU', 'NEQ', 'LTH', 'GTH', 'lte', 'gte', 'not', 'AND', 'ORA', 'EOR', '.eqv.', '.neqv.'
+               ,'EQU', 'NEQ', 'lt', 'gt', 'lte', 'gte', 'not', 'AND', 'ORA', 'EOR', '.eqv.', '.neqv.'
 #                27   28
                ,',', '(/',
 # Constants
@@ -81,6 +81,7 @@ our $fqn_counter = 0;
 our %fqns = ();
 # TODO This needs to be changed so that only the used functions are emitted
 my @uxntal_lib_sources = (
+    '../../uxntal-libs/signed-cmp.tal',
     '../../uxntal-libs/fmt-print.tal',
     '../../uxntal-libs/string.tal',
     '../../uxntal-libs/range-map-fold-lib.tal',
@@ -499,7 +500,7 @@ Instead of the nice but cumbersome approach we had until now, from now on it is 
                     $c_line='( '.$line.' )';
                     # croak 'WHY?'.$line;
                 } else {
-                    if (not (exists $stref->{'Subroutines'}{$f}{'Signature'}{'ResultVar'} 
+                    if (not (exists $stref->{'Subroutines'}{$f}{'Signature'}{'ResultVar'}
                     and $stref->{'Subroutines'}{$f}{'Signature'}{'ResultVar'} eq $var)) {
                         ($stref,my $uxntal_var_decl) =  _emit_var_decl_Uxntal($stref,$f,$info,$var);
                         if (not exists $pass_state->{'Subroutine'}{'LocalVars'}{'Set'}{$uxntal_var_decl}) {
@@ -519,7 +520,7 @@ Instead of the nice but cumbersome approach we had until now, from now on it is 
         }
         elsif (exists $info->{'VarDecl'} and $use_stack ) {
             my $var = $info->{'VarDecl'}{'Name'};
-            if (exists $stref->{'Subroutines'}{$f}{'Signature'}{'ResultVar'} 
+            if (exists $stref->{'Subroutines'}{$f}{'Signature'}{'ResultVar'}
                     and $stref->{'Subroutines'}{$f}{'Signature'}{'ResultVar'} eq $var) {
                 $pass_state = _gen_array_string_inits($stref,$f,$var,$pass_state);
             }
@@ -1318,10 +1319,10 @@ sub _var_access_assign($stref,$f,$info,$lhs_ast,$rhs_ast) {
             # The range must be the original Fortran one: we correct for the offset in the var access
                     my $idx_offset = __get_array_index_offset($stref,$f,$var);
                     my $idx_offset_Uxntal =  toHex($idx_offset,2);
-                    my $idx_offset_expr = $idx_offset==0 
-                        ? '' 
+                    my $idx_offset_expr = $idx_offset==0
+                        ? ''
                             : $idx_offset==1
-                                ? 'INC2' 
+                                ? 'INC2'
                                 : $idx_offset_Uxntal.' ADD2';
 
                     # transforming the array into an index access mighr be best
@@ -1343,7 +1344,7 @@ sub _var_access_assign($stref,$f,$info,$lhs_ast,$rhs_ast) {
             } elsif ($rhs_ast->[0] == 32) {
                 croak "TODO: _var_access_assign($f): character constant";
             } elsif ($rhs_ast->[0] ==1) {
-                # A function call, need to check the type 
+                # A function call, need to check the type
                 croak "TODO: _var_access_assign($f):", Dumper($lhs_ast,$rhs_ast);
             } else {
                 my ($rhs_var,$idxs,$idx_expr_type) = __unpack_var_access_ast($rhs_ast);
@@ -1536,7 +1537,7 @@ sub __copy_substr($stref, $f, $info, $lhs_ast, $rhs_ast) {
                 }
 
                 my $len = toHex(min($lhs_len,$rhs_len),2);
-                $uxntal_code = $len eq '#0000' 
+                $uxntal_code = $len eq '#0000'
                 ? "{ 0000 } STH2r $lhs_var_access #0000 strncpy"
                 : "$rhs_Uxntal_expr $lhs_var_access $len strncpy";
                 add_to_used_lib_subs('strncpy');
@@ -1791,7 +1792,7 @@ sub __shorten_fq_name ($fq_varname) {
             $fq_varname = $short_name;
             $fqn_counter++;
         } else {
-            $fq_varname = $fqns{$fq_varname} 
+            $fq_varname = $fqns{$fq_varname}
         }
     }
     return $fq_varname;
@@ -2164,7 +2165,7 @@ sub _emit_var_decl_Uxntal ($stref,$f,$info,$var){
                 } elsif ($initial_value =~/achar\(\s*([\w_]+)\s*\)/) {
                     my $val = $1;
                     my $hex_val = toRawHex($val,1);
-                    $c_var_decl .= "$hex_val " x $dim; 
+                    $c_var_decl .= "$hex_val " x $dim;
                 } else {
                     croak "Unsupported initial value: $initial_value for $var";
                 }
@@ -2266,7 +2267,7 @@ sub _emit_expression_Uxntal ($ast, $stref, $f, $info) {
 
                     my $shift_nbits = $shift_dir eq 'left' ? $args->[2][1] : $args->[2][1][1];
                     my $sft = toHex($shift_nbits,1);
-                    if ($shift_dir eq 'left') { 
+                    if ($shift_dir eq 'left') {
                         #<shift_nbits>0 is left shift
                         return ("$val_to_shift $sft #40 SFT SFT$short_mode",$word_sz);
                     } else {
@@ -2332,12 +2333,7 @@ sub _emit_expression_Uxntal ($ast, $stref, $f, $info) {
         elsif (__is_operator($opcode) ) { # operators
         # carp Dumper $ast,$opcode;
             # Special cases
-            # Uxn does not have pow or mod so these would have to be functions
-            # TODO these are not implemented yet
-            if ($opcode == 19 or $opcode == 20) { # <= or >=
-                add_to_used_lib_subs($sigils[$opcode].'2'); # FIXME: use word size!
-                add_to_used_lib_subs($sigils[$opcode]); 
-            }
+
             if (($opcode == 21 or $opcode == 4 or $opcode == 3) and scalar @{$ast} == 2) {#  '.not.', '-' or '+'
                 (my $opcode, my $exp) =@{$ast};
                 my ($v, $word_sz) = _emit_expression_Uxntal($exp, $stref, $f,$info);
@@ -2356,6 +2352,8 @@ sub _emit_expression_Uxntal ($ast, $stref, $f, $info) {
                 }
             }
             (my $opcode, my $lexp, my $rexp) =@{$ast};
+            # Uxn does not have pow or mod so these would have to be functions
+            # TODO these are not implemented yet
             if ($opcode == 8) { # eq '^' pow
                 $ast = [1,'pow',[27,$lexp,$rexp] ] ;
                 return _emit_function_call_expr_Uxntal($stref,$f,$info,$ast);
@@ -2389,10 +2387,15 @@ sub _emit_expression_Uxntal ($ast, $stref, $f, $info) {
                     croak "Word sizes for ".$sigils[$opcode]." must be the same: $l_word_sz <> $r_word_sz ( $lv <> $rv )";
                 }
                 my $short_mode =  $l_word_sz == 2 ? '2' : '';
-                # if ($opcode == 19 or $opcode == 20) { # FIXME I guess?
+                # Because LTH and GTH are for unsigned ints, we need special functions for the inequalities
+                if ($opcode >= 17 and $opcode <= 20) { # <, >, <= or >=
+                    add_to_used_lib_subs($sigils[$opcode].$short_mode);
+                }
+                    # if ($opcode == 19 or $opcode == 20) { # FIXME I guess?
                 #     $short_mode = 2;
                 # }
                 my $word_sz = ($opcode >=15 && $opcode<=26) ? 1 : $l_word_sz;
+
                 # Ideally, the _emit_expression_Uxntal should return the word size of the expression
                 return ("$lv $rv  ". $sigils[$opcode].$short_mode, $word_sz ); # FIXME, needs refining
             }
@@ -2541,7 +2544,7 @@ sub _emit_subroutine_call_expr_Uxntal($stref,$f,$line,$info){
                     my $idx_offset_Uxntal =  toHex($idx_offset,2);
                     my $idx_offset_expr = $idx_offset==0? '' : $idx_offset_Uxntal.' SUB2';
                     my $idx = $idx_expr_b;
-                    # my $idx_word_sz = 
+                    # my $idx_word_sz =
                     my $idx_expr = defined $idx ? ($idx eq $idx_offset_Uxntal) ? '' :
                     "$idx $idx_offset_expr".( $short_mode ? ' #0002 MUL2 ': '') .' ADD2 ' : '';
                     push @call_arg_expr_strs_Uxntal, "$var_access $idx_expr LDA$short_mode".' ( BYTE/SHORT )' # load a pointer, index, load the value
@@ -2574,7 +2577,7 @@ sub _emit_function_call_expr_Uxntal($stref,$f,$info,$ast){
     (my $opcode, my $name, my $args) =@{$ast};
     my @call_arg_expr_strs_Uxntal=();
     my $subname = $ast->[1];#$info->{'SubroutineCall'}{'Name'};
-    my $word_sz=2; 
+    my $word_sz=2;
     if (exists $F95_intrinsic_function_sigs{$subname}) {
         # my $intent = 'in';
         if ($F95_intrinsic_function_sigs{$subname}[-1] eq 'logical'
@@ -2817,7 +2820,7 @@ sub toUxntalType($ftype,$kind ){
 sub toHex($n,$sz){
     croak if not defined $n;
 	croak if $n eq '1_2';
-	$n=~s/_\d$//; # strip _2 
+	$n=~s/_\d$//; # strip _2
     my $szx2 = $sz*2;
     if ($n<0) {
         $n=(2*($sz*8))-$n;
@@ -2890,10 +2893,10 @@ sub isStrCmp($ast, $stref, $f,$info){
         my $lhs_name = $ast->[1][0] == 10 ? $ast->[1][1] : '';
         my $rhs_name = $ast->[2][0] == 10 ? $ast->[2][1] : '';
         # If it is a literal string, it could still be a single character. In that case, it depends on the other side if it is treated as a string or not.
-        my $lhs_is_str = $ast->[1][0] == 34 
+        my $lhs_is_str = $ast->[1][0] == 34
             ? length($info->{'PlaceHolders'}{$ast->[1][1]})==3 ? 0 : 1
-            : 0; 
-        my $rhs_is_str = $ast->[2][0] == 34 
+            : 0;
+        my $rhs_is_str = $ast->[2][0] == 34
         ? length($info->{'PlaceHolders'}{$ast->[2][1]})==3 ? 0 : 1
         : 0;
         if (not $lhs_is_str) {
@@ -2956,10 +2959,10 @@ sub _emit_list_print_Uxntal($stref,$f,$line,$info,$unit,$advance,$list_to_print)
             # The range must be the original Fortran one: we correct for the offset in the var access
             my $idx_offset = __get_array_index_offset($stref,$f,$var_name);
             my $idx_offset_Uxntal =  toHex($idx_offset,2);
-            my $idx_offset_expr = $idx_offset==0 
-                ? '' 
+            my $idx_offset_expr = $idx_offset==0
+                ? ''
                     : $idx_offset==1
-                        ? 'INC2' 
+                        ? 'INC2'
                         : $idx_offset_Uxntal.' ADD2';
 
             # transforming the array into an index access mighr be best
@@ -3000,7 +3003,7 @@ sub _emit_list_print_Uxntal($stref,$f,$line,$info,$unit,$advance,$list_to_print)
                 $print_fn_Uxntal = '#19 DEO';
             }
             $line_Uxntal = '{ ( iter ) ,&'.$iter.' STR2 '.$arg_to_print_Uxntal.' '.$print_fn_Uxntal." #20 $port DEO JMP2r } STH2r $e $b range-map-short ( print-array-slice )";
-            # $e $idx_offset_expr $b $idx_offset_expr 
+            # $e $idx_offset_expr $b $idx_offset_expr
             # croak $line_Uxntal;
         } else {
             my ($arg_to_print_Uxntal,$word_sz) = _emit_expression_Uxntal($elt,$stref, $f, $info);
@@ -3369,7 +3372,7 @@ sub __parse_fmt($fmt_str,$stref,$f,$info){
 	                    $nchars=$len;
 					}
 					elsif ($val_ast->[0] >= 3 and $val_ast->[0]<=8) { # An integer expression
-						$nchars=6; # Let's assume it's all shorts 
+						$nchars=6; # Let's assume it's all shorts
 					}
 					elsif ($val_ast->[0] >= 15 and $val_ast->[0]<=26) { # A boolean expression
 						$nchars=1;
@@ -3570,7 +3573,7 @@ sub __emit_list_based_print_write($stref,$f,$line,$info,$unit, $advance){
         shift @list_to_print; shift @list_to_print;
         # croak 'WRONG!'.Dumper( $ast,$info,@list_to_print) if $line=~/funktalTokensIdx/;
         $c_line = _emit_list_print_Uxntal($stref,$f,$line,$info,$unit, $advance,\@list_to_print);
-         
+
 	} else {
 		my $fmt_ast = $ast->[2][1];
 		if ($fmt_ast->[0]==29) {
@@ -3592,7 +3595,7 @@ sub __emit_list_based_print_write($stref,$f,$line,$info,$unit, $advance){
 		}
 		$c_line .= " #0a $port DEO" if $advance eq 'yes';
 	}
-    
+
 	# if ($unit eq 'STDERR') {
 		return $c_line;
 	# }
@@ -3678,10 +3681,10 @@ sub getDecl($stref,$f,$var) {
             # say "DECL from Modules $module_name Vars $var (2)";
             # croak Dumper $decl;
             return $decl;
-            
+
         }
     }
-    
+
     # carp "getDecl: $f $subset $module_name $var ".Dumper($decl);
     return $decl;
 }
@@ -3920,7 +3923,7 @@ sub _fold_consts_in_module_decls($stref, $mod_name){
 } # END of _fold_consts_in_module_decls
 
 # ==== END OF UNUSED SUBROUTINES ====
-=cut 
+=cut
 
 =pod
 Scalar:
@@ -4096,13 +4099,13 @@ sub _gen_array_string_inits($stref,$f,$var,$pass_state) {
         : __C_array_size($decl->{'Dim'}) ;
         $uxntal_array_string_init = __create_array_zeroing(";$fq_var",$sz,$word_sz);
         # carp "INIT ARRAY $var in $f";
-    } 
+    }
     elsif (is_string($stref,$f,$var)) {
         my $len = __get_len_from_Attr($decl);
         $uxntal_array_string_init = __create_string_zeroing(";$fq_var",$len);
         # carp "INIT STRING $var in $f";
     }
-    
+
     push @{$pass_state->{'Subroutine'}{'ArrayStringInits'}},$uxntal_array_string_init unless $uxntal_array_string_init eq '';
     return $pass_state;
 }
