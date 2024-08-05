@@ -69,7 +69,7 @@ our @sigils = ('(', '&', '$', 'ADD', 'SUB', 'MUL', 'DIV', 'mod', 'pow', '=', '@'
 
 # For shorter labels
 
-our $shorten_var_names = 0;
+our $shorten_var_names = 1;
 our $branch = 'b';
 our $loop = 'l';
 our $while_loop = 'w';
@@ -207,6 +207,7 @@ sub translate_program_to_Uxntal($stref,$program_name){
        ];
     #    carp "TODO: Global decls";
     # This prints out the lines from $stref->{'TranslatedCode'}
+    $stref->{'TranslatedCode'} = _remove_redundant_labels($stref->{'TranslatedCode'});
     $stref = _emit_Uxntal_code($stref, $program_name);
     # This enables the postprocessing for custom passes
     $stref->{'CustomPassPostProcessing'}=1;
@@ -590,7 +591,7 @@ Instead of the nice but cumbersome approach we had until now, from now on it is 
                 my $branch_id = $info->{'LineID'};
                 my $cond_expr_ast=$info->{'Cond'}{'AST'};
                 my ($cond_expr,$word_sz) = _emit_expression_Uxntal($cond_expr_ast,$stref,$f,$info);
-                $c_line = "\n$cond_expr #00 EQU ,&$branch$branch_id JCN\n" . $indent.$c_line;
+                $c_line = "\n$cond_expr #00 EQU ,&$branch$branch_id JCN\n" . $c_line; #$indent.
                 $c_line .= "\n&$branch$branch_id";
             }
         }
@@ -606,9 +607,11 @@ Instead of the nice but cumbersome approach we had until now, from now on it is 
             # if (fl(1:2) == __PH0__) VV = .true.
             # What we need is
             # NOT <cond> <label_end> JCN
-                $c_line = "\n$indent $cond_expr #00 EQU ;&$branch$branch_id JCN2\n" . $c_line;
+                $c_line = "\n$cond_expr #00 EQU ;&$branch$branch_id JCN2\n" .$c_line;
+                # $c_line = "\n$cond_expr #00 EQU ;&$branch$branch_id JCN2\n" . $indent.$c_line;
             # <expr>
-                $c_line .= $indent.' '."&$branch$branch_id";
+                # $c_line .= $indent.' '."&$branch$branch_id ( INDENTED BRANCH )";
+                $c_line .= ' '."&$branch$branch_id";
             }
         }
         elsif (exists $info->{'IOCall'}) {
@@ -740,9 +743,9 @@ Instead of the nice but cumbersome approach we had until now, from now on it is 
             # if (fl(1:2) == __PH0__) VV = .true.
             # What we need is
             # NOT <cond> <label_end> JCN
-                $c_line = "\n$indent $cond_expr #00 EQU ;&$branch$branch_id JCN2\n" . $c_line;
+                $c_line = "\n $cond_expr #00 EQU ;&$branch$branch_id JCN2\n" . $c_line; #$indent
             # <expr>
-                $c_line .= $indent.' '."&$branch$branch_id";
+                $c_line .= ' '."&$branch$branch_id"; #$indent.
             }
         }
         elsif (exists $info->{'If'} and not exists $info->{'IfThen'} ) {
@@ -755,8 +758,9 @@ Instead of the nice but cumbersome approach we had until now, from now on it is 
             my $branch_id = $info->{'LineID'};
             my $cond_expr_ast=$info->{'Cond'}{'AST'};
             my ($cond_expr,$word_sz) = _emit_expression_Uxntal($cond_expr_ast,$stref,$f,$info);
-            $c_line = "\n( If without Then )\n" . $indent.' '."$cond_expr #00 EQU ;&$branch$branch_id JCN2\n" . $c_line;
-            $c_line .= $indent.' '."&$branch$branch_id";
+            # $c_line = "\n( If without Then )\n" . $indent.
+            $c_line = ' '."$cond_expr #00 EQU ;&$branch$branch_id JCN2\n" . $c_line;
+            $c_line .= ' '."&$branch$branch_id"; #$indent.
         }
         elsif (exists $info->{'IfThen'} and not exists $info->{'ElseIf'} ) {
             # say "EX-CASE: $line => If IfId = $id" if $f eq 'decodeTokenStr';
@@ -781,7 +785,7 @@ Instead of the nice but cumbersome approach we had until now, from now on it is 
             my $branch_id = pop @{$pass_state->{'BranchStack'}};
             my $if_id = $pass_state->{'IfId'};
             $c_line = ';&'.$cond.'_'.$end.$if_id.' JMP2 '."\n"
-            .'&'.$branch.$branch_id.'_'.$end.' &'.$cond.'_'.$end.$if_id;
+            .'&'.$branch.$branch_id.'_'.$end."\n".' &'.$cond.'_'.$end.$if_id;
             pop @{$pass_state->{'IfStack'}};
             $pass_state->{'IfId'}=$pass_state->{'IfStack'}[-1];
         }
@@ -3024,17 +3028,17 @@ sub _emit_list_print_Uxntal($stref,$f,$line,$info,$unit,$advance,$list_to_print)
     }
     if ($advance eq 'yes') {
         if ($unit eq 'STDOUT') {
-            $line_Uxntal .= ' #0a #18 DEO';
+            $line_Uxntal .= ' #0a #18 DEO'."\n";
         }
         elsif ($unit eq 'STDERR') {
-            $line_Uxntal .= ' #0a #19 DEO';
+            $line_Uxntal .= ' #0a #19 DEO'."\n";
         }
     } else {
         if ($unit eq 'STDOUT') {
-            $line_Uxntal .= ' #20 #18 DEO';
+            $line_Uxntal .= ' #20 #18 DEO'."\n";
         }
         elsif ($unit eq 'STDERR') {
-            $line_Uxntal .= ' #20 #19 DEO';
+            $line_Uxntal .= ' #20 #19 DEO'."\n";
         }
     }
 
@@ -4109,3 +4113,64 @@ sub _gen_array_string_inits($stref,$f,$var,$pass_state) {
     push @{$pass_state->{'Subroutine'}{'ArrayStringInits'}},$uxntal_array_string_init unless $uxntal_array_string_init eq '';
     return $pass_state;
 }
+
+sub _remove_redundant_labels($uxntal_source_lines) {
+    my %used_labels = ();
+    my $processed_uxntal_source_lines=[];
+    my $parent_label='NONE';
+    my @new_source_lines=();
+    for my $line (@{$uxntal_source_lines}) {
+        my @chunks = split(/\n/,$line);
+        @new_source_lines=(@new_source_lines,@chunks);
+    }
+
+
+    for my $line (@new_source_lines) {
+        if ($line=~/^\s*\@([\-\w]+)/) { # assuming only ever one per line
+            $parent_label=$1;
+            $used_labels{$parent_label}={};
+            # say "PARENT \@$parent_label";
+        }
+        my @line_chunks=split(/\s+/,$line);
+        for my $line_chunk (@line_chunks) {
+            if ($line_chunk=~/^([\!\?\,\;])\&([\-\w]+)$/) {
+                my $label =$2; my $mode = $1;
+                $used_labels{$parent_label}{$label}=$mode;
+                # say "LABEL REF $mode\&<$label> in parent <$parent_label>";# if $label=~/iter/;
+            } elsif ($line_chunk=~/^([\;\.])([\-\w]+)\/([\-\w]+)/ ) {
+                my $mode=$1; my $explicit_parent_label = $2; my $label=$3;
+                $used_labels{$explicit_parent_label}{$label}=$mode;
+            }
+        }
+    }
+    $parent_label='NONE';
+    for my $line (@new_source_lines) {
+        my $new_line=$line;
+        if ($line=~/\@([\-\w]+)/) {
+            $parent_label=$1;
+            # $used_labels{$parent_label}={};
+            # say "PARENT \@$parent_label" unless $parent_label=~/fq\d+/;
+        }
+        # say "LINE: $line" if $line=~/iter/;
+        my @line_chunks=split(/\s+/,$line);
+        my @new_line_chunks=();
+        for my $line_chunk (@line_chunks) {
+            my $new_line_chunk=$line_chunk;
+            if ($line_chunk=~/^\&([\-\w]+)$/) {
+                my $label =$1;
+                if (not exists $used_labels{$parent_label}{$label}) {
+                    $new_line_chunk=~s/\&$label//g;
+                    say "REMOVE LABEL <$parent_label/$label>";# if $label=~/iter/;
+                }
+                # else {
+                #     say "KEEP LABEL \&$label in parent $parent_label";# if $label=~/iter/;
+                # }
+            }
+            push @new_line_chunks, $new_line_chunk
+        }
+        $new_line=join(' ',@new_line_chunks);
+        push @{$processed_uxntal_source_lines},$new_line;
+    }
+
+    return $processed_uxntal_source_lines;
+} # END of _remove_redundant_labels
