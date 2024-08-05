@@ -69,7 +69,7 @@ our @sigils = ('(', '&', '$', 'ADD', 'SUB', 'MUL', 'DIV', 'mod', 'pow', '=', '@'
 
 # For shorter labels
 
-our $shorten_var_names = 1;
+our $shorten_var_names = 0;
 our $branch = 'b';
 our $loop = 'l';
 our $while_loop = 'w';
@@ -130,7 +130,7 @@ sub translate_program_to_Uxntal($stref,$program_name){
         'Libraries' => { 'Set' =>{}, 'List' => ['( LIBRARY ROUTINES )'] },
         'Subroutines' => {},
         # { 'LocalVars'=> {'Set' =>{}, 'List' => [] }, 'Args' => {'Set' =>{}, 'List' => [] },  'isMain' => '' , 'TranslatedCode'}
-        'Globals' => { 'Set' =>{}, 'List' => [] },
+        'Globals' => { 'Set' =>{}, 'List' => [], 'totalMemUsage' => 0 },
         'CallStack'  => [
             '( ~../../../uxntal-libs/call-stack.tal )',
             '|e000 ( 8 kB call stack )',
@@ -200,9 +200,12 @@ sub translate_program_to_Uxntal($stref,$program_name){
         @{$stref->{'Uxntal'}{'Libraries'}{'List'}},
         @{$stref->{'TranslatedCode'}}, # These are the subroutines
         @used_uxntal_lib_subroutine_sources,
-        # '@nl #0a18 DEO JMP2r',
-        @{$stref->{'Uxntal'}{'Globals'}{'List'}},
+        '( Parameters )',
         @{$stref->{'Uxntal'}{'Macros'}{'List'}},
+        # '@nl #0a18 DEO JMP2r',
+        '( Module Globals )',
+        '@totalMemUsage '.toRawHex($stref->{'Uxntal'}{'Globals'}{'totalMemUsage'},2),
+        @{$stref->{'Uxntal'}{'Globals'}{'List'}},
         ($stref->{'UseCallStack'} ? @{$stref->{'Uxntal'}{'CallStack'}} : ()),
        ];
     #    carp "TODO: Global decls";
@@ -229,7 +232,7 @@ sub translate_module_decls_to_Uxntal($stref, $mod_name){
         if (exists $info->{'VarDecl'}) {
                 my $var = $info->{'VarDecl'}{'Name'};
                 # This never uses that stack as module vars are never automatic
-                $c_line = _emit_var_decl_Uxntal( $stref, $mod_name, $info, $var);
+                ($stref,$c_line,my $alloc_sz) = _emit_var_decl_Uxntal( $stref, $mod_name, $info, $var);
                 $skip=0;
         }
         elsif ( exists $info->{'ParamDecl'} ) {
@@ -503,7 +506,7 @@ Instead of the nice but cumbersome approach we had until now, from now on it is 
                 } else {
                     if (not (exists $stref->{'Subroutines'}{$f}{'Signature'}{'ResultVar'}
                     and $stref->{'Subroutines'}{$f}{'Signature'}{'ResultVar'} eq $var)) {
-                        ($stref,my $uxntal_var_decl) =  _emit_var_decl_Uxntal($stref,$f,$info,$var);
+                        ($stref,my $uxntal_var_decl, my $alloc_sz) =  _emit_var_decl_Uxntal($stref,$f,$info,$var);
                         if (not exists $pass_state->{'Subroutine'}{'LocalVars'}{'Set'}{$uxntal_var_decl}) {
                             $pass_state->{'Subroutine'}{'LocalVars'}{'Set'}{$uxntal_var_decl}=$uxntal_var_decl;
                             $skip_comment=1;
@@ -529,7 +532,7 @@ Instead of the nice but cumbersome approach we had until now, from now on it is 
         elsif ( exists $info->{'ParamDecl'} ) {
             # A parameter should become a macro
             my $var = $info->{'ParamDecl'}{'Var'};
-            ($stref,my $uxntal_par) = _emit_var_decl_Uxntal($stref,$f,$info,$var);
+            ($stref,my $uxntal_par, my $alloc_sz) = _emit_var_decl_Uxntal($stref,$f,$info,$var);
             if (not exists $stref->{'Uxntal'}{'Macros'}{'Set'}{$uxntal_par}) {
                 $stref->{'Uxntal'}{'Macros'}{'Set'}{$uxntal_par}=$uxntal_par;
                 push @{$stref->{'Uxntal'}{'Macros'}{'List'}},$uxntal_par;
@@ -1778,8 +1781,17 @@ sub __create_fq_varname($stref,$f,$var_name) {
             if (not exists $stref->{'Uxntal'}{'Globals'}{'Set'}{$fq_varname}) {
                 $stref->{'Uxntal'}{'Globals'}{'Set'}{$fq_varname} = 1;
                 my $info={}; # I don't need info for this, it is only used to get the LineID for unique substrings
-                ($stref, my $global_var_decl)= _emit_var_decl_Uxntal($stref,$mod_name,$info,$var_name);
-                push @{$stref->{'Uxntal'}{'Globals'}{'List'}},$global_var_decl ;
+                ($stref, my $global_var_decl, my $alloc_sz)= _emit_var_decl_Uxntal($stref,$mod_name,$info,$var_name);
+                $stref->{'Uxntal'}{'Globals'}{'totalMemUsage'}+=$alloc_sz;
+                # HACKY!
+                if ( $global_var_decl=~/JMP2r/) { # this is a parameter, should go in Macros }
+                    if (not exists $stref->{'Uxntal'}{'Macros'}{'Set'}{$fq_varname}) {
+                        $stref->{'Uxntal'}{'Macros'}{'Set'}{$fq_varname} = $fq_varname;
+                        push @{$stref->{'Uxntal'}{'Macros'}{'List'}},$global_var_decl ;
+                    } 
+                } else {
+                    push @{$stref->{'Uxntal'}{'Globals'}{'List'}},$global_var_decl ;
+                }
             }
         }
     }
@@ -2070,23 +2082,26 @@ sub _emit_var_decl_Uxntal ($stref,$f,$info,$var){
 
     my $const = '';
     my $val='';
-
+    my $alloc_sz=0;
     if (defined $decl->{'Parameter'}) {
 		# carp "VAL: ".Dumper($decl);
         $val = $decl->{'Val'};
         my $val_str = $val;
         if ($val=~/[\'\"'](.+?)[\'\"]/) {
-            $val_str = '"'.$1;
+            my $str = $1;
+            $val_str = '"'.$str;
+            $alloc_sz=lenght($str)
         }
         elsif ($val=~/^\d+(?:_[1248])?$/) {
 			# carp 'HERE';
             my $sz=2;
             if ($val=~s/_([1248])$//) { $sz=$1}
             $val_str = toHex($val,$sz);
+            $alloc_sz=2;
         }
         elsif (exists $decl->{'AST'}) {
             my $ast = $decl->{'AST'};
-            ($val_str,my $word_sz) = _emit_expression_Uxntal($ast,$stref, $f, $info);
+            ($val_str,$alloc_sz) = _emit_expression_Uxntal($ast,$stref, $f, $info);
         } else {
             croak "ParsedParDecl without AST, FIXME!";
         }
@@ -2095,7 +2110,7 @@ sub _emit_var_decl_Uxntal ($stref,$f,$info,$var){
         # Better: define parameter as function
         my $fq_parname = __create_fq_varname($stref,$f,$var);
         my $par_decl_str = '@'.$fq_parname.' '. $val_str .' JMP2r';
-        return ($stref,$par_decl_str);
+        return ($stref,$par_decl_str,$alloc_sz);
         # $const = 'const ';
         # $val = ' = '.$decl->{'Val'};
         # # In the case of a constant array: replace '(/' with '{' and add '[]' to front
@@ -2146,7 +2161,7 @@ sub _emit_var_decl_Uxntal ($stref,$f,$info,$var){
             my $padding = $len;
             $padding =~s/^0+//;
             my $c_var_decl = '@'.$fq_varname.' '.$len.' $'. $padding;
-            return ($stref,$c_var_decl);
+            return ($stref,$c_var_decl,$padding);
         } else {
             my $c_var_decl = '@'.$fq_varname.' ';
             # $initial_value = '';
@@ -2154,6 +2169,7 @@ sub _emit_var_decl_Uxntal ($stref,$f,$info,$var){
                 my $padding = toRawHex($sz*$dim,2);
                 $padding =~s/^0+//;
                 $c_var_decl.='$'. $padding;
+                $alloc_sz=$padding;
             } else {
                 if ($initial_value =~/^\d+/ ) {
                     $initial_value =~s/\_[1248]\s*$//;
@@ -2162,20 +2178,24 @@ sub _emit_var_decl_Uxntal ($stref,$f,$info,$var){
                     # my $padding = toRawHex($sz*$dim,2);
                     # $padding =~s/^0+//;
                     # $c_var_decl.='$'. $padding;
+                    $alloc_sz=$sz*$dim;
                 } elsif ($initial_value eq '.true.') {
                     $c_var_decl .= '01 ' x $dim;
+                    $alloc_sz=$dim;
                 } elsif ($initial_value eq '.false.') {
                     $c_var_decl .= '00 ' x $dim;
+                    $alloc_sz=$dim;
                 } elsif ($initial_value =~/achar\(\s*([\w_]+)\s*\)/) {
                     my $val = $1;
                     my $hex_val = toRawHex($val,1);
                     $c_var_decl .= "$hex_val " x $dim;
+                    $alloc_sz=$dim;
                 } else {
                     croak "Unsupported initial value: $initial_value for $var";
                 }
                 # say "DECL: $initial_value => $c_var_decl";
             }
-            return ($stref,$c_var_decl);
+            return ($stref,$c_var_decl,$alloc_sz);
         }
     }
 } # END of _emit_var_decl_Uxntal
