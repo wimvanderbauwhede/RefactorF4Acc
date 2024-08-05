@@ -109,7 +109,7 @@ sub translate_program_to_Uxntal($stref,$program_name){
         ],
         # For writing, TODO
         'WriteFile' => [
-        '    |b0 @File &vector $2 &success $2 &stat $2 &delete $1 &append $1 &name $2 &length $2 &read $2 &write $2'
+        '    |b0 @FileW &vector $2 &success $2 &stat $2 &delete $1 &append $1 &name $2 &length $2 &read $2 &write $2'
         ],
 
         'CLIHandling' => {
@@ -367,6 +367,8 @@ Instead of the nice but cumbersome approach we had until now, from now on it is 
         elsif (exists $info->{'SubroutineCall'} and exists $info->{'SubroutineCall'}{'Name'}) {
             my $fname =  $info->{'SubroutineCall'}{'Name'};
             if ($fname eq 'saveState' or $fname eq 'loadState') {
+                $stref->{'HasReadFile'}=1;
+                $stref->{'HasWriteFile'}=1;
                 add_to_used_lib_subs($fname);
             }
             elsif (not exists $F95_intrinsic_functions{$fname} ) {
@@ -1675,7 +1677,7 @@ sub __copy_substr($stref, $f, $info, $lhs_ast, $rhs_ast) {
             }
 
         } else {
-            say $lhs_idx_expr_type,$rhs_idx_expr_type ;
+            # say $lhs_idx_expr_type,$rhs_idx_expr_type ;
             error("Unsupported index expression in __copy_substr($f) : $lhs_idx_expr_type , $rhs_idx_expr_type ".Dumper($lhs_ast,$rhs_ast),$DBG,'ERROR');
         }
     }
@@ -2004,7 +2006,7 @@ sub _emit_subroutine_sig_Uxntal($stref, $f, $annline){
                 unshift @{$uxntal_args_to_store},$uxntal_arg_store;
             } else {
                 if (is_array_or_string($stref,$f,$result_var)) {
-                    my $uxntal_res_decl = _emit_var_decl_Uxntal ($stref,$f,$info,$result_var);
+                    ($stref,my $uxntal_res_decl,my $alloc_sz) = _emit_var_decl_Uxntal ($stref,$f,$info,$result_var);
                     unshift @{$uxntal_arg_decls},$uxntal_res_decl;
                 } else {
                     unshift @{$uxntal_arg_decls},$uxntal_arg_decl;
@@ -4151,7 +4153,6 @@ sub _remove_redundant_labels($uxntal_source_lines) {
         @new_source_lines=(@new_source_lines,@chunks);
     }
 
-
     for my $line (@new_source_lines) {
         if ($line=~/^\s*\@([\-\w]+)/) { # assuming only ever one per line
             $parent_label=$1;
@@ -4196,6 +4197,7 @@ sub _remove_redundant_labels($uxntal_source_lines) {
             push @new_line_chunks, $new_line_chunk
         }
         $new_line=join(' ',@new_line_chunks);
+        croak $line if $new_line eq '6';
         push @{$processed_uxntal_source_lines},$new_line;
     }
 
