@@ -86,7 +86,8 @@ my @uxntal_lib_sources = (
     '../../uxntal-libs/string.tal',
     '../../uxntal-libs/range-map-fold-lib.tal',
     '../../uxntal-libs/process-args-lib.tal',
-    '../../uxntal-libs/call-stack.tal'
+    '../../uxntal-libs/call-stack.tal',
+    '../../uxntal-libs/persist-state.tal'
 );
 
 sub translate_program_to_Uxntal($stref,$program_name){
@@ -365,7 +366,10 @@ Instead of the nice but cumbersome approach we had until now, from now on it is 
         # FIXME: this is because of the presence of an empty $info->{'SubroutineCall'} record.
         elsif (exists $info->{'SubroutineCall'} and exists $info->{'SubroutineCall'}{'Name'}) {
             my $fname =  $info->{'SubroutineCall'}{'Name'};
-            if (not exists $F95_intrinsic_functions{$fname} ) {
+            if ($fname eq 'saveState' or $fname eq 'loadState') {
+                add_to_used_lib_subs($fname);
+            }
+            elsif (not exists $F95_intrinsic_functions{$fname} ) {
                 for my $call_arg_expr_str (@{$info->{'SubroutineCall'}{'Args'}{'List'}}) {
                     my $call_arg = ($info->{'SubroutineCall'}{'Args'}{'Set'}{$call_arg_expr_str}{'Type'} eq 'Scalar'
                     or $info->{'SubroutineCall'}{'Args'}{'Set'}{$call_arg_expr_str}{'Type'} eq 'Const'
@@ -1782,7 +1786,6 @@ sub __create_fq_varname($stref,$f,$var_name) {
                 $stref->{'Uxntal'}{'Globals'}{'Set'}{$fq_varname} = 1;
                 my $info={}; # I don't need info for this, it is only used to get the LineID for unique substrings
                 ($stref, my $global_var_decl, my $alloc_sz)= _emit_var_decl_Uxntal($stref,$mod_name,$info,$var_name);
-                $stref->{'Uxntal'}{'Globals'}{'totalMemUsage'}+=$alloc_sz;
                 # HACKY!
                 if ( $global_var_decl=~/JMP2r/) { # this is a parameter, should go in Macros }
                     if (not exists $stref->{'Uxntal'}{'Macros'}{'Set'}{$fq_varname}) {
@@ -1790,6 +1793,8 @@ sub __create_fq_varname($stref,$f,$var_name) {
                         push @{$stref->{'Uxntal'}{'Macros'}{'List'}},$global_var_decl ;
                     } 
                 } else {
+                    $stref->{'Uxntal'}{'Globals'}{'totalMemUsage'}+=$alloc_sz;
+                    say "GLOB: $var_name $alloc_sz ".$stref->{'Uxntal'}{'Globals'}{'totalMemUsage'};
                     push @{$stref->{'Uxntal'}{'Globals'}{'List'}},$global_var_decl ;
                 }
             }
@@ -2090,7 +2095,7 @@ sub _emit_var_decl_Uxntal ($stref,$f,$info,$var){
         if ($val=~/[\'\"'](.+?)[\'\"]/) {
             my $str = $1;
             $val_str = '"'.$str;
-            $alloc_sz=lenght($str)
+            $alloc_sz=length($str)
         }
         elsif ($val=~/^\d+(?:_[1248])?$/) {
 			# carp 'HERE';
@@ -2169,7 +2174,7 @@ sub _emit_var_decl_Uxntal ($stref,$f,$info,$var){
                 my $padding = toRawHex($sz*$dim,2);
                 $padding =~s/^0+//;
                 $c_var_decl.='$'. $padding;
-                $alloc_sz=$padding;
+                $alloc_sz=$sz*$dim;
             } else {
                 if ($initial_value =~/^\d+/ ) {
                     $initial_value =~s/\_[1248]\s*$//;
@@ -3769,9 +3774,11 @@ sub do_passes_recdescent($stref,$f,$pass_sequence,$seen) {
             my $csf = $info->{'SubroutineCall'}{'Name'};
             if (not exists $seen->{$csf}) {
                 $seen->{$csf}=1;
-            if (not exists $F95_intrinsic_functions{$csf}){
-            say "RECURSE info SUB $csf" if $V;
-            $stref = do_passes_recdescent($stref,$csf,$pass_sequence,$seen);}
+                if (not exists $F95_intrinsic_functions{$csf} and
+                    not exists $stref->{'ExternalSubroutines'}{$csf} ) {
+                    say "RECURSE info SUB $csf" if $V;
+                    $stref = do_passes_recdescent($stref,$csf,$pass_sequence,$seen);
+                }
             }
         }
         # I work on the assumption that all $info records that could have function calls, will have FunctionCalls

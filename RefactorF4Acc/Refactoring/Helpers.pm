@@ -1092,7 +1092,7 @@ sub stateful_pass_inplace { my ( $stref, $f, $pass_actions, $state, $pass_info, 
 # This version of the stateful pass takes $annlines as argument and returns $new_annlines
 sub stateful_pass { my ( $annlines, $pass_actions, $state, $pass_info, $keep_deleted ) = @_; # return ($new_annlines,$state);
     # say "STATEFUL PASS ".Dumper($pass_info) if $DBG;
-
+    croak "STATEFUL PASS ".Dumper($pass_info) if not defined $annlines;
     my $nextLineID         = scalar @{$annlines} + 1;
     my $new_annlines=[];
     for my $annline ( @{$annlines} ) {
