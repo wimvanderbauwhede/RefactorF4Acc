@@ -70,16 +70,27 @@ sub remove_unused_allocations_from_state($funktalState) {
         my $fq_name = $decl;
         $fq_name=~s/^\@//;
         $fq_name=~s/\s+.+$//;
+        my $alloc_sz = $decl;
+        $alloc_sz =~s/^\@\w+?\s+//;
         if ($funktalState->{'Set'}{$fq_name}!=0) {
             push @{$reduced_list},$decl;
         } else {
-            delete $funktalState->{'Set'}{$fq_name}
+            delete $funktalState->{'Set'}{$fq_name};
+            if ($alloc_sz=~/^[0-9a-z]{2}\s*$/) {
+                $funktalState->{'totalMemUsage'}-=2;
+            }
+            elsif ($alloc_sz=~/^[0-9a-z]{4}\s*$/) {
+                $funktalState->{'totalMemUsage'}-=4;
+            }
+            elsif ($alloc_sz=~/^\$([0-9a-z]+)\s*$/) {
+                $funktalState->{'totalMemUsage'}-=hex($1);
+            }
         }
     }
     my $reduced_funktalState={ 
         'List' => $reduced_list,
         'Set' => $funktalState->{'Set'},
-        'totalMemUsage'=> $funktalState->{'totalMemUsage'}, # FIXME
+        'totalMemUsage'=> $funktalState->{'totalMemUsage'}, 
         'stateCount' => 0 
     };
     return $reduced_funktalState;
