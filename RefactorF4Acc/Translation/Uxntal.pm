@@ -28,6 +28,7 @@ use RefactorF4Acc::Emitter qw( emit_AnnLines );
 use Fortran::F95VarDeclParser qw( parse_F95_var_decl );
 
 use RefactorF4Acc::Translation::UxntalLibHandler qw( load_uxntal_lib_subroutines add_to_used_lib_subs emit_used_uxntal_lib_subroutine_sources);
+use RefactorF4Acc::Translation::UxntalStaging qw( gen_next_funktalState use_previous_funktalState remove_unused_allocations_from_state );
 
 #
 #   (c) 2010-2024 Wim Vanderbauwhede <wim@dcs.gla.ac.uk>
@@ -91,6 +92,11 @@ my @uxntal_lib_sources = (
 );
 
 sub translate_program_to_Uxntal($stref,$program_name){
+    # If there is a state file, load it into $funktalState
+    # We don't know yet if there is a loadState call in the program
+    # If there isn't one, we undo this later using remove_unused_allocations_from_state
+    my $funktalState = use_previous_funktalState();
+
     load_uxntal_lib_subroutines(@uxntal_lib_sources);
     $stref->{'UseCallStack'}=0;
     $stref->{'Uxntal'} = {
@@ -131,7 +137,8 @@ sub translate_program_to_Uxntal($stref,$program_name){
         'Libraries' => { 'Set' =>{}, 'List' => ['( LIBRARY ROUTINES )'] },
         'Subroutines' => {},
         # { 'LocalVars'=> {'Set' =>{}, 'List' => [] }, 'Args' => {'Set' =>{}, 'List' => [] },  'isMain' => '' , 'TranslatedCode'}
-        'Globals' => { 'Set' =>{}, 'List' => [], 'totalMemUsage' => 0 },
+        'Globals' => $funktalState,
+        # { 'Set' =>{}, 'List' => [], 'totalMemUsage' => 0, 'stateCount' => 0 },
         'CallStack'  => [
             '( ~../../../uxntal-libs/call-stack.tal )',
             '|e000 ( 8 kB call stack )',
@@ -177,6 +184,16 @@ sub translate_program_to_Uxntal($stref,$program_name){
     }
     my @used_uxntal_lib_subroutine_sources=emit_used_uxntal_lib_subroutine_sources();
 
+    # TODO:
+    # At this point, if we make a distinction between LoadState and SaveState instead of HasState,
+    # we can remove unused allocations and recalculate the total utilisation
+    # We do this by setting the value for the previously allocated variables in the Globals->Set hash to 0 initially;
+    # If we encounter one, we set it to 1.
+    # Then, if we check for zeroes, we can delete those allocations
+    if ( not exists $stref->{'LoadState'} ){
+        $stref->{'Uxntal'}{'Globals'} = remove_unused_allocations_from_state($stref->{'Uxntal'}{'Globals'});
+    }
+
     $stref->{'TranslatedCode'}=[
         '    |00 @System &vector $2 &expansion $2 &wst $1 &rst $1 &metadata $2 &r $2 &g $2 &b $2 &debug $1 &state $1',
         ($stref->{'HasCLArgs'} ? @{$stref->{'Uxntal'}{'Console'}} :()),
@@ -217,6 +234,9 @@ sub translate_program_to_Uxntal($stref,$program_name){
     $stref->{'CustomPassPostProcessing'}=1;
     # This makes sure that no fortran is emitted by emit_all()
     $stref->{'SourceContains'}={};
+    if ( exists $stref->{'SaveState'} ){
+        gen_next_funktalState($stref->{'Uxntal'}{'Globals'});
+    }
 } # END of translate_program_to_Uxntal
 
 # TODO: This should include handling of 'use' declarations.
@@ -366,9 +386,14 @@ Instead of the nice but cumbersome approach we had until now, from now on it is 
         # FIXME: this is because of the presence of an empty $info->{'SubroutineCall'} record.
         elsif (exists $info->{'SubroutineCall'} and exists $info->{'SubroutineCall'}{'Name'}) {
             my $fname =  $info->{'SubroutineCall'}{'Name'};
-            if ($fname eq 'saveState' or $fname eq 'loadState') {
+            if ( $fname eq 'loadState') {
                 $stref->{'HasReadFile'}=1;
+                $stref->{'LoadState'}=1;
+                add_to_used_lib_subs($fname);
+            }
+            elsif ($fname eq 'saveState' ) {
                 $stref->{'HasWriteFile'}=1;
+                $stref->{'SaveState'}=1;
                 add_to_used_lib_subs($fname);
             }
             elsif (not exists $F95_intrinsic_functions{$fname} ) {
