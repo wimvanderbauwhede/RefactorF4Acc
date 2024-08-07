@@ -321,10 +321,10 @@ sub fold_constants_no_iters {
                 }
 
                 my $rhs_ast  = $info->{'Rhs'}{'ExpressionAST'};
-                warn Dumper($rhs_ast) if $line=~/\*\*/;
+                # warn Dumper($rhs_ast) if $line=~/\*\*/;
                 # say "$f FOLD CONSTS ON Assignment LINE <$line>" if $f eq 'tokeniseFunktal' and $line=~/achar/;
                 my $const_fold_rhs_ast = fold_constants_in_expr_no_iters($stref, $f, $rhs_ast,$info);
-                croak Dumper($const_fold_rhs_ast) if $line=~/\*\*/;
+                # croak Dumper($const_fold_rhs_ast) if $line=~/\*\*/;
                 $info->{'Rhs'}{'ExpressionAST'}=$const_fold_rhs_ast;
                 # say "$f FOLDED CONSTS ON Assignment LINE <$line>:",Dumper($info->{'Rhs'}{'ExpressionAST'})  if $f eq 'tokeniseFunktal' and $line=~/achar/;
                 # die if $f eq 'tokeniseFunktal' and $line=~/achar/;

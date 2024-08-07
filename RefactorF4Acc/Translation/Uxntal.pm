@@ -1256,27 +1256,27 @@ LOCAL
 =cut
 sub _var_access_assign($stref,$f,$info,$lhs_ast,$rhs_ast) {
 # carp Dumper($lhs_ast,$rhs_ast);
-    my ($var,$idxs,$idx_expr_type) = __unpack_var_access_ast($lhs_ast);
+    my ($lhs_var,$idxs,$idx_expr_type) = __unpack_var_access_ast($lhs_ast);
     my $Sf = $stref->{'Subroutines'}{$f};
-    my $word_sz= $Sf->{'WordSizes'}{$var};
+    my $word_sz= $Sf->{'WordSizes'}{$lhs_var};
     my $short_mode = $word_sz == 2 ? '2' : '';
     my $uxntal_code = '';
     # my $use_stack = __use_stack($stref,$f);
-    my $lhs_var_access = __var_access($stref,$f,$var);
-    if  (is_array($stref,$f,$var)) {
-        my $lhs_idx_offset = __get_array_index_offset($stref,$f,$var);
+    my $lhs_var_access = __var_access($stref,$f,$lhs_var);
+    if  (is_array($stref,$f,$lhs_var)) {
+        my $lhs_idx_offset = __get_array_index_offset($stref,$f,$lhs_var);
         my $lhs_idx_offset_Uxntal =  toHex($lhs_idx_offset,2);
         my $lhs_idx_offset_expr = $lhs_idx_offset==0? '' : $lhs_idx_offset_Uxntal.' SUB2';
         if  ($idx_expr_type == 1) { # array(i) = rhs_expr
             my ($rhs_expr_Uxntal, $rhs_word_sz) = _emit_expression_Uxntal($rhs_ast,$stref,$f,$info);
             if ($rhs_word_sz!=$word_sz){
-                croak "LHS and RHS word sizes don't match: $word_sz <> $rhs_word_sz for assignment to $var in $f";
+                croak "LHS and RHS word sizes don't match: $word_sz <> $rhs_word_sz for assignment to $lhs_var in $f";
             }
             my ($idx,$idx_word_sz) = _emit_expression_Uxntal($idxs,$stref,$f,$info);
             my $idx_expr = defined $idx ? ($idx eq $lhs_idx_offset_Uxntal) ? '' : "$idx $lhs_idx_offset_expr".( $short_mode ? ' #0002 MUL2 ': '') .' ADD2 ' : '';
             $uxntal_code = "$rhs_expr_Uxntal  $lhs_var_access $idx_expr STA$short_mode"; # index, load the value
         } elsif  ($idx_expr_type == 0) { # array = rhs_expr
-            my $decl = getDecl($stref,$f,$var);
+            my $decl = getDecl($stref,$f,$lhs_var);
             # It looks like ModuleVars are *copied* per function, not linked.
             # So I need to get the actual decl from the module
             my $dim = exists $decl->{'ConstDim'}
@@ -1298,9 +1298,9 @@ sub _var_access_assign($stref,$f,$info,$lhs_ast,$rhs_ast) {
                 add_to_used_lib_subs('range-map-short');
             } elsif ($rhs_ast->[0] == 34) { # the RHS is a string
                 # We should check that the LHS is an array of strings
-                # my $decl = get_var_record_from_set($Sf->{'Vars'},$var);
-                my $decl = getDecl($stref,$f,$var);
-                if (is_character($stref,$f,$var) ) { # Array of characters
+                # my $decl = get_var_record_from_set($Sf->{'Vars'},$lhs_var);
+                my $decl = getDecl($stref,$f,$lhs_var);
+                if (is_character($stref,$f,$lhs_var) ) { # Array of characters
                 # If so, we set every elt to that string
                     my $dim = exists $decl->{'ConstDim'}
                         ? __C_array_size($decl->{'ConstDim'})
@@ -1317,14 +1317,14 @@ sub _var_access_assign($stref,$f,$info,$lhs_ast,$rhs_ast) {
                         toHex($array_length-1,2)
                         . ' #0000 range-map-short';
                     add_to_used_lib_subs('range-map-short');
-                } elsif (is_string($stref,$f,$var) ) { # Array of strings
+                } elsif (is_string($stref,$f,$lhs_var) ) { # Array of strings
                     croak 'TODO: ASSIGNMENT TO ARRAY OF STRINGS';
                 } else {
                     error("RHS is string, LHS is array");
                 }
             } elsif ($rhs_ast->[0] >= 29) { # the RHS is a constant
                 if ($rhs_ast->[0]==29) { # integer, check type and kind of LHS.
-                    my $mkind = is_integer($stref,$f,$var);
+                    my $mkind = is_integer($stref,$f,$lhs_var);
                     if ($mkind==0 or $mkind==4) {
                         error('Only integer of kind 1 or 2 is supported on the RHS of an array assignment');
                     } else {
@@ -1342,7 +1342,7 @@ sub _var_access_assign($stref,$f,$info,$lhs_ast,$rhs_ast) {
                 elsif ($rhs_ast->[0]==31) { # logical, check type and kind of LHS. Encode as 1 or 0 byte
                     croak 'TODO: ASSIGNMENT TO ARRAY OF LOGICALS';
                     # integer, check type and kind of LHS.
-                    if ( is_logical($stref,$f,$var) ) {
+                    if ( is_logical($stref,$f,$lhs_var) ) {
                         my $rhs_bool_literal = $rhs_ast->[1] eq '.true' ? '#01' : '#00';
                         my $ref = \$rhs_ast; $ref=~s/REF..//;$ref=~s/\)//;
                         $uxntal_code =
@@ -1362,7 +1362,7 @@ sub _var_access_assign($stref,$f,$info,$lhs_ast,$rhs_ast) {
                     my $ref = \$rhs_ast; $ref=~s/REF...//;$ref=~s/\)//;
                     my $iter="iter$ref";
             # The range must be the original Fortran one: we correct for the offset in the var access
-                    my $idx_offset = __get_array_index_offset($stref,$f,$var);
+                    my $idx_offset = __get_array_index_offset($stref,$f,$lhs_var);
                     my $idx_offset_Uxntal =  toHex($idx_offset,2);
                     my $idx_offset_expr = $idx_offset==0
                         ? ''
@@ -1371,7 +1371,7 @@ sub _var_access_assign($stref,$f,$info,$lhs_ast,$rhs_ast) {
                                 : $idx_offset_Uxntal.' ADD2';
 
                     # transforming the array into an index access mighr be best
-                    my $decl = getDecl($stref,$f,$var);
+                    my $decl = getDecl($stref,$f,$lhs_var);
                     # carp Dumper($decl);
                     my $array_length = exists $decl->{'ConstDim'}
                     ? __C_array_size($decl->{'ConstDim'})
@@ -1388,9 +1388,26 @@ sub _var_access_assign($stref,$f,$info,$lhs_ast,$rhs_ast) {
                 }
             } elsif ($rhs_ast->[0] == 32) {
                 croak "TODO: _var_access_assign($f): character constant";
-            } elsif ($rhs_ast->[0] ==1) {
+            } elsif ($rhs_ast->[0] == 1) {
                 # A function call, need to check the type
-                croak "TODO: _var_access_assign($f):", Dumper($lhs_ast,$rhs_ast);
+                # LHS is an array. Need to check the type.
+                # Then get the type of the function as in _emit_print_from_ast
+                my $fname =  $rhs_ast->[1];
+                my $rhs_type = exists $F95_intrinsic_function_sigs{$fname}
+                ? $F95_intrinsic_function_sigs{$fname}[-1]
+                : $stref->{'Subroutines'}{$fname}{'Signature'}{'ReturnType'};
+                my $rhs_type_attr = $stref->{'Subroutines'}{$fname}{'Signature'}{'ReturnTypeAttr'} // '';
+                if ($rhs_type eq 'character(*)' ) {
+                    $rhs_type = 'character';
+                    $rhs_type_attr ='(*)';
+                }
+                my $lhs_var_decl = getDecl($stref,$f,$lhs_var);
+                my $lhs_type = $lhs_var_decl->{'Type'};
+                # I am assuming that the RHS can only return a scalar
+                # So LHS is an array of T and RHS is T
+                # So we simply assign the RHS to the first elt of the LHS
+                croak "TODO: _var_access_assign($f):", Dumper($lhs_type,$rhs_type,$rhs_type_attr);
+
             } else {
                 my ($rhs_var,$idxs,$idx_expr_type) = __unpack_var_access_ast($rhs_ast);
                 if (is_array($stref,$f,$rhs_var)) {
@@ -1415,7 +1432,7 @@ sub _var_access_assign($stref,$f,$info,$lhs_ast,$rhs_ast) {
         } else {
             croak "Unknown index expression type: $idx_expr_type";
         }
-    } elsif  (is_string($stref,$f,$var) ) {
+    } elsif  (is_string($stref,$f,$lhs_var) ) {
         $uxntal_code =  __copy_substr($stref, $f, $info, $lhs_ast, $rhs_ast)
     } else { # v = <anything not a string>
     carp Dumper($rhs_ast) if $f eq 'calcNumConst';
@@ -3174,7 +3191,6 @@ sub _emit_print_from_ast($stref,$f,$line,$info,$unit,$elt){
     elsif ($code == 1 ) { # A function call
         my $fname = $elt->[1];
         # This is a function, need to get its return type
-        # TODO
         my $return_type = exists $F95_intrinsic_function_sigs{$fname}
         ? $F95_intrinsic_function_sigs{$fname}[-1]
         : $stref->{'Subroutines'}{$fname}{'Signature'}{'ReturnType'};
