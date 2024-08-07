@@ -4537,7 +4537,7 @@ sub _parse_assignment {
 	if (@rest) {
 		$rhs = join('=',($rhs,@rest));
 	}
-# die "<$line>".Dumper($lhs,$rhs,@rest) if $line=~/f\(7\)\s*=/;
+# die "<$line>".Dumper($lhs,$rhs,@rest) if $line=~/numVal\s*=\s*numVal\s*\+\s*int/;
 	#     say "LHS: $lhs, RHS: $rhs";
 	
 	my $lhs_ast = parse_expression( $lhs, $info, $stref, $f );
@@ -4587,6 +4587,7 @@ sub _parse_assignment {
 	say "DoubleFunctionCall";
 	$info->{'DoubleFunctionCall'}=1};	
 	my $rhs_ast = parse_expression( $rhs, $info, $stref, $f );
+	
 	if ($array_constant==1) {
 		$rhs_ast->[0]=28; #'_OPEN_CONST_ARRAY_';
 	}

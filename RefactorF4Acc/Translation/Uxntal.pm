@@ -154,7 +154,7 @@ sub translate_program_to_Uxntal($stref,$program_name){
         ]
     };
 # croak Dumper $funktalState;
-    carp Dumper $stref->{'Uxntal'}{'Globals'};
+    # carp Dumper $stref->{'Uxntal'}{'Globals'};
     $stref = fold_constants_all($stref) ;
 
     my $new_annlines = $stref->{'Subroutines'}{$program_name}{'RefactoredCode'};
@@ -625,7 +625,7 @@ Instead of the nice but cumbersome approach we had until now, from now on it is 
         }
 
         if (exists $info->{'Assignment'} ) {
-            # say "Assignment: $line";
+            say "Assignment: $line" if $f eq 'calcNumConst';
             ($c_line,$pass_state) = _emit_assignment_Uxntal($stref, $f, $info,$pass_state) ;
             if (exists $info->{'If'} and not exists $info->{'IfThen'}) {
                 my $indent = $info->{'Indent'};
@@ -1418,6 +1418,7 @@ sub _var_access_assign($stref,$f,$info,$lhs_ast,$rhs_ast) {
     } elsif  (is_string($stref,$f,$var) ) {
         $uxntal_code =  __copy_substr($stref, $f, $info, $lhs_ast, $rhs_ast)
     } else { # v = <anything not a string>
+    carp Dumper($rhs_ast) if $f eq 'calcNumConst';
         my ($rhs_expr_Uxntal, $word_sz) = _emit_expression_Uxntal($rhs_ast,$stref,$f,$info);
         $uxntal_code = "$rhs_expr_Uxntal $lhs_var_access STA$short_mode ( scalar )";
     }
@@ -2421,6 +2422,7 @@ sub _emit_expression_Uxntal ($ast, $stref, $f, $info) {
             # Uxn does not have pow or mod so these would have to be functions
             # TODO these are not implemented yet
             if ($opcode == 8) { # eq '^' pow
+                croak 'TODO';
                 $ast = [1,'pow',[27,$lexp,$rexp] ] ;
                 return _emit_function_call_expr_Uxntal($stref,$f,$info,$ast);
             }
@@ -2651,6 +2653,7 @@ sub _emit_function_call_expr_Uxntal($stref,$f,$info,$ast){
             $word_sz=1;
         }
         add_to_used_lib_subs($subname);
+        croak Dumper $ast if $subname eq 'int';
         my @call_arg_asts = ();
         if (@{$args}) { # else means no args
             if ($args->[0] == 27) { #
