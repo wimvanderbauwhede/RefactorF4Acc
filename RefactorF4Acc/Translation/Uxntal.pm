@@ -289,7 +289,7 @@ sub translate_module_decls_to_Uxntal($stref, $mod_name){
 } # END of translate_module_decls_to_Uxntal
 
 sub translate_sub_to_Uxntal( $stref, $f){
-
+    return $stref if $f eq 'saveState' or $f eq 'loadState';
 =info
     # First we collect info. What we need to know is:
 
@@ -994,7 +994,7 @@ Instead of the nice but cumbersome approach we had until now, from now on it is 
                 @{$stref->{'TranslatedCode'}},'',"( ==== $f ==== )",'', @translated_sub_code
         ];
     }
-     return $stref;
+    return $stref;
 
 } # END of translate_sub_to_Uxntal()
 
