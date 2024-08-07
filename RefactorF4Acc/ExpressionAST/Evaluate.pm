@@ -500,7 +500,7 @@ sub eval_intrinsic { my ($val_expr_str,$val_expr_ast) = @_;
     my @intr_args = split(/\s*,\s*/,$intr_args_str);
     for my $intr_arg (@intr_args) {
         if ($intr_arg=~/^[a-z_]/) {
-            warning("Evaluating intrinsics only works with constant arguments: $val_expr_str",0,'ERROR');
+            warning("Evaluating intrinsics only works with constant arguments: $val_expr_str",2,'ERROR');
 			return $val_expr_ast;
         }
     }

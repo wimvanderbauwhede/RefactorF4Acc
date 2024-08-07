@@ -212,7 +212,7 @@ sub fold_constants_no_iters {
                             $info->{'ParsedParDecl'}{'Attributes'}{'Dim'}=$pv_dims;
                         }
                     } else {
-                        warning("Could not constant-fold DIMENSION on line\n\t\t$line\n\tin subroutine $f");
+                        warning("Could not constant-fold DIMENSION on line\n\t\t$line\n\tin subroutine $f",2);
                     }
                 }
                 if ($decl->{'Type'} eq 'character') { 
@@ -480,7 +480,6 @@ sub fold_constants_in_decls {
                         $Sf->{'ModuleVars'}{'Set'}{$var_name} = $decl;
                         $Sf->{'DeclaredCommonVars'}{'Set'}{$var_name} = $decl;
                     }
-                    
                 }
 			}
             elsif ( exists $info->{'ParamDecl'} ) {

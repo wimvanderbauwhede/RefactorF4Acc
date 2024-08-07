@@ -1,9 +1,13 @@
 package RefactorF4Acc::Translation::UxntalStaging;
 use v5.30;
 
-# Because Funktal is too large, we need to stage the execution in Uxn
+# Because Funktal is too large for Uxn's memory, we need to stage the execution in Uxn
 # We do this by storing the global state and loading it as required
-# The aim is to make this fully transparent, 
+# The aim is to make this fully transparent
+
+# The "global state" are all module globals; in Funktal these are all in FunktalState
+# The memory map is the ordered list of declarations of module globals
+
 use vars qw( $VERSION );
 $VERSION = "5.1.0";
 
@@ -22,49 +26,61 @@ use feature qw(signatures);
 @RefactorF4Acc::Translation::UxntalStaging::ISA = qw(Exporter);
 
 @RefactorF4Acc::Translation::UxntalStaging::EXPORT_OK = qw(
-    &gen_next_funktalState
-    &use_previous_funktalState
-    &remove_unused_allocations_from_state
+    &save_global_memory_map_to_file
+    &load_global_memory_map_from_file
+    &remove_unwanted_global_allocations_from_memory_map
 );
 
-# Uxntal library handling
-our $VV=0;
+our $mem_map_file = 'funktalState.memMap';
 
-sub use_previous_funktalState() { 
+# If a memory map exists, 
+# load it and use it for the initial allocation
+sub load_global_memory_map_from_file() { 
     my $funktalState =  { 'Set' =>{}, 'List' => [], 'totalMemUsage' => 0 ,'stateCount' => 0};
 
-    if (-e 'funktalState.map')  {
-        open my $MAP, '<', 'funktalState.map' or die $!;
+    if (-e $mem_map_file)  {
+        open my $MAP, '<', $mem_map_file or die $!;
         while (my $line = <$MAP>) {
             chomp $line;
-            $line=~/stateCount\s+(\d+)/ && do { $funktalState->{'stateCount'}=$1+1 };
-            $line=~/totalMemUsage\s+(\d+)/ && do { $funktalState->{'totalMemUsage'}=$1 };
-            $line=~/\@funktal\w+/ && do {
+            if ($line=~/stateCount\s+(\d+)/) {
+                $funktalState->{'stateCount'}=$1+1;
+            }
+            elsif ($line=~/totalMemUsage\s+(\d+)/) {
+                $funktalState->{'totalMemUsage'}=$1;
+            }
+            elsif ($line=~/\@\w+/ ){
                 push @{$funktalState->{'List'}}, $line;
                 my $fq_name = $line;
                 $fq_name=~s/^\@//;
                 $fq_name=~s/\s+.+$//;
                 $funktalState->{'Set'}{$fq_name}=0;
-            };
+            }
         }
         close $MAP;
 
     }
     return $funktalState;
-} # END of use_previous_funktalState
+} # END of load_global_memory_map_from_file
 
-# sub gen_next_funktalState($stref->{'Uxntal'}{'Globals'});
-sub gen_next_funktalState($funktalState) {
-    open my $MAP, '>', 'funktalState.map' or die $!;
+# If saveState is called in the program, 
+# store the memory map
+# sub save_global_memory_map_to_file($stref->{'Uxntal'}{'Globals'});
+sub save_global_memory_map_to_file($funktalState) {
+    open my $MAP, '>', $mem_map_file or die $!;
     say $MAP 'stateCount '.$funktalState->{'stateCount'};
     say $MAP 'totalMemUsage '.$funktalState->{'totalMemUsage'};
     for my $entry (@{$funktalState->{'List'}}) {
         say $MAP $entry;
     }
     close $MAP;
-} # END of gen_next_funktalState
+} # END of save_global_memory_map_to_file
 
-sub remove_unused_allocations_from_state($funktalState) {
+# If loadState was not called in the program, 
+# remove unused allocations from the memory map 
+# and clear the memory map file
+# The problem is that, if we run this twice, it doubles totalMemUsage
+# because nothing gets removed
+sub remove_unwanted_global_allocations_from_memory_map($funktalState) { 
     my $reduced_list=[];
     for my $decl (@{$funktalState->{'List'}}) {
         my $fq_name = $decl;
@@ -75,16 +91,22 @@ sub remove_unused_allocations_from_state($funktalState) {
         if ($funktalState->{'Set'}{$fq_name}!=0) {
             push @{$reduced_list},$decl;
         } else {
+            say "Removing $fq_name from memory map";
             delete $funktalState->{'Set'}{$fq_name};
+            print "totalMemUsage ",$funktalState->{'totalMemUsage'},' reduced by ';
             if ($alloc_sz=~/^[0-9a-z]{2}\s*$/) {
-                $funktalState->{'totalMemUsage'}-=2;
+                print '1';
+                $funktalState->{'totalMemUsage'}-=1;
             }
             elsif ($alloc_sz=~/^[0-9a-z]{4}\s*$/) {
-                $funktalState->{'totalMemUsage'}-=4;
+                print '2';
+                $funktalState->{'totalMemUsage'}-=2;
             }
             elsif ($alloc_sz=~/^\$([0-9a-z]+)\s*$/) {
+                print hex($1);
                 $funktalState->{'totalMemUsage'}-=hex($1);
             }
+            say " to ",$funktalState->{'totalMemUsage'};
         }
     }
     my $reduced_funktalState={ 
@@ -93,6 +115,8 @@ sub remove_unused_allocations_from_state($funktalState) {
         'totalMemUsage'=> $funktalState->{'totalMemUsage'}, 
         'stateCount' => 0 
     };
+    unlink $mem_map_file;
     return $reduced_funktalState;
-}
+} # END of remove_unwanted_global_allocations_from_memory_map
+
 1;

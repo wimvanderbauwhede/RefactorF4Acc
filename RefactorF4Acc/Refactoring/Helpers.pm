@@ -315,7 +315,7 @@ sub get_annotated_sourcelines {
             }
         }
     } else {
-        warning(  "$sub_or_func_or_inc $f has no Status");
+        warning( "$sub_or_func_or_inc $f has no Status");
         if (exists $Sf->{'RefactoredCode'}) {
             $annlines = $Sf->{'RefactoredCode'};
         }

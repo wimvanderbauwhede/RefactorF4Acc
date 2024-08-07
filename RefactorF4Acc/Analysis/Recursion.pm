@@ -271,8 +271,10 @@ sub analyse_recursion($stref,$f){
 			$stref->{'Subroutines'}{$f}{'Recursion'}='No';
 		}
 	}
-	say "$f: ".$stref->{'Subroutines'}{$f}{'Recursion'}." recursion";# if $V;
-	say '-' x 8;
+	if ($V) {
+		say "$f: ".$stref->{'Subroutines'}{$f}{'Recursion'}." recursion";
+		say '-' x 8;
+	}
 	return $stref;
 } # END of analyse_recursion
 
@@ -303,7 +305,7 @@ sub _isInArg($stref,$f,$arg){
 
 # We do a recusive descent for all called subroutines, and for the leaves we do the analysis
 sub check_recursive_call_chain( $stref, $f) {
-local $V=1;
+	# local $V=1;
     my $c;
     if ($V) {
         $c = (defined $stref->{'Counter'}) ? $stref->{'Counter'} : 0;

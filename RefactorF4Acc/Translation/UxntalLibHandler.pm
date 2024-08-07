@@ -1,5 +1,8 @@
 package RefactorF4Acc::Translation::UxntalLibHandler;
+
 use v5.30;
+
+use RefactorF4Acc::Utils;
 
 use vars qw( $VERSION );
 $VERSION = "5.1.0";
@@ -104,20 +107,9 @@ sub load_uxntal_lib_subroutines(@uxntal_lib_sources) {
             $src_single_line.=" $line ";
         }
         close $LIB;
-        my $src_single_line_no_comments = remove_comments($src_single_line);
-#         my @chunks = split(/\s*\(/,$src_single_line);
-#         for my $chunk (@chunks) {
-#             $chunk =~s/^.*\)\s*//;
-#         }
-#         # so ( a ) bb ( cc ) dd becomes '','a ) bb','cc ) dd'
-#         # => '', 'bb', 'dd'
-#         # ( a ( ii jj ) kk ) bb ( cc ) dd becomes '','a )', 'ii jj ) kk ) bb','cc ) dd'
-#         # => '','', 'bb','dd'
-#         my $src_single_line_no_comments=join(' ',@chunks);
+        my $src_single_line_no_comments = _remove_comments($src_single_line);
         my @lines = split(/\s+/,$src_single_line_no_comments);
-# croak Dumper @lines if $uxntal_lib_source=~/stack/;
-        # my $acc_line='';
-        # my $prev_line='';
+
         for my $line (@lines) {
             if ($line=~/^\@([\w\-]+)$/) {
                 $in_sub=1;
@@ -127,14 +119,7 @@ sub load_uxntal_lib_subroutines(@uxntal_lib_sources) {
                 $line = "\n$line";
             }
             if ($in_sub==1) {
-                # if (@{$uxntal_lib_subroutines{$current_sub}}
-                # && $uxntal_lib_subroutines{$current_sub}[-1]=~/[A-Z0-9]$/) {
-                #     $uxntal_lib_subroutines{$current_sub}[-1] .= " $line";
-                # } else {
-                    # push @{$uxntal_lib_subroutines{$current_sub}},$acc_line;
-                    # $acc_line = '';
-                    push @{$uxntal_lib_subroutines{$current_sub}},$line;
-                # }
+                push @{$uxntal_lib_subroutines{$current_sub}},$line;
             }
         }
     }
@@ -144,7 +129,7 @@ sub load_uxntal_lib_subroutines(@uxntal_lib_sources) {
 # - Everytime a call is used, mark the subroutine
 
 our %used_uxntal_lib_subroutines = ();
-
+our %not_library_subroutines = ();
 sub add_to_used_lib_subs($subname) {
     if (not exists $used_uxntal_lib_subroutines{$subname}
     and exists $uxntal_lib_subroutines{$subname}
@@ -162,7 +147,8 @@ sub add_to_used_lib_subs($subname) {
         }
 
     } elsif (not exists $uxntal_lib_subroutines{$subname}) {
-        warn "No such library subroutine: $subname\n";
+        $not_library_subroutines{$subname}=1;
+        # warn "No such library subroutine: $subname\n";
     }
 }
 
@@ -171,10 +157,14 @@ sub emit_used_uxntal_lib_subroutine_sources(){
     for my $subname (sort keys %used_uxntal_lib_subroutines) {
         @sources = (@sources,@{$used_uxntal_lib_subroutines{$subname}});
     }
+    for my $subname (sort keys %not_library_subroutines ) {
+        next if $subname=~/^(:?main|buf|totalMemUsage)$/;
+        warning("No such library subroutine: $subname",0);
+    }
     return @sources;
 }
 
-sub remove_comments($str_with_comments) {
+sub _remove_comments($str_with_comments) {
     my @chars=split('',$str_with_comments);
     my $str_no_comments='';
     my $parct=0;

@@ -5,33 +5,41 @@ use v5.30;
 use RefactorF4Acc::Config;
 use RefactorF4Acc::Utils;
 use RefactorF4Acc::Utils::Functional qw( min max );
+
 use RefactorF4Acc::F95SpecWords qw(
     %F95_intrinsic_functions
     %F95_intrinsic_function_sigs
     %F95_intrinsic_subroutine_sigs
     );
-use RefactorF4Acc::Analysis::ArgumentIODirs qw( determine_argument_io_direction_rec );
-use RefactorF4Acc::Refactoring::Helpers qw( stateful_pass stateful_pass_inplace stateless_pass_inplace pass_wrapper_subs_in_module update_arg_var_decl_sourcelines get_annotated_sourcelines);
-use RefactorF4Acc::Refactoring::Fixes qw(
-    _declare_undeclared_variables
-    _remove_unused_variables
-    __has_module_level_declaration
-    );
-use RefactorF4Acc::Refactoring::CaseToIf qw( replace_case_by_if )    ;
-use RefactorF4Acc::Refactoring::FoldConstants qw(
-    fold_constants_all
-    fold_constants_in_decls
-    );
-# use RefactorF4Acc::Parser::Expressions qw( @sigils );
-use RefactorF4Acc::Translation::LlvmToTyTraIR qw( generate_llvm_ir_for_TyTra );
-use RefactorF4Acc::Emitter qw( emit_AnnLines );
-use Fortran::F95VarDeclParser qw( parse_F95_var_decl );
 
-use RefactorF4Acc::Translation::UxntalLibHandler qw( load_uxntal_lib_subroutines add_to_used_lib_subs emit_used_uxntal_lib_subroutine_sources);
-use RefactorF4Acc::Translation::UxntalStaging qw( gen_next_funktalState use_previous_funktalState remove_unused_allocations_from_state );
+use RefactorF4Acc::Refactoring::Helpers qw(
+    stateful_pass
+    stateful_pass_inplace
+    stateless_pass_inplace
+    pass_wrapper_subs_in_module
+    get_annotated_sourcelines
+    );
+
+use RefactorF4Acc::Refactoring::CaseToIf qw( replace_case_by_if );
+
+use RefactorF4Acc::Refactoring::FoldConstants qw( fold_constants_all );
+
+# use RefactorF4Acc::Emitter qw( emit_AnnLines );
+
+use RefactorF4Acc::Translation::UxntalLibHandler qw(
+    load_uxntal_lib_subroutines
+    add_to_used_lib_subs
+    emit_used_uxntal_lib_subroutine_sources
+    );
+
+use RefactorF4Acc::Translation::UxntalStaging qw(
+    save_global_memory_map_to_file
+    load_global_memory_map_from_file
+    remove_unwanted_global_allocations_from_memory_map
+    );
 
 #
-#   (c) 2010-2024 Wim Vanderbauwhede <wim@dcs.gla.ac.uk>
+#   (c) 2010-2024 Wim Vanderbauwhede <Wim.Vanderbauwhede@Glasgow.ac.uk>
 #
 
 use vars qw( $VERSION );
@@ -94,8 +102,8 @@ my @uxntal_lib_sources = (
 sub translate_program_to_Uxntal($stref,$program_name){
     # If there is a state file, load it into $funktalState
     # We don't know yet if there is a loadState call in the program
-    # If there isn't one, we undo this later using remove_unused_allocations_from_state
-    my $funktalState = use_previous_funktalState();
+    # If there isn't one, we undo this later using remove_unwanted_global_allocations_from_memory_map
+    my $funktalState = load_global_memory_map_from_file();
 
     load_uxntal_lib_subroutines(@uxntal_lib_sources);
     $stref->{'UseCallStack'}=0;
@@ -145,16 +153,14 @@ sub translate_program_to_Uxntal($stref,$program_name){
             '@call-stack ( grows down )'
         ]
     };
-
+# croak Dumper $funktalState;
+    carp Dumper $stref->{'Uxntal'}{'Globals'};
     $stref = fold_constants_all($stref) ;
 
     my $new_annlines = $stref->{'Subroutines'}{$program_name}{'RefactoredCode'};
     # croak Dumper pp_annlines($new_annlines);
     $stref->{'TranslatedCode'}=[];
-    $Config{'FIXES'}={
-        # _declare_undeclared_variables => 1,
-        # _remove_unused_variables => 1
-    };
+    $Config{'FIXES'}={};
     # croak "PROBLEM: this does not do a recdescent on the call tree!";
     # $stref = pass_wrapper_subs_in_module($stref,$program_name,
     #    # module-specific passes.
@@ -191,7 +197,7 @@ sub translate_program_to_Uxntal($stref,$program_name){
     # If we encounter one, we set it to 1.
     # Then, if we check for zeroes, we can delete those allocations
     if ( not exists $stref->{'LoadState'} ){
-        $stref->{'Uxntal'}{'Globals'} = remove_unused_allocations_from_state($stref->{'Uxntal'}{'Globals'});
+        $stref->{'Uxntal'}{'Globals'} = remove_unwanted_global_allocations_from_memory_map($stref->{'Uxntal'}{'Globals'});
     }
 
     $stref->{'TranslatedCode'}=[
@@ -231,12 +237,13 @@ sub translate_program_to_Uxntal($stref,$program_name){
     $stref->{'TranslatedCode'} = _remove_redundant_labels($stref->{'TranslatedCode'});
     $stref = _emit_Uxntal_code($stref, $program_name);
     # This enables the postprocessing for custom passes
-    $stref->{'CustomPassPostProcessing'}=1;
+    # $stref->{'CustomPassPostProcessing'}=1;
     # This makes sure that no fortran is emitted by emit_all()
     $stref->{'SourceContains'}={};
     if ( exists $stref->{'SaveState'} ){
-        gen_next_funktalState($stref->{'Uxntal'}{'Globals'});
+        save_global_memory_map_to_file($stref->{'Uxntal'}{'Globals'});
     }
+    return $stref;
 } # END of translate_program_to_Uxntal
 
 # TODO: This should include handling of 'use' declarations.
@@ -1818,12 +1825,15 @@ sub __create_fq_varname($stref,$f,$var_name) {
                     if (not exists $stref->{'Uxntal'}{'Macros'}{'Set'}{$fq_varname}) {
                         $stref->{'Uxntal'}{'Macros'}{'Set'}{$fq_varname} = $fq_varname;
                         push @{$stref->{'Uxntal'}{'Macros'}{'List'}},$global_var_decl ;
-                    } 
+                    }
                 } else {
                     $stref->{'Uxntal'}{'Globals'}{'totalMemUsage'}+=$alloc_sz;
-                    say "GLOB: $var_name $alloc_sz ".$stref->{'Uxntal'}{'Globals'}{'totalMemUsage'};
+                    # say "GLOB: $fq_varname $alloc_sz ".$stref->{'Uxntal'}{'Globals'}{'totalMemUsage'};
                     push @{$stref->{'Uxntal'}{'Globals'}{'List'}},$global_var_decl ;
                 }
+            } else {
+                # say "ALREADY ALLOCATED: $fq_varname";
+                $stref->{'Uxntal'}{'Globals'}{'Set'}{$fq_varname} = 1;
             }
         }
     }
@@ -1859,7 +1869,7 @@ sub __is_result_var($stref,$f,$var_name) {
 
 
 sub _pointer_analysis($stref,$f) {
-
+croak Dumper $stref->{'Subroutines'}{$f} if $f eq 'achar';
     my $Sf = $stref->{'Subroutines'}{$f};
 
     my $annlines = get_annotated_sourcelines( $stref, $f );
@@ -3076,7 +3086,11 @@ sub _emit_list_print_Uxntal($stref,$f,$line,$info,$unit,$advance,$list_to_print)
             }
             $line_Uxntal .= "$arg_to_print_Uxntal $print_fn_Uxntal #20 $port DEO ( , )\n";
         }
-        add_to_used_lib_subs($print_fn_Uxntal);
+        if ($print_fn_Uxntal=~/array/) {
+            add_to_used_lib_subs('range-map-short');
+        } else{
+            add_to_used_lib_subs($print_fn_Uxntal) unless $print_fn_Uxntal=~/\#/;
+        }
     }
     if ($advance eq 'yes') {
         if ($unit eq 'STDOUT') {
@@ -4213,7 +4227,7 @@ sub _remove_redundant_labels($uxntal_source_lines) {
                 my $label =$1;
                 if (not exists $used_labels{$parent_label}{$label}) {
                     $new_line_chunk=~s/\&$label//g;
-                    say "REMOVE LABEL <$parent_label/$label>";# if $label=~/iter/;
+                    # say "REMOVE LABEL <$parent_label/$label>";# if $label=~/iter/;
                 }
                 # else {
                 #     say "KEEP LABEL \&$label in parent $parent_label";# if $label=~/iter/;

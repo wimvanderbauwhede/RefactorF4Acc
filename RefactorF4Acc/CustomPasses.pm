@@ -102,16 +102,16 @@ sub run_custom_passes {
 # After a custom pass, do some postprocessing and exit
 	if ($pass ne '' ) {
 		if (exists $stref->{'CustomPassPostProcessing'}) {
-		$stref=substitute_placeholders($stref);
+			$stref=substitute_placeholders($stref);
         # This is of course useless if the target language is not Fortran
         # So I should have a way to exclude this
         # The way to do this is to let the pass make sure that
         # top_src_is_module() is false
         # The easiest way is to set $stref->{'SourceContains'} = {}
 
-		if (top_src_is_module($stref, $code_unit_name)) {
-            $stref=add_module_decls($stref);
-		}
+			if (top_src_is_module($stref, $code_unit_name)) {
+				$stref=add_module_decls($stref);
+			}
 		}
 	} else {
         # Should never happen!
