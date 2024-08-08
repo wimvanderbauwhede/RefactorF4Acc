@@ -585,6 +585,8 @@ our %F95_intrinsic_function_sigs = (
     'sqrt' =>  [['real'],'real'],
     'tan' =>  [['real'],'real'],
     'tanh' =>  [['real'],'real'],
+    # Special case: pow is ** but only for integers
+    'pow' => [['integer','integer'],'integer'],
 );
 
 our %F95_intrinsic_functions_for_eval = (

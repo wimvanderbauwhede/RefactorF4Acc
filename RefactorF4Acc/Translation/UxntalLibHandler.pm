@@ -50,6 +50,7 @@ our %uxntal_lib_subroutines = (
 	'JMP2r'
 ],
 'pow' => [
+    '( mantissa: short; exponent: short>0 )',
     '( m* e* -- r* )',
     '@pow',
     'STH2 STH2 DUP2r',

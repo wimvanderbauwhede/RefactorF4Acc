@@ -1406,8 +1406,17 @@ sub _var_access_assign($stref,$f,$info,$lhs_ast,$rhs_ast) {
                 # I am assuming that the RHS can only return a scalar
                 # So LHS is an array of T and RHS is T
                 # So we simply assign the RHS to the first elt of the LHS
-                croak "TODO: _var_access_assign($f):", Dumper($lhs_type,$rhs_type,$rhs_type_attr);
-
+                
+                my $dim = exists $lhs_var_decl->{'ConstDim'}
+                    ? __C_array_size($lhs_var_decl->{'ConstDim'})
+                    : __C_array_size($lhs_var_decl->{'Dim'});
+            # my $array_length = $dim;
+                my ($rhs_expr_Uxntal, $word_sz) = _emit_expression_Uxntal($rhs_ast,$stref,$f,$info);
+                if ($word_sz==1) {
+                    $uxntal_code = "{ ( iter ) $rhs_expr_Uxntal ROT ROT $lhs_var_access ADD2 STA JMP2r } STH2r ".toHex($dim-1,2).' #0000 range-map-short';
+                } else {
+                    croak "TODO: _var_access_assign($f):", Dumper($lhs_type,$rhs_type,$rhs_type_attr,$rhs_expr_Uxntal,$rhs_ast);
+                }
             } else {
                 my ($rhs_var,$idxs,$idx_expr_type) = __unpack_var_access_ast($rhs_ast);
                 if (is_array($stref,$f,$rhs_var)) {
@@ -1435,7 +1444,7 @@ sub _var_access_assign($stref,$f,$info,$lhs_ast,$rhs_ast) {
     } elsif  (is_string($stref,$f,$lhs_var) ) {
         $uxntal_code =  __copy_substr($stref, $f, $info, $lhs_ast, $rhs_ast)
     } else { # v = <anything not a string>
-    carp Dumper($rhs_ast) if $f eq 'calcNumConst';
+    # carp Dumper($rhs_ast) if $f eq 'calcNumConst';
         my ($rhs_expr_Uxntal, $word_sz) = _emit_expression_Uxntal($rhs_ast,$stref,$f,$info);
         $uxntal_code = "$rhs_expr_Uxntal $lhs_var_access STA$short_mode ( scalar )";
     }
@@ -1887,7 +1896,7 @@ sub __is_result_var($stref,$f,$var_name) {
 
 
 sub _pointer_analysis($stref,$f) {
-croak Dumper $stref->{'Subroutines'}{$f} if $f eq 'achar';
+
     my $Sf = $stref->{'Subroutines'}{$f};
 
     my $annlines = get_annotated_sourcelines( $stref, $f );
@@ -2245,7 +2254,7 @@ sub _emit_var_decl_Uxntal ($stref,$f,$info,$var){
                 } elsif ($initial_value eq '.false.') {
                     $c_var_decl .= '00 ' x $dim;
                     $alloc_sz=$dim;
-                } elsif ($initial_value =~/achar\(\s*([\w_]+)\s*\)/) {
+                } elsif ($initial_value =~/achar\(\s*(\w+)\s*\)/) {
                     my $val = $1;
                     my $hex_val = toRawHex($val,1);
                     $c_var_decl .= "$hex_val " x $dim;
@@ -2329,11 +2338,18 @@ sub _emit_expression_Uxntal ($ast, $stref, $f, $info) {
         elsif ($opcode == 1) { # function calls, is _emit_subroutine_call_expr_Uxntal
             (my $opcode, my $name, my $args) =@{$ast};
             # Special cases
-            if ($name eq 'int' or $name eq 'achar' or $name eq 'char') { # just remove it
+            if ($name eq 'int' ) { # just remove it
                 # [1,'int',[',', $arg, $sz]]
                 # For 'char' this means we ignore the 'kind' and assume ASCII
                 my $uxn_ast = $args->[0] == 27  ? $args->[1] : $args;
                 return _emit_expression_Uxntal($uxn_ast, $stref, $f,$info);
+            }
+            elsif ( $name eq 'achar' or $name eq 'char') { # just remove it
+                # For 'char' this means we ignore the 'kind' and assume ASCII
+                my $uxn_ast = $args->[0] == 27  ? $args->[1] : $args;
+                (my $uxntal_expr, my $word_sz) =  _emit_expression_Uxntal($uxn_ast, $stref, $f,$info);
+                # If the expression is an integer literal, I need to reduce it
+                return ($uxntal_expr.( $word_sz ==2 ?' NIP ':''),1); 
             }
             elsif ($name eq 'print') {
                 # [1,'print','*', $arg]
@@ -2439,7 +2455,6 @@ sub _emit_expression_Uxntal ($ast, $stref, $f, $info) {
             # Uxn does not have pow or mod so these would have to be functions
             # TODO these are not implemented yet
             if ($opcode == 8) { # eq '^' pow
-                croak 'TODO';
                 $ast = [1,'pow',[27,$lexp,$rexp] ] ;
                 return _emit_function_call_expr_Uxntal($stref,$f,$info,$ast);
             }
@@ -2486,19 +2501,18 @@ sub _emit_expression_Uxntal ($ast, $stref, $f, $info) {
             }
         }
         elsif (scalar @{$ast} > 3 and $opcode == 27) { # the ast is a comma-separated list ','
-                carp "WHY DOES THIS HAPPEN? ";
-                my @args_lst_Uxntal=();
-                for my $idx (1 .. scalar @{$ast}-1) {
-                    my $arg = $ast->[$idx];
-                    my ($uxntal_arg_expr,$word_sz) = _emit_expression_Uxntal($arg, $stref, $f,$info);
-                    push @args_lst_Uxntal, $uxntal_arg_expr;
-                }
-                return (join(' ',@args_lst_Uxntal),2 );
-        }
-        else {
-            if ($opcode==0) { # parens, just remove it
-                return _emit_expression_Uxntal($ast->[1], $stref, $f, $info);
+            carp "WHY DOES THIS HAPPEN? ";
+            my @args_lst_Uxntal=();
+            for my $idx (1 .. scalar @{$ast}-1) {
+                my $arg = $ast->[$idx];
+                my ($uxntal_arg_expr,$word_sz) = _emit_expression_Uxntal($arg, $stref, $f,$info);
+                push @args_lst_Uxntal, $uxntal_arg_expr;
             }
+            return (join(' ',@args_lst_Uxntal),2 );
+        }
+        elsif ($opcode==0) { # parens, just remove it
+            return _emit_expression_Uxntal($ast->[1], $stref, $f, $info);
+        } else{
             croak 'Unimplemented case for _emit_expression_Uxntal: ',Dumper($ast);
         }
     } else {
@@ -2693,7 +2707,7 @@ sub _emit_function_call_expr_Uxntal($stref,$f,$info,$ast){
                     push @call_arg_expr_strs_Uxntal, $uxntal_expr;
                 }
             }
-            # carp Dumper(@call_arg_asts,@call_arg_expr_strs_Uxntal) if $subname eq 'iand';
+            # croak Dumper(@call_arg_asts,@call_arg_expr_strs_Uxntal) if $subname eq 'pow';
         }
     } else {
         my $Ssubname = $stref->{'Subroutines'}{$subname};
@@ -2768,7 +2782,8 @@ sub __emit_call_arg_Uxntal_expr($stref,$f,$info,$subname,$call_arg_expr_str,$ast
         or $isParam)
             ? 1
             : 0
-        : 0;
+        : $ast_from_info->[0] >= 29 # try via AST
+            ? 1 : 0; 
     # TODO: support DO via {'Do'}{'Range'}{ExpressionASTs'}'
     # Problem is that here, we don't know which of the expressions it is
     # my $ast_from_info = exists $info->{'Assignment'}
@@ -3813,7 +3828,7 @@ sub __C_array_size($dims){
 
 sub __is_operator($opcode) {
     return
-    (($opcode > 2  and $opcode < 7 ) or
+    (($opcode > 2  and $opcode < 9 ) or
     ($opcode > 14 and $opcode < 27) or
     ($opcode == 13));
 }
