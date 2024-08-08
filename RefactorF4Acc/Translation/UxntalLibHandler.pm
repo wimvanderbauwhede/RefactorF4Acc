@@ -40,13 +40,29 @@ our %uxntal_lib_subroutines = (
 	'JMP2r'
 ],
 'not'	=>['@not #01 SWP SUB JMP2r'],
-'modulo' => ['( a:16 b:16 -- m:16 )',
+'modulo' => [
+    '( a:16 b:16 -- m:16 )',
 	'@modulo',
 	'OVR2 OVR2  ( a b a b )',
 	'DIV2  ( a b a/b )',
 	'MUL2  ( a b*(a/b) )',
 	'SUB2 ( a-b*(a/b) )',
-	'JMP2r'],
+	'JMP2r'
+],
+'pow' => [
+    '( m* e* -- r* )',
+    '@pow',
+    'STH2 STH2 DUP2r',
+    '#0001 ( 1 | e m acc=m )',
+    '&l',
+    'INC2',
+    'OVR2r MUL2r ( 2 | e m acc )',
+    'ROT2r DUP2r STH2r ROT2r ROT2r ( 2 e | e m acc )',
+    'OVR2 ( 2 e 2 )',
+    'NEQ2 ,&l JCN',
+    'POP2 STH2r POP2r POP2r',
+    'JMP2r' 
+],
 'iachar' => [
 	'@iachar', # HACK: ignoring kind, returns a short
 	'#00 SWP JMP2r'
