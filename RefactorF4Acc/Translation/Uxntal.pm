@@ -1854,9 +1854,10 @@ sub __create_fq_varname($stref,$f,$var_name) {
                         push @{$stref->{'Uxntal'}{'Macros'}{'List'}},$global_var_decl ;
                     }
                 } else {
+                    my $start_address = $stref->{'Uxntal'}{'Globals'}{'totalMemUsage'}+2;
                     $stref->{'Uxntal'}{'Globals'}{'totalMemUsage'}+=$alloc_sz;
                     # say "GLOB: $fq_varname $alloc_sz ".$stref->{'Uxntal'}{'Globals'}{'totalMemUsage'};
-                    push @{$stref->{'Uxntal'}{'Globals'}{'List'}},$global_var_decl ;
+                    push @{$stref->{'Uxntal'}{'Globals'}{'List'}},$global_var_decl .' ( '.toRawHex($start_address,2).' ) ';
                 }
             } else {
                 # say "ALREADY ALLOCATED: $fq_varname";
