@@ -3284,7 +3284,7 @@ sub __parse_f95_decl {
     my $is_module = (exists $stref->{'Modules'}{$f}) ? 1 : 0;
 
 	my $pt = parse_F95_var_decl($line);
-	
+
 	if (exists $pt->{'ParseError'}) {
 		warning( 'Parse error on F90 variable declaration on line '.$info->{'LineID'}.' in '. $Sf->{'Source'}.":\n\n\t$line\n\nProbably unsupported mixed F77/F90 syntax; trying F77 parser", 0, 'PARSE ERROR');
 		$info->{'ParseError'}=1;
@@ -3363,7 +3363,7 @@ sub __parse_f95_decl {
 			my $decls = __create_Decls_from_ParsedVarDecl($info,$init_decl,$f);
 			for my $decl (@{$decls}) {
 				my $tvar = $decl->{'Name'} ;
-
+croak Dumper $decl if $tvar eq 'res' and $f eq 'decodeTokenStr';
 				if ($decl->{'Dim'}) {
 					$decl=__get_params_from_dim($decl,$Sf);
 				}

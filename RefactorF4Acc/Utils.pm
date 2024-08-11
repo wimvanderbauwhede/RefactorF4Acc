@@ -794,6 +794,34 @@ sub is_string { my ($stref,$f,$var) = @_;
         return $isString;
     }
 }
+
+sub is_assumed_size_string { my ($stref,$f,$var) = @_;
+    my $decl =  get_var_record_from_set($stref->{'Subroutines'}{$f}{'Vars'},$var) ;
+    if (exists $decl->{'Attr'} and $decl->{'Attr'} ne '') {
+        my $len = $decl->{'Attr'};
+                $len=~s/len=//;
+        $len=~s/^\(//;
+        $len=~s/\)$//;
+        if ($len eq '*') {
+            return 1;
+        }
+    }
+    return 0;
+}
+
+sub is_assumed_size_array { my ($stref,$f,$var) = @_;
+    my $decl =  get_var_record_from_set($stref->{'Subroutines'}{$f}{'Vars'},$var) ;
+    if (exists $decl->{'Dim'} and scalar @{$decl->{'Dim'}} >0) {
+        croak "TODO: is_assumed_size_array";
+    }
+    return 0;
+}
+
+sub is_allocatable_string_or_array { my ($stref,$f,$var,$patt) = @_;
+    my $decl =  get_var_record_from_set($stref->{'Subroutines'}{$f}{'Vars'},$var) ;
+    if (exists $decl->{'Allocatable'}) { return 1 } else { return 0 }
+} # END of is_allocatable_string
+
 sub is_character { my ($stref,$f,$var) = @_;
 	my $decl =  get_var_record_from_set($stref->{'Subroutines'}{$f}{'Vars'},$var) ;
 	my $ftype = $decl->{'Type'};

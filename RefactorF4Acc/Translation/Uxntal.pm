@@ -96,7 +96,8 @@ my @uxntal_lib_sources = (
     '../../uxntal-libs/range-map-fold-lib.tal',
     '../../uxntal-libs/process-args-lib.tal',
     '../../uxntal-libs/call-stack.tal',
-    '../../uxntal-libs/persist-state.tal'
+    '../../uxntal-libs/persist-state.tal',
+    '../../uxntal-libs/trim.tal'
 );
 
 sub translate_program_to_Uxntal($stref,$program_name){
@@ -3509,7 +3510,7 @@ sub __parse_fmt($fmt_str,$stref,$f,$info){
                     if ($ nchars!=1) {
                         push @{$print_calls}, 'print-string';
                         # offset is unknown
-                        # set it totally ad-hoc to 8
+                        # set it totally ad hoc to 8
                         $offset+=8;
                     } else {
                         push @{$print_calls}, 'print-char';
@@ -3623,7 +3624,7 @@ sub __get_val_str_from_len_Attr($len) {
         $len=~s/^\(//;
         $len=~s/\)$//;
         if ($len eq ':' or $len eq '*') {
-            $len = 64; # AD-HOC
+            $len = 64; # AD HOC
         }
         return $len;
 }

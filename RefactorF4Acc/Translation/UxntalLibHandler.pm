@@ -105,12 +105,12 @@ our %uxntal_lib_subroutines = (
 'exit' => [
     '@exit', 'POP2','#80 .System/state DEO', 'BRK'
 ],
-'trim' => [
-    '@trim', '( a NOOP, TODO! )','JMP2r'
-],
-'adjustl' => [
-    '@adjustl', '( a NOOP, TODO! )','JMP2r'
-],
+# 'trim' => [
+#     '@trim', '( a NOOP, TODO! )','JMP2r'
+# ],
+# 'adjustl' => [
+#     '@adjustl', '( a NOOP, TODO! )','JMP2r'
+# ],
 
 'wst' =>[ '','( show number of bytes on the WST. Takes an arbitrary char to print as info )',
     '@wst', '#5718 DEO #18 DEO #2018 DEO .System/wst DEI #01 SUB #00 SWP print-int nl','JMP2r'
