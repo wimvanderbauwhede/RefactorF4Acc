@@ -424,6 +424,7 @@ sub analyse_used_variables {
 			( my $stref, my $f, my $identified_vars ) = @{$state};
 			my $Sf     = $stref->{'Subroutines'}{$f};
 		    my $chunks_ref = identify_vars_on_line($annline,$f);
+
 			my @chunks = @{ $chunks_ref };
 
 
@@ -549,6 +550,11 @@ sub identify_vars_on_line {
 			@chunks = ( @chunks, @index_vars ) unless scalar @index_vars==0;
 			if (exists $info->{'CallAttrs'}) {
 				@chunks = ( @chunks,@{$info->{'CallAttrs'}{'List'}} );
+				for my $var ( @{$info->{'CallAttrs'}{'List'}} ) {
+					if (exists $info->{'CallAttrs'}{'Set'}{$var} and exists  $info->{'CallAttrs'}{'Set'}{$var}{'IndexVars'}) {
+						@chunks = ( @chunks, sort keys %{$info->{'CallAttrs'}{'Set'}{$var}{'IndexVars'}} );
+					}
+				}
 			}
 			if (exists $info->{'ImpliedDoVars'}) {
 				@chunks = ( @chunks, @{ $info->{'ImpliedDoVars'}{'List'} } );
@@ -693,8 +699,12 @@ sub populate_UsesTransitively { my ($stref,$f) = @_;
 			@mods = ($mod);
 		}
 		for my $module_name (@mods) {
-			$stref = _build_UsesTransitively_rec($stref,$module_name);
-			$Sf->{'UsesTransitively'} = { %{$Sf->{'UsesTransitively'}},%{$stref->{'Modules'}{$module_name}{'UsesTransitively'}} }
+			if ($stref->{'Modules'}{$module_name}{'Status'} >= $PARSED) {
+				$stref = _build_UsesTransitively_rec($stref,$module_name);
+				$Sf->{'UsesTransitively'} = { %{$Sf->{'UsesTransitively'}},%{$stref->{'Modules'}{$module_name}{'UsesTransitively'}} }
+			} else {
+				warning("Module $module_name was not parsed, probably unused?");
+			}
 		}
 	}
 	# croak "$sub_incl_or_mod $f: ".Dumper $Sf->{'UsesTransitively'} if $f eq 'clearFunktalTokens';

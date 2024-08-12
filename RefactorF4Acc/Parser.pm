@@ -1854,7 +1854,7 @@ END IF
 				warning(uc($keyword)." is ignored",3);
 				$info->{'NonSpecificationStatement'} = 1;
 #== RETURN, STOP and PAUSE statements
-			} elsif ($mline=~/^(return|stop|pause)/) {
+			} elsif ($mline=~/^(return|stop|pause)\b/) {
 				my $keyword = $1;
 				$info->{ ucfirst($keyword) } = 1;
                 my $return_expr = $mline;
@@ -4411,7 +4411,8 @@ sub _parse_read_write_print {
 					for my $idv (sort keys %{$impl_do_pairs}) {
 						if (exists $vars->{$idv}) {
 							delete $vars->{$idv};
-							@{$vars->{'List'}} =  sort keys %{$vars};
+							@{$info->{'Vars'}{'Read'}{'List'}} = sort keys %{$vars};
+							# @{$vars->{'List'}} =  sort keys %{$vars};
 						}
 					}
 				}
@@ -4423,6 +4424,7 @@ sub _parse_read_write_print {
                 my $ios = $attr_pairs->{'iostat'}[1];
                 $info->{'Vars'}{'Written'}{'Set'}{$ios}={'Type' => 'Scalar'};
        }
+
 
 
 	} elsif ( exists $info->{'InquireCall'} ) {

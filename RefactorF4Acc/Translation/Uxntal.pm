@@ -1004,7 +1004,6 @@ sub _get_word_sizes($stref,$f){
 
     for my $var (@{$Sf->{'AllVarsAndPars'}{'List'}}) {
         next if $var =~/__PH\d+__/; # FIXME: hack!
-
         # my $subset = in_nested_set($Sf,'Vars',$var);
         # if ($subset eq '') {
         #     croak "$f $var";
