@@ -58,6 +58,7 @@ use Exporter;
     &is_array
     &is_string
     &is_array_or_string
+    &is_allocatable
     &is_character
     &is_integer
     &is_logical
@@ -817,10 +818,14 @@ sub is_assumed_size_array { my ($stref,$f,$var) = @_;
     return 0;
 }
 
-sub is_allocatable_string_or_array { my ($stref,$f,$var,$patt) = @_;
-    my $decl =  get_var_record_from_set($stref->{'Subroutines'}{$f}{'Vars'},$var) ;
+sub is_allocatable { my ($decl) = @_;
     if (exists $decl->{'Allocatable'}) { return 1 } else { return 0 }
-} # END of is_allocatable_string
+} # END of is_allocatable
+
+# sub is_allocatable_string_or_array { my ($stref,$f,$var) = @_;
+#     my $decl =  get_var_record_from_set($stref->{'Subroutines'}{$f}{'Vars'},$var) ;
+#     if (exists $decl->{'Allocatable'}) { return 1 } else { return 0 }
+# } # END of is_allocatable_string
 
 sub is_character { my ($stref,$f,$var) = @_;
 	my $decl =  get_var_record_from_set($stref->{'Subroutines'}{$f}{'Vars'},$var) ;

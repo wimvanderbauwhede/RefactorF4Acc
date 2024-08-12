@@ -3363,7 +3363,6 @@ sub __parse_f95_decl {
 			my $decls = __create_Decls_from_ParsedVarDecl($info,$init_decl,$f);
 			for my $decl (@{$decls}) {
 				my $tvar = $decl->{'Name'} ;
-croak Dumper $decl if $tvar eq 'res' and $f eq 'decodeTokenStr';
 				if ($decl->{'Dim'}) {
 					$decl=__get_params_from_dim($decl,$Sf);
 				}

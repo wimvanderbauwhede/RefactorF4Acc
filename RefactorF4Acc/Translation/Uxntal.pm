@@ -1107,10 +1107,10 @@ sub __use_stack($stref,$f) {
 # I think we handle this as follows:
 # TODO
 # an assignment of a string literal to a var means:
-#     If the var is locally declared (and therefore allocated) we do a strcpy
+#     If the var is locally declared (and therefore allocated) we do a string copy
 #     If the var is an arg, we simply copy the address
 # an assignment of a string var to another string var (no indexing)
-#     if it is a local, we do a strcpy
+#     if it is a local, we do a string copy
 #     if it is an arg, it's by reference
 # an assignment of a array var to another array
 #    if it is an arg, it's by reference
@@ -1547,7 +1547,17 @@ sub __copy_substr($stref, $f, $info, $lhs_ast, $rhs_ast) {
     my $uxntal_code = '';
     # unpack the asts
     my ($lhs_var,$lhs_idxs,$lhs_idx_expr_type) = __unpack_var_access_ast($lhs_ast);
-    if ($rhs_ast->[0] == 34 or $rhs_ast->[0] == 1 or $rhs_ast->[0] == 13) { # string literal or function returning a string or char
+    
+    my $lhs_var_decl = getDecl($stref,$f,$lhs_var);
+    # if it's allocatable, we need to set the length to that of the RHS
+    my $lhs_is_allocatable = is_allocatable($lhs_var_decl);
+    # from to len strncpy => from to from to len strncpy => from to => from LDA2 to STA2
+    my $set_LHS_str_len_part_1 = $lhs_is_allocatable ? ' OVR2 OVR2' : '';
+    my $set_LHS_str_len_part_2 = $lhs_is_allocatable ? ' SWP2 LDA2 SWP2 STA2' : '';
+    if ($rhs_ast->[0] == 34 or $rhs_ast->[0] == 1 or $rhs_ast->[0] == 13) { 
+        # string literal 
+        # or function returning a string or char, 
+        # or concat //
         my $lhs_var_access = __var_access($stref,$f,$lhs_var);
         my $rhs_Uxntal_expr = '';
         if ($rhs_ast->[0] == 1 or $rhs_ast->[0] == 13) {
@@ -1557,7 +1567,7 @@ sub __copy_substr($stref, $f, $info, $lhs_ast, $rhs_ast) {
         } else {
             croak "PROBLEM: ".Dumper($rhs_ast);
         }
-        if ($lhs_idx_expr_type == 2) { # slice
+        if ($lhs_idx_expr_type == 2) { # slice on LHS, literal or function call on RHS
             # s_to(b1:e1) = "str"
             # This is a full string copy
             # so the RHS is just the string
@@ -1568,61 +1578,70 @@ sub __copy_substr($stref, $f, $info, $lhs_ast, $rhs_ast) {
             (my $lhs_idx_expr_e,$idx_word_sz) = _emit_expression_Uxntal($lhs_idxs->[2], $stref, $f,$info);
             if ($lhs_idx_expr_b eq $lhs_idx_expr_e ) {
                 # simplyfied case of s_to(b1:b1) = "X", so the RHS is a single-character string
-                # croak "WV20240723: WRONG, $lhs_idx_expr_b is BASE-1 so needs #0001 SUB2";
-                # my $lhs_idx_expr =  ($lhs_idx_expr_b eq '#0000') ? '' : "$lhs_idx_expr_b ADD2 ";
-                # $uxntal_code = "$rhs_Uxntal_expr #0002 ADD2 LDA $lhs_var_access $lhs_idx_expr #0002 ADD2 STA"
-                # WV20240723 I think this is wrong: the string will start at 1, so to get the first char we should have pos+1
                 my $lhs_idx_expr =  ($lhs_idx_expr_b eq '#0001') ? '#0002' : "$lhs_idx_expr_b INC2 ";
                 $uxntal_code = "$rhs_Uxntal_expr #0002 ADD2 LDA $lhs_var_access $lhs_idx_expr ADD2 STA ( WV20240723: WRONG? ) ";
             } else { # It is not possible to tell at compile time if these are compatible.
                 # So to avoid overwriting, we use the LHS slice
-                # croak "WV20240723: WRONG, $lhs_idx_expr_b is BASE-1 so needs #0001 SUB2";
-                # WV20240723 #0001 SUB2 to have base-0 which is what we need for strncpy
                 $uxntal_code = "$rhs_Uxntal_expr $lhs_var_access $lhs_idx_expr_b #0001 SUB2 ADD2 ( WV20240723: WRONG? ) ".
                 __calc_len($lhs_idx_expr_e, $lhs_idx_expr_b).' strncpy';
                 add_to_used_lib_subs('strncpy');
             }
         } else { # This is either a character assignment or a string copy
-        # <string-literal> ;lhs_str <$len> strncpy
-        # we need the length of LHS and RHS.
-            # my $Sf = $stref->{'Subroutines'}{$f};
-            # my $decl = get_var_record_from_set($Sf->{'Vars'},$lhs_var);
+            # The LHS is str= (idx_expr_type = 0) or array(i)= (idx_expr_type = 1); the latter means an array of characters
+            # <string-literal> ;lhs_str <$len> strncpy
+            # we need the length of LHS and RHS.
             my $decl = getDecl($stref,$f,$lhs_var);
             if($decl->{'Attr'}!~/len/) {
                 # a single character; we assume len=1 means a string of length 1
                 $uxntal_code = "$rhs_Uxntal_expr $lhs_var_access STA";
             } else {
-                # Problem is that this can be an expression
+                # Problem is that the RHS can be an expression
                 # Something like str // "str" // fstr()
-                # This becomes rather complicated so I will only deal with constant strings
-
-                # carp $rhs_Uxntal_expr,Dumper ($info,$rhs_ast);
+                # This becomes rather complicated so I will only deal with constant strings, TODO
+# So if we have str trim, then trim can't return anything meaningful; if we have str ladjust, it should return the length of the arg.
+# In fact, if we have trim on the RHS, this should be a special case. Probably same for any function returning an allocatable string
+# trimmed_str to_str trimmed_str_len to_str_len min 
                 my $lhs_len = __get_len_from_Attr($decl);
                 my $rhs_len = $rhs_ast->[0] == 34
                     ? length($info->{'PlaceHolders'}{$rhs_ast->[1]})-2 # -2 for the quotes
-                    : $lhs_len; # a hack, TODO
-                # This works only if there is only one function call
-                if (exists $info->{'FunctionCalls'} and
-                scalar @{$info->{'FunctionCalls'}}==1) {
-                    my $fname = $info->{'FunctionCalls'}[0]{'Name'};
-                    $rhs_len = $stref->{'Subroutines'}{$fname}{'RefactoredCode'}[0][1]{'Signature'}{'ReturnTypeAttr'};
-                    $rhs_len = __get_val_str_from_len_Attr($rhs_len);
+                    : $rhs_ast->[0] == 1
+                        ? __get_len_from_RetVal($stref,$rhs_ast->[1])
+                        : $lhs_len; # a hack, TODO, it means we need to get the length of all strings being concatenated
+                # # This works only if there is only one function call
+                # if (exists $info->{'FunctionCalls'} and
+                # scalar @{$info->{'FunctionCalls'}}==1) {
+                #     my $fname = $info->{'FunctionCalls'}[0]{'Name'};
+                #     $rhs_len = $stref->{'Subroutines'}{$fname}{'RefactoredCode'}[0][1]{'Signature'}{'ReturnTypeAttr'};
+                #     $rhs_len = __get_val_str_from_len_Attr($rhs_len);
+                # }
+                # if ($rhs_len == -1) { $rhs_len = 64; }
+                if ($rhs_len == -2) { 
+                    # Means the RHS is actually a character
+                    $uxntal_code = "$rhs_Uxntal_expr $lhs_var_access #0002 ADD2 STA";
+                    if ($lhs_is_allocatable) {
+                        $uxntal_code .= " $lhs_var_access #0001 STA2";
+                    }
+                    $uxntal_code .=  ' ( COPY CHAR ) ';
+                } elsif ($rhs_len == -1) { 
+                    # This means we should get the length and calc the min at run time
+                    my $lhs_Uxntal_len = toHex($lhs_len,2);
+                    $uxntal_code = "$rhs_Uxntal_expr $lhs_var_access $set_LHS_str_len_part_1 OVR2 LDA2 $lhs_Uxntal_len min strncpy $set_LHS_str_len_part_2 ( DYNAMIC LEN )";
+                    add_to_used_lib_subs('min');
+                } else {
+                    my $len = toHex(min($lhs_len,$rhs_len),2);
+                    $uxntal_code = $len eq '#0000'
+                    ? "{ 0000 } STH2r $lhs_var_access $set_LHS_str_len_part_1 #0000 strncpy $set_LHS_str_len_part_2"
+                    : "$rhs_Uxntal_expr $lhs_var_access $set_LHS_str_len_part_1 $len strncpy $set_LHS_str_len_part_2 ( STATIC LEN )";
                 }
-
-                my $len = toHex(min($lhs_len,$rhs_len),2);
-                $uxntal_code = $len eq '#0000'
-                ? "{ 0000 } STH2r $lhs_var_access #0000 strncpy"
-                : "$rhs_Uxntal_expr $lhs_var_access $len strncpy";
                 add_to_used_lib_subs('strncpy');
             }
-            # croak "NOT a substr copy! ".Dumper($lhs_ast,$rhs_ast);
         }
     } else { # RHS is not a literal or expression
         my ($rhs_var,$rhs_idxs,$rhs_idx_expr_type) = __unpack_var_access_ast($rhs_ast);
         my $lhs_var_access = __var_access($stref,$f,$lhs_var);
         my $rhs_var_access = __var_access($stref,$f,$rhs_var);
         if ($lhs_idx_expr_type == 2 and $rhs_idx_expr_type == 2) {
-            # both are slices
+            # LHS and RHS both are slices
             # get the slice index expressions
             my ($lhs_idx_expr_b,$idx_word_sz) = _emit_expression_Uxntal($lhs_idxs->[1], $stref, $f,$info);
             (my $lhs_idx_expr_e,$idx_word_sz) = _emit_expression_Uxntal($lhs_idxs->[2], $stref, $f,$info);
@@ -1643,8 +1662,8 @@ sub __copy_substr($stref, $f, $info, $lhs_ast, $rhs_ast) {
                 # s_to(b1:e1) = s_from(b2:e2)
                 # So this is a strncpy where we copy e1-b1+1 bytes from the RHS starting at b2 to LHS starting at b1
                 # croak "WV20240723: WRONG, $rhs_idx_expr_b is BASE-1 so needs #0001 SUB2";
-                $uxntal_code = "$rhs_var_access $rhs_idx_expr_b #0001 SUB2 ADD2 $lhs_var_access $lhs_idx_expr_b #0001 SUB2 ADD2 ( WV20240723: WRONG? ) ".
-                __calc_len($lhs_idx_expr_e,$lhs_idx_expr_b). ' strncpy';
+                $uxntal_code = "$rhs_var_access $rhs_idx_expr_b #0001 SUB2 ADD2 $lhs_var_access $lhs_idx_expr_b #0001 SUB2 ADD2 ( WRONG? ) $set_LHS_str_len_part_1 ".
+                __calc_len($lhs_idx_expr_e,$lhs_idx_expr_b). ' strncpy '.$set_LHS_str_len_part_2;
                 add_to_used_lib_subs('strncpy');
             }
         } elsif ($lhs_idx_expr_type == 2 and $rhs_idx_expr_type == 0) {
@@ -1657,8 +1676,8 @@ sub __copy_substr($stref, $f, $info, $lhs_ast, $rhs_ast) {
                 # s_to(b:e) = s_from where s_from is of length e-b
                 # s_to = s_from(b:e) where s_to is of length e-b
                 # croak "WV20240723: WRONG, $lhs_idx_expr_b is BASE-1 so needs #0001 SUB2";
-                $uxntal_code = "$rhs_var_access $lhs_var_access $lhs_idx_expr_b #0001 SUB2 ADD2 ( WV20240723: WRONG? ) ".
-                __calc_len($lhs_idx_expr_e, $lhs_idx_expr_b).' strncpy';
+                $uxntal_code = "$rhs_var_access $lhs_var_access $lhs_idx_expr_b #0001 SUB2 ADD2 ( WV20240723: WRONG? ) $set_LHS_str_len_part_1 ".
+                __calc_len($lhs_idx_expr_e, $lhs_idx_expr_b).' strncpy '.$set_LHS_str_len_part_2;
                 add_to_used_lib_subs('strncpy');
             }
             elsif (($rhs_ast->[0] == 2 and is_character($stref,$f,$rhs_var)) or $rhs_ast->[0] == 32) {
@@ -1673,7 +1692,7 @@ sub __copy_substr($stref, $f, $info, $lhs_ast, $rhs_ast) {
             elsif ($rhs_ast->[0] == 1) { # a function call
                 # get the return type of the function
                 my $sig = $stref->{'Subroutines'}{$rhs_ast->[1]}{'Signature'};
-                croak 'TODO: function on RHS of strcpy: '.Dumper($sig);
+                croak 'TODO: function on RHS of strncpy: '.Dumper($sig);
             }
         } elsif ($lhs_idx_expr_type == 0 and $rhs_idx_expr_type == 2) {
             # RHS is a slice, LHS is a string variable
@@ -1689,19 +1708,18 @@ sub __copy_substr($stref, $f, $info, $lhs_ast, $rhs_ast) {
                 # I think here we must put in a safeguarding condition that e-b should be < length
                 # Or we could just copy length bytes
                 # So: if e-b+1 < length, use e-b+1 else use length
-                $uxntal_code = "$rhs_var_access $rhs_idx_expr_b ADD2 $lhs_var_access ".
-                __calc_len($rhs_idx_expr_e, $rhs_idx_expr_b)." $lhs_var_access LDA2 min strncpy";
+                $uxntal_code = "$rhs_var_access $rhs_idx_expr_b ADD2 $lhs_var_access $set_LHS_str_len_part_1 ".
+                __calc_len($rhs_idx_expr_e, $rhs_idx_expr_b)." $lhs_var_access LDA2 min strncpy $set_LHS_str_len_part_2  ( 0/2 )";
                 add_to_used_lib_subs('min');
                 add_to_used_lib_subs('strncpy');
             }
         } elsif ($lhs_idx_expr_type == 0 and $rhs_idx_expr_type == 0) { # no indexing on either side
-        # s_lhs = s_rhs
-        # I am assuming the LHS is a string
-        # The RHS could be a char or a string
+            # s_lhs = s_rhs
+            # I am assuming the LHS is a string
+            # The RHS could be a char or a string
             if ($rhs_ast->[0] == 2 and is_string($stref,$f,$rhs_var) ) {
                 # if a string, copy as much of the RHS into the LHS as will fit
-                $uxntal_code = "$rhs_var_access $lhs_var_access ".
-                " $rhs_var_access LDA2 $lhs_var_access LDA2 min strncpy ";
+                $uxntal_code = "$rhs_var_access $lhs_var_access $set_LHS_str_len_part_1 $rhs_var_access LDA2 $lhs_var_access LDA2 min strncpy $set_LHS_str_len_part_2";
                 # This changes the length of the LHS string. I don't think that is OK
                 # LEN returns the allocated length
                 # TRIM_LEN returns the length skipping trailing spaces (and I assume 0s)
@@ -1721,7 +1739,7 @@ sub __copy_substr($stref, $f, $info, $lhs_ast, $rhs_ast) {
                 $uxntal_code = "$rhs_Uxntal_expr $lhs_var_access #0002 ADD2 STA #0001 $rhs_var_access STA2";
             }
         } elsif ($lhs_idx_expr_type == 2 and $rhs_idx_expr_type == 1) {
-            # Special case: RHS is array assignment.
+            # Special case: RHS is array index expression.
             # This can be either an array of chars or an array of strings
             # So we need to get the array type, and the indices of the LHS slice
             my ($lhs_idx_expr_b,$idx_word_sz) = _emit_expression_Uxntal($lhs_idxs->[1], $stref, $f,$info);
@@ -1744,6 +1762,44 @@ sub __copy_substr($stref, $f, $info, $lhs_ast, $rhs_ast) {
     return $uxntal_code.' ( COPY SUBSTR )';
 
 } # END of __copy_substr
+
+sub __get_len_from_RetVal($stref,$fname) {
+    if (exists $F95_intrinsic_function_sigs{$fname}) {
+        if ($F95_intrinsic_function_sigs{$fname}[-1] eq 'character(*)') {
+            # easiest is to do this dynamically
+            return -1
+        } 
+        elsif ($F95_intrinsic_function_sigs{$fname}[-1] eq 'character') {
+            return -2; # a character, not a 1-character string. This would be achar, char
+        }
+        else {
+            croak "Intrinsic function $fname does not return a character or a string";
+        }
+    } else {
+        my $sig = $stref->{'Subroutines'}{$fname}{'Signature'};
+        if (not exists $sig->{'ReturnType'}) { 
+            carp $fname,Dumper $sig;
+            return -1; # means handle separately
+        }
+        if ($sig->{'ReturnType'} eq 'character') {
+            if (exists $sig->{'ReturnTypeAttr'} and $sig->{'ReturnTypeAttr'} ne '' ) {
+                my $len = $sig->{'ReturnTypeAttr'};
+                $len=~s/^\(len=//;$len=~s/\)$//;
+                if ($len eq ':' or $len eq '*') {
+                    # error("Function $fname should not return an allocatable or assumed-size string");
+                    warning("Function $fname should not returns an ".($len eq ':' ? 'allocatable' : 'assumed-size')." string",2);
+                    return -1; # means handle separately
+                }
+                return $len;
+            } else {
+                croak "Function $fname should returns a character, not a string";
+                return -2; # for a character
+            }
+        } else {
+            error("Function $fname should return a string");
+        }
+    }
+}
 
 sub __calc_len($e,$b){
     if ($e=~/^\#/ and $b=~/^\#/) {
@@ -2120,7 +2176,7 @@ sub _emit_arg_decl_Uxntal($stref,$f,$arg, $name){
     # So to do this right, the allocation should always be done by the caller.
     # What if we have something like f(str(...)) and str returns a string?
     # The only good way seems to do something like tmp_str = str(...); f(tmp_str)
-    # What this means is that a call to a function that is used as an arg should have a strcpy
+    # What this means is that a call to a function that is used as an arg should have a strncpy
     my $uxntal_arg_store = ($use_stack
         ? __stack_access($stref,$f,$arg)
         : ";$fq_name"
