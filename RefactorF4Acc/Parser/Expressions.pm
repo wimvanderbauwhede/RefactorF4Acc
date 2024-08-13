@@ -87,6 +87,7 @@ sub parse_expression { my ($exp, $info, $stref, $f)=@_;
 		if($DBG and $err or $rest ne '') {
             my $exp_ = _substitute_PlaceHolders($exp,$info);
             my $rest_ = _substitute_PlaceHolders($rest,$info);
+            carp Dumper($exp,$ast,$rest,$err);
             error( "Parse error in $f:\n\t$exp_\nparse stopped before\n\t$rest_", $DBG, 'PARSE ERROR');
 		}
         # say "HERE1 DoubleFunctionCall: $exp => $has_funcs" if exists $info->{'DoubleFunctionCall'};

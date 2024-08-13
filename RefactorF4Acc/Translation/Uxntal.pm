@@ -182,7 +182,11 @@ sub translate_program_to_Uxntal($stref,$program_name){
         ], {}
     );
 
+    # For convenience when debugging
     add_to_used_lib_subs( 'wst' );
+    add_to_used_lib_subs( 'nl' );
+    add_to_used_lib_subs( 'ws' );
+
     if ($stref->{'UseCallStack'} ) {
         add_to_used_lib_subs( 'init-call-stack' );
         add_to_used_lib_subs( 'push-frame' );
@@ -576,7 +580,7 @@ Instead of the nice but cumbersome approach we had until now, from now on it is 
                 $stref->{'Uxntal'}{'Macros'}{'Set'}{$uxntal_par}=$uxntal_par;
                 push @{$stref->{'Uxntal'}{'Macros'}{'List'}},$uxntal_par;
             } else {
-                croak "Macros should be unique: $uxntal_par";
+                croak "Macros should be unique: $uxntal_par in $f";
             }
             $skip=1;
         }
@@ -1165,6 +1169,12 @@ sub _var_access_read($stref,$f,$info,$ast) {
             } elsif ($idx_expr_type == 2) {
                 croak('Array slice is not yet supported: '.Dumper($ast));
                 error('Array slice is not yet supported: '.Dumper($ast));
+                # What would it take to support this? 
+                # It makes little sense on its own. 
+                # Either it is an assignment or an argument of some call
+                # An assignment would be a memcpy
+                # An argument of a call would depend on the call
+                # It could be a pointer offset
             } elsif ($idx_expr_type == 0) {
                 # the array or string itself, likely as argument to a function
                 $uxntal_code =  "$var_access";
@@ -1264,10 +1274,10 @@ sub _var_access_assign($stref,$f,$info,$lhs_ast,$rhs_ast) {
     # my $use_stack = __use_stack($stref,$f);
     my $lhs_var_access = __var_access($stref,$f,$lhs_var);
     if  (is_array($stref,$f,$lhs_var)) {
-        my $lhs_idx_offset = __get_array_index_offset($stref,$f,$lhs_var);
-        my $lhs_idx_offset_Uxntal =  toHex($lhs_idx_offset,2);
-        my $lhs_idx_offset_expr = $lhs_idx_offset==0? '' : $lhs_idx_offset_Uxntal.' SUB2';
         if  ($idx_expr_type == 1) { # array(i) = rhs_expr
+            my $lhs_idx_offset = __get_array_index_offset($stref,$f,$lhs_var);
+            my $lhs_idx_offset_Uxntal =  toHex($lhs_idx_offset,2);
+            my $lhs_idx_offset_expr = $lhs_idx_offset==0? '' : $lhs_idx_offset_Uxntal.' SUB2';
             my ($rhs_expr_Uxntal, $rhs_word_sz) = _emit_expression_Uxntal($rhs_ast,$stref,$f,$info);
             if ($rhs_word_sz!=$word_sz){
                 croak "LHS and RHS word sizes don't match: $word_sz <> $rhs_word_sz for assignment to $lhs_var in $f";
@@ -1275,6 +1285,17 @@ sub _var_access_assign($stref,$f,$info,$lhs_ast,$rhs_ast) {
             my ($idx,$idx_word_sz) = _emit_expression_Uxntal($idxs,$stref,$f,$info);
             my $idx_expr = defined $idx ? ($idx eq $lhs_idx_offset_Uxntal) ? '' : "$idx $lhs_idx_offset_expr".( $short_mode ? ' #0002 MUL2 ': '') .' ADD2 ' : '';
             $uxntal_code = "$rhs_expr_Uxntal  $lhs_var_access $idx_expr STA$short_mode"; # index, load the value
+        } elsif  ($idx_expr_type == 3) { # array(i,j) = rhs_expr
+            my $lhs_idx_offsets_dims = __get_array_index_offsets_dims($stref,$f,$lhs_var);
+            # The index expressions are $idxs, which will start with a comma.
+            my @index_asts = @{$idxs};
+            shift @index_asts;
+            my @idx_exprs_Uxntal=();
+            for my $index_ast (@index_asts) {
+                my ($idx_expr_Uxntal, $idx_word_sz) = _emit_expression_Uxntal($rhs_ast,$stref,$f,$info);
+                push @idx_exprs_Uxntal,$idx_expr_Uxntal;
+            }
+            croak 'IN PROGRESS: multi-dim arrays ',Dumper( \@idx_exprs_Uxntal,$lhs_idx_offsets_dims);
         } elsif  ($idx_expr_type == 0) { # array = rhs_expr
             my $decl = getDecl($stref,$f,$lhs_var);
             # It looks like ModuleVars are *copied* per function, not linked.
@@ -1505,7 +1526,7 @@ sub __unpack_var_access_ast($ast) {
                 $idxs=$ast->[2]; # is still an ast here, probably keep it that way
                 $idx_expr_type = $idxs->[0] == 27 ? 3 : $idxs->[0] == 12 ? 2 : 1;
                 if ($idx_expr_type == 3) {
-                    error('Multi-dimensional arrays are not supported: '.Dumper($ast));
+                    warning('Multi-dimensional array support in progress: '.Dumper($ast));
                 }
             } else {
                 error('Array access AST must have 3 items: '.Dumper($ast));
@@ -1888,6 +1909,18 @@ sub __create_fq_varname($stref,$f,$var_name) {
     my $fq_varname = $f.'_'.$var_name;
 
     my $Sf = $stref->{'Subroutines'}{$f};
+
+        my $subset = in_restricted_nested_set( $Sf, 'Vars', $var_name ,
+    { 'ExGlobArgs' => 1,
+        'UndeclaredCommonVars' => 1,
+        'DeclaredCommonVars' => 1,
+        'ModuleVars' => 1,
+        'ModuleParameters' =>1
+    }
+    );
+    if ($subset ) {
+        return $fq_varname;
+    }
     my $decl = get_var_record_from_set($Sf->{'ModuleVars'},$var_name);
     if (not defined $decl) {
         $decl = get_var_record_from_set($Sf->{'ModuleParameters'},$var_name);
@@ -3103,9 +3136,9 @@ sub _emit_list_print_Uxntal($stref,$f,$line,$info,$unit,$advance,$list_to_print)
 # - a boolean
 # - anything else, but that should fail
 # although of course in principle a function should work too
-
-    my $line_Uxntal = '';
+    my @lines_Uxntal = ();
     for my $elt ( @{$list_to_print} ) {
+        my $line_Uxntal = '';
         my $ref = \$elt; $ref=~s/REF...//;$ref=~s/\)//;
         my $iter="iter$ref";
         # An array as arg is caught in _emit_print_from_ast so I should handle the slice there as well
@@ -3163,6 +3196,8 @@ sub _emit_list_print_Uxntal($stref,$f,$line,$info,$unit,$advance,$list_to_print)
             $line_Uxntal = '{ ( iter ) ,&'.$iter.' STR2 '.$arg_to_print_Uxntal.' '.$print_fn_Uxntal." #20 $port DEO JMP2r } STH2r $e $b range-map-short ( print-array-slice )";
             # $e $idx_offset_expr $b $idx_offset_expr
             # croak $line_Uxntal;
+        } elsif ($print_fn_Uxntal eq 'print-implicit-do') {
+            $line_Uxntal = __implicit_do_in_print($elt,$stref,$f,$info,$line,$unit);
         } else {
             my ($arg_to_print_Uxntal,$word_sz) = _emit_expression_Uxntal($elt,$stref, $f, $info);
             # carp Dumper($print_fn_Uxntal,$arg_to_print_Uxntal);
@@ -3176,14 +3211,16 @@ sub _emit_list_print_Uxntal($stref,$f,$line,$info,$unit,$advance,$list_to_print)
             if (substr($print_fn_Uxntal,0,12) eq 'print-string' and $arg_to_print_Uxntal=~/(:?^\s*\#[0-9a-f]+\s*$|LDA\s*$)/ ) { #
                 $print_fn_Uxntal = "$port DEO";
             }
-            $line_Uxntal .= "$arg_to_print_Uxntal $print_fn_Uxntal #20 $port DEO ( , )\n";
+            $line_Uxntal .= "$arg_to_print_Uxntal $print_fn_Uxntal #20 $port DEO ( , )";
         }
-        if ($print_fn_Uxntal=~/array/) {
+        if ($print_fn_Uxntal=~/array|implicit-do/) {
             add_to_used_lib_subs('range-map-short');
         } else{
             add_to_used_lib_subs($print_fn_Uxntal) unless $print_fn_Uxntal=~/\#/;
         }
-    }
+        push @lines_Uxntal, $line_Uxntal;
+    } # For all elements in the list-based print
+    my $line_Uxntal = join("\n",@lines_Uxntal);
     if ($advance eq 'yes') {
         if ($unit eq 'STDOUT') {
             $line_Uxntal .= ' #0a #18 DEO'."\n";
@@ -3327,11 +3364,61 @@ sub _emit_print_from_ast($stref,$f,$line,$info,$unit,$elt){
         # I guess this should be a print-string of the string returned by the concatenation operation
         croak("TODO: printing of string concatenation expression\n");
     }
+    elsif ($code==0) {
+        # This could be an implicit do. If it is a comma-list and the snd elt is an assignment
+        if ($elt->[1][0] == 27 and $elt->[1][2][0] == 9) {
+            return 'print-implicit-do';
+            # croak 'TODO: Implicit DO:',Dumper($elt);
+            # Let's assume we have the correct print expression from $elt->[1][1];
+            my $print_expr = $elt->[1][1];
+            my ($print_expr_Uxntal,$word_sz) = _emit_expression_Uxntal($print_expr,$stref, $f, $info);
+            my $print_call = _emit_print_from_ast($stref,$f,$line,$info,$unit,$print_expr);
+            # then what we need is a range-map over the range.
+            my $range_start = $elt->[1][2][2];
+            (my $range_start_Uxntal,$word_sz) = _emit_expression_Uxntal($range_start,$stref, $f, $info);
+            my $range_end = $elt->[1][3];
+            (my $range_end_Uxntal,$word_sz) = _emit_expression_Uxntal($range_end,$stref, $f, $info);
+            my $range_iter = $elt->[1][2][1];
+            #(my $range_iter_Uxntal,$word_sz) = _emit_expression_Uxntal($range_iter,$stref, $f, $info);
+            my $range_iter_Uxntal = __var_access($stref,$f,$range_iter->[1]);
+
+            # croak Dumper($range_start_Uxntal, $range_end_Uxntal, $range_iter_Uxntal);
+            my $uxntal_code = "{ $range_iter_Uxntal STA2 $print_expr_Uxntal $print_call JMP2r } STH2r $range_end_Uxntal $range_start_Uxntal range-map-short";
+            croak $uxntal_code;
+        } else {
+            error('Unsupported type in print statement: '.$sigils[$code].Dumper($elt));
+        }
+    }
     else {
-        error('Unsupported type in print statement: '.$sigils[$code]);
+        error('Unsupported type in print statement: '.$sigils[$code].Dumper($elt));
     }
 } # END of _emit_print_from_ast
+
+sub __implicit_do_in_print($elt,$stref,$f,$info,$line,$unit) {
+    my $port = ($unit eq 'STDERR') ? '#19' : '#18';
+    # croak 'TODO: Implicit DO:',Dumper($elt);
+    # Let's assume we have the correct print expression from $elt->[1][1];
+    my $print_expr = $elt->[1][1];
+    my ($print_expr_Uxntal,$word_sz) = _emit_expression_Uxntal($print_expr,$stref, $f, $info);
+    my $print_call = _emit_print_from_ast($stref,$f,$line,$info,$unit,$print_expr);
+    # then what we need is a range-map over the range.
+    my $range_start = $elt->[1][2][2];
+    (my $range_start_Uxntal,$word_sz) = _emit_expression_Uxntal($range_start,$stref, $f, $info);
+    my $range_end = $elt->[1][3];
+    (my $range_end_Uxntal,$word_sz) = _emit_expression_Uxntal($range_end,$stref, $f, $info);
+    my $range_iter = $elt->[1][2][1];
+    #(my $range_iter_Uxntal,$word_sz) = _emit_expression_Uxntal($range_iter,$stref, $f, $info);
+    my $range_iter_Uxntal = __var_access($stref,$f,$range_iter->[1]);
+
+    # croak Dumper($range_start_Uxntal, $range_end_Uxntal, $range_iter_Uxntal);
+    my $uxntal_line = "{ $range_iter_Uxntal STA2 $print_expr_Uxntal $print_call #20 $port DEO JMP2r } STH2r $range_end_Uxntal $range_start_Uxntal range-map-short";
+    return $uxntal_line;
+}
+
+
 # -----------------------------------------------------------------------------
+
+
 
 # Analyse the write call in terms of unit, format, advance and the argument list
 # Returns a list of print calls and offsets
@@ -3711,6 +3798,28 @@ sub  __get_array_index_offset($stref,$f,$var){
         croak "Decl has no Dim: ".Dumper($decl);
     }
 } # END of __get_array_index_offset
+
+# returns the offsets and dimensions for each index
+sub  __get_array_index_offsets_dims($stref,$f,$var){
+    my $decl=getDecl($stref,$f,$var);
+    my @dims=();
+    if (exists $decl->{'ConstDim'} and scalar $decl->{'ConstDim'} > 0) {
+        @dims=@{$decl->{'ConstDim'}};
+    }
+    elsif (exists $decl->{'Dim'} and scalar $decl->{'Dim'} > 0) {
+           @dims=@{$decl->{'Dim'}};
+    } else {
+        croak "Decl has no Dim: ".Dumper($decl);
+    }
+    my $offsets_dims=[];
+    for my $ijk (@dims) {
+        my $offset =$ijk->[0];
+        my $dim = $ijk->[1]-$ijk->[0]+1;
+        push @{$offsets_dims},[$offset,$dim];
+    }
+    return $offsets_dims;
+} # END of __get_array_index_offset
+
 
 sub __emit_list_based_print_write($stref,$f,$line,$info,$unit, $advance){
 # carp Dumper $info->{'IOCall'}{'Args'}{'AST'};
@@ -4248,7 +4357,7 @@ sub __create_byte_array_zeroing($str,$len) {
 }
 
 sub __create_short_array_zeroing($str,$len) {
-    return "{ ( iter ) #0000 SWP2 #0002 MUL $str ADD2 STA2 JMP2r } STH2r ".toHex($len-1,2).' #0000 range-map-short';
+    return "{ ( iter ) #0000 SWP2 #0002 MUL2 $str ADD2 STA2 JMP2r } STH2r ".toHex($len-1,2).' #0000 range-map-short';
 }
 sub _gen_array_string_inits($stref,$f,$var,$pass_state) {
     my $uxntal_array_string_init = '';

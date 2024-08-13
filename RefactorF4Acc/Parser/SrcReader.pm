@@ -1614,26 +1614,26 @@ sub _procLine {
             my $phs_ref = {};
 
             my $tline=$line;
-        while ($tline =~ /[zZ]\'([A-Fa-f0-9]+?)\'/) {
-          my $hex = hex($1);
-          # if ($hex<256) {
-          #   $hex.='_1';
-          # }
-          # elsif ($hex<256*256) {
-          #   $hex.='_2';
-          # }
-          $tline =~ s/[zZ](\'.+?\')/$hex/;
-        }
-        while ($tline =~ /[zZ]\"([A-Fa-f0-9]+?)\"/) {
-          my $hex = hex($1);
-          # if ($hex<256) {
-          #   $hex.='_1';
-          # }
-          # elsif ($hex<256*256) {
-          #   $hex.='_2';
-          # }
-          $tline =~ s/[zZ](\".+?\")/$hex/;
-        }
+            while ($tline =~ /[zZ]\'([A-Fa-f0-9]+?)\'/) {
+              my $hex = hex($1);
+              # if ($hex<256) {
+              #   $hex.='_1';
+              # }
+              # elsif ($hex<256*256) {
+              #   $hex.='_2';
+              # }
+              $tline =~ s/[zZ](\'.+?\')/$hex/;
+            }
+            while ($tline =~ /[zZ]\"([A-Fa-f0-9]+?)\"/) {
+              my $hex = hex($1);
+              # if ($hex<256) {
+              #   $hex.='_1';
+              # }
+              # elsif ($hex<256*256) {
+              #   $hex.='_2';
+              # }
+              $tline =~ s/[zZ](\".+?\")/$hex/;
+            }
             $line = $tline;
             my $ct      = 0;
 
@@ -1644,7 +1644,7 @@ sub _procLine {
                 $line =~ s/\'.*?\'/$ph/;
                 $ct++;
             }
-            while ( $line =~ /(\".*?\")/ ) {
+            while ( $line =~ /(\".*?\")/ ) { 
                 my $strconst = $1;
                 my $ph       = '__PH' . $ct . '__';
                 $phs_ref->{$ph} = $strconst;

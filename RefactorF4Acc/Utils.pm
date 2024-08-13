@@ -542,20 +542,20 @@ sub in_nested_set { (my $set, my $set_key, my $var)=@_;
     }
 } # END of in_nested_set
 
-sub in_restricted_nested_set { (my $set, my $set_key, my $var, my $exluding)=@_;
+sub in_restricted_nested_set { (my $set, my $set_key, my $var, my $excluding)=@_;
 
 	croak 'Undefined var in call to in_nested_set()' if $DBG and not defined $var;
     if (exists $set->{$set_key}{'Subsets'} ) {
         for my $subset (sort keys %{  $set->{$set_key}{'Subsets'} } ) {
             my $retval = in_nested_set($set->{$set_key}{'Subsets'},$subset, $var);
             # As soon as we have found a match we return it.
-            if ($retval ne '' and not exists $exluding->{$retval}) {
+            if ($retval ne '' and not exists $excluding->{$retval}) {
             	return $retval;
             }
         }
     } elsif (exists $set->{$set_key}{'Set'}) {
     	# There are no Subsets but there is a Set
-        if (exists $set->{$set_key}{'Set'}{$var} and not exists $exluding->{$set_key}) {
+        if (exists $set->{$set_key}{'Set'}{$var} and not exists $excluding->{$set_key}) {
         	return $set_key; # This returns to the caller, does not end the recursion
         } else {
         	return ''; # This returns to the caller, does not end the recursion

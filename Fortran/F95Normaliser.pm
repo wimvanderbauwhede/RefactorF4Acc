@@ -35,7 +35,7 @@ sub normalise_F95_src {(my $orig_lines)=@_;
 #                    	$idx++;
 #                    }
 #                    $line=~s/\t/  /g; # AD-HOC replace tab by 2 spaces
-                    # Split lines with multiple statements
+                    # Split lines with multiple statements with semicolons
                     if (not isCommentOrBlank($line) and $line=~/;/) {
                         my $tline = $line;
                         my $nline = '';
@@ -45,6 +45,11 @@ sub normalise_F95_src {(my $orig_lines)=@_;
                         while ( $tline =~ /(\'.+?\')/ ) {
                             $phs{"__PH${i}__"} = $1;
                             $tline =~ s/(\'.+?\')/__PH${i}__/;
+                            $i++;
+                        }
+                        while ( $tline =~ /(\".+?\")/ ) {
+                            $phs{"__PH${i}__"} = $1;
+                            $tline =~ s/(\".+?\")/__PH${i}__/;
                             $i++;
                         }
                         if ( $tline =~ /;/ ) {
