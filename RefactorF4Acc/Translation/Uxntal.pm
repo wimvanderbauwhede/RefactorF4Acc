@@ -517,7 +517,7 @@ Instead of the nice but cumbersome approach we had until now, from now on it is 
         my $id = $info->{'LineID'};
         my $skip=0;
         my $skip_comment=0;
-        # say "460 LINE $line";
+        # say "520 LINE $line ".Dumper($info);
         if (exists $info->{'Signature'} ) {
             # subroutine f(x) becomes @f ;x LDA{sz} if x is read
             # but if x is write, then we have
@@ -807,6 +807,13 @@ Instead of the nice but cumbersome approach we had until now, from now on it is 
             # $c_line = "\n( If without Then )\n" . $indent.
             $c_line = ' '."$cond_expr #00 EQU ;&$branch$branch_id JCN2\n" . $c_line;
             $c_line .= ' '."&$branch$branch_id"; #$indent.
+            # say 'IF: IfId = ',Dumper($pass_state->{'IfId'}),
+            #     ' IfStack = '.
+            #     Dumper($pass_state->{'IfStack'}),
+            #     ' IfBranchId = '.
+            #     $pass_state->{'IfBranchId'},
+            #     ' BranchStack = '.
+            #     Dumper($pass_state->{'BranchStack'});
         }
         elsif (exists $info->{'IfThen'} and not exists $info->{'ElseIf'} ) {
             # say "EX-CASE: $line => If IfId = $id" if $f eq 'decodeTokenStr';
@@ -815,18 +822,48 @@ Instead of the nice but cumbersome approach we had until now, from now on it is 
             $pass_state->{'IfId'}=$id;
             push @{$pass_state->{'BranchStack'}},$id;
             $c_line = _emit_ifthen_Uxntal($stref, $f, $info, $id);
+            # say 'IFTHEN: IfId = ',  Dumper($pass_state->{'IfId'}),
+            #     ' IfStack = '.
+            #     Dumper($pass_state->{'IfStack'}),
+            #     ' IfBranchId = '.
+            #     $pass_state->{'IfBranchId'},
+            #     ' BranchStack = '.
+            #     Dumper($pass_state->{'BranchStack'});
         } elsif (exists $info->{'ElseIf'} ) {
             # say "EX-CASE: $line => ElseIf IfId=$id" if $f eq 'decodeTokenStr';
             ($c_line, my $branch_id) = _emit_ifbranch_end_Uxntal($id,$pass_state);
             $c_line .= _emit_ifthen_Uxntal($stref, $f, $info, $branch_id);
             push @{$pass_state->{'BranchStack'}},$branch_id;
+            # say 'ELSEIF: IfId = ',  Dumper($pass_state->{'IfId'}),
+            #     ' IfStack = '.
+            #     Dumper($pass_state->{'IfStack'}),
+            #     ' IfBranchId = '.
+            #     $pass_state->{'IfBranchId'},
+            #     ' BranchStack = '.
+            #     Dumper($pass_state->{'BranchStack'});
         } elsif (exists $info->{'Else'} ) {
             # say "EX-CASE: $line => Else IfId=$id" if $f eq 'decodeTokenStr';
             ($c_line, my $branch_id) = _emit_ifbranch_end_Uxntal($id,$pass_state);
             $c_line .= "&$branch$branch_id";
             push @{$pass_state->{'BranchStack'}},$branch_id;
+            # say 'ELSE: IfId = ',  Dumper($pass_state->{'IfId'}),
+            #     ' IfStack = '.
+            #     Dumper($pass_state->{'IfStack'}),
+            #     ' IfBranchId = '.
+            #     $pass_state->{'IfBranchId'},
+            #     ' BranchStack = '.
+            #     Dumper($pass_state->{'BranchStack'});
         } elsif (exists $info->{'EndIf'} ) {
-            # say "EX-CASE: $line => EndIf IfId=$id" if $f eq 'decodeTokenStr';
+            # say '853 END IF: IfId = '. ' IfId = '.
+            #     Dumper($pass_state->{'IfId'}),
+            #     ' IfStack = '.
+            #     Dumper($pass_state->{'IfStack'}),
+            #     ' IfBranchId = '.
+            #     $pass_state->{'IfBranchId'},
+            #     ' BranchStack = '.
+            #     Dumper($pass_state->{'BranchStack'})
+            # ;
+            #  " $f END IF: $line";# => ".Dumper($info) ;
             # my $branch_id = $pass_state->{'IfBranchId'};
             my $branch_id = pop @{$pass_state->{'BranchStack'}};
             my $if_id = $pass_state->{'IfId'};
@@ -1910,8 +1947,8 @@ sub __create_fq_varname($stref,$f,$var_name) {
 
     my $Sf = $stref->{'Subroutines'}{$f};
 
-        my $subset = in_restricted_nested_set( $Sf, 'Vars', $var_name ,
-    { 'ExGlobArgs' => 1,
+    my $subset = in_restricted_nested_set( $Sf, 'Vars', $var_name ,
+    {   'ExGlobArgs' => 1,
         'UndeclaredCommonVars' => 1,
         'DeclaredCommonVars' => 1,
         'ModuleVars' => 1,
@@ -1919,7 +1956,7 @@ sub __create_fq_varname($stref,$f,$var_name) {
     }
     );
     if ($subset ) {
-        return $fq_varname;
+        return __shorten_fq_name($fq_varname);
     }
     my $decl = get_var_record_from_set($Sf->{'ModuleVars'},$var_name);
     if (not defined $decl) {

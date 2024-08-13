@@ -1392,7 +1392,7 @@ or $line=~/^character\s*\(\s*len\s*=\s*[\w\*]+\s*\)/
 					die "TYPE declarations are not (yet) supported\n";
 			}
 			elsif (  # incorrect end of block, handle it anyway via the info from the start of the block
-				$line =~ /^end/
+				$line =~ /^end\b/
 				) {
 # carp Dumper $info;
 				my $kw = defined($info->{'Block'}) && exists $info->{'Block'}{'Type'} ?  $info->{'Block'}{'Type'} : '';

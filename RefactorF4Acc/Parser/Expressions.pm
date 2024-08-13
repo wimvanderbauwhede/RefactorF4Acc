@@ -35,6 +35,7 @@ use Exporter;
   &parse_expression_no_context
   &_find_consts_in_ast
   &find_vars_in_ast
+  &find_vars_in_ast_flat
   &find_args_vars_in_ast
   &find_assignments_to_scalars_in_ast
   &find_implied_do_in_ast
@@ -1441,6 +1442,47 @@ sub _traverse_ast_with_stateful_action { (my $ast, my $acc, my $f) = @_;
 #            $index_var_name => {'Type' => 'Scalar'}
 #        }
 # }
+sub find_vars_in_ast_flat { my ( $ast, $vars)=@_;
+    return {} unless ref($ast) eq 'ARRAY';
+    if(scalar @{$ast}==0) {
+        return {};
+    }
+    croak Dumper($ast) if $ast->[0]=~/__PH/;
+    if ( ($ast->[0] & 0xFF) == 1 or
+        ($ast->[0] & 0xFF) == 10 ) { # array var or function/subroutine call
+
+        if (($ast->[0] & 0xFF) == 10) {
+            my $mvar = $ast->[1];
+            $vars->{$mvar}=1;
+            my $index_vars={};
+            $index_vars =  find_vars_in_ast_flat($ast->[2],$index_vars);
+            $vars = {%{$vars},%{$index_vars}};
+        } else {
+            $vars = find_vars_in_ast_flat($ast->[2], $vars);
+        }
+    } elsif (($ast->[0] & 0xFF) == 2) { # scalar variable
+        my $mvar = $ast->[1];
+        if (not exists $Config{'Macros'}{uc($mvar)} 
+        # and not exists $F95_intrinsic_attributes{$mvar}
+        ) {
+            $vars->{$mvar}=1;
+        }
+    } elsif (($ast->[0] & 0xFF) > 28) { # constants
+        # constants
+    } else { # other operators
+        my $start_idx = 1;
+        if ($ast->[0]  ==  9) { # And assignment inside an expression
+            $start_idx = (($ast->[1][0] == 2) and (exists $F95_intrinsic_attributes{$ast->[1][1]}))
+            ? 2 : 1;
+        }
+        for my $idx ($start_idx .. scalar @{$ast}-1) {
+            $vars = find_vars_in_ast_flat($ast->[$idx],$vars);
+        }
+    }
+# carp 'AST:'.Dumper($ast).'VARS:'. Dumper( $vars);
+# croak Dumper($ast) if exists $vars->{'.true.'};
+    return $vars;
+} # END of find_vars_in_ast_flat
 sub find_vars_in_ast { my ( $ast, $vars)=@_;
 # carp 'AST:'.Dumper($ast);
     return {} unless ref($ast) eq 'ARRAY';

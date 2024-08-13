@@ -7,6 +7,7 @@ use RefactorF4Acc::Refactoring::Helpers qw( get_f95_var_decl stateful_pass_inpla
 use RefactorF4Acc::Utils::Functional qw( ordered_union ordered_difference );
 use RefactorF4Acc::Parser::Expressions qw(
     get_vars_from_expression
+	find_vars_in_ast_flat
 );
 #
 #   (c) 2010-2017 Wim Vanderbauwhede <wim@dcs.gla.ac.uk>
@@ -594,7 +595,10 @@ sub identify_vars_on_line {
 			# }
 			@chunks = exists $info->{'Do'}{'Iterator'} ? ( @chunks, $info->{'Do'}{'Iterator'}, @{ $info->{'Do'}{'Range'}{'Vars'} } ) : ();
 		} elsif ( (exists $info->{'Assignment'} and not exists $info->{'Data'}) or exists $info->{'StatementFunction'}) {
-			@chunks = ( @chunks, $info->{'Lhs'}{'VarName'}, @{ $info->{'Lhs'}{'IndexVars'}{'List'} }, @{ $info->{'Rhs'}{'Vars'}{'List'} } );
+			@chunks = ( @chunks, $info->{'Lhs'}{'VarName'}, @{ $info->{'Lhs'}{'IndexVars'}{'List'} } );
+
+			my $rhs_vars = find_vars_in_ast_flat($info->{'Rhs'}{'ExpressionAST'},{});
+			@chunks = ( @chunks,sort keys %{$rhs_vars} );
 		} elsif ( exists $info->{'ParamDecl'} ) {
 			@chunks = ( @chunks, keys %{ $info->{'ModuleParameters'} } );
 		} elsif ( exists $info->{'Data'}
