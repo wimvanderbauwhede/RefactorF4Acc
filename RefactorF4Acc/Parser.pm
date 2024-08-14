@@ -1787,6 +1787,7 @@ END IF
 					$info->{'AST'} = $ast;
 					$info->{'IOCall'}{'AST'} = $ast;
 					$info->{'IOCall'}{'Args'} = { 'Set' => {}, 'List' => [ ] };
+					carp Dumper $ast;
 					if ( exists $ast->{'FileName'} ) {
 						if ( exists $ast->{'FileName'}{'Var'} and $ast->{'FileName'}{'Var'} !~ /__PH/ ) {
 							$info->{'FileNameVar'} =

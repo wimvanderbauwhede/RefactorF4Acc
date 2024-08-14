@@ -762,7 +762,7 @@ Instead of the nice but cumbersome approach we had until now, from now on it is 
                 my $decl = getDecl($stref,$f,$cbuf);
                 my $len=0;
                 if ($decl->{'Type'} ne 'character') {
-                    die "READ is only supported with a character buffer\n";
+                    die "READ is only supported with a character buffer\n$line:".Dumper($decl,$info);
                 } else {
                     if (exists $decl->{'Attr'} and $decl->{'Attr'}=~/len/) {
                         $len=$decl->{'Attr'}; $len=~s/^\(len=//;$len=~s/\)$//;
@@ -1059,13 +1059,17 @@ sub _get_word_sizes($stref,$f){
             $kind=~s/kind\s*=\s*//;
             $kind=~s/^\s*\(\s*//;
             $kind=~s/\s*\)\s*$//;
-            if( $kind eq '') {
-                warn "default kind for $var in $f";
-                $kind=4;
+            if( $kind eq '' ) { # ignore this for 'kind' as it is not a var, usually
+                if ($var ne 'kind'){
+                    warn "default kind for $var in $f";
+                    $kind=4;
+                } else {
+                    $kind=2;
+                }
             } else {
                 $kind*=1;
             }
-            if ($kind>2) {
+            if ($kind>2 and $var ne 'kind') { # ignore this for 'kind' as it is not a var, usually
                 die "Integers must be 8-bit or 16-bit: $var in $f is $kind\n";
             }
             $word_sz=$kind;
@@ -3507,19 +3511,21 @@ sub _analyse_write_call($stref,$f,$info){
             my $attr = __analyse_write_call_arg($stref,$f,$info,$arg_ast,$i);
             # carp 'ATTR:'.Dumper( $attr);
             ++$i;
-            if ($attr->[0] eq 'fmt') {
-				# if ($attr->[1] eq '*') {
-				# 	$advance='yes';
-				# }
-                ($print_calls,$offsets) = __parse_fmt($attr->[1],$stref,$f,$info);
-            }
-            elsif ($attr->[0] eq 'unit') {
-                $unit = $attr->[1];
-            }
-            elsif ($attr->[0] eq 'advance') {
-                $advance=$attr->[1];
-            } else {
-                error("Unsupported WRITE call syntax: ".Dumper($info));
+            if (@{$attr}) {
+                if ($attr->[0] eq 'fmt') {
+                    # if ($attr->[1] eq '*') {
+                    # 	$advance='yes';
+                    # }
+                    ($print_calls,$offsets) = __parse_fmt($attr->[1],$stref,$f,$info);
+                }
+                elsif ($attr->[0] eq 'unit') {
+                    $unit = $attr->[1];
+                }
+                elsif ($attr->[0] eq 'advance') {
+                    $advance=$attr->[1];
+                } else {
+                    error("Unsupported WRITE call syntax: ".Dumper($info));
+                }
             }
         }
     }
@@ -3569,6 +3575,7 @@ sub __analyse_write_call_arg($stref,$f,$info,$arg,$i){
         } else {
             error("WRITE only supported with unit=0, unit=* or a variable");
         }
+        return []
     }
     elsif ($tag == 34) {
         # 34: PlaceHolder, this is the string with the format (`fmt=` is removed)
@@ -3593,6 +3600,7 @@ sub __analyse_write_call_arg($stref,$f,$info,$arg,$i){
                 }
             }
         }
+        return [];
     }
     elsif ($tag == 2) {
         # must be a variable
@@ -3601,6 +3609,7 @@ sub __analyse_write_call_arg($stref,$f,$info,$arg,$i){
     } else {
         die "Unknown arg type: ".Dumper($arg);
     }
+
 } # END of __analyse_write_call_arg
 # -----------------------------------------------------------------------------
 # returs a list of the types to be printed.

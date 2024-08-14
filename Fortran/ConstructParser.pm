@@ -15,7 +15,7 @@ use Data::Dumper;
 $Data::Dumper::Indent = 0;
 $Data::Dumper::Terse = 1;
 
-our $VV=0;
+our $VV=1;
 
 use Exporter 'import';
 
@@ -77,7 +77,7 @@ sub parse_Fortran_if_construct {
 # Recl => regex('[\w\d\-\*\+]+') # natural, word
 # AttrVal => &string, word
 
-sub fortran_IO_call_parser { # misnomer, does only OPEN
+sub fortran_IO_call_parser { # does only OPEN
 
 sequence(
 [
@@ -87,7 +87,7 @@ sequence(
         sepByChar( ',',
                 choice(
                 sequence( [
-                    symbol( 'unit'), &eqs,  choice({'UnitConst' => natural },{'UnitVar' => word})
+                    symbol( 'unit'), &eqs,  choice({'UnitConst' => natural },{'UnitVar' => mixedCaseWord})
                 ] ),
                 sequence( [
                     choice(
@@ -153,9 +153,9 @@ sequence(
                     ) }
                 ] ) ,
 				{ 'UnitConst' => natural},
-                {'UnitVar' => word},
-            )
-        )
+                {'UnitVar' => mixedCaseWord},
+            ) # choice
+        ) # SepByChar
     )
 ] );
 
