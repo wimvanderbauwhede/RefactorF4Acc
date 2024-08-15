@@ -791,8 +791,12 @@ Instead of the nice but cumbersome approach we had until now, from now on it is 
                             if (exists $recvar_decl->{'Val'}) {
                                  my $recvar_val = $recvar_decl->{'Val'};
                                 $recvar_val =~s/_[12]$//;
-                                croak Dumper $decl;
-                                # what we want is <addr> DEI<word_sz> <var> STA<wordsz>
+                                my $rec_Uxntal = toHex($recvar_val,1);
+                                my $word_sz = $stref->{'Subroutines'}{$f}{'WordSizes'}{$cbuf};
+                                my $short_mode = $word_sz == 2? '2' : '';
+                                my $lhs_var_Uxntal =  __var_access($stref,$f,$cbuf);
+                                $c_line =  "$rec_Uxntal DEI$short_mode $lhs_var_Uxntal STA$short_mode";
+                                # what we want is <addr> DEI<word_sz>  STA<wordsz>
                             } else {
                                 error("REC must be a parameter: $recvar");
                             }
@@ -997,6 +1001,25 @@ Instead of the nice but cumbersome approach we had until now, from now on it is 
             if (not exists $info->{'Continue'}) { die "Labels can only occur on `continue` lines\n"; }
             # croak Dumper $info;
             # $c_line = $info->{'Label'}. ' : '."\n".$info->{'Indent'}.$c_line;
+        }
+        if (exists $info->{'Data'} ) {
+            for my $def (@{$info->{'DataDefs'}}) {
+                my $nlist = $def->{'NListAST'}[1];
+                my $fq_nlist = __create_fq_varname($stref,$f,$nlist );
+                my $word_sz = $stref->{'Subroutines'}{$f}{'WordSizes'}{$nlist};
+                my $clist_Uxntal;
+                if ($def->{'CListAST'}[0] == 27) {
+                    shift @{$def->{'CListAST'}};
+                    $clist_Uxntal = join(' ', map { toRawHex($_->[1],$word_sz) } @{$def->{'CListAST'}});
+                    
+                } else {
+                    croak "TODO";
+                }
+                # (my $clist,my $word_sz) = _emit_expression_Uxntal( $def->{'CListAST'},$stref,$f,$info);
+                $c_line = '@'.$fq_nlist.' '.$clist_Uxntal;
+                
+            }
+            
         }
         chomp $c_line;
         $skip_comment=1;

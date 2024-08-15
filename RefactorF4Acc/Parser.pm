@@ -4980,16 +4980,18 @@ sub _parse_data_declaration { (my $line,my $info, my $stref, my $f) = @_;
 	# Split on '/\s*,',
 	my @data_decl_ast=[];
 	my @data_decl_pair_strs = split(/\/\s*,/,$mline);
+	
 	my $data_vars ={};
 	for my $data_decl_pair_str (@data_decl_pair_strs ) {
 		(my $nlist_str, my $clist_str) =split(/\s*\/\s*/,$data_decl_pair_str );
+		# croak Dumper $nlist_str, $clist_str;
 		my $nlist_ast = parse_expression($nlist_str,$info,$stref,$f);
 		my $nlist_vars = find_vars_in_ast($nlist_ast);
 		$data_vars = { %{$data_vars},%{$nlist_vars}};
 		my $clist_ast = parse_expression($clist_str,$info,$stref,$f);
-		my $info={};
-		$info->{'NList'}{'AST'} = $nlist_ast;
-		$info->{'CList'}{'AST'} = $clist_ast;
+		push @{$info->{'DataDefs'}}, {
+		'NListAST' => $nlist_ast,
+		'CListAST' => $clist_ast};
 		$info->{'Data'}=1;
 		$info->{'SpecificationStatement'} = 1;
 		my $line= "$nlist_str / $clist_str /"; # TODO: this is not quite one var per DATA line but at least it is one pair per DATA line
@@ -4997,6 +4999,7 @@ sub _parse_data_declaration { (my $line,my $info, my $stref, my $f) = @_;
 	}
 	my $data_vars_list = [sort keys %{$data_vars}];
 	$info->{'Vars'}={'Set' =>$data_vars, 'List' => $data_vars_list};
+	# croak Dumper $info;
 	return $info;
 
 } # END of _parse_data_declaration()
