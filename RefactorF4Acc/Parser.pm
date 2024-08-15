@@ -1787,7 +1787,7 @@ END IF
 					$info->{'AST'} = $ast;
 					$info->{'IOCall'}{'AST'} = $ast;
 					$info->{'IOCall'}{'Args'} = { 'Set' => {}, 'List' => [ ] };
-					carp Dumper $ast;
+					# carp Dumper $ast;
 					if ( exists $ast->{'FileName'} ) {
 						if ( exists $ast->{'FileName'}{'Var'} and $ast->{'FileName'}{'Var'} !~ /__PH/ ) {
 							$info->{'FileNameVar'} =
@@ -4147,7 +4147,7 @@ ios I/O status specifier : an integer variable, Written to
 s Error specifier : Label
 
 #== WRITE
-WRITE( [ UNIT=] u [, [FMT=] f ] [, IOSTAT=ios ] [, REC=rn ] [, ERR=s ] ) iolist
+WRITE( [ UNIT= ] u [, [FMT=] f ] [, IOSTAT=ios ] [, REC=rn ] [, ERR=s ] ) iolist
 WRITE( [ UNIT= ] u, [ NML= ] grname [, IOSTAT= ios ] [, ERR= s ] )
 u Unit identifier of the unit connected to the file
 f Format identifier
@@ -4180,6 +4180,73 @@ Case 3: operation comma_sep_list : READ, PRINT, ACCEPT, REWIND => $attr_ast
 
 =cut
 
+sub __reorder_io_control_specs{(my $tline) = @_;
+	# first split on parens.
+	# split on left paren 
+	my @chunks = split(/\s*\(\s*/,$tline);
+	# remove IO call
+	my $io_call = shift @chunks;
+	# reconstruct
+    my $ttline = join('(',@chunks);
+	# split on right paren 
+	@chunks = split(/\s*\)\s*/,$ttline);
+	# remove anything after closing paren
+	my $rest = pop @chunks;
+	# but it could be a format
+	if ($rest=~/[\'\"]/) { # it's a format
+	    push @chunks, $rest;
+	}
+	# reconstruct
+    $ttline = join(')',@chunks);
+
+	# now split on commas. Probably still weak because of formats. Unless the formats are replaced by placeholders.
+	@chunks = split(/\s*,\s*/,$ttline);
+
+	# UNIT, FMT and NML must be in that order unless they are named
+	my %specs_to_order = ();
+	for my $chunk (@chunks) {
+		if ($chunk=~/^(unit|fmt|nml)/) {
+			$specs_to_order{$1}=$chunk;
+		}
+	}
+	my $rtline = $io_call.' (';
+	if (exists $specs_to_order{'unit'}) {
+        $rtline.=$specs_to_order{'unit'}.',';
+	} else { # If the first word is not a pair, it must be the unit
+    	if ($chunks[0]!~/=/) {
+	        my $unit = shift @chunks;
+        	$rtline.="$unit,";
+    	}
+	}
+	if (exists $specs_to_order{'fmt'}) {
+        $rtline.=$specs_to_order{'fmt'}.',';
+	} else {
+    	if (@chunks and $chunks[0]!~/=/) {
+	        my $fmt = shift @chunks;
+        	$rtline.="$fmt,";
+    	}
+	}
+	if (exists $specs_to_order{'nml'}) {
+        $rtline.=$specs_to_order{'nml'}.',';
+	} else {
+	    if (@chunks and $chunks[0]!~/=/) {
+	        my $nml = shift @chunks;
+    	    $rtline.="$nml,";
+    	}
+	}
+	# add all the rest
+	for my $chunk (@chunks) {
+		if ($chunk!~/^(unit|fmt|nml)/) {
+			$rtline.=$chunk.',';
+		}
+	}
+	$rtline=~s/,$//;
+	$rtline.=') ';
+	if (defined $rest) {
+	    $rtline.=$rest;
+	}
+	return $rtline;
+} # END of __reorder_io_control_specs
 
 sub _parse_read_write_print {
 
@@ -4199,6 +4266,12 @@ sub _parse_read_write_print {
     }
     if (not (exists $info->{'PrintCall'} or exists $info->{'AcceptCall'}) ) {
     	# Normalise by removing UNIT, NML and FMT keywords as they are optional
+# FIXME: this is not good, it only works if they are in the right order. So order them first!
+		my $tline = __reorder_io_control_specs($tline);
+# 		If the optional characters UNIT= are omitted before io-unit, io-unit must be the first item in
+# io-control-specs. If the optional characters FMT= are omitted before format, format must be
+# the second item in io-control-specs. If the optional characters NML= are omitted before
+# namelist-group-name, namelist-group-name must be the second item in io-control-specs.
 		# That leaves IOSTAT, REC and SIZE for READ
     	$tline=~s/(unit|nml|fmt)\s*=\s*//gi;
     }
@@ -4213,6 +4286,13 @@ sub _parse_read_write_print {
     my $case=0;
     if ($tline=~/^\w+\s*\(/) {
         ($attrs_ast, $rest, $err) = parse_expression_no_context($tline,$info,$stref,$f);
+			# say Dumper($attrs_ast); die if $line=~/read.+Screen/;
+			if ($attrs_ast->[2][0]== 27) {
+				if ($attrs_ast->[2][1][0]== 2) {
+					my $unitvar = $attrs_ast->[2][1][1];
+					$info->{'UnitVar'} = $unitvar;
+				}
+			}
         $case=1;
         if ($err) {
             # Case 2.
@@ -4228,7 +4308,7 @@ sub _parse_read_write_print {
 		# say "TLINE3: $tline";
 
         $attrs_ast = parse_expression($tline,$info,$stref,$f);
-#		say Dumper($attrs_ast);
+		
 #		say "REST: $rest, ERR: $err";
         #say emit_expr_from_ast($attrs_ast);
     }

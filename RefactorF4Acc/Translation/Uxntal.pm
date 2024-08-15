@@ -761,22 +761,46 @@ Instead of the nice but cumbersome approach we had until now, from now on it is 
                 # my $decl = get_var_record_from_set($Sf->{$subset},$cbuf);
                 my $decl = getDecl($stref,$f,$cbuf);
                 my $len=0;
-                if ($decl->{'Type'} ne 'character') {
-                    die "READ is only supported with a character buffer\n$line:".Dumper($decl,$info);
-                } else {
+                if ($decl->{'Type'} eq 'character') {
                     if (exists $decl->{'Attr'} and $decl->{'Attr'}=~/len/) {
                         $len=$decl->{'Attr'}; $len=~s/^\(len=//;$len=~s/\)$//;
                     } else {
                         $len=1;
                     }
+
+                    my $uxntal_len = toHex($len,2);
+                    my $fq_cbuf = __create_fq_varname($stref,$f,$cbuf);
+                    my $iostat = __create_fq_varname($stref,$f,$info->{'IOStat'});
+                    $c_line = "$uxntal_len .File/length DEO2\n"
+                    . ";$fq_cbuf .File/read DEO2\n"
+                    . ";$rec LDA2 INC2 ;$rec STA2\n"
+                    . ".File/success DEI2 #0001 SUB2 ;$iostat STA2";
+                } else {
+                    # If the READ call has a unit of 7188 then it's a Varvara call
+                    my $unitvar = $info->{'UnitVar'};
+                    my $unitvar_decl = getDecl($stref,$f,$unitvar);
+
+                    # die "READ is only supported with a character buffer\n$line:\n".Dumper($unitvar_decl,$recvar_decl,$decl);
+                    if (exists $unitvar_decl->{'Val'}) {
+                        my $unitvar_val = $unitvar_decl->{'Val'};
+                        $unitvar_val =~s/_2$//;
+                        if ($unitvar_val == 7188) {
+                            # A Varvara call
+                            my $recvar = $info->{'RecVar'};
+                            my $recvar_decl = getDecl($stref,$f,$recvar);
+                            if (exists $recvar_decl->{'Val'}) {
+                                 my $recvar_val = $recvar_decl->{'Val'};
+                                $recvar_val =~s/_[12]$//;
+                                croak Dumper $decl;
+                                # what we want is <addr> DEI<word_sz> <var> STA<wordsz>
+                            } else {
+                                error("REC must be a parameter: $recvar");
+                            }
+                        } else {
+                            error("READ on unit $unitvar not supported");
+                        }
+                    }
                 }
-                my $uxntal_len = toHex($len,2);
-                my $fq_cbuf = __create_fq_varname($stref,$f,$cbuf);
-                my $iostat = __create_fq_varname($stref,$f,$info->{'IOStat'});
-                $c_line = "$uxntal_len .File/length DEO2\n"
-                . ";$fq_cbuf .File/read DEO2\n"
-                . ";$rec LDA2 INC2 ;$rec STA2\n"
-                . ".File/success DEI2 #0001 SUB2 ;$iostat STA2";
             } else {
                 croak 'TODO: IOCall '.Dumper( $info->{'IOCall'}{'Args'}{'AST'})."\nIOList ".Dumper($info->{'IOList'}{'AST'});
             }
