@@ -2824,6 +2824,7 @@ sub _emit_subroutine_call_expr_Uxntal($stref,$f,$line,$info){
     # This is only for local subroutines, so handle the others here
     if (exists $info->{'SubroutineCall'}{'IsExternal'}) {
         if ($subname eq 'exit' or $subname eq 'stop') { # I might change this so that exit() actually exits
+        # FIXME: I think stop is not handled like a call 
             return 'BRK';
         }
         elsif (exists  $F95_intrinsic_subroutine_sigs{$subname}) {

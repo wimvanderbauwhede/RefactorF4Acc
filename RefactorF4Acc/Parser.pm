@@ -3331,6 +3331,7 @@ sub __parse_f95_decl {
     my $is_module = (exists $stref->{'Modules'}{$f}) ? 1 : 0;
 
 	my $pt = parse_F95_var_decl($line);
+	# croak Dumper $pt if $line=~/testinitialvalue/i;
 
 	if (exists $pt->{'ParseError'}) {
 		warning( 'Parse error on F90 variable declaration on line '.$info->{'LineID'}.' in '. $Sf->{'Source'}.":\n\n\t$line\n\nProbably unsupported mixed F77/F90 syntax; trying F77 parser", 0, 'PARSE ERROR');
@@ -3409,6 +3410,7 @@ sub __parse_f95_decl {
 
 			my $decls = __create_Decls_from_ParsedVarDecl($info,$init_decl,$f);
 			for my $decl (@{$decls}) {
+				# croak Dumper $decl if $line=~/testinitialvalue/i;
 				my $tvar = $decl->{'Name'} ;
 				if ($decl->{'Dim'}) {
 					$decl=__get_params_from_dim($decl,$Sf);
@@ -5039,6 +5041,7 @@ sub _parse_data_declaration { (my $line,my $info, my $stref, my $f) = @_;
 		my $nlist_vars = find_vars_in_ast($nlist_ast);
 		$data_vars = { %{$data_vars},%{$nlist_vars}};
 		my $clist_ast = parse_expression($clist_str,$info,$stref,$f);
+		$stref = __move_DATA_to_InitialValue($nlist_str, $clist_ast , $stref, $f );
 		push @{$info->{'DataDefs'}}, {
 		'NListAST' => $nlist_ast,
 		'CListAST' => $clist_ast};
@@ -5046,6 +5049,7 @@ sub _parse_data_declaration { (my $line,my $info, my $stref, my $f) = @_;
 		$info->{'SpecificationStatement'} = 1;
 		my $line= "$nlist_str / $clist_str /"; # TODO: this is not quite one var per DATA line but at least it is one pair per DATA line
 		push @{$new_annlines}, [$line, $info];
+		croak Dumper $info;
 	}
 	my $data_vars_list = [sort keys %{$data_vars}];
 	$info->{'Vars'}={'Set' =>$data_vars, 'List' => $data_vars_list};
@@ -5584,7 +5588,15 @@ sub __create_Decls_from_ParsedVarDecl { my ($info,$init_decl,$f) = @_;
     return $decls;
 } # END of __create_Decls_from_ParsedVarDecl
 
-
+sub __move_DATA_to_InitialValue { my ($var_name, $data, $stref, $f ) = @_;
+	my $sub_or_incl_or_mod = sub_func_incl_mod( $f, $stref ); # Maybe call this "code_unit()"
+	carp $sub_or_incl_or_mod,Dumper $stref;
+	my $Sf = $stref->{sub_or_incl_or_mod}{$f};
+	my $subset = in_nested_set( $Sf, 'Vars', $var_name );
+	my $decl = get_var_record_from_set($Sf->{$subset},$var_name);
+	croak "$sub_or_incl_or_mod $f <$subset> $var_name ".Dumper( $decl);
+	return $stref;
+}
 1;
 
 =pod
