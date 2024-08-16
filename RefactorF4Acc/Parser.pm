@@ -4505,7 +4505,11 @@ sub _parse_read_write_print {
                 my $ios = $attr_pairs->{'iostat'}[1];
                 $info->{'Vars'}{'Written'}{'Set'}{$ios}={'Type' => 'Scalar'};
        }
-
+		if (exists $attr_pairs->{'rec'}) {
+			my $rn = $attr_pairs->{'rec'}[1];
+			$info->{'RecVar'}=$rn;
+			$info->{'Vars'}{'Read'}{'Set'}{$rn}={'Type' => 'Scalar'};
+		}
 
 
 	} elsif ( exists $info->{'InquireCall'} ) {

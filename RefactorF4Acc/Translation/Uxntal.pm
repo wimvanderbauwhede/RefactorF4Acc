@@ -88,6 +88,8 @@ our $substr = 's';
 our $fqp = 'fq';
 our $fqn_counter = 0;
 our %fqns = ();
+
+our $Varvara_magic_code = 7188;
 # TODO This needs to be changed so that only the used functions are emitted
 my @uxntal_lib_sources = (
     '../../uxntal-libs/signed-cmp.tal',
@@ -326,12 +328,13 @@ Instead of the nice but cumbersome approach we had until now, from now on it is 
 
     my $annlines = get_annotated_sourcelines( $stref, $f );
 
-    # This analysis only looks at args, local vars and local parameters. We need to include globals
+    # This preparatory analysis only looks at args, local vars and local parameters. We need to include globals
     # Or maybe not, as pointer analysis is not necessary for Uxntal.
     # We populate $state->{'Pointers'} and $state->{'WordSizes'} but the latter is not used as
     # $Sf->{'WordSizes'} is populated above via _get_word_sizes()
     # We also check if getarg is called and set CLArgs to 1 if it is
-    my $pass_analysis = sub ($annline,$state){
+    # And we check if there are any Data declarations, and store those in $Sf->{'Data'}
+    my $pass_prep_analysis = sub ($annline,$state){
         my ($line, $info) = @{$annline};
 
         if (exists $info->{'Signature'} ) {
@@ -395,6 +398,11 @@ Instead of the nice but cumbersome approach we had until now, from now on it is 
             }
             $state->{'WordSizes'}{$var}=$word_sz;
         }
+        elsif (exists $info->{'Data'}) {
+            for my $ddef (@{$info->{'DataDefs'}}) {
+                $Sf->{'Data'}{$ddef->{'NListAST'}[1]}=1; # rough and ready
+            }
+        }
         # FIXME: this is because of the presence of an empty $info->{'SubroutineCall'} record.
         elsif (exists $info->{'SubroutineCall'} and exists $info->{'SubroutineCall'}{'Name'}) {
             my $fname =  $info->{'SubroutineCall'}{'Name'};
@@ -450,7 +458,7 @@ Instead of the nice but cumbersome approach we had until now, from now on it is 
     };
 
     my $pass_state = {'Pointers'=>{},'CLArgs'=>0,'Args' =>{},'LocalVars' =>{}, 'Parameters'=>{}, 'WordSizes'=>{}};
-    (my $new_annlines_,$pass_state) = stateful_pass($annlines,$pass_analysis,$pass_state,"pass_analysis($f)");
+    (my $new_annlines_,$pass_state) = stateful_pass($annlines,$pass_prep_analysis,$pass_state,"pass_prep_analysis($f)");
     $Sf->{'Pointers'} = $pass_state->{'Pointers'};
     $Sf->{'WordSizes'} =
         exists $Sf->{'WordSizes'}
@@ -548,7 +556,9 @@ Instead of the nice but cumbersome approach we had until now, from now on it is 
                     # croak 'WHY?'.$line;
                 } else {
                     if (not (exists $stref->{'Subroutines'}{$f}{'Signature'}{'ResultVar'}
-                    and $stref->{'Subroutines'}{$f}{'Signature'}{'ResultVar'} eq $var)) {
+                    and $stref->{'Subroutines'}{$f}{'Signature'}{'ResultVar'} eq $var)
+                    and not exists $Sf->{'Data'}{$var}
+                    ) {
                         ($stref,my $uxntal_var_decl, my $alloc_sz) =  _emit_var_decl_Uxntal($stref,$f,$info,$var);
                         if (not exists $pass_state->{'Subroutine'}{'LocalVars'}{'Set'}{$uxntal_var_decl}) {
                             $pass_state->{'Subroutine'}{'LocalVars'}{'Set'}{$uxntal_var_decl}=$uxntal_var_decl;
@@ -672,24 +682,48 @@ Instead of the nice but cumbersome approach we had until now, from now on it is 
                 # TODO: check if this is a write to a file!
                 # say 'WRITE: IOCall Args:'.Dumper($call_ast),'IOList:',Dumper($iolist_ast);
                 # say "WRITE: $line";
-                my ($print_calls, $offsets, $unit, $advance) = _analyse_write_call($stref,$f,$info);
-                if (scalar @{$print_calls} == 1 and
-                    (
+                my ($print_calls, $offsets, $unit, $advance,$other_attrs) = _analyse_write_call($stref,$f,$info);
+                if (scalar @{$print_calls} == 1) {
+                    if (
                         $print_calls->[0] eq 'print-list' or
                         $print_calls->[0] eq 'print-list-stderr'
-                    )
-                ) {
+                    ) {
                     # add_to_used_lib_subs($print_calls->[0]);
                     $c_line = __emit_list_based_print_write($stref,$f,$line,$info, $unit,$advance);
                     # say "UXNTAL SINGLE WRITE: $c_line $advance";
+                     } elsif ($print_calls->[0] eq 'device-write') {
+                        my $unitvar_decl = getDecl($stref,$f,$unit);
+                        if (exists $unitvar_decl->{'Val'}) {
+                            my $unitvar_val = $unitvar_decl->{'Val'};
+                            $unitvar_val =~s/_2$//;
+                            if ($unitvar_val == $Varvara_magic_code) {
+                                # A Varvara call
+                                my $recvar = $info->{'RecVar'};
+                                my $recvar_decl = getDecl($stref,$f,$recvar);
+                                if (exists $recvar_decl->{'Val'}) {
+                                    my $recvar_val = $recvar_decl->{'Val'};
+                                    $recvar_val =~s/_[12]$//;
+                                    my $rec_Uxntal = toHex($recvar_val,1);
+                                    my ($uxntal_expr_str,$word_sz) = _emit_expression_Uxntal($iolist_ast,$stref,$f,$info);
+                                    my $short_mode = $word_sz == 2? '2' : '';
+                                    $c_line =  "$uxntal_expr_str $rec_Uxntal DEO$short_mode";
+                                    # what we want is <addr> DEI<word_sz>  STA<wordsz>
+                                } else {
+                                    error("REC must be a parameter: $recvar");
+                                }
+                            } else {
+                                error("WRITE to unit $unit not supported");
+                            }
+                        }
+                     }
                 } else {
-                    # if ($unit eq 'STDOUT' or $unit eq 'STDERR') {
                     add_to_used_lib_subs('update-len');
                     my ($uxntal_expr_str,$word_sz) = _emit_expression_Uxntal([2,$unit],$stref, $f, $info);
                     my $update_len = ($unit eq 'STDOUT' or $unit eq 'STDERR') ? '' :
                         ' '.$uxntal_expr_str. ' update-len ';
                     $c_line = ($unit eq 'STDOUT' or $unit eq 'STDERR') ? '' :
                         ' #0000 '.$uxntal_expr_str. ' STA2 ';
+
                     my $maybe_str = ($unit eq 'STDOUT' or $unit eq 'STDERR')
                         ? ''
                         : $uxntal_expr_str;
@@ -776,7 +810,7 @@ Instead of the nice but cumbersome approach we had until now, from now on it is 
                     . ";$rec LDA2 INC2 ;$rec STA2\n"
                     . ".File/success DEI2 #0001 SUB2 ;$iostat STA2";
                 } else {
-                    # If the READ call has a unit of 7188 then it's a Varvara call
+                    # If the READ call has a unit of $Varvara_magic_code then it's a Varvara call
                     my $unitvar = $info->{'UnitVar'};
                     my $unitvar_decl = getDecl($stref,$f,$unitvar);
 
@@ -784,7 +818,7 @@ Instead of the nice but cumbersome approach we had until now, from now on it is 
                     if (exists $unitvar_decl->{'Val'}) {
                         my $unitvar_val = $unitvar_decl->{'Val'};
                         $unitvar_val =~s/_2$//;
-                        if ($unitvar_val == 7188) {
+                        if ($unitvar_val == $Varvara_magic_code) {
                             # A Varvara call
                             my $recvar = $info->{'RecVar'};
                             my $recvar_decl = getDecl($stref,$f,$recvar);
@@ -1011,15 +1045,14 @@ Instead of the nice but cumbersome approach we had until now, from now on it is 
                 if ($def->{'CListAST'}[0] == 27) {
                     shift @{$def->{'CListAST'}};
                     $clist_Uxntal = join(' ', map { toRawHex($_->[1],$word_sz) } @{$def->{'CListAST'}});
-                    
                 } else {
                     croak "TODO";
                 }
                 # (my $clist,my $word_sz) = _emit_expression_Uxntal( $def->{'CListAST'},$stref,$f,$info);
                 $c_line = '@'.$fq_nlist.' '.$clist_Uxntal;
-                
+                push @{$pass_state->{'Subroutine'}{'LocalVars'}{'List'}},$c_line;
+                $skip=1;
             }
-            
         }
         chomp $c_line;
         $skip_comment=1;
@@ -1297,7 +1330,12 @@ sub _var_access_read($stref,$f,$info,$ast) {
                 }
             }
         } elsif  ($ast->[0] == 2) { # a scalar
-            $uxntal_code =  "$var_access LDA$short_mode";
+            if (exists $stref->{'Subroutines'}{$var}) {
+                # croak "VAR $var is a subroutine";
+                $uxntal_code =  $var_access;
+            } else {
+                $uxntal_code =  "$var_access LDA$short_mode";
+            }
         } else {
             croak('WRONG! <',Dumper($ast),'>');
             if (is_arg($stref,$f,$var)) {
@@ -3528,7 +3566,7 @@ sub __implicit_do_in_print($elt,$stref,$f,$info,$line,$unit) {
 sub _analyse_write_call($stref,$f,$info){
     my $call_args_ast = $info->{'IOCall'}{'Args'}{'AST'}[2];
     my $iolist_ast = $info->{'IOList'}{'AST'};
-# carp Dumper $call_args_ast,$iolist_ast ;
+
     # This is really complicated.
     # The first arg can be an integer, a variable or '*'
     # If it's zero, it's STDERR, so we need #19 instead of #18
@@ -3543,6 +3581,7 @@ sub _analyse_write_call($stref,$f,$info){
     my $offsets=[];
     my $unit='';
     my $advance='yes';
+    my $other_attrs = {};
     if ($call_args_ast->[0]==27) {
         shift @{$call_args_ast};
         # Now we have the actual arg list
@@ -3570,6 +3609,9 @@ sub _analyse_write_call($stref,$f,$info){
                 }
                 elsif ($attr->[0] eq 'advance') {
                     $advance=$attr->[1];
+                }
+                elsif ($attr->[0] eq 'rec') {
+                    $other_attrs->{'Rec'}=$attr->[1];
                 } else {
                     error("Unsupported WRITE call syntax: ".Dumper($info));
                 }
@@ -3584,14 +3626,21 @@ sub _analyse_write_call($stref,$f,$info){
         $print_calls = [map {$_.='-stderr'} @{$print_calls}];
     }
     elsif ($unit ne 'STDOUT') { # so must be a var
-    # memwrite-string assumes the target is a string
-    # memwrite-char, memwrite-int, memwrite-hex assume the target is an array
-    # The use case is for strings so to be clear I should probably call them strwrite instead of memwrite.
-        $print_calls = [map {$_=~s/print/strwrite/;$_} @{$print_calls}];
-        map { add_to_used_lib_subs( $_ ) } @{$print_calls};
+        my $unitvar_decl = getDecl($stref,$f,$unit);
+        my $unitvar_val = $unitvar_decl->{'Val'} // '';
+        $unitvar_val =~s/_2$//;
+        if ($unitvar_val == $Varvara_magic_code) {
+            $print_calls = ['device-write'];
+        } else {
+        # memwrite-string assumes the target is a string
+        # memwrite-char, memwrite-int, memwrite-hex assume the target is an array
+        # The use case is for strings so to be clear I should probably call them strwrite instead of memwrite.
+            $print_calls = [map {$_=~s/print/strwrite/;$_} @{$print_calls}];
+            map { add_to_used_lib_subs( $_ ) } @{$print_calls};
+        }
     }
 # suppose I return print-array-slice
-    return ($print_calls, $offsets, $unit, $advance);
+    return ($print_calls, $offsets, $unit, $advance, $other_attrs);
 } # END of _analyse_write_call
 # -----------------------------------------------------------------------------
 # This call returns unit, fmt or advance. Could in principle return any attribute
@@ -3635,15 +3684,22 @@ sub __analyse_write_call_arg($stref,$f,$info,$arg,$i){
     elsif ($tag == 9) {
         # 9: =, check what is next, it should be [2,$attr]
         # Most common $attr is advance; the value will be a PlaceHolder
+
         if (ref($arg_val) eq 'ARRAY' and $arg_val->[0] == 2) {
             my $attr = $arg_val->[1];
-            if ($attr eq 'advance') {
+            if ($attr eq 'advance' or $attr eq 'rec') {
                 my $attr_val = $arg->[2];
                 if ($attr_val->[0] == 34) {
                     my $attr_val_str =  $info->{'PlaceHolders'}{$attr_val->[1]};
                     $attr_val_str=~s/^[\"\']//;
                     $attr_val_str=~s/[\"\']$//;
-                    return [ 'advance',$attr_val_str];
+                    return [ $attr,$attr_val_str];
+                }
+                elsif ($attr_val->[0] == 2) {
+                    return [ $attr,$attr_val->[1]];
+                }
+                if ($attr_val->[0] == 29) {
+                    return [ $attr,$attr_val->[1]];
                 }
             }
         }
@@ -4463,7 +4519,7 @@ sub _gen_array_string_inits($stref,$f,$var,$pass_state) {
         ? __C_array_size($decl->{'ConstDim'})
         : __C_array_size($decl->{'Dim'}) ;
         $uxntal_array_string_init = __create_array_zeroing(";$fq_var",$sz,$word_sz);
-        # carp "INIT ARRAY $var in $f";
+        carp "INIT ARRAY $var in $f";
     }
     elsif (is_string($stref,$f,$var)) {
         my $len = __get_len_from_Attr($decl);
