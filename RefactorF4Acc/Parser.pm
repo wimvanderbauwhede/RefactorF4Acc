@@ -5041,7 +5041,7 @@ sub _parse_data_declaration { (my $line,my $info, my $stref, my $f) = @_;
 		my $nlist_vars = find_vars_in_ast($nlist_ast);
 		$data_vars = { %{$data_vars},%{$nlist_vars}};
 		my $clist_ast = parse_expression($clist_str,$info,$stref,$f);
-		$stref = __move_DATA_to_InitialValue($nlist_str, $clist_ast , $stref, $f );
+		$stref = __move_DATA_to_InitialValue($nlist_str, $clist_ast, $stref, $f );
 		push @{$info->{'DataDefs'}}, {
 		'NListAST' => $nlist_ast,
 		'CListAST' => $clist_ast};
@@ -5590,8 +5590,8 @@ sub __create_Decls_from_ParsedVarDecl { my ($info,$init_decl,$f) = @_;
 
 sub __move_DATA_to_InitialValue { my ($var_name, $data, $stref, $f ) = @_;
 	my $sub_or_incl_or_mod = sub_func_incl_mod( $f, $stref ); # Maybe call this "code_unit()"
-	carp $sub_or_incl_or_mod,Dumper $stref;
 	my $Sf = $stref->{sub_or_incl_or_mod}{$f};
+	carp  $sub_or_incl_or_mod eq 'Modules',$f eq 'Dvd';#,Dumper $stref->{'Modules'}{'Dvd'}{'Vars'};
 	my $subset = in_nested_set( $Sf, 'Vars', $var_name );
 	my $decl = get_var_record_from_set($Sf->{$subset},$var_name);
 	croak "$sub_or_incl_or_mod $f <$subset> $var_name ".Dumper( $decl);
