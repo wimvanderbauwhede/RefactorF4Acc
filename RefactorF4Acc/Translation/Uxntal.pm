@@ -2496,7 +2496,18 @@ sub _emit_var_decl_Uxntal ($stref,$f,$info,$var){
         } else {
             my $c_var_decl = '@'.$fq_varname.' ';
             # $initial_value = '';
-            if ($initial_value eq '') {
+            if (ref($initial_value) eq 'ARRAY') {
+                my $word_sz = $stref->{'Subroutines'}{$f}{'WordSizes'}{$var};
+                my $clist_Uxntal;
+                if ($initial_value->[0] == 27) {
+                    shift @{$initial_value};
+                    $clist_Uxntal = join(' ', map { toRawHex($_->[1],$word_sz) } @{$initial_value});
+                    $c_var_decl.=$clist_Uxntal;
+                } else {
+                    croak "TODO";
+                }
+            }
+            elsif ($initial_value eq '') {
                 my $padding = toRawHex($sz*$dim,2);
                 $padding =~s/^0+//;
                 $c_var_decl.='$'. $padding;

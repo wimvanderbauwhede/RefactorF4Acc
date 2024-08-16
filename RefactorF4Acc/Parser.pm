@@ -5590,11 +5590,12 @@ sub __create_Decls_from_ParsedVarDecl { my ($info,$init_decl,$f) = @_;
 
 sub __move_DATA_to_InitialValue { my ($var_name, $data, $stref, $f ) = @_;
 	my $sub_or_incl_or_mod = sub_func_incl_mod( $f, $stref ); # Maybe call this "code_unit()"
-	my $Sf = $stref->{sub_or_incl_or_mod}{$f};
-	carp  $sub_or_incl_or_mod eq 'Modules',$f eq 'Dvd';#,Dumper $stref->{'Modules'}{'Dvd'}{'Vars'};
+	my $Sf = $stref->{$sub_or_incl_or_mod}{$f};
+	# carp $var_name eq 'dvdIcn', $sub_or_incl_or_mod eq 'Modules',$f eq 'Dvd';#,Dumper $stref->{'Modules'}{'Dvd'}{'Vars'}{'Subsets'}{'ModuleVars'};
 	my $subset = in_nested_set( $Sf, 'Vars', $var_name );
 	my $decl = get_var_record_from_set($Sf->{$subset},$var_name);
-	croak "$sub_or_incl_or_mod $f <$subset> $var_name ".Dumper( $decl);
+	# croak "$sub_or_incl_or_mod $f <$subset> $var_name ".Dumper( $decl,$Sf->{$subset}{'Set'}{$var_name});
+	$Sf->{$subset}{'Set'}{$var_name}{'InitialValue'}=$data;
 	return $stref;
 }
 1;
