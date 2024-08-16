@@ -90,6 +90,25 @@ our $fqn_counter = 0;
 our %fqns = ();
 
 our $Varvara_magic_code = 7188;
+=pod Varvara devices
+00	system	
+10	console	
+20	screen	
+30	audio	
+40	
+50	
+60	
+70	Unused
+80	controller
+90	mouse
+a0	file
+b0
+c0	datetime
+d0	Reserved
+e0
+f0	Unused
+=cut
+
 # TODO This needs to be changed so that only the used functions are emitted
 my @uxntal_lib_sources = (
     '../../uxntal-libs/signed-cmp.tal',
@@ -325,6 +344,21 @@ Instead of the nice but cumbersome approach we had until now, from now on it is 
     $stref = _get_word_sizes($stref,$f);
     $stref = _pointer_analysis($stref,$f);
     my $Sf = $stref->{'Subroutines'}{$f};
+    # Here I check if there is a Cray pointers that points to the subroutine
+    if (exists $stref->{'Subroutines'}{$f}{'InModule'}) {
+        # carp "getDecl: $f $subset $module_name $var ".
+        my $module_name = $stref->{'Subroutines'}{$f}{'InModule'};
+        my $Mf = $stref->{'Modules'}{$module_name};
+        if (exists $Mf->{'Pointers'} and exists $Mf->{'Pointers'}{$f}) {
+            my $pointer = $Mf->{'Pointers'}{$f};
+            if (not exists $stref->{'Subroutines'}{$pointer}) {
+                $stref->{'Subroutines'}{$pointer}={
+                    'Pointee' => $f
+                };
+            }
+            croak;
+        }
+    }
 
     my $annlines = get_annotated_sourcelines( $stref, $f );
 
@@ -696,14 +730,15 @@ Instead of the nice but cumbersome approach we had until now, from now on it is 
                         if (exists $unitvar_decl->{'Val'}) {
                             my $unitvar_val = $unitvar_decl->{'Val'};
                             $unitvar_val =~s/_2$//;
-                            if ($unitvar_val == $Varvara_magic_code) {
+                            my $dev_id = $unitvar_val - $Varvara_magic_code;
+                            if ($dev_id > 0 and $dev_id < 16 ) {
                                 # A Varvara call
                                 my $recvar = $info->{'RecVar'};
                                 my $recvar_decl = getDecl($stref,$f,$recvar);
                                 if (exists $recvar_decl->{'Val'}) {
                                     my $recvar_val = $recvar_decl->{'Val'};
                                     $recvar_val =~s/_[12]$//;
-                                    my $rec_Uxntal = toHex($recvar_val,1);
+                                    my $rec_Uxntal = toHex($recvar_val+$dev_id*16,1);
                                     my ($uxntal_expr_str,$word_sz) = _emit_expression_Uxntal($iolist_ast,$stref,$f,$info);
                                     my $short_mode = $word_sz == 2? '2' : '';
                                     $c_line =  "$uxntal_expr_str $rec_Uxntal DEO$short_mode";
@@ -757,21 +792,38 @@ Instead of the nice but cumbersome approach we had until now, from now on it is 
             }
             elsif (exists $info->{'OpenCall'}) {
                 # open(unit=$src,file=$fn,iostat=$stat,action='read', status='old', recl=1,access='direct',form='unformatted') )
-                my $fn = __create_fq_varname($stref,$f,$info->{'FileNameVar'});
+                # open(Screen, file='Screen', access='direct',recl=2)
                 my $unit= $info->{'UnitVar'};
-                my $fq_unit= __create_fq_varname($stref,$f,$unit);
-                my $iostat = __create_fq_varname($stref,$f,$info->{'IOStat'});
-                my ($uxntal_var_access, $word_sz) = _var_access_read($stref,$f,$info, [2,$info->{'FileNameVar'}]);
-                $c_line = $uxntal_var_access .
-                " #0002 ADD2 .File/name DEO2";
-                if (not exists $stref->{'Subroutines'}{$f}{'FileHandle'}) {
-                    $stref->{'Subroutines'}{$f}{'FileHandle'}{$unit}={
-                        'Unit' => $fq_unit,
-                        'IOStat' =>$iostat,
-                        'File' => $fn
-                    };
-                } else {
-                    die "Only a single file handle is supported\n";
+                if (exists $info->{'FileNameVar'}){
+                    my $fn = __create_fq_varname($stref,$f,$info->{'FileNameVar'});
+                    my $fq_unit= __create_fq_varname($stref,$f,$unit);
+                    my $iostat = __create_fq_varname($stref,$f,$info->{'IOStat'});
+                    my ($uxntal_var_access, $word_sz) = _var_access_read($stref,$f,$info, [2,$info->{'FileNameVar'}]);
+                    $c_line = $uxntal_var_access .
+                    " #0002 ADD2 .File/name DEO2";
+                    if (not exists $stref->{'Subroutines'}{$f}{'FileHandle'}) {
+                        $stref->{'Subroutines'}{$f}{'FileHandle'}{$unit}={
+                            'Unit' => $fq_unit,
+                            'IOStat' =>$iostat,
+                            'File' => $fn
+                        };
+                    } else {
+                        die "Only a single file handle is supported\n";
+                    }
+                } else { # Assuming the FileName is a string constant. If this is for Varvara devices that are NOT the file device, we do nothing
+                    my $unitvar_decl = getDecl($stref,$f,$unit);
+
+                    # die "READ is only supported with a character buffer\n$line:\n".Dumper($unitvar_decl,$recvar_decl,$decl);
+                    if (exists $unitvar_decl->{'Val'}) {
+                        my $unitvar_val = $unitvar_decl->{'Val'};
+                        $unitvar_val =~s/_2$//;
+                        my $dev_id = $unitvar_val - $Varvara_magic_code;
+                        if ($dev_id < 0 or $dev_id >= 16 or $dev_id==10) { # 10 is the file device
+                            error("OPEN for unit $unit ($dev_id) with constant string as file name is not yet supported");
+                        } else {
+                            $skip=1; # A Varvara device, 
+                        }
+                    }
                 }
             }
             elsif (exists $info->{'CloseCall'}) {
@@ -818,14 +870,15 @@ Instead of the nice but cumbersome approach we had until now, from now on it is 
                     if (exists $unitvar_decl->{'Val'}) {
                         my $unitvar_val = $unitvar_decl->{'Val'};
                         $unitvar_val =~s/_2$//;
-                        if ($unitvar_val == $Varvara_magic_code) {
+                        my $dev_id = $unitvar_val - $Varvara_magic_code;
+                        if ($dev_id > 0 and $dev_id < 16 ) {
                             # A Varvara call
                             my $recvar = $info->{'RecVar'};
                             my $recvar_decl = getDecl($stref,$f,$recvar);
                             if (exists $recvar_decl->{'Val'}) {
                                  my $recvar_val = $recvar_decl->{'Val'};
                                 $recvar_val =~s/_[12]$//;
-                                my $rec_Uxntal = toHex($recvar_val,1);
+                                my $rec_Uxntal = toHex($recvar_val+ $dev_id*16,1);
                                 my $word_sz = $stref->{'Subroutines'}{$f}{'WordSizes'}{$cbuf};
                                 my $short_mode = $word_sz == 2? '2' : '';
                                 my $lhs_var_Uxntal =  __var_access($stref,$f,$cbuf);
@@ -3629,7 +3682,9 @@ sub _analyse_write_call($stref,$f,$info){
         my $unitvar_decl = getDecl($stref,$f,$unit);
         my $unitvar_val = $unitvar_decl->{'Val'} // '';
         $unitvar_val =~s/_2$//;
-        if ($unitvar_val == $Varvara_magic_code) {
+
+        my $dev_id = $unitvar_val - $Varvara_magic_code;
+        if ($dev_id > 0 and $dev_id < 16 ) {
             $print_calls = ['device-write'];
         } else {
         # memwrite-string assumes the target is a string

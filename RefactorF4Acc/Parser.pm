@@ -1230,6 +1230,48 @@ MODULE
 				push @{ $info->{'Ann'} }, annotate( $f, __LINE__ . " EQUIVALENCE" );
 
 		 	}
+#== CRAY POINTER
+# POINTER  ( pointer_name, pointee_name [array_spec] ), ...
+# pointer_name: pointer to the corresponding pointee_name. pointer_name contains the address of pointee_name.
+#	 Must be: a scalar variable name (but not a structure) 
+#	 Cannot be: a constant, a name of a structure, an array, or a function 
+# pointee_name: Pointee of the corresponding pointer_name
+# 	Must be: a variable name, array declarator, or array name 
+# array_spec: If array_spec is present, it must be explicit shape, (constant or nonconstant bounds), or assumed-size.
+# We will only support tuples of variable names.
+		 	elsif ($line=~/^pointer\s+/) {
+		 		$info->{'Pointer'} = 1;
+		 		$info->{'SpecificationStatement'} = 1;
+                $info->{'HasVars'} = 1;
+                my $indent = $info->{'Indent'};
+		 		$stref->{$sub_incl_or_mod}{$f}{'HasPointer'}=1;
+
+			 	my $tline = $line;
+			 	$tline=~s/^pointer\s+//;
+#			 	(my $ast, my $rest, my $err, my $has_funcs)
+			 	my $ast = parse_expression($tline, $info,  $stref,  $f);
+				$info->{'AST'}=$ast;
+                # We must do the procedure below for every element in that list
+                my @asts=(); # an AST for each tuple
+                if (($ast->[0] & 0xFF) == 27) {
+                    for my $idx (1 .. scalar @{$ast}-1) {
+                        push @asts, $ast->[$idx];
+                    }
+                } else {
+                    push @asts, $ast;
+                }
+                $info->{'Vars'}{'Set'}= {};
+
+                for my $ast (@asts) {
+					$stref->{$sub_incl_or_mod}{$f}{'Pointers'}{$ast->[1][2][1]}=$ast->[1][1][1]; # the key is the pointee
+				 	my $vars = find_vars_in_ast($ast,{});
+				 	$info->{'Vars'}{'Set'}= {%{$info->{'Vars'}{'Set'}},%{ $vars } } ;
+            	}
+            	$info->{'Vars'}{'List'}= [sort keys %{$info->{'Vars'}{'Set'}}];
+				
+				# croak __LINE__ .': '.$f. ' POINTER: '.Dumper($info);
+				push @{ $info->{'Ann'} }, annotate( $f, __LINE__ . " POINTER" );
+		 	}
 #== VARIABLE and PARAMETER DECLARATIONS
 #@ VarDecl =>
 #@     Name => $varname
