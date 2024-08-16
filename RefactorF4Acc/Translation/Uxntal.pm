@@ -65,6 +65,7 @@ use feature qw(signatures);
 
 #### #### #### #### BEGIN OF UXNTAL TRANSLATION CODE #### #### #### ####
 
+our $DBG = 0;
 #               0    1    2    3      4      5      6      7      8      9   10   11   12   13    14
 our @sigils = ('(', '&', '$', 'ADD', 'SUB', 'MUL', 'DIV', 'mod', 'pow', '=', '@', '#', ':' ,'//', ')('
 #                15    16      17    18      19     20     21     22     23     24       25       26
@@ -204,9 +205,11 @@ sub translate_program_to_Uxntal($stref,$program_name){
     );
 
     # For convenience when debugging
+    if ($DBG) {
     add_to_used_lib_subs( 'wst' );
     add_to_used_lib_subs( 'nl' );
     add_to_used_lib_subs( 'ws' );
+    }
 
     if ($stref->{'UseCallStack'} ) {
         add_to_used_lib_subs( 'init-call-stack' );
@@ -275,10 +278,10 @@ sub translate_program_to_Uxntal($stref,$program_name){
 # TODO: This should include handling of 'use' declarations.
 # Unfortunately for those we will need to split the module level declarations from the subroutines.
 sub translate_module_decls_to_Uxntal($stref, $mod_name){
-
+    croak 'UNUSED';
     my $pass_emit_module_declarations = sub ($annline, $state){
         (my $line,my $info)=@{$annline};
-        # say "MOD LINE: <$line>";
+        say "MOD $mod_name LINE: <$line>";
         my $c_line=$line;
         (my $stref, my $mod_name, my $pass_state)=@{$state};
         my $skip=1;
@@ -344,21 +347,6 @@ Instead of the nice but cumbersome approach we had until now, from now on it is 
     $stref = _get_word_sizes($stref,$f);
     $stref = _pointer_analysis($stref,$f);
     my $Sf = $stref->{'Subroutines'}{$f};
-    # Here I check if there is a Cray pointers that points to the subroutine
-    if (exists $stref->{'Subroutines'}{$f}{'InModule'}) {
-        # carp "getDecl: $f $subset $module_name $var ".
-        my $module_name = $stref->{'Subroutines'}{$f}{'InModule'};
-        my $Mf = $stref->{'Modules'}{$module_name};
-        if (exists $Mf->{'Pointers'} and exists $Mf->{'Pointers'}{$f}) {
-            my $pointer = $Mf->{'Pointers'}{$f};
-            if (not exists $stref->{'Subroutines'}{$pointer}) {
-                $stref->{'Subroutines'}{$pointer}={
-                    'Pointee' => $f
-                };
-            }
-            croak;
-        }
-    }
 
     my $annlines = get_annotated_sourcelines( $stref, $f );
 
@@ -731,7 +719,7 @@ Instead of the nice but cumbersome approach we had until now, from now on it is 
                             my $unitvar_val = $unitvar_decl->{'Val'};
                             $unitvar_val =~s/_2$//;
                             my $dev_id = $unitvar_val - $Varvara_magic_code;
-                            if ($dev_id > 0 and $dev_id < 16 ) {
+                            if ($dev_id >= 0 and $dev_id < 16 ) {
                                 # A Varvara call
                                 my $recvar = $info->{'RecVar'};
                                 my $recvar_decl = getDecl($stref,$f,$recvar);
@@ -871,7 +859,7 @@ Instead of the nice but cumbersome approach we had until now, from now on it is 
                         my $unitvar_val = $unitvar_decl->{'Val'};
                         $unitvar_val =~s/_2$//;
                         my $dev_id = $unitvar_val - $Varvara_magic_code;
-                        if ($dev_id > 0 and $dev_id < 16 ) {
+                        if ($dev_id >= 0 and $dev_id < 16 ) {
                             # A Varvara call
                             my $recvar = $info->{'RecVar'};
                             my $recvar_decl = getDecl($stref,$f,$recvar);
@@ -1384,7 +1372,12 @@ sub _var_access_read($stref,$f,$info,$ast) {
             }
         } elsif  ($ast->[0] == 2) { # a scalar
             if (exists $stref->{'Subroutines'}{$var}) {
-                # croak "VAR $var is a subroutine";
+                if (exists $stref->{'Subroutines'}{$var}{'Pointee'}) {
+                    $var_access = ';'.$stref->{'Subroutines'}{$var}{'Pointee'};
+                    # croak "VAR $var is a subroutine pointer to $var_access";
+                    # Means we need to emit $stref->{'Subroutines'}{$var}{'Pointee'}
+                    $stref = translate_sub_to_Uxntal( $stref, $stref->{'Subroutines'}{$var}{'Pointee'});
+                }
                 $uxntal_code =  $var_access;
             } else {
                 $uxntal_code =  "$var_access LDA$short_mode";
@@ -1955,7 +1948,7 @@ sub __copy_substr($stref, $f, $info, $lhs_ast, $rhs_ast) {
 
         } else {
             # say $lhs_idx_expr_type,$rhs_idx_expr_type ;
-            error("Unsupported index expression in __copy_substr($f) : $lhs_idx_expr_type , $rhs_idx_expr_type ".Dumper($lhs_ast,$rhs_ast),$DBG,'ERROR');
+            error("Unsupported index expression in __copy_substr($f) : $lhs_idx_expr_type , $rhs_idx_expr_type ".Dumper($lhs_ast,$rhs_ast),0,'ERROR');
         }
     }
     return $uxntal_code.' ( COPY SUBSTR )';
@@ -2830,7 +2823,7 @@ sub _emit_subroutine_call_expr_Uxntal($stref,$f,$line,$info){
     my $subname = $info->{'SubroutineCall'}{'Name'};
     # This is only for local subroutines, so handle the others here
     if (exists $info->{'SubroutineCall'}{'IsExternal'}) {
-        if ($subname eq 'exit') {
+        if ($subname eq 'exit' or $subname eq 'stop') { # I might change this so that exit() actually exits
             return 'BRK';
         }
         elsif (exists  $F95_intrinsic_subroutine_sigs{$subname}) {
@@ -3684,7 +3677,7 @@ sub _analyse_write_call($stref,$f,$info){
         $unitvar_val =~s/_2$//;
 
         my $dev_id = $unitvar_val - $Varvara_magic_code;
-        if ($dev_id > 0 and $dev_id < 16 ) {
+        if ($dev_id >= 0 and $dev_id < 16 ) {
             $print_calls = ['device-write'];
         } else {
         # memwrite-string assumes the target is a string

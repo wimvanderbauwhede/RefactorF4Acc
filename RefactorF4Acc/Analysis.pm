@@ -23,7 +23,7 @@ use RefactorF4Acc::Analysis::Globals qw( rename_exglobs_if_required );
 #use RefactorF4Acc::Analysis::LoopDetect qw( outer_loop_end_detect );
 use RefactorF4Acc::Refactoring::Helpers qw( get_f95_var_decl );
 use RefactorF4Acc::Refactoring::BlockData qw( add_BLOCK_DATA_call_after_last_VarDecl );
-use RefactorF4Acc::Refactoring::Functions qw(add_function_var_decls_from_calls );
+use RefactorF4Acc::Refactoring::Functions qw(add_function_var_decls_from_calls link_function_pointers ); 
 
 use RefactorF4Acc::Analysis::CommonBlocks qw( analyse_common_blocks );
 use RefactorF4Acc::Analysis::Recursion qw( analyse_recursion );
@@ -166,6 +166,7 @@ sub analyse_all {
             next;
         }
 	    $stref = add_function_var_decls_from_calls( $stref, $f );
+		$stref = link_function_pointers( $stref, $f );
     }
 	return $stref if $stage == 3;
 

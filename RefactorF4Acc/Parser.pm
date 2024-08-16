@@ -1910,7 +1910,11 @@ END IF
                     my $vars = get_vars_from_expression($expr_ast,{});
     				$info->{'Vars'}{'Read'}{'Set'}=$vars;
                     $info->{'Vars'}{'Read'}{'List'} = [sort keys %{$vars}];
-                }
+                } else {
+					$info->{'ReturnExprAST'} =[];
+					$info->{'Vars'}{'Read'}{'Set'}={};
+                    $info->{'Vars'}{'Read'}{'List'} = [];
+				}
 				$info->{'NonSpecificationStatement'} = 1;
 			}
 #== ASSIGN ... TO ...

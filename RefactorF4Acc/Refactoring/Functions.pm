@@ -25,6 +25,7 @@ our @ISA = qw(Exporter);
 
 our @EXPORT_OK = qw(
 	add_function_var_decls_from_calls
+    link_function_pointers
     refactor_called_functions
     remove_vars_masking_functions
 );
@@ -267,5 +268,35 @@ sub add_function_var_decls_from_calls {
     return $stref;
 
 } # END of add_function_var_decls_from_calls
+
+
+sub link_function_pointers {
+    ( my $stref, my $f ) = @_;
+
+    my $Sf = $stref->{'Subroutines'}{$f};
+
+    say "_link_function_pointers($f)" if $DBG;
+
+    # Here I check if there is a Cray pointers that points to the subroutine
+    if (exists $stref->{'Subroutines'}{$f}{'InModule'}) {
+    say "Sub $f is in Module ".$stref->{'Subroutines'}{$f}{'InModule'};
+        # carp "getDecl: $f $subset $module_name $var ".
+        my $module_name = $stref->{'Subroutines'}{$f}{'InModule'};
+        my $Mf = $stref->{'Modules'}{$module_name};
+        if (exists $Mf->{'Pointers'} and exists $Mf->{'Pointers'}{$f}) {
+            my $pointer = $Mf->{'Pointers'}{$f};
+            if (not exists $stref->{'Subroutines'}{$pointer}) {
+                $stref->{'Subroutines'}{$pointer}={
+                    'Pointee' => $f,
+                    'Status' =>0,
+                };
+            }
+        }
+    }
+
+    return $stref;
+
+} # END of link_function_pointers
+
 
 1;
