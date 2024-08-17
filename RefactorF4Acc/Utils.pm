@@ -520,11 +520,9 @@ sub show_status {
 }
 # Test if a var is an element of a nested set. Returns the innermost set
 sub in_nested_set { (my $set, my $set_key, my $var)=@_;
-say "CALLING in_nested_set $set_key" if  $var eq 'dvdIcn';
 	croak 'Undefined var in call to in_nested_set()' if $DBG and not defined $var;
     if (exists $set->{$set_key}{'Subsets'} ) {
         for my $subset (sort keys %{  $set->{$set_key}{'Subsets'} } ) {
-            say "SUBSET of $set_key: $subset" if  $var eq 'dvdIcn';
             my $retval = in_nested_set($set->{$set_key}{'Subsets'},$subset, $var);
             # As soon as we have found a match we return it.
             if ($retval ne '') {

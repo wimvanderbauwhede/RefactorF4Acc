@@ -1268,7 +1268,7 @@ MODULE
 				 	$info->{'Vars'}{'Set'}= {%{$info->{'Vars'}{'Set'}},%{ $vars } } ;
             	}
             	$info->{'Vars'}{'List'}= [sort keys %{$info->{'Vars'}{'Set'}}];
-				
+
 				# croak __LINE__ .': '.$f. ' POINTER: '.Dumper($info);
 				push @{ $info->{'Ann'} }, annotate( $f, __LINE__ . " POINTER" );
 		 	}
@@ -3502,7 +3502,7 @@ sub __parse_f95_decl {
 							$Sf->{$subset}{'Set'}{$tvar} = $decl;
 						} else {
 							say "INFO: <$line>: $tvar does not have a record in Vars" if $I;
-							$subset = $is_module ? 'DeclaredCommonVars' : 'DeclaredOrigLocalVars'; # For backward compatibility
+							$subset = $is_module ? 'ModuleVars' : 'DeclaredOrigLocalVars'; # For backward compatibility
 							if ($is_module) {
 								$decl->{'CommonBlockName'} = $f;  # For backward compatibility
 								$decl->{'ModuleName'} = $f;
@@ -4956,13 +4956,10 @@ sub __remove_blanks { (my $line, my $free_form)=@_;
 	if (not $free_form) {
 		$c1to6=substr($line,0,5);
 		$line= substr($line,length($c1to6));
-#		say  "C1TO6:".$c1to6;
 	} elsif ($line=~/^(\s*\d+\s+)/  ) {
 		$c1to6=$1;
-#		say  "C1TO6:".$c1to6;
 		$line= substr($line,length($c1to6));
 	}
-
 
 	my $indent = $line;
 	$indent =~s/\S.*$//;
@@ -4974,8 +4971,6 @@ sub __remove_blanks { (my $line, my $free_form)=@_;
 		$line=~s/\s+//g;
 	}
 	#FM351
-#	croak "INDENT IS WRONG!";
-#	say "ASSIGN:".$c1to6.'|'.$indent.'|'.$line if $line=~/rvon01/;
 	return  $c1to6.$indent.$line;
 }
 
@@ -5049,7 +5044,7 @@ sub _parse_data_declaration { (my $line,my $info, my $stref, my $f) = @_;
 		$info->{'SpecificationStatement'} = 1;
 		my $line= "$nlist_str / $clist_str /"; # TODO: this is not quite one var per DATA line but at least it is one pair per DATA line
 		push @{$new_annlines}, [$line, $info];
-		croak Dumper $info;
+		# croak Dumper $info;
 	}
 	my $data_vars_list = [sort keys %{$data_vars}];
 	$info->{'Vars'}={'Set' =>$data_vars, 'List' => $data_vars_list};
@@ -5593,9 +5588,16 @@ sub __move_DATA_to_InitialValue { my ($var_name, $data, $stref, $f ) = @_;
 	my $Sf = $stref->{$sub_or_incl_or_mod}{$f};
 	# carp $var_name eq 'dvdIcn', $sub_or_incl_or_mod eq 'Modules',$f eq 'Dvd';#,Dumper $stref->{'Modules'}{'Dvd'}{'Vars'}{'Subsets'}{'ModuleVars'};
 	my $subset = in_nested_set( $Sf, 'Vars', $var_name );
+	if (exists $stref->{$sub_or_incl_or_mod}{$f}{'Vars'}{'Subsets'}{'ModuleVars'}{'Set'}{$var_name}) {
+		# croak "$sub_or_incl_or_mod $f <ModuleVars	> $var_name ".Dumper( $Sf->{'ModuleVars'}{'Set'}{$var_name});
+		$stref->{$sub_or_incl_or_mod}{$f}{'Vars'}{'Subsets'}{'ModuleVars'}{'Set'}{$var_name}{'InitialValue'} = $data;
+	}
 	my $decl = get_var_record_from_set($Sf->{$subset},$var_name);
-	# croak "$sub_or_incl_or_mod $f <$subset> $var_name ".Dumper( $decl,$Sf->{$subset}{'Set'}{$var_name});
-	$Sf->{$subset}{'Set'}{$var_name}{'InitialValue'}=$data;
+	$decl->{'InitialValue'}=$data;
+	$Sf->{$subset}{'Set'}{$var_name}=$decl;
+	# $Sf->{'ModuleVars'}{'Set'}{$var_name}=$decl;
+	croak "$sub_or_incl_or_mod $f <$subset> $var_name ".Dumper( $decl,$Sf->{$subset}{'Set'}{$var_name});
+
 	return $stref;
 }
 1;

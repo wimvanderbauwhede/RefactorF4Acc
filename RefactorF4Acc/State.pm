@@ -171,7 +171,7 @@ sub initialise_per_code_unit_tables {
 
 		$Sf->{'CommonVars'}           = {
 			'Subsets' => {
-				'DeclaredCommonVars'   => $Sf->{'DeclaredCommonVars'}, # I overload this to contain ModuleVars. FIXME!
+				'DeclaredCommonVars'   => $Sf->{'DeclaredCommonVars'}, 
 				'UndeclaredCommonVars' => $Sf->{'UndeclaredCommonVars'},
 			}
 		};

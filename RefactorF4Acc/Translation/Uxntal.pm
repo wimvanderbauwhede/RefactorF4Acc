@@ -2409,6 +2409,7 @@ sub _emit_var_decl_Uxntal ($stref,$f,$info,$var){
     # my $decl =  get_var_record_from_set($stref->{$sub_or_module}{$f}{'Vars'},$var);
     my $decl = getDecl($stref,$f,$var);
     my $initial_value = $decl->{'InitialValue'} // '';
+    croak Dumper $initial_value if $var eq 'dvdIcn';
     my $array = (exists $decl->{'ArrayOrScalar'} and $decl->{'ArrayOrScalar'} eq 'Array') ? 1 : 0;
 
     my $const = '';
@@ -4164,7 +4165,7 @@ sub getDecl($stref,$f,$var) {
         }
     }
 
-    # carp "getDecl: $f $subset $module_name $var ".Dumper($decl);
+    carp "getDecl: $f $subset $module_name $var ".Dumper($decl);
     return $decl;
 }
 # ----------------------------------------------------------------------------------------------------
