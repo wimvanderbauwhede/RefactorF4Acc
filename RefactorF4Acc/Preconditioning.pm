@@ -611,7 +611,6 @@ sub precondition_decls {
     if (exists $stref->{'Modules'}) {
         for my $f (keys %{$stref->{'Modules'}}) {
             $stref = _split_multivar_decls($f, $stref);
-
             $stref = _split_multipar_decls_and_set_type($f, $stref);
         }
     }
@@ -634,11 +633,13 @@ sub _split_multivar_decls {
         my $new_annlines = [];
         for my $annline (@{$annlines}) {
             (my $line, my $info) = @{$annline};
+    # croak Dumper $stref->{Modules}{Dvd}{ModuleVars}{Set}{dvdIcn} if $f eq 'Dvd' and $line=~/dvdIcn/;
             if (exists $info->{'ParsedParDecl'}) {
                 # carp 'PPAR:'.Dumper $info->{'ParsedParDecl'};
                 ($new_annlines,$nextLineID) = __split_multivar_ParsedParDecl($line,$info,$stref,$f,$Sf,$nextLineID,$new_annlines);
             }
             elsif (exists $info->{'ParsedVarDecl'}){
+    
 
                 ($new_annlines,$nextLineID) = __split_multivar_ParsedVarDecl($line,$info,$stref,$f,$Sf,$nextLineID,$new_annlines);
             }
@@ -678,6 +679,8 @@ sub _split_multivar_decls {
 sub __split_multivar_ParsedVarDecl { my ($line,$info,$stref,$f,$Sf,$nextLineID,$new_annlines) = @_;
 # carp 'PVAR:'.Dumper $info->{'ParsedVarDecl'};
 # croak Dumper $info if $line=~/stringConstIdx/;
+# croak Dumper $stref->{Modules}{Dvd}{ModuleVars}{Set}{dvdIcn} if $f eq 'Dvd' and $line=~/dvdIcn/;
+# croak Dumper $info if $f eq 'Dvd' and $line=~/dvdIcn/;
     if (exists $info->{'ParsedVarDecl'}{'Vars'}) {
         my $idx=0;
         for my $var (@{$info->{'ParsedVarDecl'}{'Vars'}}) { #next unless defined $var;
@@ -736,10 +739,12 @@ sub __split_multivar_ParsedVarDecl { my ($line,$info,$stref,$f,$Sf,$nextLineID,$
                 }
             }
             # say "SUBSET <$subset> for VAR <$var> in $f";
-            # say 'DECL:'.Dumper()
             my $init_decl = $subset ne '' ? $Sf->{$subset}{'Set'}{$var} : { 'Name' => $var};
+            # say 'DECL:'.Dumper($init_decl);
+            # carp Dumper($init_decl) if $f eq 'Dvd' and $line=~/dvdIcn/;
             $Sf->{$subset}{'Set'}{$var} = parsedVarDecl_to_Decl($rinfo{'ParsedVarDecl'}, $init_decl,$f);
-
+            # croak Dumper $stref->{Modules}{Dvd}{ModuleVars}{Set}{dvdIcn} if $f eq 'Dvd' and $line=~/dvdIcn/;
+ 
             my $rline = emit_f95_parsed_var_decl($rinfo{'ParsedVarDecl'});
             push @{$new_annlines}, [$rline, {%rinfo}];
         }

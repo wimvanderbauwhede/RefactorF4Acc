@@ -241,11 +241,11 @@ sub translate_program_to_Uxntal($stref,$program_name){
         ($stref->{'UseCallStack'} ? 'init-call-stack' : ''),
         ($stref->{'HasCLArgs'}
             ? @{$stref->{'Uxntal'}{'CLIHandling'}{'Main'}}
-            : $stref->{'Uxntal'}{'Main'}{'Name'}."\n#80 .System/state DEO\n"
+            : $stref->{'Uxntal'}{'Main'}{'Name'}."\n( #80 .System/state DEO )\n"
         ),
         'BRK','',
         ($stref->{'HasCLArgs'}
-            ? '@main '.$stref->{'Uxntal'}{'Main'}{'Name'} . "\n#80 .System/state DEO\nBRK"
+            ? '@main '.$stref->{'Uxntal'}{'Main'}{'Name'} . "\n( #80 .System/state DEO )\nBRK"
             : ''
         ),
         ($stref->{'HasCLArgs'} ?  $stref->{'Uxntal'}{'CLIHandling'}{'Lib'} : ''),'',
@@ -2409,7 +2409,7 @@ sub _emit_var_decl_Uxntal ($stref,$f,$info,$var){
     # my $decl =  get_var_record_from_set($stref->{$sub_or_module}{$f}{'Vars'},$var);
     my $decl = getDecl($stref,$f,$var);
     my $initial_value = $decl->{'InitialValue'} // '';
-    croak Dumper $initial_value if $var eq 'dvdIcn';
+    # croak Dumper $initial_value if $var eq 'dvdIcn';
     my $array = (exists $decl->{'ArrayOrScalar'} and $decl->{'ArrayOrScalar'} eq 'Array') ? 1 : 0;
 
     my $const = '';
@@ -2498,7 +2498,7 @@ sub _emit_var_decl_Uxntal ($stref,$f,$info,$var){
             my $c_var_decl = '@'.$fq_varname.' ';
             # $initial_value = '';
             if (ref($initial_value) eq 'ARRAY') {
-                my $word_sz = $stref->{'Subroutines'}{$f}{'WordSizes'}{$var};
+                my $word_sz = $Sf->{'WordSizes'}{$var};
                 my $clist_Uxntal;
                 if ($initial_value->[0] == 27) {
                     shift @{$initial_value};
@@ -2615,8 +2615,27 @@ sub _emit_expression_Uxntal ($ast, $stref, $f, $info) {
             if ($name eq 'int' ) { # just remove it
                 # [1,'int',[',', $arg, $sz]]
                 # For 'char' this means we ignore the 'kind' and assume ASCII
+                my $word_sz = 2;
+                if ($args->[0] == 27) {
+                    if ($args->[2][0]==9) {
+                        $word_sz=$args->[2][2][1];
+                    }
+                    elsif ($args->[2][0]==29) {
+                        $word_sz=$args->[2][1];
+                        carp Dumper $args->[2][1];
+                    }
+                }
                 my $uxn_ast = $args->[0] == 27  ? $args->[1] : $args;
-                return _emit_expression_Uxntal($uxn_ast, $stref, $f,$info);
+                (my $uxntal_expr, my $word_sz_ignored) =   _emit_expression_Uxntal($uxn_ast, $stref, $f,$info);
+                if ($word_sz==2) {
+                    return ($uxntal_expr,2);
+                }
+                elsif ($word_sz==1) {
+                    return ($uxntal_expr,1);
+                }
+                else {
+                    croak "Unsupported kind=$word_sz in int() for $uxntal_expr";
+                }
             }
             elsif ( $name eq 'achar' or $name eq 'char') { # just remove it
                 # For 'char' this means we ignore the 'kind' and assume ASCII
@@ -4165,7 +4184,7 @@ sub getDecl($stref,$f,$var) {
         }
     }
 
-    carp "getDecl: $f $subset $module_name $var ".Dumper($decl);
+    # carp "getDecl: $f $subset $module_name $var ".Dumper($decl);
     return $decl;
 }
 # ----------------------------------------------------------------------------------------------------

@@ -5588,15 +5588,12 @@ sub __move_DATA_to_InitialValue { my ($var_name, $data, $stref, $f ) = @_;
 	my $Sf = $stref->{$sub_or_incl_or_mod}{$f};
 	# carp $var_name eq 'dvdIcn', $sub_or_incl_or_mod eq 'Modules',$f eq 'Dvd';#,Dumper $stref->{'Modules'}{'Dvd'}{'Vars'}{'Subsets'}{'ModuleVars'};
 	my $subset = in_nested_set( $Sf, 'Vars', $var_name );
-	if (exists $stref->{$sub_or_incl_or_mod}{$f}{'Vars'}{'Subsets'}{'ModuleVars'}{'Set'}{$var_name}) {
-		# croak "$sub_or_incl_or_mod $f <ModuleVars	> $var_name ".Dumper( $Sf->{'ModuleVars'}{'Set'}{$var_name});
-		$stref->{$sub_or_incl_or_mod}{$f}{'Vars'}{'Subsets'}{'ModuleVars'}{'Set'}{$var_name}{'InitialValue'} = $data;
-	}
+
 	my $decl = get_var_record_from_set($Sf->{$subset},$var_name);
 	$decl->{'InitialValue'}=$data;
 	$Sf->{$subset}{'Set'}{$var_name}=$decl;
-	# $Sf->{'ModuleVars'}{'Set'}{$var_name}=$decl;
-	croak "$sub_or_incl_or_mod $f <$subset> $var_name ".Dumper( $decl,$Sf->{$subset}{'Set'}{$var_name});
+
+	# croak "$sub_or_incl_or_mod $f <$subset> $var_name ".Dumper( $decl,$Sf->{$subset}{'Set'}{$var_name});
 
 	return $stref;
 }

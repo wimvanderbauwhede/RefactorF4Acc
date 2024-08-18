@@ -228,8 +228,8 @@ sub main {
         say "--------------". ('-' x length($code_unit_name)) ;
         say "PRECONDITIONING for $code_unit_name";
         say "--------------". ('-' x length($code_unit_name)) ;
-        }
-    #
+    }
+
     $stref = precondition_includes($stref);
 
     if ($code_unit_name eq '' and scalar @{ $Config{'SOURCEFILES'} }>0) {
@@ -240,6 +240,8 @@ sub main {
     } else {
        $stref = precondition_decls( $code_unit_name, $stref );
     }
+    # here we lost it
+    # croak Dumper $stref->{Modules}{Dvd}{ModuleVars}{Set}{dvdIcn};
    if ($code_unit_name eq '' and scalar @{ $Config{'SOURCEFILES'} }>0) {
         # $code_unit_name is empty, i.e. no TOP routine. So we go through all sources one by one by file name
         for my $fp ( @{ $Config{'SOURCEFILES'} } ) {
