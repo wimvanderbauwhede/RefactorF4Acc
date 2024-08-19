@@ -40,9 +40,9 @@ our %uxntal_lib_subroutines = (
 	'JMP2r'
 ],
 'not'	=>['@not #01 SWP SUB JMP2r'],
-'modulo' => [
+'mod' => [
     '( a:16 b:16 -- m:16 )',
-	'@modulo',
+	'@mod',
 	'OVR2 OVR2  ( a b a b )',
 	'DIV2  ( a b a/b )',
 	'MUL2  ( a b*(a/b) )',

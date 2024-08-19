@@ -2622,16 +2622,21 @@ sub _emit_expression_Uxntal ($ast, $stref, $f, $info) {
                     }
                     elsif ($args->[2][0]==29) {
                         $word_sz=$args->[2][1];
-                        carp Dumper $args->[2][1];
                     }
                 }
+
                 my $uxn_ast = $args->[0] == 27  ? $args->[1] : $args;
-                (my $uxntal_expr, my $word_sz_ignored) =   _emit_expression_Uxntal($uxn_ast, $stref, $f,$info);
+                (my $uxntal_expr, my $word_sz_expr) =  _emit_expression_Uxntal($uxn_ast, $stref, $f,$info);
+                # carp $word_sz.' => '.$uxntal_expr. ' '.$word_sz_expr;
                 if ($word_sz==2) {
                     return ($uxntal_expr,2);
                 }
                 elsif ($word_sz==1) {
-                    return ($uxntal_expr,1);
+                    if ($word_sz_expr == 2  and $uxntal_expr !~/^\#\w{2}$/ ) {
+                        return ($uxntal_expr. ' NIP ',1);
+                    } else {
+                        return ($uxntal_expr,1);
+                    }
                 }
                 else {
                     croak "Unsupported kind=$word_sz in int() for $uxntal_expr";
@@ -2978,7 +2983,7 @@ sub _emit_function_call_expr_Uxntal($stref,$f,$info,$ast){
             $word_sz=1;
         }
         add_to_used_lib_subs($subname);
-        croak Dumper $ast if $subname eq 'int';
+
         my @call_arg_asts = ();
         if (@{$args}) { # else means no args
             if ($args->[0] == 27) { #
