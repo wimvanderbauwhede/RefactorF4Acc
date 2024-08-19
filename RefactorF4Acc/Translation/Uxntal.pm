@@ -2629,10 +2629,17 @@ sub _emit_expression_Uxntal ($ast, $stref, $f, $info) {
                 (my $uxntal_expr, my $word_sz_expr) =  _emit_expression_Uxntal($uxn_ast, $stref, $f,$info);
                 # carp $word_sz.' => '.$uxntal_expr. ' '.$word_sz_expr;
                 if ($word_sz==2) {
-                    return ($uxntal_expr,2);
+                    if ($word_sz_expr==2) {
+                        return ($uxntal_expr,2);
+                    } elsif ($word_sz_expr==1) { # byte to short
+                        return ($uxntal_expr .' #00 SWP ',2);
+                    } else {
+                        croak "Unsupported kind=$word_sz_expr in int() for $uxntal_expr";
+                    }
                 }
-                elsif ($word_sz==1) {
+                elsif ($word_sz==1) { 
                     if ($word_sz_expr == 2  and $uxntal_expr !~/^\#\w{2}$/ ) {
+                        # short to byte
                         return ($uxntal_expr. ' NIP ',1);
                     } else {
                         return ($uxntal_expr,1);
