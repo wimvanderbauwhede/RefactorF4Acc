@@ -306,6 +306,7 @@ sub translate_module_decls_to_Uxntal($stref, $mod_name){
 
 sub translate_sub_to_Uxntal( $stref, $f){
     return $stref if $f eq 'saveState' or $f eq 'loadState';
+    # croak $f if $f eq "onFrame";
 =info
     # First we collect info. What we need to know is:
 
@@ -1147,7 +1148,7 @@ Instead of the nice but cumbersome approach we had until now, from now on it is 
     }
     return $stref;
 
-} # END of tra
+} # END of translate_sub_to_Uxntal
 
 sub _handle_function_pointers($stref,$f) {
     my $Sf = $stref->{'Subroutines'}{$f};
@@ -1342,6 +1343,7 @@ sub _var_access_read($stref,$f,$info,$ast) {
             } elsif ($idx_expr_type == 0) {
                 # the array or string itself, likely as argument to a function
                 $uxntal_code =  "$var_access";
+                $word_sz = 2; # because this is an address
             }
         } elsif  (is_string($stref,$f,$var)) {
             if ($idx_expr_type == 0) {
@@ -1378,7 +1380,7 @@ sub _var_access_read($stref,$f,$info,$ast) {
                     $var_access = ';'.$stref->{'Subroutines'}{$var}{'Pointee'};
                     # croak "VAR $var is a subroutine pointer to $var_access";
                     # Means we need to emit $stref->{'Subroutines'}{$var}{'Pointee'}
-                    $stref = translate_sub_to_Uxntal( $stref, $stref->{'Subroutines'}{$var}{'Pointee'});
+                    # $stref = translate_sub_to_Uxntal( $stref, $stref->{'Subroutines'}{$var}{'Pointee'});
                 }
                 $uxntal_code =  $var_access;
             } else {
@@ -4251,7 +4253,7 @@ sub __is_operator($opcode) {
 # ================================================================================================================================================
 
 sub do_passes_recdescent($stref,$f,$pass_sequence,$seen) {
-local $V=1;
+
     for my $pass_sub_ref (@{$pass_sequence}) {
         say "PASS ".coderef_to_subname($pass_sub_ref)."($f)" if $V;
         $stref=$pass_sub_ref->($stref, $f);
@@ -4285,9 +4287,24 @@ local $V=1;
                 }
             }
         }
+        
         return [$annline];
     };
     $stref = stateless_pass_inplace( $stref,  $f,  $pass_recursion_call_tree, 'pass_recursion_call_tree');
+
+    
+    my $Sf = $stref->{'Subroutines'}{$f};
+
+    for my $var (@{$Sf->{'AllVarsAndPars'}{'List'}}) {
+        next if $var =~/__PH\d+__/; # FIXME: hack!
+        if (exists $stref->{'Subroutines'}{$var}) {
+            if (exists $stref->{'Subroutines'}{$var}{'Pointee'}) {
+                my $pointed_sub = $stref->{'Subroutines'}{$var}{'Pointee'};
+                $stref = do_passes_recdescent($stref,$pointed_sub,$pass_sequence,$seen);
+            }
+        }
+    }
+
     return $stref;
 } # END of do_passes_recdescent
 
@@ -4591,6 +4608,7 @@ For file writes, I think I will only support the following:
 =cut
 
 sub __create_string_zeroing($str,$len) {
+    add_to_used_lib_subs('range-map-short');
     return "{ ( iter ) #00 ROT ROT $str ADD2 STA JMP2r } STH2r ".toHex($len+1,2).' #0002 range-map-short';
 }
 
@@ -4599,13 +4617,15 @@ sub __create_array_zeroing($arr,$sz,$word_sz) {
         __create_byte_array_zeroing($arr,$sz)
     } elsif ($word_sz==2) {
         __create_short_array_zeroing($arr,$sz)
-    } else {croak 'BOOM!'}
+    } else {croak "__create_array_zeroing: word size $word_sz not supported" }
 }
 sub __create_byte_array_zeroing($str,$len) {
+    add_to_used_lib_subs('range-map-short');
     return "{ ( iter ) #00 ROT ROT $str ADD2 STA JMP2r } STH2r ".toHex($len-1,2).' #0000 range-map-short';
 }
 
 sub __create_short_array_zeroing($str,$len) {
+    add_to_used_lib_subs('range-map-short');
     return "{ ( iter ) #0000 SWP2 #0002 MUL2 $str ADD2 STA2 JMP2r } STH2r ".toHex($len-1,2).' #0000 range-map-short';
 }
 sub _gen_array_string_inits($stref,$f,$var,$pass_state) {
@@ -4619,7 +4639,8 @@ sub _gen_array_string_inits($stref,$f,$var,$pass_state) {
         ? __C_array_size($decl->{'ConstDim'})
         : __C_array_size($decl->{'Dim'}) ;
         $uxntal_array_string_init = __create_array_zeroing(";$fq_var",$sz,$word_sz);
-        carp "INIT ARRAY $var in $f";
+        
+        # carp "INIT ARRAY $var in $f";
     }
     elsif (is_string($stref,$f,$var)) {
         my $len = __get_len_from_Attr($decl);
