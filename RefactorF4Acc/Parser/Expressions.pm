@@ -612,7 +612,7 @@ sub parse_expression_no_context { (my $str)=@_;
             my $var=$1;
             $has_funcs=1;
             my $arg_expr_ast;
-            if ($str!~/^\s*\)/) { # non-empty arg list
+            if ($str!~/^\s*\)\s*/) { # non-empty arg list
                 ($arg_expr_ast,$str, my $err, my $has_funcs2)=parse_expression_no_context($str);
                 if( ref($arg_expr_ast) ne 'ARRAY') {
                     $arg_expr_ast=[$arg_expr_ast];
@@ -784,7 +784,7 @@ sub parse_expression_no_context { (my $str)=@_;
                 last;
             }
         }
-        elsif ($str=~s/^\)//) { # closing paren
+        elsif ($str=~s/^\)\s*//) { # closing paren
 
             # Again this is like falling off the end of the string
             # if  @{$arg_expr_ast} is not empty, then this must become the ast to return

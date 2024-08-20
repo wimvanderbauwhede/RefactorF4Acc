@@ -651,7 +651,7 @@ Instead of the nice but cumbersome approach we had until now, from now on it is 
         }
 
         if (exists $info->{'Assignment'} ) {
-            # say "Assignment: $line" if $f eq 'reset';
+            # say "Assignment: $line" if $f eq 'move';
             ($c_line,$pass_state) = _emit_assignment_Uxntal($stref, $f, $info,$pass_state) ;
             if (exists $info->{'If'} and not exists $info->{'IfThen'}) {
                 my $indent = $info->{'Indent'};
@@ -2366,7 +2366,8 @@ sub _emit_arg_decl_Uxntal($stref,$f,$arg, $name){
     if ($fkind eq '') {$fkind=2};
     # my $uxntal_size = toUxntalType($ftype,$fkind);
     my $word_sz = $stref->{'Subroutines'}{$f}{'WordSizes'}{$arg};
-    my $short_mode = __nBytes($word_sz, $isArrayOrString)==1?'':'2';
+    # carp Dumper($f,$arg, $word_sz, $isArrayOrString);
+    my $short_mode = __nBytes($word_sz, $isArrayOrString) == 1 ? '' : '2';
     # croak "$f $arg: $word_sz != $uxntal_size" if $word_sz != $uxntal_size;
     my $uxntal_write_arg = $iodir eq 'out' or $iodir eq 'inout' ? 1 : 0 ;
     my $fq_name = __shorten_fq_name($name.'_'.$arg);
