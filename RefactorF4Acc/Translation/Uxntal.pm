@@ -92,13 +92,13 @@ our %fqns = ();
 
 our $Varvara_magic_code = 7188;
 =pod Varvara devices
-00	system	
-10	console	
-20	screen	
-30	audio	
-40	
-50	
-60	
+00	system
+10	console
+20	screen
+30	audio
+40
+50
+60
 70	Unused
 80	controller
 90	mouse
@@ -176,27 +176,14 @@ sub translate_program_to_Uxntal($stref,$program_name){
             '@call-stack ( grows down )'
         ]
     };
-# croak Dumper $funktalState;
-    # carp Dumper $stref->{'Uxntal'}{'Globals'};
+
     $stref = fold_constants_all($stref) ;
 
     my $new_annlines = $stref->{'Subroutines'}{$program_name}{'RefactoredCode'};
-    # croak Dumper pp_annlines($new_annlines);
+
     $stref->{'TranslatedCode'}=[];
     $Config{'FIXES'}={};
-    # croak "PROBLEM: this does not do a recdescent on the call tree!";
-    # $stref = pass_wrapper_subs_in_module($stref,$program_name,
-    #    # module-specific passes.
-    #    [
-    #         # [\&_fold_consts_in_module_decls]
-    #         # [\&translate_module_decls_to_Uxntal]
-    #    ],
-    #    # subroutine-specific passes
-    #    [
-    #       [ \&replace_case_by_if ],
-    #       [\&translate_sub_to_Uxntal]
-    #    ]
-    #    );
+
     $stref = do_passes_recdescent($stref,$program_name,
         [
             \&replace_case_by_if ,
@@ -345,6 +332,7 @@ Instead of the nice but cumbersome approach we had until now, from now on it is 
 
 =cut
     $stref = _get_word_sizes($stref,$f);
+    # $stref = _handle_function_pointers($stref,$f);
     $stref = _pointer_analysis($stref,$f);
     my $Sf = $stref->{'Subroutines'}{$f};
 
@@ -662,7 +650,7 @@ Instead of the nice but cumbersome approach we had until now, from now on it is 
         }
 
         if (exists $info->{'Assignment'} ) {
-            say "Assignment: $line" if $f eq 'calcNumConst';
+            # say "Assignment: $line" if $f eq 'reset';
             ($c_line,$pass_state) = _emit_assignment_Uxntal($stref, $f, $info,$pass_state) ;
             if (exists $info->{'If'} and not exists $info->{'IfThen'}) {
                 my $indent = $info->{'Indent'};
@@ -809,7 +797,7 @@ Instead of the nice but cumbersome approach we had until now, from now on it is 
                         if ($dev_id < 0 or $dev_id >= 16 or $dev_id==10) { # 10 is the file device
                             error("OPEN for unit $unit ($dev_id) with constant string as file name is not yet supported");
                         } else {
-                            $skip=1; # A Varvara device, 
+                            $skip=1; # A Varvara device,
                         }
                     }
                 }
@@ -1159,8 +1147,22 @@ Instead of the nice but cumbersome approach we had until now, from now on it is 
     }
     return $stref;
 
-} # END of translate_sub_to_Uxntal()
+} # END of tra
 
+sub _handle_function_pointers($stref,$f) {
+    my $Sf = $stref->{'Subroutines'}{$f};
+
+    for my $var (@{$Sf->{'AllVarsAndPars'}{'List'}}) {
+        next if $var =~/__PH\d+__/; # FIXME: hack!
+        if (exists $stref->{'Subroutines'}{$var}) {
+            if (exists $stref->{'Subroutines'}{$var}{'Pointee'}) {
+                my $pointed_sub = $stref->{'Subroutines'}{$var}{'Pointee'};
+                $stref = translate_sub_to_Uxntal($stref,$pointed_sub)
+            }
+        }
+    }
+    return $stref;
+}
 sub _get_word_sizes($stref,$f){
     my $Sf = $stref->{'Subroutines'}{$f};
 
@@ -1331,8 +1333,8 @@ sub _var_access_read($stref,$f,$info,$ast) {
             } elsif ($idx_expr_type == 2) {
                 croak('Array slice is not yet supported: '.Dumper($ast));
                 error('Array slice is not yet supported: '.Dumper($ast));
-                # What would it take to support this? 
-                # It makes little sense on its own. 
+                # What would it take to support this?
+                # It makes little sense on its own.
                 # Either it is an assignment or an argument of some call
                 # An assignment would be a memcpy
                 # An argument of a call would depend on the call
@@ -1599,7 +1601,7 @@ sub _var_access_assign($stref,$f,$info,$lhs_ast,$rhs_ast) {
                 # I am assuming that the RHS can only return a scalar
                 # So LHS is an array of T and RHS is T
                 # So we simply assign the RHS to the first elt of the LHS
-                
+
                 my $dim = exists $lhs_var_decl->{'ConstDim'}
                     ? __C_array_size($lhs_var_decl->{'ConstDim'})
                     : __C_array_size($lhs_var_decl->{'Dim'});
@@ -1739,16 +1741,16 @@ sub __copy_substr($stref, $f, $info, $lhs_ast, $rhs_ast) {
     my $uxntal_code = '';
     # unpack the asts
     my ($lhs_var,$lhs_idxs,$lhs_idx_expr_type) = __unpack_var_access_ast($lhs_ast);
-    
+
     my $lhs_var_decl = getDecl($stref,$f,$lhs_var);
     # if it's allocatable, we need to set the length to that of the RHS
     my $lhs_is_allocatable = is_allocatable($lhs_var_decl);
     # from to len strncpy => from to from to len strncpy => from to => from LDA2 to STA2
     my $set_LHS_str_len_part_1 = $lhs_is_allocatable ? ' OVR2 OVR2' : '';
     my $set_LHS_str_len_part_2 = $lhs_is_allocatable ? ' SWP2 LDA2 SWP2 STA2' : '';
-    if ($rhs_ast->[0] == 34 or $rhs_ast->[0] == 1 or $rhs_ast->[0] == 13) { 
-        # string literal 
-        # or function returning a string or char, 
+    if ($rhs_ast->[0] == 34 or $rhs_ast->[0] == 1 or $rhs_ast->[0] == 13) {
+        # string literal
+        # or function returning a string or char,
         # or concat //
         my $lhs_var_access = __var_access($stref,$f,$lhs_var);
         my $rhs_Uxntal_expr = '';
@@ -1792,7 +1794,7 @@ sub __copy_substr($stref, $f, $info, $lhs_ast, $rhs_ast) {
                 # This becomes rather complicated so I will only deal with constant strings, TODO
 # So if we have str trim, then trim can't return anything meaningful; if we have str ladjust, it should return the length of the arg.
 # In fact, if we have trim on the RHS, this should be a special case. Probably same for any function returning an allocatable string
-# trimmed_str to_str trimmed_str_len to_str_len min 
+# trimmed_str to_str trimmed_str_len to_str_len min
                 my $lhs_len = __get_len_from_Attr($decl);
                 my $rhs_len = $rhs_ast->[0] == 34
                     ? length($info->{'PlaceHolders'}{$rhs_ast->[1]})-2 # -2 for the quotes
@@ -1807,14 +1809,14 @@ sub __copy_substr($stref, $f, $info, $lhs_ast, $rhs_ast) {
                 #     $rhs_len = __get_val_str_from_len_Attr($rhs_len);
                 # }
                 # if ($rhs_len == -1) { $rhs_len = 64; }
-                if ($rhs_len == -2) { 
+                if ($rhs_len == -2) {
                     # Means the RHS is actually a character
                     $uxntal_code = "$rhs_Uxntal_expr $lhs_var_access #0002 ADD2 STA";
                     if ($lhs_is_allocatable) {
                         $uxntal_code .= " $lhs_var_access #0001 STA2";
                     }
                     $uxntal_code .=  ' ( COPY CHAR ) ';
-                } elsif ($rhs_len == -1) { 
+                } elsif ($rhs_len == -1) {
                     # This means we should get the length and calc the min at run time
                     my $lhs_Uxntal_len = toHex($lhs_len,2);
                     $uxntal_code = "$rhs_Uxntal_expr $lhs_var_access $set_LHS_str_len_part_1 OVR2 LDA2 $lhs_Uxntal_len min strncpy $set_LHS_str_len_part_2 ( DYNAMIC LEN )";
@@ -1960,7 +1962,7 @@ sub __get_len_from_RetVal($stref,$fname) {
         if ($F95_intrinsic_function_sigs{$fname}[-1] eq 'character(*)') {
             # easiest is to do this dynamically
             return -1
-        } 
+        }
         elsif ($F95_intrinsic_function_sigs{$fname}[-1] eq 'character') {
             return -2; # a character, not a 1-character string. This would be achar, char
         }
@@ -1969,7 +1971,7 @@ sub __get_len_from_RetVal($stref,$fname) {
         }
     } else {
         my $sig = $stref->{'Subroutines'}{$fname}{'Signature'};
-        if (not exists $sig->{'ReturnType'}) { 
+        if (not exists $sig->{'ReturnType'}) {
             carp $fname,Dumper $sig;
             return -1; # means handle separately
         }
@@ -2637,7 +2639,7 @@ sub _emit_expression_Uxntal ($ast, $stref, $f, $info) {
                         croak "Unsupported kind=$word_sz_expr in int() for $uxntal_expr";
                     }
                 }
-                elsif ($word_sz==1) { 
+                elsif ($word_sz==1) {
                     if ($word_sz_expr == 2  and $uxntal_expr !~/^\#\w{2}$/ ) {
                         # short to byte
                         return ($uxntal_expr. ' NIP ',1);
@@ -2654,7 +2656,7 @@ sub _emit_expression_Uxntal ($ast, $stref, $f, $info) {
                 my $uxn_ast = $args->[0] == 27  ? $args->[1] : $args;
                 (my $uxntal_expr, my $word_sz) =  _emit_expression_Uxntal($uxn_ast, $stref, $f,$info);
                 # If the expression is an integer literal, I need to reduce it
-                return ($uxntal_expr.( $word_sz ==2 ?' NIP ':''),1); 
+                return ($uxntal_expr.( $word_sz ==2 ?' NIP ':''),1);
             }
             elsif ($name eq 'print') {
                 # [1,'print','*', $arg]
@@ -2867,7 +2869,7 @@ sub _emit_subroutine_call_expr_Uxntal($stref,$f,$line,$info){
     # This is only for local subroutines, so handle the others here
     if (exists $info->{'SubroutineCall'}{'IsExternal'}) {
         if ($subname eq 'exit' or $subname eq 'stop') { # I might change this so that exit() actually exits
-        # FIXME: I think stop is not handled like a call 
+        # FIXME: I think stop is not handled like a call
             return 'BRK';
         }
         elsif (exists  $F95_intrinsic_subroutine_sigs{$subname}) {
@@ -3089,7 +3091,7 @@ sub __emit_call_arg_Uxntal_expr($stref,$f,$info,$subname,$call_arg_expr_str,$ast
             ? 1
             : 0
         : $ast_from_info->[0] >= 29 # try via AST
-            ? 1 : 0; 
+            ? 1 : 0;
     # TODO: support DO via {'Do'}{'Range'}{ExpressionASTs'}'
     # Problem is that here, we don't know which of the expressions it is
     # my $ast_from_info = exists $info->{'Assignment'}
@@ -3226,8 +3228,14 @@ sub toUxntalType($ftype,$kind ){
 
 sub toHex($n,$sz){
     croak if not defined $n;
-	croak if $n eq '1_2';
-	$n=~s/_\d$//; # strip _2
+	# croak Dumper($n,$sz)
+    if ($n =~ /_\d$/) {
+        $n=~s/_(\d)$//; # strip _2
+        my $word_sz=$1;
+        if ($word_sz!=$sz) {
+            croak "toHex: word size $word_sz <> hex sz $sz";
+        }
+    }
     my $szx2 = $sz*2;
     if ($n<0) {
         $n=(2*($sz*8))-$n;
@@ -4243,7 +4251,7 @@ sub __is_operator($opcode) {
 # ================================================================================================================================================
 
 sub do_passes_recdescent($stref,$f,$pass_sequence,$seen) {
-
+local $V=1;
     for my $pass_sub_ref (@{$pass_sequence}) {
         say "PASS ".coderef_to_subname($pass_sub_ref)."($f)" if $V;
         $stref=$pass_sub_ref->($stref, $f);
@@ -4258,7 +4266,7 @@ sub do_passes_recdescent($stref,$f,$pass_sequence,$seen) {
                 $seen->{$csf}=1;
                 if (not exists $F95_intrinsic_functions{$csf} and
                     not exists $stref->{'ExternalSubroutines'}{$csf} ) {
-                    say "RECURSE info SUB $csf" if $V;
+                    say "RECURSE into SUB $csf" if $V;
                     $stref = do_passes_recdescent($stref,$csf,$pass_sequence,$seen);
                 }
             }
