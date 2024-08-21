@@ -269,7 +269,7 @@ sub add_function_var_decls_from_calls {
 
 } # END of add_function_var_decls_from_calls
 
-
+# This should be part of Analysis. TODO!
 sub link_function_pointers {
     ( my $stref, my $f ) = @_;
 
@@ -279,7 +279,7 @@ sub link_function_pointers {
 
     # Here I check if there is a Cray pointers that points to the subroutine
     if (exists $stref->{'Subroutines'}{$f}{'InModule'}) {
-    say "Sub $f is in Module ".$stref->{'Subroutines'}{$f}{'InModule'};
+    # say "Sub $f is in Module ".$stref->{'Subroutines'}{$f}{'InModule'};
         # carp "getDecl: $f $subset $module_name $var ".
         my $module_name = $stref->{'Subroutines'}{$f}{'InModule'};
         my $Mf = $stref->{'Modules'}{$module_name};

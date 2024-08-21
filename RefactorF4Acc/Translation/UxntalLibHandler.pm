@@ -39,6 +39,12 @@ our %uxntal_lib_subroutines = (
 	'ROT2 MUL2 ROT2 ROT2 MUL2 ADD2',
 	'JMP2r'
 ],
+'max' => [ # UNTESTED!
+	'@min',
+	'OVR2 OVR2 GTH2 #00 SWP DUP2 #0001 SWP2 SUB2',
+	'ROT2 MUL2 ROT2 ROT2 MUL2 ADD2',
+	'JMP2r'
+],
 'not'	=>['@not #01 SWP SUB JMP2r'],
 'mod' => [
     '( a:16 b:16 -- m:16 )',
@@ -181,7 +187,7 @@ sub emit_used_uxntal_lib_subroutine_sources(){
         @sources = (@sources,@{$used_uxntal_lib_subroutines{$subname}});
     }
     for my $subname (sort keys %not_library_subroutines ) {
-        next if $subname=~/^(:?main|buf|totalMemUsage)$/;
+        next if $subname=~/^(:?main|buf|totalMemUsage|call\-stack)$/;
         warning("No such library subroutine: $subname",0);
     }
     return @sources;

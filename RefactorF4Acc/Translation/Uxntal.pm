@@ -67,7 +67,7 @@ use feature qw(signatures);
 
 our $DBG = 0;
 #               0    1    2    3      4      5      6      7      8      9   10   11   12   13    14
-our @sigils = ('(', '&', '$', 'ADD', 'SUB', 'MUL', 'DIV', 'mod', 'pow', '=', '@', '#', ':' ,'//', ')('
+our @sigils = ('(', '&', '$', 'ADD', 'SUB', 'mul', 'div', 'mod', 'pow', '=', '@', '#', ':' ,'//', ')('
 #                15    16      17    18      19     20     21     22     23     24       25       26
                ,'EQU', 'NEQ', 'lt', 'gt', 'lte', 'gte', 'not', 'AND', 'ORA', 'EOR', '.eqv.', '.neqv.'
 #                27   28
@@ -113,6 +113,7 @@ f0	Unused
 # TODO This needs to be changed so that only the used functions are emitted
 my @uxntal_lib_sources = (
     '../../uxntal-libs/signed-cmp.tal',
+    '../../uxntal-libs/signed-mult-div.tal',
     '../../uxntal-libs/fmt-print.tal',
     '../../uxntal-libs/string.tal',
     '../../uxntal-libs/range-map-fold-lib.tal',
@@ -1441,7 +1442,7 @@ LOCAL
     ARRAY SLICE => copy
 =cut
 sub _var_access_assign($stref,$f,$info,$lhs_ast,$rhs_ast) {
-# carp Dumper($lhs_ast,$rhs_ast);
+
     my ($lhs_var,$idxs,$idx_expr_type) = __unpack_var_access_ast($lhs_ast);
     my $Sf = $stref->{'Subroutines'}{$f};
     my $word_sz= $Sf->{'WordSizes'}{$lhs_var};
@@ -1615,19 +1616,39 @@ sub _var_access_assign($stref,$f,$info,$lhs_ast,$rhs_ast) {
                     croak "TODO: _var_access_assign($f):", Dumper($lhs_type,$rhs_type,$rhs_type_attr,$rhs_expr_Uxntal,$rhs_ast);
                 }
             } else {
-                my ($rhs_var,$idxs,$idx_expr_type) = __unpack_var_access_ast($rhs_ast);
-                if (is_array($stref,$f,$rhs_var)) {
+                my ($rhs_var,$rhs_idxs,$rhs_idx_expr_type) = __unpack_var_access_ast($rhs_ast);
+                my $rhs_var_access = __var_access($stref,$f,$rhs_var);
+                if (is_array($stref,$f,$rhs_var)) { # RHS is a full, unindexed array
                     # if the rhs is also an array we need an array copy
                     # This is a range-map
-                    my $rhs_var_access = __var_access($stref,$f,$rhs_var);
-                    $uxntal_code = "{ ( iter ) ".
-                        ( $word_sz==2 ? '#0002 MUL2' : '')
-                        ." DUP2 $rhs_var_access ADD2 LDA$short_mode " .
-                        ( $short_mode eq '2' ? 'SWP2' : 'ROT ROT' ). ' '
-                        . "$lhs_var_access ADD2 STA$short_mode JMP2r } STH2r ".
-                        toHex($array_length-1,2)
-                        . ' #0000 range-map-short';
-                    add_to_used_lib_subs('range-map-short');
+                    if ($rhs_idx_expr_type==0) {
+                        $uxntal_code = "{ ( iter ) ".
+                            ( $word_sz==2 ? '#0002 MUL2' : '')
+                            ." DUP2 $rhs_var_access ADD2 LDA$short_mode " .
+                            ( $short_mode eq '2' ? 'SWP2' : 'ROT ROT' ). ' '
+                            . "$lhs_var_access ADD2 STA$short_mode JMP2r } STH2r ".
+                            toHex($array_length-1,2)
+                            . ' #0000 range-map-short ( ARRAY COPY ) ';
+                            add_to_used_lib_subs('range-map-short');
+                    } elsif ($rhs_idx_expr_type==2) { # RHS is a slice
+
+                        my ($rhs_idx_expr_b,$idx_word_sz) = _emit_expression_Uxntal($rhs_idxs->[1], $stref, $f,$info);
+                        (my $rhs_idx_expr_e,$idx_word_sz) = _emit_expression_Uxntal($rhs_idxs->[2], $stref, $f,$info);
+                        my $rhs_len = __calc_len($rhs_idx_expr_b,$rhs_idx_expr_e);
+                        $uxntal_code = "{ ( iter ) ".
+                            ( $word_sz==2 ? '#0002 MUL2' : '')
+                            ." DUP2 $rhs_var_access ADD2 $rhs_idx_expr_b ADD2 LDA$short_mode " .
+                            ( $short_mode eq '2' ? 'SWP2' : 'ROT ROT' ). ' '
+                            . "$lhs_var_access ADD2 
+                            STA$short_mode JMP2r } STH2r $rhs_len ".
+                            toHex($array_length-1,2). ' min '
+                            . ' #0000 range-map-short ( ARRAY SLICE COPY ) ';
+                            add_to_used_lib_subs('range-map-short');
+                            add_to_used_lib_subs('min');
+                    } else {
+                    # if not, it is an error
+                        error("LHS is an array but RHS isn't");
+                    }
                 } else {
                 # if not, it is an error
                     error("LHS is an array but RHS isn't");
@@ -2800,7 +2821,11 @@ sub _emit_expression_Uxntal ($ast, $stref, $f, $info) {
                 # Because LTH and GTH are for unsigned ints, we need special functions for the inequalities
                 if ($opcode >= 17 and $opcode <= 20) { # <, >, <= or >=
                     add_to_used_lib_subs($sigils[$opcode].$short_mode);
+                }             
+                elsif ($opcode == 5 or $opcode == 6) {
+                    add_to_used_lib_subs($sigils[$opcode].$short_mode);
                 }
+
                     # if ($opcode == 19 or $opcode == 20) { # FIXME I guess?
                 #     $short_mode = 2;
                 # }
@@ -3554,7 +3579,13 @@ sub _emit_print_from_ast($stref,$f,$line,$info,$unit,$elt){
             # We assume that the length field will be set correctly
             return 'print-string'.$suffix;
         } else {
-            error("Unsupported type in print statement in $fname: ".$return_type.'('.$return_type_attr.') in <'.$line.'>'.Dumper($stref->{'Subroutines'}{$fname}{'Signature'}));
+            if (exists $F95_intrinsic_function_sigs{$fname}) {
+                # carp 'TODO: generic intrinsic, look at type of arg '.Dumper($elt);
+                _emit_print_from_ast($stref,$f,$line,$info,$unit,$elt->[2]);
+
+            } else {
+                error("Unsupported type in print statement in $fname: ".$return_type.'('.$return_type_attr.') in <'.$line.'>'.Dumper($stref->{'Subroutines'}{$fname}{'Signature'}));
+            }
         }
     }
     elsif ($code>=29) {
