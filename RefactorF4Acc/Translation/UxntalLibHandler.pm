@@ -119,7 +119,7 @@ our %uxntal_lib_subroutines = (
 # ],
 
 'wst' =>[ '','( show number of bytes on the WST. Takes an arbitrary char to print as info )',
-    '@wst', '#5718 DEO #18 DEO #2018 DEO .System/wst DEI #01 SUB #00 SWP print-int nl','JMP2r'
+    '@wst', '#5718 DEO #18 DEO #2018 DEO #02 DEI #01 SUB #00 SWP print-int #0a18 DEO','JMP2r'
 ]
 
 );

@@ -2777,7 +2777,12 @@ sub _emit_expression_Uxntal ($ast, $stref, $f, $info) {
                 elsif($opcode == 4) {
                     # In principle we need to know the word size!
                     # But I will simply assume that all arithmetic is using shorts
-                    return ("#0000 $v SUB$short_mode",$word_sz);
+                    if ($v =~/^\#(\w{2,4})$/) {
+                        my $mv = toHex(-hex($1),$word_sz);
+                        return ($mv,$word_sz);
+                    } else {
+                        return ('#'.('00' x $word_sz)." $v SUB$short_mode",$word_sz);
+                    }
                 } else {
                     return ($v, $word_sz);
                 }
@@ -3266,7 +3271,9 @@ sub toHex($n,$sz){
     }
     my $szx2 = $sz*2;
     if ($n<0) {
-        $n=(2*($sz*8))-$n;
+
+        $n=2**(8*$sz)+$n;
+        # $n=(2*($sz*8))-$n;
     }
     return sprintf("#%0${szx2}x",$n);
 }
@@ -3276,7 +3283,8 @@ sub toRawHex($n,$sz){
 	$n=~s/_\d$//; # strip _2
     carp 'len is *' if $n eq '*';
     if ($n<0) {
-        $n=(2*($sz*8))-$n;
+        $n=2**(8*$sz)+$n;
+        # $n=(2*($sz*8))-$n;
     }
     return sprintf("%0${szx2}x",$n);
 }
