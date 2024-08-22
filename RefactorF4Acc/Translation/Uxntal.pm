@@ -1178,7 +1178,7 @@ sub _get_word_sizes($stref,$f){
         my $decl = getDecl($stref,$f,$var);
         my $word_sz=0;
         my $type = $decl->{'Type'};
-        # carp "VAR? ".Dumper($var,$decl);
+        # carp "$f: VAR? ".Dumper($var,$decl);
         if ($type eq 'integer') {
             my $kind = $decl->{'Attr'};
             $kind=~s/kind\s*=\s*//;
@@ -3671,7 +3671,7 @@ sub __implicit_do_in_print($elt,$stref,$f,$info,$line,$unit) {
 sub _analyse_write_call($stref,$f,$info){
     my $call_args_ast = $info->{'IOCall'}{'Args'}{'AST'}[2];
     my $iolist_ast = $info->{'IOList'}{'AST'};
-
+# carp Dumper $call_args_ast,$iolist_ast; 
     # This is really complicated.
     # The first arg can be an integer, a variable or '*'
     # If it's zero, it's STDERR, so we need #19 instead of #18
@@ -3729,13 +3729,18 @@ sub _analyse_write_call($stref,$f,$info){
     }
     elsif ($unit ne 'STDOUT') { # so must be a var
         my $unitvar_decl = getDecl($stref,$f,$unit);
+        # carp Dumper $unit,$unitvar_decl;
         my $unitvar_val = $unitvar_decl->{'Val'} // '';
-        $unitvar_val =~s/_2$//;
-
-        my $dev_id = $unitvar_val - $Varvara_magic_code;
-        if ($dev_id >= 0 and $dev_id < 16 ) {
-            $print_calls = ['device-write'];
-        } else {
+        my $is_device_write=0;
+        if ($unitvar_val ne '') {
+            $unitvar_val =~s/_2$//;
+            my $dev_id = $unitvar_val - $Varvara_magic_code;
+            if ($dev_id >= 0 and $dev_id < 16 ) {
+                $print_calls = ['device-write'];
+                $is_device_write=1;
+            }
+        }
+        if (not $is_device_write ) {
         # memwrite-string assumes the target is a string
         # memwrite-char, memwrite-int, memwrite-hex assume the target is an array
         # The use case is for strings so to be clear I should probably call them strwrite instead of memwrite.
@@ -3813,7 +3818,7 @@ sub __analyse_write_call_arg($stref,$f,$info,$arg,$i){
         my $unit_var =     $arg_val;
         return ['unit',$unit_var];
     } else {
-        die "Unknown arg type: ".Dumper($arg);
+        croak "Unknown arg type in $f: ".Dumper($arg);
     }
 
 } # END of __analyse_write_call_arg
@@ -4158,16 +4163,25 @@ sub getDecl($stref,$f,$var) {
 
     # Module var decl records are copied into the state of the subroutines that use them
     # before constant folding is done. So we need to get the originals instead.
+    my $mdecl;
     if( $subset eq 'ModuleVars') {
-        $decl = $stref->{'Modules'}{$module_name}{'ModuleVars'}{'Set'}{$var};
+        $mdecl = $stref->{'Modules'}{$module_name}{'ModuleVars'}{'Set'}{$var};
     }
-    if (not defined $decl) {
+
+    if (not defined $decl and not defined $mdecl) {
         if (exists $stref->{'Subroutines'}{$f}{'InModule'}) {
             my $module_name = $stref->{'Subroutines'}{$f}{'InModule'};
             my $Mf = $stref->{'Modules'}{$module_name};
             my $decl = get_var_record_from_set($stref->{'Modules'}{$module_name}{'Vars'},$var);
-            return $decl;
+            carp 3,Dumper $decl if $var eq 'VV';
+            if (defined $decl) {
+                return $decl;
+            } else {
+                croak "Could not find a declaration for $var in $f or used modules";
+            }
         }
+    } elsif (not defined $decl) {
+        $decl = $mdecl;
     }
 
     return $decl;
