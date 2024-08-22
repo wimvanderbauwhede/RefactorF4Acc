@@ -4314,7 +4314,7 @@ sub _parse_read_write_print {
     }
     if (not (exists $info->{'PrintCall'} or exists $info->{'AcceptCall'}) ) {
     	# Normalise by removing UNIT, NML and FMT keywords as they are optional
-# FIXME: this is not good, it only works if they are in the right order. So order them first!
+		# This only works if they are in the right order. So order them first.
 		my $tline = __reorder_io_control_specs($tline);
 # 		If the optional characters UNIT= are omitted before io-unit, io-unit must be the first item in
 # io-control-specs. If the optional characters FMT= are omitted before format, format must be
@@ -4334,7 +4334,17 @@ sub _parse_read_write_print {
     my $case=0;
     if ($tline=~/^\w+\s*\(/) {
         ($attrs_ast, $rest, $err) = parse_expression_no_context($tline,$info,$stref,$f);
-			# say Dumper($attrs_ast); die if $line=~/read.+Screen/;
+			# say Dumper($attrs_ast); die if $line=~/write.+getTokenLabelVal.+typeCtorTokenSeq/;
+
+			if ($attrs_ast->[2][0]==14) {
+				my $attrs_ast_ = [
+					$attrs_ast->[0],$attrs_ast->[1],
+					$attrs_ast->[2][1]
+				];
+				$exprs_ast = [0,$attrs_ast->[2][2]];
+				$attrs_ast = $attrs_ast_;
+				$err=0;
+			}
 			if ($attrs_ast->[2][0]== 27) {
 				if ($attrs_ast->[2][1][0]== 2) {
 					my $unitvar = $attrs_ast->[2][1][1];
