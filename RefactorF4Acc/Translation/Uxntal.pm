@@ -655,31 +655,33 @@ Instead of the nice but cumbersome approach we had until now, from now on it is 
             # say "Assignment: $line" if $f eq 'move';
             ($c_line,$pass_state) = _emit_assignment_Uxntal($stref, $f, $info,$pass_state) ;
             if (exists $info->{'If'} and not exists $info->{'IfThen'}) {
-                my $indent = $info->{'Indent'};
-                my $branch_id = $info->{'LineID'};
-                my $cond_expr_ast=$info->{'Cond'}{'AST'};
-                my ($cond_expr,$word_sz) = _emit_expression_Uxntal($cond_expr_ast,$stref,$f,$info);
-                $c_line = "\n$cond_expr #00 EQU ,&$branch$branch_id JCN\n" . $c_line; #$indent.
-                $c_line .= "\n&$branch$branch_id";
+                $c_line = _emit_if_without_then_Uxntal($stref,$f,$info,$c_line);
+                # my $indent = $info->{'Indent'};
+                # my $branch_id = $info->{'LineID'};
+                # my $cond_expr_ast=$info->{'Cond'}{'AST'};
+                # my ($cond_expr,$word_sz) = _emit_expression_Uxntal($cond_expr_ast,$stref,$f,$info);
+                # $c_line = "\n$cond_expr #00 EQU ,&$branch$branch_id JCN\n" . $c_line; #$indent.
+                # $c_line .= "\n&$branch$branch_id";
             }
         }
         elsif (exists $info->{'SubroutineCall'} and not exists $info->{'IOCall'}) {
             $c_line = _emit_subroutine_call_expr_Uxntal($stref,$f,$line,$info);
             # If without Then
             if (exists $info->{'If'} and not exists $info->{'IfThen'}) {
-                my $indent = $info->{'Indent'};
-                my $branch_id = $info->{'LineID'};
-                my $cond_expr_ast=$info->{'Cond'}{'AST'};
-                my ($cond_expr,$word_sz) = _emit_expression_Uxntal($cond_expr_ast,$stref,$f,$info);
-            # What we have is e.g.
-            # if (fl(1:2) == __PH0__) VV = .true.
-            # What we need is
-            # NOT <cond> <label_end> JCN
-                $c_line = "\n$cond_expr #00 EQU ;&$branch$branch_id JCN2\n" .$c_line;
-                # $c_line = "\n$cond_expr #00 EQU ;&$branch$branch_id JCN2\n" . $indent.$c_line;
-            # <expr>
-                # $c_line .= $indent.' '."&$branch$branch_id ( INDENTED BRANCH )";
-                $c_line .= ' '."&$branch$branch_id";
+                $c_line = _emit_if_without_then_Uxntal($stref,$f,$info,$c_line);
+            #     my $indent = $info->{'Indent'};
+            #     my $branch_id = $info->{'LineID'};
+            #     my $cond_expr_ast=$info->{'Cond'}{'AST'};
+            #     my ($cond_expr,$word_sz) = _emit_expression_Uxntal($cond_expr_ast,$stref,$f,$info);
+            # # What we have is e.g.
+            # # if (fl(1:2) == __PH0__) VV = .true.
+            # # What we need is
+            # # NOT <cond> <label_end> JCN
+            #     $c_line = "\n$cond_expr #00 EQU ;&$branch$branch_id JCN2\n" .$c_line;
+            #     # $c_line = "\n$cond_expr #00 EQU ;&$branch$branch_id JCN2\n" . $indent.$c_line;
+            # # <expr>
+            #     # $c_line .= $indent.' '."&$branch$branch_id ( INDENTED BRANCH )";
+            #     $c_line .= ' '."&$branch$branch_id";
             }
         }
         elsif (exists $info->{'IOCall'}) {
@@ -874,17 +876,18 @@ Instead of the nice but cumbersome approach we had until now, from now on it is 
                 croak 'TODO: IOCall '.Dumper( $info->{'IOCall'}{'Args'}{'AST'})."\nIOList ".Dumper($info->{'IOList'}{'AST'});
             }
             if (exists $info->{'If'} and not exists $info->{'IfThen'}) {
-                my $indent = $info->{'Indent'};
-                my $branch_id = $info->{'LineID'};
-                my $cond_expr_ast=$info->{'Cond'}{'AST'};
-                my ($cond_expr,$word_sz) = _emit_expression_Uxntal($cond_expr_ast,$stref,$f,$info);
-            # What we have is e.g.
-            # if (fl(1:2) == __PH0__) VV = .true.
-            # What we need is
-            # NOT <cond> <label_end> JCN
-                $c_line = "\n $cond_expr #00 EQU ;&$branch$branch_id JCN2\n" . $c_line; #$indent
-            # <expr>
-                $c_line .= ' '."&$branch$branch_id"; #$indent.
+                $c_line = _emit_if_without_then_Uxntal($stref,$f,$info,$c_line);
+            #     my $indent = $info->{'Indent'};
+            #     my $branch_id = $info->{'LineID'};
+            #     my $cond_expr_ast=$info->{'Cond'}{'AST'};
+            #     my ($cond_expr,$word_sz) = _emit_expression_Uxntal($cond_expr_ast,$stref,$f,$info);
+            # # What we have is e.g.
+            # # if (fl(1:2) == __PH0__) VV = .true.
+            # # What we need is
+            # # NOT <cond> <label_end> JCN
+            #     $c_line = "\n $cond_expr #00 EQU ;&$branch$branch_id JCN2\n" . $c_line; #$indent
+            # # <expr>
+            #     $c_line .= ' '."&$branch$branch_id"; #$indent.
             }
         }
         elsif (exists $info->{'If'} and not exists $info->{'IfThen'} ) {
@@ -2577,7 +2580,30 @@ sub _emit_assignment_Uxntal ($stref, $f, $info, $pass_state){
     return ($rline,$pass_state);
 } # END of _emit_assignment_Uxntal
 
-
+sub _emit_if_without_then_Uxntal($stref,$f,$info,$c_line) {
+    my $cc_line = $c_line;
+    my $indent = $info->{'Indent'};
+    my $branch_id = $info->{'LineID'};
+    my $cond_expr_ast=$info->{'Cond'}{'AST'};
+    my ($cond_expr,$word_sz) = _emit_expression_Uxntal($cond_expr_ast,$stref,$f,$info);
+    if ($cond_expr eq '#00') { # so we have if 0==0 jump to end, which means we skip the statement entirely
+        return '( Skipped statement because IF cond is always false )';
+    } elsif ($cond_expr =~/^\#/) { # a num constant but not zero
+        return '( IF cond is always true, removed )'."\n".$cc_line;
+    } else {
+        # I don't think that an if without then could ever be more than 256 bytes. 
+        # But I can't be sure so why take chances
+        # TODO: calculate the bytes and decide based on that.
+        my $rel_ok=0;
+        if ($rel_ok) {
+            $cc_line = "\n$cond_expr #00 EQU ,&$branch$branch_id JCN\n" . $cc_line; 
+        } else {
+            $cc_line = "\n$cond_expr #00 EQU ;&$branch$branch_id JCN2\n" . $cc_line; 
+        }
+        $cc_line .= "\n&$branch$branch_id";
+    }
+    return $cc_line;
+}
 
 sub _emit_ifthen_Uxntal ($stref, $f, $info, $branch_id){
     my $cond_expr_ast=$info->{'Cond'}{'AST'};
