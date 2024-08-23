@@ -1,4 +1,4 @@
-#!/usr/bin/env perl;
+#!/usr/bin/env perl
 use warnings;
 use strict;
 use v5.30;
@@ -9,6 +9,7 @@ no warnings qw(experimental::signatures);
 use feature qw(signatures);
 
 use Data::Dumper;
+use Carp;
 use Getopt::Std;
 
 my %opts = ();
@@ -70,6 +71,7 @@ sub stripComments($programText){
 }
 
 sub parseToken($tokenStr){
+    say "TOKENSTR: <$tokenStr>";
     if (substr($tokenStr,0,1) eq '#'){
         my $valStr=substr($tokenStr,1);
         my $val = hex($valStr);
@@ -85,7 +87,7 @@ sub parseToken($tokenStr){
     } elsif  (substr($tokenStr,0,1) eq ';'){
         my $val = substr($tokenStr,1);
         return [$T->{REF},$val,2];
-    } elsif (substr($tokenStr,0,1) eq ',' and substr($tokenStr,0,1) eq '&'){
+    } elsif (substr($tokenStr,0,1) eq ',' and substr($tokenStr,1,1) eq '&'){
         my $val = substr($tokenStr,2);
         return [$T->{REF},$val,1];
     } elsif  (substr($tokenStr,0,1) eq '@'){
@@ -94,7 +96,7 @@ sub parseToken($tokenStr){
     } elsif  (substr($tokenStr,0,1) eq '&'){
         my $val = substr($tokenStr,1);
         return [$T->{LABEL},$val];
-    } elsif  ($tokenStr eq '|0100'){
+    } elsif ($tokenStr eq '|0100'){
         return [$T->{MAIN},];
     } elsif  (substr($tokenStr,0,1) eq '|'){
         my $val = substr($tokenStr,1);
@@ -332,7 +334,7 @@ sub resolveSymbols($uxn){
     my $i=0;
     for my $token (@{$uxn->{memory}}){
         if ($token->[0] == $T->{REF}){
-            my $address = $uxn->{symbolTable}[$token->[1]];
+            my $address = $uxn->{symbolTable}{$token->[1]};
             $uxn->{memory}[$i] = [$T->{LIT},$address,$token->[2]];
         }
         $i++;
@@ -342,16 +344,17 @@ sub resolveSymbols($uxn){
 sub populateMemoryAndBuildSymbolTable($tokens,$uxn){
     my $pc = 0;
     for my $token ( @{$tokens}){
-        if ($token == ($T->{MAIN},)){
-            $pc = 0x0100;
+        if ($token=>[0] == $T->{MAIN}){
+            $pc = hex( 0x0100);
+croak;
             # uxn.labels[pc]='MAIN';
-        } elsif  ($token->[0] == $T->{ADDR}){
+        } elsif ($token->[0] == $T->{ADDR}){
             $pc = $token->[1];
-        } elsif  ($token->[0] == $T->{PAD}){
+        } elsif ($token->[0] == $T->{PAD}){
             $pc += $token->[1];
-        } elsif  ($token->[0] == $T->{LABEL}){
+        } elsif ($token->[0] == $T->{LABEL}){
             my $labelName = $token->[1];
-            $uxn->{symbolTable}[$labelName]=$pc;
+            $uxn->{symbolTable}{$labelName}=$pc;
             # uxn.labels[pc]=labelName;
         } else {
             $uxn->{memory}[$pc]=$token;
@@ -359,13 +362,16 @@ sub populateMemoryAndBuildSymbolTable($tokens,$uxn){
         }
     }
     $uxn->{free} = $pc;
+    
 }
+
+
 
 sub runProgram($uxn){
     if ($VV){
         print('*** RUNNING ***');
     }
-    $uxn->{pc} = 0x100; # all programs must start at 0x100
+    $uxn->{pc} = hex(0x0100); # all programs must start at 0x100
     while (1) {
         my $token = $uxn->{memory}[$uxn->{pc}];
         if ($DBG){
@@ -411,12 +417,12 @@ for my $item (@{$tokensWithStrings} ){
         push @{$tokens}, $item;
     }
 }
-die Dumper $tokens;
+# die Dumper $tokens;
 
 populateMemoryAndBuildSymbolTable($tokens,$uxn);
 
 resolveSymbols($uxn);
-
+# die Dumper @{$uxn->{memory}}[1..$uxn->{free}],$uxn->{free};
 if ($DBG){
     for my $pc ( 256 .. $uxn->{free}-1){
         say $pc,':',$uxn->{memory}[$pc];
@@ -426,6 +432,7 @@ if ($DBG){
 if ($VV){
     say $programText_noComments;
 }
-# exit();
+die;
+
 runProgram($uxn);
 
