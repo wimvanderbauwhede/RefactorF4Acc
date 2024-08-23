@@ -9,11 +9,16 @@ no warnings qw(experimental::signatures);
 use feature qw(signatures);
 
 use Data::Dumper;
+use Getopt::Std;
 
-our $WW = 0;
-our $V = 0;
-our $VV = 0;
-our $DBG = 0;
+my %opts = ();
+getopts( 'vwVd', \%opts );
+
+
+our $WW = $opts{'w'} ? 1 : 0;
+our $V = $opts{'v'} ? 1 : 0;
+our $VV = $opts{'V'} ? 1 : 0;
+our $DBG = $opts{'d'} ? 1 : 0;
 
 my $programFile=$ARGV[0];
 
@@ -271,12 +276,7 @@ sub executeInstr($token,$uxn){
         $action->($rs,$sz,$uxn);
     }
     else {
-        # args=[];
-        # for my $ i in reversed(range(0,nArgs))){
-        #     if ($keep == 0){
-        #         push @{$args}, $pop @{$uxn->{stacks}[$rs]};);
-        #     } else {
-        #         push @{$args}, $uxn->{stacks}[$rs][i]);
+
         my $args=[];
         for my $i ( reverse 0 .. $nArgs-1){
             if ($keep == 0){
