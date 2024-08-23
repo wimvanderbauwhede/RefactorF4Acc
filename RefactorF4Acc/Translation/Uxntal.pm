@@ -2608,14 +2608,21 @@ sub _emit_if_without_then_Uxntal($stref,$f,$info,$c_line) {
 sub _emit_ifthen_Uxntal ($stref, $f, $info, $branch_id){
     my $cond_expr_ast=$info->{'Cond'}{'AST'};
     my ($cond_expr,$word_sz) = _emit_expression_Uxntal($cond_expr_ast,$stref,$f,$info);
-    # $cond_expr=_change_operators_to_Uxntal($cond_expr);
-    # FIXME! fix for stray '+'
-    # $cond_expr=~s/\+\>/>/g;
-    # my $rline = 'if ('.$cond_expr.') '. (exists $info->{'IfThen'} ? '{' : '');
-    my $rline = "$cond_expr ;&$branch$branch_id JCN2\n" .
-                 ";&$branch${branch_id}_$end JMP2\n" .
-             "&$branch$branch_id";
-    return $rline;
+    my $cond_is_const = __eval_Uxntal_cond_expr($cond_expr); # returns [bool, bool] where the first bool says const or not, the second if the const is true or false
+    # TODO: if we want to do this right, we should actually skip the block entirely. We need some state for this.
+    if ( not $cond_is_const->[0] ) {
+        my $rline = "$cond_expr ;&$branch$branch_id JCN2\n" .
+                    ";&$branch${branch_id}_$end JMP2\n" .
+                "&$branch$branch_id";
+        return $rline;
+    } elsif ($cond_is_const->[1]) { # const and true, so always do the top branch
+        my $rline = "$cond_expr ;&$branch$branch_id JCN2\n" .
+                    ";&$branch${branch_id}_$end JMP2\n" .
+                "&$branch$branch_id";
+        return '';
+    } else { # const and false, so always skip the top branch
+croak 'TODO';
+    }
 }
 
 sub _emit_ifbranch_end_Uxntal ($id, $state){
