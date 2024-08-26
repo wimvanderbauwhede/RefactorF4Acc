@@ -40,6 +40,15 @@ my $T = {
     PAD => 7,
     EMPTY => 8,
 };
+
+my $refTypes = {
+    '.' => 0,
+    ',' => 1,
+    ';' => 2,
+    '-' => 3,
+    '_' => 4,
+    '=' => 5,
+    };
 my $Uxn ={
     memory => [([$T->{EMPTY},]) x hex('0x10000') ],
     stacks => [[],[]], # ws, rs
@@ -84,21 +93,21 @@ sub parseToken($tokenStr){
     if (substr($tokenStr,0,1) eq '"'){
         my @chars = split('',substr($tokenStr,1));
         return [map { [$T->{LIT}, ord($_),1] } @chars];
-    } elsif  (substr($tokenStr,0,1) eq ';'){
-        my $val = substr($tokenStr,1);
-        return [$T->{REF},$val,2];
-    } elsif (substr($tokenStr,0,1) eq ',' and substr($tokenStr,1,1) eq '&') {
-        my $val = substr($tokenStr,2);
-        return [$T->{REF},$val,1];
-    } elsif (substr($tokenStr,0,1) eq ',' ) {
-        my $val = substr($tokenStr,1);
-        return [$T->{REF},$val,1];
-    } elsif (substr($tokenStr,0,1) eq '.' ){
-        my $val = substr($tokenStr,1);
-        return [$T->{REF},$val,1];
+    } elsif  ($tokenStr =~/^([;,\._\-=])(.+)$/){
+        my $rune = $1;
+        my $val = $2;
+        my $is_child=0;
+        if ($val=~/\&/ or $val=~/\//) {
+            $is_child=1;
+            $val=~s/\&//;
+        }
+        my $is_lit = $rune=~/[\.;,]/ ? 1 : 0;
+        my $ref_type = $refTypes->{$rune};
+        # might it not be better to keep the rune?
+        return [$T->{REF},$val,$ref_type,$is_child];
     } elsif  (substr($tokenStr,0,1) eq '@'){
         my $val = substr($tokenStr,1);
-        return [$T->{LABEL},$val],2;
+        return [$T->{LABEL},$val,2];
     } elsif  (substr($tokenStr,0,1) eq '&'){
         my $val = substr($tokenStr,1);
         return [$T->{LABEL},$val,1];
@@ -169,6 +178,75 @@ sub condJump($args,$sz,$uxn){
         }
         # exit();
         $uxn->{pc} = $args->[0]-1;
+    }
+}
+
+# What this does is take the *next* token in memory and put it on the stack
+sub lit($rs,$sz,$uxn){
+    # We need a check here because we can have LIT2 ab cd 
+    my $next_token = $uxn->{memory}[$uxn->{pc}+1];
+    my $next_sz_matches=1;
+    if ($sz == 2) {
+        if ($next_token->[0] == $T->{REF}) {
+            if ( $next_token->[2] == 3 or $next_token->[2] == 4) {
+                # 1-byte reference, so we need to push the next one as well, assuming that that is 1 byte
+                $next_sz_matches = 0;
+            } elsif ($next_token->[2] != 5) {
+                die "Error: LIT2 followed by LIT reference ".$next_token->[1];
+            }
+        } elsif ($next_token->[2] == 1) {
+            # 1-byte token
+            $next_sz_matches=0;
+        }
+        if ($next_sz_matches) {
+            push @{$uxn->{stacks}[$rs]}, $next_token;
+            $uxn->{pc}++;
+        } else {
+            my $next_next_token =  $uxn->{memory}[$uxn->{pc}+2];
+            my $next_next_is_1_byte=1;
+            if ($next_next_token->[0] == $T->{REF}) {
+                if ( $next_next_token->[2] == 5) {
+                    # 1-byte reference, so we need to push the next one as well, assuming that that is 1 byte
+                    $next_next_is_1_byte = 0;
+                } elsif ($next_next_token->[2] < 3) {
+                    die "Error: LIT2 followed by LIT reference ".$next_next_token->[1];
+                }
+            } elsif ($next_next_token->[2] == 2) {
+                # 1-byte token
+                $next_next_is_1_byte=0;
+            }
+
+            # In principle, I would need to reduce this to 1 byte if it is two bytes
+            if ($next_next_is_1_byte) {
+                push @{$uxn->{stacks}[$rs]}, $next_next_token;
+                $uxn->{pc}++;
+                push @{$uxn->{stacks}[$rs]}, $next_token;
+                $uxn->{pc}++;
+            } else {
+                die "Error: byte/short mismatch in LIT2: ".$next_token->[1]. ' '.$next_next_token->[1];
+            }
+        }
+    } else { # Here we need to check if the next token is 2 bytes and either split it or give up
+        my $next_is_1_byte=1;
+        if ($next_token->[0] == $T->{REF}) {
+            if ( $next_token->[2] == 5) {
+                # 1-byte reference, so we need to push the next one as well, assuming that that is 1 byte
+                $next_is_1_byte = 0;
+            } elsif ($next_token->[2] < 3) {
+                die "Error: LIT2 followed by LIT reference ".$next_token->[1];
+            }
+        } elsif ($next_token->[2] == 2) {
+            # 1-byte token
+            $next_is_1_byte=0;
+        }
+
+        # In principle, I would need to reduce this to 1 byte if it is two bytes
+        if ($next_is_1_byte) {
+            push @{$uxn->{stacks}[$rs]}, $next_token;
+            $uxn->{pc}++;
+        } else {
+            die "Error: byte/short mismatch in LIT2: ".$next_token->[1];
+        }
     }
 }
 
@@ -269,7 +347,8 @@ our $callInstr = {
     'ROT' => [\&rot,0,0],
     'OVR' => [\&over,0,0],
     'POP' => [\&pop_,0,0],
-    'NIP' => [\&nip,0,0]
+    'NIP' => [\&nip,0,0],
+    'LIT' =>[\&lit,0,0]
 };
 
 sub executeInstr($token,$uxn){
@@ -357,6 +436,13 @@ sub resolveSymbols($uxn){
     for my $token (@{$uxn->{memory}}){
         if ($token->[0] == $T->{REF}){
             my $address = $uxn->{symbolTable}{$token->[1]};
+            my $addr_mode = $token->[2];
+            if ($addr_mode == 1 or $addr_mode==4) { # relative address
+                $address-=$i;
+                if ($address>127 or $address < -128) {
+                    die "Error: relative address too large for ".$token->[1];
+                }
+            }
             $uxn->{memory}[$i] = [$T->{LIT},$address,$token->[2]];
         }
         $i++;
@@ -384,15 +470,34 @@ sub populateMemoryAndBuildSymbolTable($tokens,$uxn){
             }
             $uxn->{symbolTable}{$labelName}=$pc;
             # uxn.labels[pc]=labelName;
+        } elsif ($token->[0] == $T->{REF}){
+            my $labelName = $token->[1];
+            if ($token->[3] and $labelName!~/\//) {
+                $labelName = $current_parent_label.'/'.$labelName;
+            }
+            $token->[1]=$labelName;
+            # carp Dumper $token;
+            $uxn->{memory}[$pc]=$token;
+            $pc++;
         } else {
             $uxn->{memory}[$pc]=$token;
             $pc++;
         }
     }
     $uxn->{free} = $pc;
-
 }
 
+=pod
+A ref has ref_type and is_child
+- if is_child then we need to create a full label
+- if not is_lit then I guess we do nothing; if a LIT opcode is found, then 
+that should turn these raw refs into lit refs
+- to stay close to the actual Uxntal assembly, we should calculate the relative address.
+I think that happens in the resolveSymbols step.
+=cut
+sub normaliseRef($token) {
+
+}
 
 
 sub runProgram($uxn){
@@ -447,7 +552,7 @@ for my $item (@{$tokensWithStrings} ){
 # die Dumper $tokens;
 
 populateMemoryAndBuildSymbolTable($tokens,$uxn);
-
+# die;
 resolveSymbols($uxn);
 # die Dumper @{$uxn->{memory}}[1..$uxn->{free}],$uxn->{free};
 if ($DBG){
