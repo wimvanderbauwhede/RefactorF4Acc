@@ -5,7 +5,7 @@ use v5.30;
 
 use integer;
 
-no warnings qw(experimental::signatures);
+no warnings qw(experimental);
 use feature qw(signatures);
 
 use Data::Dumper;
@@ -54,7 +54,7 @@ my $Uxn ={
 sub stripComments($programText){
     # say 'TEXT:',$programText;
     my @chunks_open = split(/\(\s+/s,$programText,2);
-    
+
     if (scalar @chunks_open==2){
         my $comment = $chunks_open[1];
         my @chunks_close = split(/\s+\)/,$comment,2);
@@ -71,7 +71,7 @@ sub stripComments($programText){
 }
 
 sub parseToken($tokenStr){
-    say "TOKENSTR: <$tokenStr>";
+    # say "TOKENSTR: <$tokenStr>";
     if (substr($tokenStr,0,1) eq '#'){
         my $valStr=substr($tokenStr,1);
         my $val = hex($valStr);
@@ -87,15 +87,21 @@ sub parseToken($tokenStr){
     } elsif  (substr($tokenStr,0,1) eq ';'){
         my $val = substr($tokenStr,1);
         return [$T->{REF},$val,2];
-    } elsif (substr($tokenStr,0,1) eq ',' and substr($tokenStr,1,1) eq '&'){
+    } elsif (substr($tokenStr,0,1) eq ',' and substr($tokenStr,1,1) eq '&') {
         my $val = substr($tokenStr,2);
+        return [$T->{REF},$val,1];
+    } elsif (substr($tokenStr,0,1) eq ',' ) {
+        my $val = substr($tokenStr,1);
+        return [$T->{REF},$val,1];
+    } elsif (substr($tokenStr,0,1) eq '.' ){
+        my $val = substr($tokenStr,1);
         return [$T->{REF},$val,1];
     } elsif  (substr($tokenStr,0,1) eq '@'){
         my $val = substr($tokenStr,1);
-        return [$T->{LABEL},$val];
+        return [$T->{LABEL},$val],2;
     } elsif  (substr($tokenStr,0,1) eq '&'){
         my $val = substr($tokenStr,1);
-        return [$T->{LABEL},$val];
+        return [$T->{LABEL},$val,1];
     } elsif ($tokenStr eq '|0100'){
         return [$T->{MAIN},];
     } elsif  (substr($tokenStr,0,1) eq '|'){
@@ -153,13 +159,13 @@ sub jump($args,$sz,$uxn){
 
 sub condJump($args,$sz,$uxn){
     if ($DBG){
-        print('JCN ARGS:',$args,$uxn->{stacks});
+        say 'JCN ARGS:',Dumper($args, $uxn->{stacks});
     }
     if ($args->[1] == 1 ){
         # $uxn->{pc} =  $uxn->{pc};
     # } else {
         if ($DBG){
-            print('SET PC:',$args->[0]);
+            say 'SET PC:',$args->[0];
         }
         # exit();
         $uxn->{pc} = $args->[0]-1;
@@ -245,12 +251,18 @@ our $callInstr = {
     'DIV' => [\&div,2,1],
     'EQU' => [\&eq,2,1],
     'NEQ' => [\&ne,2,1],
-    'DEO' => [sub ($args,$sz,$uxn) { print(chr($args->[1]))},2,0],
+    'DEO' => [sub ($args,$sz,$uxn) { #croak Dumper $args,$sz;
+        print(chr($args->[1]))
+        },2,0],
     'JSR' => [\&call,1,0],
     'JMP' => [\&jump,1,0],
     'JCN' => [\&condJump,2,0],
     'LDA' => [\&load,1,1],
     'STA' => [\&store,2,0],
+    'LDZ' => [\&load,1,1],
+    'STZ' => [\&store,2,0],
+    'LD' => [\&load,1,1],
+    'STZ' => [\&store,2,0],
     'STH' => [\&stash,0,0],
     'DUP' => [\&dup,0,0],
     'SWP' => [\&swap,0,0],
@@ -269,7 +281,7 @@ sub executeInstr($token,$uxn){
             print('');
         }
         if ($VV){
-            print('PC:',$uxn->{pc},' (WS,RS){',$uxn->{stacks});
+            say 'PC:',$uxn->{pc},' (WS,RS) ',Dumper $uxn->{stacks};
         }
         exit(0);
     }
@@ -282,30 +294,40 @@ sub executeInstr($token,$uxn){
         my $args=[];
         for my $i ( reverse 0 .. $nArgs-1){
             if ($keep == 0){
+                # carp 'INSTR:',$instr,', ARG:',$i, ', WS:',Dumper $uxn->{stacks}[$rs];
                 my $arg = pop @{$uxn->{stacks}[$rs]};
                 if ($arg->[1]==2 and $sz==1 and ($instr ne 'LDA' and $instr ne 'STA') ){
                     if ($WW){
                         print("Warning: Args on stack for ",$instr,$sz,"are of wrong size (short for byte)");
                     }
+                    # We take the first byte only
                     push @{$uxn->{stacks}[$rs]}, [$arg->[0]>>8,1];
-                    push @{$args},[$arg->[0]&0xFF];
+                    push @{$args},$arg->[0] & 0xFF;
                 } else { # either 2 2 or 1 1 or 1 2;
-                    push @{$args}, $arg->[0]; # works for my $ 1 1 or 2 2;
+                    push @{$args}, $arg->[0]; # works for 1 1 or 2 2;
                     if ($arg->[1]==1 and $sz==2) {
+                        # So the opcode has short mode but the arg is a byte
+                        if ( $instr !~ /(?:LD|ST)[ZR]/ ){
                         my $arg1 = $arg;
                         my $arg2 = pop @{$uxn->{stacks}[$rs]};
-                        if ($arg2->[1]==1 and $sz==2){
-                            $arg = ($arg2->[0]<<8) + $arg1->[0];
-                            push @{$args}, $arg; # a b 
-                        } else {
-                            die("Error: Args on stack are of wrong size (short after byte)\n");
+                            # push @{$args}, $arg2->[0];
+                        # } else {
+                            if ($arg2->[1]==1 and $sz==2){
+                                # So the argument is a byte too
+                                # we combine the two bytes
+                                $arg = ($arg2->[0]<<8) + $arg1->[0];
+                                push @{$args}, $arg; # a b 
+                            } else {
+                                # This is OK if the instruction is an STZ
+                                die("Error: Args on stack are of wrong size (short after byte)\n");
+                            }
                         }
                     }
                 }
             }
             else {
                 my $arg = $uxn->{stacks}[$rs][$i];
-                if ($arg->[1]!= $sz and ($instr ne 'LDA' and $instr ne 'STA')){
+                if ($arg->[1]!= $sz and $instr !~ /(?:LD|ST)[AZR]/ ){
                     die("Error: Args on stack are of wrong size (keep)\n");
                 }   
                 else {
@@ -314,7 +336,7 @@ sub executeInstr($token,$uxn){
             }
         }
         if ($VV){
-            print('EXEC INSTR:',$instr, 'with args', $args);
+            say 'EXEC INSTR:',$instr, 'with args', $args;
         }
         if ($hasRes){
             my $res = $action->($args,$sz,$uxn);
@@ -327,7 +349,7 @@ sub executeInstr($token,$uxn){
             $action->($args,$sz,$uxn);
         }
     }
-}
+} # END of executeInstr
 
 
 sub resolveSymbols($uxn){
@@ -343,17 +365,23 @@ sub resolveSymbols($uxn){
 
 sub populateMemoryAndBuildSymbolTable($tokens,$uxn){
     my $pc = 0;
+    my $current_parent_label='';
     for my $token ( @{$tokens}){
-        if ($token=>[0] == $T->{MAIN}){
+        if ($token->[0] == $T->{MAIN}){
             $pc = hex( 0x0100);
-croak;
             # uxn.labels[pc]='MAIN';
         } elsif ($token->[0] == $T->{ADDR}){
             $pc = $token->[1];
         } elsif ($token->[0] == $T->{PAD}){
             $pc += $token->[1];
         } elsif ($token->[0] == $T->{LABEL}){
+            # FIXME: handle rel labels by expansion
             my $labelName = $token->[1];
+            if ($token->[2] == 2) {
+                $current_parent_label=$labelName;
+            } else {
+                $labelName = $current_parent_label.'/'.$labelName;
+            }
             $uxn->{symbolTable}{$labelName}=$pc;
             # uxn.labels[pc]=labelName;
         } else {
@@ -362,7 +390,7 @@ croak;
         }
     }
     $uxn->{free} = $pc;
-    
+
 }
 
 
@@ -371,11 +399,11 @@ sub runProgram($uxn){
     if ($VV){
         print('*** RUNNING ***');
     }
-    $uxn->{pc} = hex(0x0100); # all programs must start at 0x100
+    $uxn->{pc} = hex(0x100); # all programs must start at 0x100
     while (1) {
         my $token = $uxn->{memory}[$uxn->{pc}];
         if ($DBG){
-            say 'PC:',$uxn->{pc},' TOKEN:',$token;
+            say 'PC:',$uxn->{pc},' TOKEN:',Dumper($token);
         }
         given ($token->[0]){
             when( $T->{LIT}){
@@ -388,13 +416,12 @@ sub runProgram($uxn){
                 executeInstr($token,$uxn);
             }
             when( $T->{REF}){
-                print('Unresolved REF:',$token);
-                exit(0);
+                die 'Unresolved REF:',Dumper $token
             }
         }
         $uxn->{pc} = $uxn->{pc} + 1;
         if ($DBG){
-            print('(WS,RS){',$uxn->{stacks});
+            say '(WS,RS) ',Dumper($uxn->{stacks});
         }
     }
 }
@@ -425,14 +452,14 @@ resolveSymbols($uxn);
 # die Dumper @{$uxn->{memory}}[1..$uxn->{free}],$uxn->{free};
 if ($DBG){
     for my $pc ( 256 .. $uxn->{free}-1){
-        say $pc,':',$uxn->{memory}[$pc];
+        say $pc,':',Dumper($uxn->{memory}[$pc]);
     }
     say '';
 }
 if ($VV){
     say $programText_noComments;
 }
-die;
+
 
 runProgram($uxn);
 
