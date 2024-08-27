@@ -982,7 +982,8 @@ Instead of the nice but cumbersome approach we had until now, from now on it is 
             $c_line='';
         }
         if (exists $info->{'Label'} ) {
-            if (not exists $info->{'Continue'}) { die "Labels can only occur on `continue` lines\n"; }
+            $c_line='&'.__shorten_fq_name( $f.'_'.$info->{'Label'}). "\n".$c_line;
+            # if (not exists $info->{'Continue'}) { die "Labels can only occur on `continue` lines: $line => $c_line\n"; }
         }
         if (exists $info->{'Data'} ) {
             for my $def (@{$info->{'DataDefs'}}) {
