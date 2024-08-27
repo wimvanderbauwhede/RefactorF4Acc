@@ -377,7 +377,7 @@ Instead of the nice but cumbersome approach we had until now, from now on it is 
             } elsif ($type =~/^character\(/) {
                     $word_sz=2;
             } else {
-                die "Supported types are integer, character, string and logical: $var in $f is $type\n";
+                die "Supported types are integer, character, string and logical: $var in $f is $type\nLINE $line";
             }
             if (not exists $Sf->{'WordSizes'}{$var}) {
                 # carp 'MISSING WORDSZ for '.$var;
@@ -406,7 +406,7 @@ Instead of the nice but cumbersome approach we had until now, from now on it is 
             } elsif ($type =~/^character\(/) {
                     $word_sz=2;
             } else {
-                die "Supported types are integer, character, string and logical: $var in $f is $type\n";
+                die "Supported types are integer, character, string and logical: $var in $f is $type\nLINE $line";
             }
             $state->{'WordSizes'}{$var}=$word_sz;
         }
@@ -1181,7 +1181,7 @@ sub _get_word_sizes($stref,$f){
         my $decl = getDecl($stref,$f,$var);
         my $word_sz=0;
         my $type = $decl->{'Type'};
-        # carp "$f: VAR? ".Dumper($var,$decl);
+        # croak "$f: VAR? ".Dumper($var,$decl) if $var eq 'Assignment';
         if ($type eq 'integer') {
             my $kind = $decl->{'Attr'};
             $kind=~s/kind\s*=\s*//;
@@ -1216,7 +1216,7 @@ sub _get_word_sizes($stref,$f){
         } elsif ($type =~/^character\(/) {
                 $word_sz=2;
         } else {
-            die "Supported types are integer, character, string and logical: $var in $f is $type\n";
+            die "Supported types are integer, character, string and logical: $var in $f is $type\nLINE ??";
         }
         $Sf->{'WordSizes'}{$var} = $word_sz;
         # carp Dumper($decl) if $var eq 'funktalGlobalCharArray';
@@ -1611,12 +1611,12 @@ sub _var_access_assign($stref,$f,$info,$lhs_ast,$rhs_ast) {
                 my $dim = exists $lhs_var_decl->{'ConstDim'}
                     ? __Uxntal_array_size($lhs_var_decl->{'ConstDim'})
                     : __Uxntal_array_size($lhs_var_decl->{'Dim'});
-            # my $array_length = $dim;
+                # my $array_length = $dim;
                 my ($rhs_expr_Uxntal, $word_sz) = _emit_expression_Uxntal($rhs_ast,$stref,$f,$info);
-                if ($word_sz==1) {
+                if ($word_sz==1) { # byte array
                     $uxntal_code = "{ ( iter ) $rhs_expr_Uxntal ROT ROT $lhs_var_access ADD2 STA JMP2r } STH2r ".toHex($dim-1,2).' #0000 range-map-short';
                 } else {
-                    croak "TODO: _var_access_assign($f):", Dumper($lhs_type,$rhs_type,$rhs_type_attr,$rhs_expr_Uxntal,$rhs_ast);
+                    croak "TODO: _var_access_assign($f):", Dumper($lhs_type,$rhs_type,$rhs_type_attr,$rhs_expr_Uxntal,$lhs_var_access,$rhs_ast);
                 }
             } else {
                 my ($rhs_var,$rhs_idxs,$rhs_idx_expr_type) = __unpack_var_access_ast($rhs_ast);
@@ -2226,7 +2226,7 @@ sub _pointer_analysis($stref,$f) {
             } elsif ($type =~/^character\(/) {
                 $word_sz=2;
             } else {
-                die "Supported types are integer, character, string and logical: $var in $f is $type\n";
+                die "Supported types are integer, character, string and logical: $var in $f is $type\nLINE: $line   ";
             }
             $state->{'WordSizes'}{$var}=$word_sz;
         }
@@ -2563,7 +2563,15 @@ sub _emit_var_decl_Uxntal ($stref,$f,$info,$var){
                     $c_var_decl .= "$hex_val " x $dim;
                     $alloc_sz=$dim;
                 } else {
-                    croak "Unsupported initial value: $initial_value for $var";
+                    my $initParDecl = getDecl($stref,$f,$initial_value);
+                    if (defined $initParDecl and exists $initParDecl->{'Val'}) {
+                        my $hex_val = toRawHex($initParDecl->{'Val'},$sz);
+                        $alloc_sz=$sz;
+                        $c_var_decl .= "$hex_val ";
+                        # croak $c_var_decl;
+                    } else {
+                        croak "Unsupported initial value: $initial_value for $var ".Dumper($initParDecl);
+                    }
                 }
                 # say "DECL: $initial_value => $c_var_decl";
             }
@@ -2621,10 +2629,14 @@ sub _emit_ifthen_Uxntal ($stref, $f, $info, $branch_id){
                 "&$branch$branch_id";
         return '';
     } else { # const and false, so always skip the top branch
-croak 'TODO';
+        croak 'TODO';
     }
 }
 
+sub __eval_Uxntal_cond_expr($cond_expr) {
+    # TODO
+    return [0,0]
+}
 sub _emit_ifbranch_end_Uxntal ($id, $state){
     # my $branch_id = $state->{'IfBranchId'};
     my $branch_id = pop @{$state->{'BranchStack'}};
@@ -2853,7 +2865,7 @@ sub _emit_expression_Uxntal ($ast, $stref, $f, $info) {
                 return ("$lv $rv".' { 0100 $100 } STH2r concat',2);
             } else {
                 if ($l_word_sz!=$r_word_sz) {
-                    croak "Word sizes for ".$sigils[$opcode]." must be the same: $l_word_sz <> $r_word_sz ( $lv <> $rv )";
+                    croak "Word sizes for ".$sigils[$opcode]." must be the same: $l_word_sz <> $r_word_sz ( $lv <> $rv )".Dumper($ast)." in $f";
                 }
                 my $short_mode =  $l_word_sz == 2 ? '2' : '';
                 # Because LTH and GTH are for unsigned ints, we need special functions for the inequalities
@@ -4178,22 +4190,26 @@ sub getDecl($stref,$f,$var) {
     my $Sf =  $stref->{$sub_or_mod}{$f};
 
     my $subset = in_restricted_nested_set( $Sf, 'Vars', $var ,
-        { 'ExGlobArgs' => 1,
+        {   'ExGlobArgs' => 1,
             'UndeclaredCommonVars' => 1,
-            'DeclaredCommonVars' => 1
+            'DeclaredCommonVars' => 1,
+            'UndeclaredOrigLocalVars' => 1
         }
     );
+    my $decl;
     if ($subset eq '') {
-        croak "No decl for $var in Vars for $f ".Dumper($Sf);
+        warning( "No local decl for $var in Vars for $sub_or_mod $f, looking in modules",2);
+    } else {
+        $decl = get_var_record_from_set($Sf->{'Vars'},$var);
     }
-    my $decl = get_var_record_from_set($Sf->{'Vars'},$var);
-
-    my $module_name = exists $decl->{'ModuleName'}
-    ? $decl->{'ModuleName'}
-    : exists $decl->{'ParentModule'}
-    ? $decl->{'ParentModule'}
-    : $f;
-
+    my $module_name = '';
+    if(defined $decl){ # If there is a declaration, look at parent module
+        $module_name = exists $decl->{'ModuleName'}
+        ? $decl->{'ModuleName'}
+        : exists $decl->{'ParentModule'}
+        ? $decl->{'ParentModule'}
+        : $f;
+    }
     # Module var decl records are copied into the state of the subroutines that use them
     # before constant folding is done. So we need to get the originals instead.
     my $mdecl;
@@ -4201,12 +4217,11 @@ sub getDecl($stref,$f,$var) {
         $mdecl = $stref->{'Modules'}{$module_name}{'ModuleVars'}{'Set'}{$var};
     }
 
-    if (not defined $decl and not defined $mdecl) {
+    if (not defined $decl and not defined $mdecl) { 
         if (exists $stref->{'Subroutines'}{$f}{'InModule'}) {
             my $module_name = $stref->{'Subroutines'}{$f}{'InModule'};
             my $Mf = $stref->{'Modules'}{$module_name};
             my $decl = get_var_record_from_set($stref->{'Modules'}{$module_name}{'Vars'},$var);
-            carp 3,Dumper $decl if $var eq 'VV';
             if (defined $decl) {
                 return $decl;
             } else {

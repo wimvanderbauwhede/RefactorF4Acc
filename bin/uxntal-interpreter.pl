@@ -26,9 +26,7 @@ my $programFile=$ARGV[0];
 open my $fh, '<', $programFile or die "Can't open file $!";
 my $programText = do { local $/; <$fh> };
 close $fh;
-# my $programText = Path(programFile).read_text();
 
-# programText = "|0100 ;array LDA ;array #01 ADD LDA ADD #18 DEO BRK @array 11 22 33";
 my $T = {
     MAIN => 0,
     LIT => 1,
@@ -48,9 +46,10 @@ my $refTypes = {
     '-' => 3,
     '_' => 4,
     '=' => 5,
-    };
+};
+
 my $Uxn ={
-    memory => [([$T->{EMPTY},]) x hex('0x10000') ],
+    memory => [([$T->{EMPTY},]) x 0x10000 ],
     stacks => [[],[]], # ws, rs
     # Program counter
     pc => 0,
@@ -145,17 +144,28 @@ sub parseToken($tokenStr){
     } else {
         return [$T->{RAW},hex($tokenStr)];
     }
+
 }
 # Actions;
 
 sub store($args,$sz,$uxn){
     $uxn->{memory}[$args->[0]] = ['RAW',$args->[1],0];
-    # print('STORED:',$uxn->{memory}[$args->[0]],'at',$args->[0]);
+    say 'STORED:',Dumper($uxn->{memory}[$args->[0]]),'at',($args->[0]<256 ? ' zero page addr ' : ' abs addr '),$args->[0] if $DBG;
 }
 sub load($args,$sz,$uxn){
-    # print($args,$uxn->{memory}[$args->[0]]);
+    say 'LOADED: ', $args->[0],' ',Dumper $uxn->{memory}[$args->[0]] if $DBG;
     return $uxn->{memory}[$args->[0]][1] # memory has tokens, stacks have values with size;
 }
+sub storeRel($args,$sz,$uxn){
+    $uxn->{memory}[$args->[0]+$uxn->{pc}] = ['RAW',$args->[1],0];
+    say 'STORED REL:',Dumper($uxn->{memory}[$args->[0]]),'at rel addr ',$args->[0],', abs addr ',$args->[0]+$uxn->{pc} if $DBG;
+}
+sub loadRel($args,$sz,$uxn){
+    say 'LOADED REL: ',$args->[0]+$uxn->{pc},' ',Dumper $uxn->{memory}[$args->[0]+$uxn->{pc}] if $DBG;
+    return $uxn->{memory}[$args->[0]+$uxn->{pc}][1] # memory has tokens, stacks have values with size;
+}
+
+
 sub call($args,$sz,$uxn){
     # print("CALL:",$args->[0],$uxn->{pc});
     push @{$uxn->{stacks}[1]}, [$uxn->{pc},2];
@@ -199,7 +209,7 @@ sub lit($rs,$sz,$uxn){
             $next_sz_matches=0;
         }
         if ($next_sz_matches) {
-            push @{$uxn->{stacks}[$rs]}, $next_token;
+            push @{$uxn->{stacks}[$rs]}, [$next_token->[1],$next_token->[2]];
             $uxn->{pc}++;
         } else {
             my $next_next_token =  $uxn->{memory}[$uxn->{pc}+2];
@@ -218,10 +228,11 @@ sub lit($rs,$sz,$uxn){
 
             # In principle, I would need to reduce this to 1 byte if it is two bytes
             if ($next_next_is_1_byte) {
-                push @{$uxn->{stacks}[$rs]}, $next_next_token;
+                push @{$uxn->{stacks}[$rs]}, [$next_token->[1],$next_token->[2]];
                 $uxn->{pc}++;
-                push @{$uxn->{stacks}[$rs]}, $next_token;
+                push @{$uxn->{stacks}[$rs]}, [$next_next_token->[1],$next_next_token->[2]];
                 $uxn->{pc}++;
+                # croak Dumper $uxn->{stacks},$uxn->{memory}[$uxn->{pc}+1];
             } else {
                 die "Error: byte/short mismatch in LIT2: ".$next_token->[1]. ' '.$next_next_token->[1];
             }
@@ -242,12 +253,13 @@ sub lit($rs,$sz,$uxn){
 
         # In principle, I would need to reduce this to 1 byte if it is two bytes
         if ($next_is_1_byte) {
-            push @{$uxn->{stacks}[$rs]}, $next_token;
+            push @{$uxn->{stacks}[$rs]}, [$next_token->[1],$next_token->[2]];;
             $uxn->{pc}++;
         } else {
             die "Error: byte/short mismatch in LIT2: ".$next_token->[1];
         }
     }
+    # croak Dumper $uxn->{stacks};
 }
 
 sub stash($rs,$sz,$uxn){
@@ -329,7 +341,7 @@ our $callInstr = {
     'DIV' => [\&div,2,1],
     'EQU' => [\&eq,2,1],
     'NEQ' => [\&ne,2,1],
-    'DEO' => [sub ($args,$sz,$uxn) { #croak Dumper $args,$sz;
+    'DEO' => [sub ($args,$sz,$uxn) { 
         print(chr($args->[1]))
         },2,0],
     'JSR' => [\&call,1,0],
@@ -337,9 +349,9 @@ our $callInstr = {
     'JCN' => [\&condJump,2,0],
     'LDA' => [\&load,1,1],
     'STA' => [\&store,2,0],
+    'LDR' => [\&loadRel,1,1],
+    'STR'=> [\&storeRel,2,0],
     'LDZ' => [\&load,1,1],
-    'STZ' => [\&store,2,0],
-    'LD' => [\&load,1,1],
     'STZ' => [\&store,2,0],
     'STH' => [\&stash,0,0],
     'DUP' => [\&dup,0,0],
@@ -355,7 +367,7 @@ sub executeInstr($token,$uxn){
     my ($_t,$instr,$sz,$rs,$keep) = @{$token};
     if ($instr eq 'BRK'){
         if ($V){
-            print("\n",'*** DONE *** ');
+            say "\n",'*** DONE *** ';
         } else {
             print('');
         }
@@ -364,9 +376,16 @@ sub executeInstr($token,$uxn){
         }
         exit(0);
     }
+
     my ($action,$nArgs,$hasRes) = @{$callInstr->{$instr}};
     if ($nArgs==0) { # means it is a stack manipulation;
+        if ($VV){
+            say 'EXEC INSTR: ',$instr;
+        }
         $action->($rs,$sz,$uxn);
+        if ($VV){
+        say 'PC:',$uxn->{pc},' (WS,RS) ',Dumper $uxn->{stacks};
+        }
     }
     else {
 
@@ -415,7 +434,7 @@ sub executeInstr($token,$uxn){
             }
         }
         if ($VV){
-            say 'EXEC INSTR:',$instr, 'with args', $args;
+            say 'EXEC INSTR: ',$instr, ' with args ', Dumper $args;
         }
         if ($hasRes){
             my $res = $action->($args,$sz,$uxn);
@@ -438,7 +457,7 @@ sub resolveSymbols($uxn){
             my $address = $uxn->{symbolTable}{$token->[1]};
             my $addr_mode = $token->[2];
             if ($addr_mode == 1 or $addr_mode==4) { # relative address
-                $address-=$i;
+                $address-=$i+1;
                 if ($address>127 or $address < -128) {
                     die "Error: relative address too large for ".$token->[1];
                 }
@@ -454,7 +473,7 @@ sub populateMemoryAndBuildSymbolTable($tokens,$uxn){
     my $current_parent_label='';
     for my $token ( @{$tokens}){
         if ($token->[0] == $T->{MAIN}){
-            $pc = hex( 0x0100);
+            $pc =  0x0100; 
             # uxn.labels[pc]='MAIN';
         } elsif ($token->[0] == $T->{ADDR}){
             $pc = $token->[1];
@@ -487,24 +506,11 @@ sub populateMemoryAndBuildSymbolTable($tokens,$uxn){
     $uxn->{free} = $pc;
 }
 
-=pod
-A ref has ref_type and is_child
-- if is_child then we need to create a full label
-- if not is_lit then I guess we do nothing; if a LIT opcode is found, then 
-that should turn these raw refs into lit refs
-- to stay close to the actual Uxntal assembly, we should calculate the relative address.
-I think that happens in the resolveSymbols step.
-=cut
-sub normaliseRef($token) {
-
-}
-
-
 sub runProgram($uxn){
     if ($VV){
-        print('*** RUNNING ***');
+        say '*** RUNNING ***';
     }
-    $uxn->{pc} = hex(0x100); # all programs must start at 0x100
+    $uxn->{pc} = 0x100; # all programs must start at 0x100
     while (1) {
         my $token = $uxn->{memory}[$uxn->{pc}];
         if ($DBG){
@@ -560,6 +566,7 @@ if ($DBG){
         say $pc,':',Dumper($uxn->{memory}[$pc]);
     }
     say '';
+# die;
 }
 if ($VV){
     say $programText_noComments;

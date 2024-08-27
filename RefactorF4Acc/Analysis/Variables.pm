@@ -455,6 +455,7 @@ sub analyse_used_variables {
 	( $stref, $state ) = stateful_pass_inplace( $stref, $f, $__analyse_vars_on_line, $state, 'analyse_used_variables() ' . __LINE__ );
 
 	my $vars_in_code_unit = $state->[2];
+
 	$Sf->{'AllVarsAndPars'}{'Set'}=$vars_in_code_unit;
 	# my $decl = get_var_record_from_set($Sf->{'Vars'},'funktalTokensIdx');
 	#  if ($f eq 'clearFunktalTokens') {
@@ -707,11 +708,11 @@ sub populate_UsesTransitively { my ($stref,$f) = @_;
 				$stref = _build_UsesTransitively_rec($stref,$module_name);
 				$Sf->{'UsesTransitively'} = { %{$Sf->{'UsesTransitively'}},%{$stref->{'Modules'}{$module_name}{'UsesTransitively'}} }
 			} else {
-				warning("Module $module_name was not parsed, probably unused?");
+				warning("Module $module_name was not parsed. Maybe forgot a USE declaration?");
 			}
 		}
 	}
-	# croak "$sub_incl_or_mod $f: ".Dumper $Sf->{'UsesTransitively'} if $f eq 'clearFunktalTokens';
+	# croak "$sub_incl_or_mod $f: ".Dumper $Sf->{'UsesTransitively'} if $f eq 'encodeFunctionNames';
 	return $stref;
 } # END of populate_UsesTransitively
 
@@ -722,16 +723,15 @@ sub _build_UsesTransitively_rec { my ($stref,$f) = @_;
     my $Sf = $stref->{$sub_incl_or_mod}{$f};
 	if (not exists $stref->{$sub_incl_or_mod}{$f}{'Source'}) {
 		my $sm = substr(lc($sub_incl_or_mod),0,-1);
-		
 		error( "No source for $sm $f",0,'ERROR404');
-	} 
+	}
 	elsif (not exists $Sf->{'UsesTransitively'}) {
 		if (not -e $stref->{$sub_incl_or_mod}{$f}{'Source'}) {
 			error( "No such module source: ".$stref->{$sub_incl_or_mod}{$f}{'Source'}." for $f",0,'ERROR404');
 		} else {
 			croak "No UsesTransitively for $sub_incl_or_mod $f:".Dumper( $Sf);
 		}
-	} 
+	}
 	# say "$sub_incl_or_mod $f".$Sf->{'UsesTransitively'};
     if (exists $Sf->{'Uses'} and scalar keys %{$Sf->{'Uses'}}>0) {
         $Sf->{'UsesTransitively'} = {%{$Sf->{'UsesTransitively'}},%{$Sf->{'Uses'}}};
