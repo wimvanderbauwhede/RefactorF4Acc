@@ -241,7 +241,7 @@ sub fold_constants_no_iters {
                         } else {
                             # I could try via callers
                             # I am lazy, only one level
-                            warn 'TODO: TRY RESOLVE * via CALLER'. Dumper sort keys %{$Sf->{'Callers'}};
+                            # warn 'TODO: TRY RESOLVE * via CALLER'. Dumper sort keys %{$Sf->{'Callers'}};
                             if (exists $info->{'ParsedVarDecl'}) {
                                 $info->{'ParsedVarDecl'}{'Attributes'}{'Len'}= "len=*";
                             }
@@ -359,7 +359,7 @@ sub fold_constants_no_iters {
                 $info->{'Do'}{'Range'}{'Expressions'} = $const_range_exprs;
                 $info->{'Do'}{'Range'}{'Vars'} = []; # FIXME! Only works if all vars have been replaced!
             }  else {
-                warn "TODO: FOLD CONSTANTS IN WHILE: $line";
+                todo("FOLD CONSTANTS IN WHILE: $line");
             }
             }
             elsif ( exists $info->{'PrintCall'} ) {

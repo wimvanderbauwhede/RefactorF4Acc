@@ -100,7 +100,7 @@ sub analyse_all {
 			## Here we populate VarsFromContainers and ParametersFromContainers, where "Container" is any enclosing unit.
 			$stref = get_vars_pars_from_containers_and_modules($stref,$f);
 			} else {
-				say "Skipping USE analysis for $f as it has not been parsed";
+				warning( "Skipping USE analysis for $f as it has not been parsed",2);
 			}
 		}
 	}
@@ -115,7 +115,7 @@ sub analyse_all {
 			if ($Sf->{'Status'} >= $PARSED) {
 				$stref = analyse_used_variables($stref,$f);
 			} else {
-				say "Skipping USE analysis for $f as it has not been parsed";
+				warning( "Skipping USE analysis for $f as it has not been parsed",2);
 			}
 		}
 	}

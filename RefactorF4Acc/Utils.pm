@@ -65,6 +65,7 @@ use Exporter;
     &is_param
     &warning
     &error
+    &todo
     &coderef_to_subname
     &toLower
     &tabToFixed
@@ -672,6 +673,15 @@ sub find_keys_for_value { my ($map,$value) = @_;
     }
 
     return $keys;
+}
+
+sub todo { my ($msg, $fatal) = @_;
+if (not defined $fatal) {$fatal=0};
+    if ($TODO and !$fatal) {
+        say "TODO: $msg";
+    } elsif ($TODO) {
+        croak "TODO: $msg";
+    }
 }
 
 sub warning { my ($msg, $lev) = @_;

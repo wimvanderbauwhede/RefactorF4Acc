@@ -110,7 +110,6 @@ e0
 f0	Unused
 =cut
 
-# TODO This needs to be changed so that only the used functions are emitted
 my @uxntal_lib_sources = (
     '../../uxntal-libs/signed-cmp.tal',
     '../../uxntal-libs/signed-mult-div.tal',
@@ -145,7 +144,7 @@ sub translate_program_to_Uxntal($stref,$program_name){
         'ReadFile' => [
         '    |a0 @File &vector $2 &success $2 &stat $2 &delete $1 &append $1 &name $2 &length $2 &read $2 &write $2'
         ],
-        # For writing, TODO
+        # For writing
         'WriteFile' => [
         '    |b0 @FileW &vector $2 &success $2 &stat $2 &delete $1 &append $1 &name $2 &length $2 &read $2 &write $2'
         ],
@@ -207,12 +206,6 @@ sub translate_program_to_Uxntal($stref,$program_name){
     }
     my @used_uxntal_lib_subroutine_sources=emit_used_uxntal_lib_subroutine_sources();
 
-    # TODO:
-    # At this point, if we make a distinction between LoadState and SaveState instead of HasState,
-    # we can remove unused allocations and recalculate the total utilisation
-    # We do this by setting the value for the previously allocated variables in the Globals->Set hash to 0 initially;
-    # If we encounter one, we set it to 1.
-    # Then, if we check for zeroes, we can delete those allocations
     if ( not exists $stref->{'LoadState'} ){
         $stref->{'Uxntal'}{'Globals'} = remove_unwanted_global_allocations_from_memory_map($stref->{'Uxntal'}{'Globals'});
     }
@@ -249,7 +242,6 @@ sub translate_program_to_Uxntal($stref,$program_name){
         @{$stref->{'Uxntal'}{'Globals'}{'List'}},
         ($stref->{'UseCallStack'} ? @{$stref->{'Uxntal'}{'CallStack'}} : ()),
        ];
-    #    carp "TODO: Global decls";
     # This prints out the lines from $stref->{'TranslatedCode'}
     $stref->{'TranslatedCode'} = _remove_redundant_labels($stref->{'TranslatedCode'});
     $stref = _emit_Uxntal_code($stref, $program_name);
@@ -262,48 +254,6 @@ sub translate_program_to_Uxntal($stref,$program_name){
     }
     return $stref;
 } # END of translate_program_to_Uxntal
-
-# TODO: This should include handling of 'use' declarations.
-# Unfortunately for those we will need to split the module level declarations from the subroutines.
-sub translate_module_decls_to_Uxntal($stref, $mod_name){
-    croak 'UNUSED';
-    my $pass_emit_module_declarations = sub ($annline, $state){
-        (my $line,my $info)=@{$annline};
-        say "MOD $mod_name LINE: <$line>";
-        my $c_line=$line;
-        (my $stref, my $mod_name, my $pass_state)=@{$state};
-        my $skip=1;
-
-        if (exists $info->{'VarDecl'}) {
-                my $var = $info->{'VarDecl'}{'Name'};
-                # This never uses that stack as module vars are never automatic
-                ($stref,$c_line,my $alloc_sz) = _emit_var_decl_Uxntal( $stref, $mod_name, $info, $var);
-                $skip=0;
-        }
-        elsif ( exists $info->{'ParamDecl'} ) {
-            croak "SHOULD NOT HAPPEN ParamDecl", Dumper($info);;
-            my $var = $info->{'VarDecl'}{'Name'};
-        }
-        elsif ( exists $info->{'ParsedVarDecl'} ) {
-            croak "SHOULD NOT HAPPEN ParsedVarDecl", Dumper($info);
-
-        }
-        elsif ( exists $info->{'ParsedParDecl'} ) {
-            croak "SHOULD NOT HAPPEN ParsedParDecl", Dumper($info);
-        }
-        push @{$pass_state->{'TranslatedCode'}},$c_line unless $skip;
-
-        return ([$annline],[$stref,$mod_name,$pass_state]);
-    };
-
-    my $state = [$stref,$mod_name, {'TranslatedCode'=>[]}];
-    ($stref,$state) = stateful_pass_inplace($stref,$mod_name,$pass_emit_module_declarations , $state,'emit_module_declarations() ' . __LINE__  ) ;
-
-    $stref->{'Modules'}{$mod_name}{'TranslatedCode'}=$state->[2]{'TranslatedCode'};
-    $stref->{'TranslatedCode'}=[@{$stref->{'TranslatedCode'}},@{$state->[2]{'TranslatedCode'}},''];
-
-    return $stref;
-} # END of translate_module_decls_to_Uxntal
 
 sub translate_sub_to_Uxntal( $stref, $f){
     return $stref if $f eq 'saveState' or $f eq 'loadState';
@@ -441,7 +391,6 @@ Instead of the nice but cumbersome approach we had until now, from now on it is 
                     }
                     elsif (exists $state->{'Parameters'}{$call_arg}) {
                         $state->{'Pointers'}{$call_arg}='&';
-                        # carp 'TODO: a const scalar passed as arg: ',$call_arg_expr_str ;
                     }
                 }
             } elsif ($fname eq 'getarg' or $fname eq 'iargc') { # call to getarg means we need the machinery
@@ -663,7 +612,7 @@ Instead of the nice but cumbersome approach we had until now, from now on it is 
             }
         }
         elsif (exists $info->{'BeginDo'} ) {
-            croak 'TODO: BeginDo: what is this?';
+            todo( 'BeginDo: what is this?',1);
             $c_line='for () {';
         }
 
@@ -709,7 +658,7 @@ Instead of the nice but cumbersome approach we had until now, from now on it is 
                 # carp Dumper $info;
                 my $call_ast = $info->{'IOCall'}{'Args'}{'AST'};
                 my $iolist_ast = $info->{'IOList'}{'AST'};
-                # TODO: check if this is a write to a file!
+                todo('check if this is a write to a file!');
                 # say 'WRITE: IOCall Args:'.Dumper($call_ast),'IOList:',Dumper($iolist_ast);
                 # say "WRITE: $line";
                 my ($print_calls, $offsets, $unit, $advance,$other_attrs) = _analyse_write_call($stref,$f,$info);
@@ -889,21 +838,10 @@ Instead of the nice but cumbersome approach we had until now, from now on it is 
                     }
                 }
             } else {
-                croak 'TODO: IOCall '.Dumper( $info->{'IOCall'}{'Args'}{'AST'})."\nIOList ".Dumper($info->{'IOList'}{'AST'});
+                todo( 'IOCall '.Dumper( $info->{'IOCall'}{'Args'}{'AST'})."\nIOList ".Dumper($info->{'IOList'}{'AST'}),1);
             }
             if (exists $info->{'If'} and not exists $info->{'IfThen'}) {
                 $c_line = _emit_if_without_then_Uxntal($stref,$f,$info,$c_line);
-            #     my $indent = $info->{'Indent'};
-            #     my $branch_id = $info->{'LineID'};
-            #     my $cond_expr_ast=$info->{'Cond'}{'AST'};
-            #     my ($cond_expr,$word_sz) = _emit_expression_Uxntal($cond_expr_ast,$stref,$f,$info);
-            # # What we have is e.g.
-            # # if (fl(1:2) == __PH0__) VV = .true.
-            # # What we need is
-            # # NOT <cond> <label_end> JCN
-            #     $c_line = "\n $cond_expr #00 EQU ;&$branch$branch_id JCN2\n" . $c_line; #$indent
-            # # <expr>
-            #     $c_line .= ' '."&$branch$branch_id"; #$indent.
             }
         }
         elsif (exists $info->{'If'} and not exists $info->{'IfThen'} ) {
@@ -916,16 +854,8 @@ Instead of the nice but cumbersome approach we had until now, from now on it is 
             my $branch_id = $info->{'LineID'};
             my $cond_expr_ast=$info->{'Cond'}{'AST'};
             my ($cond_expr,$word_sz) = _emit_expression_Uxntal($cond_expr_ast,$stref,$f,$info);
-            # $c_line = "\n( If without Then )\n" . $indent.
             $c_line = ' '."$cond_expr #00 EQU ;&$branch$branch_id JCN2\n" . $c_line;
             $c_line .= ' '."&$branch$branch_id"; #$indent.
-            # say 'IF: IfId = ',Dumper($pass_state->{'IfId'}),
-            #     ' IfStack = '.
-            #     Dumper($pass_state->{'IfStack'}),
-            #     ' IfBranchId = '.
-            #     $pass_state->{'IfBranchId'},
-            #     ' BranchStack = '.
-            #     Dumper($pass_state->{'BranchStack'});
         }
         elsif (exists $info->{'IfThen'} and not exists $info->{'ElseIf'} ) {
             # say "EX-CASE: $line => If IfId = $id" if $f eq 'decodeTokenStr';
@@ -934,49 +864,17 @@ Instead of the nice but cumbersome approach we had until now, from now on it is 
             $pass_state->{'IfId'}=$id;
             push @{$pass_state->{'BranchStack'}},$id;
             $c_line = _emit_ifthen_Uxntal($stref, $f, $info, $id);
-            # say 'IFTHEN: IfId = ',  Dumper($pass_state->{'IfId'}),
-            #     ' IfStack = '.
-            #     Dumper($pass_state->{'IfStack'}),
-            #     ' IfBranchId = '.
-            #     $pass_state->{'IfBranchId'},
-            #     ' BranchStack = '.
-            #     Dumper($pass_state->{'BranchStack'});
         } elsif (exists $info->{'ElseIf'} ) {
             # say "EX-CASE: $line => ElseIf IfId=$id" if $f eq 'decodeTokenStr';
             ($c_line, my $branch_id) = _emit_ifbranch_end_Uxntal($id,$pass_state);
             $c_line .= _emit_ifthen_Uxntal($stref, $f, $info, $branch_id);
             push @{$pass_state->{'BranchStack'}},$branch_id;
-            # say 'ELSEIF: IfId = ',  Dumper($pass_state->{'IfId'}),
-            #     ' IfStack = '.
-            #     Dumper($pass_state->{'IfStack'}),
-            #     ' IfBranchId = '.
-            #     $pass_state->{'IfBranchId'},
-            #     ' BranchStack = '.
-            #     Dumper($pass_state->{'BranchStack'});
         } elsif (exists $info->{'Else'} ) {
             # say "EX-CASE: $line => Else IfId=$id" if $f eq 'decodeTokenStr';
             ($c_line, my $branch_id) = _emit_ifbranch_end_Uxntal($id,$pass_state);
             $c_line .= "&$branch$branch_id";
             push @{$pass_state->{'BranchStack'}},$branch_id;
-            # say 'ELSE: IfId = ',  Dumper($pass_state->{'IfId'}),
-            #     ' IfStack = '.
-            #     Dumper($pass_state->{'IfStack'}),
-            #     ' IfBranchId = '.
-            #     $pass_state->{'IfBranchId'},
-            #     ' BranchStack = '.
-            #     Dumper($pass_state->{'BranchStack'});
         } elsif (exists $info->{'EndIf'} ) {
-            # say '853 END IF: IfId = '. ' IfId = '.
-            #     Dumper($pass_state->{'IfId'}),
-            #     ' IfStack = '.
-            #     Dumper($pass_state->{'IfStack'}),
-            #     ' IfBranchId = '.
-            #     $pass_state->{'IfBranchId'},
-            #     ' BranchStack = '.
-            #     Dumper($pass_state->{'BranchStack'})
-            # ;
-            #  " $f END IF: $line";# => ".Dumper($info) ;
-            # my $branch_id = $pass_state->{'IfBranchId'};
             my $branch_id = pop @{$pass_state->{'BranchStack'}};
             my $if_id = $pass_state->{'IfId'};
             $c_line = ';&'.$cond.'_'.$end.$if_id.' JMP2 '."\n"
@@ -1005,11 +903,9 @@ Instead of the nice but cumbersome approach we had until now, from now on it is 
                 }
         }
         elsif ( exists $info->{'EndProgram'} ) {
-
             $info->{'Indent'} = '' ;
             # $c_line = 'BRK' ;
             $c_line = $use_stack ? '!pop-frame' : 'JMP2r';
-
         }
         elsif ( exists $info->{'EndSubroutine'} ) {
             # Here we must emit the code to put the values for Out and InOut args on the stack
@@ -1076,15 +972,17 @@ Instead of the nice but cumbersome approach we had until now, from now on it is 
             $c_line = ';&'.__shorten_fq_name($f.'_'.$info->{'Goto'}{'Label'}).' JMP2';
         }
         elsif (exists $info->{'Continue'}) {
-            $c_line='&'.__shorten_fq_name( $f.'_'.$info->{'Label'});
+            if (exists $info->{'Label'}) { # continue lines don't have to have a label
+                $c_line='&'.__shorten_fq_name( $f.'_'.$info->{'Label'});
+            } else {
+                $c_line='( continue )';
+            }
         }
         elsif (exists $info->{'Common'}) {
             $c_line='';
         }
         if (exists $info->{'Label'} ) {
             if (not exists $info->{'Continue'}) { die "Labels can only occur on `continue` lines\n"; }
-            # croak Dumper $info;
-            # $c_line = $info->{'Label'}. ' : '."\n".$info->{'Indent'}.$c_line;
         }
         if (exists $info->{'Data'} ) {
             for my $def (@{$info->{'DataDefs'}}) {
@@ -1096,7 +994,7 @@ Instead of the nice but cumbersome approach we had until now, from now on it is 
                     shift @{$def->{'CListAST'}};
                     $clist_Uxntal = join(' ', map { toRawHex($_->[1],$word_sz) } @{$def->{'CListAST'}});
                 } else {
-                    croak "TODO";
+                    todo( "DATA to Uxntal, case 2",1);
                 }
                 # (my $clist,my $word_sz) = _emit_expression_Uxntal( $def->{'CListAST'},$stref,$f,$info);
                 $c_line = '@'.$fq_nlist.' '.$clist_Uxntal;
@@ -1535,7 +1433,7 @@ sub _var_access_assign($stref,$f,$info,$lhs_ast,$rhs_ast) {
                         . ' #0000 range-map-short';
                     add_to_used_lib_subs('range-map-short');
                 } elsif (is_string($stref,$f,$lhs_var) ) { # Array of strings
-                    croak 'TODO: ASSIGNMENT TO ARRAY OF STRINGS';
+                    todo( 'ASSIGNMENT TO ARRAY OF STRINGS',1);
                 } else {
                     error("RHS is string, LHS is array");
                 }
@@ -1557,7 +1455,7 @@ sub _var_access_assign($stref,$f,$info,$lhs_ast,$rhs_ast) {
                     }
                 }
                 elsif ($rhs_ast->[0]==31) { # logical, check type and kind of LHS. Encode as 1 or 0 byte
-                    croak 'TODO: ASSIGNMENT TO ARRAY OF LOGICALS';
+                    todo('ASSIGNMENT TO ARRAY OF LOGICALS',1);
                     # integer, check type and kind of LHS.
                     if ( is_logical($stref,$f,$lhs_var) ) {
                         my $rhs_bool_literal = $rhs_ast->[1] eq '.true' ? '#01' : '#00';
@@ -1604,7 +1502,7 @@ sub _var_access_assign($stref,$f,$info,$lhs_ast,$rhs_ast) {
                     error('Only integer and logical are supported on the RHS of an array assignment');
                 }
             } elsif ($rhs_ast->[0] == 32) {
-                croak "TODO: _var_access_assign($f): character constant";
+                todo("_var_access_assign($f): character constant",1);
             } elsif ($rhs_ast->[0] == 1) {
                 # A function call, need to check the type
                 # LHS is an array. Need to check the type.
@@ -1632,7 +1530,7 @@ sub _var_access_assign($stref,$f,$info,$lhs_ast,$rhs_ast) {
                 if ($word_sz==1) { # byte array
                     $uxntal_code = "{ ( iter ) $rhs_expr_Uxntal ROT ROT $lhs_var_access ADD2 STA JMP2r } STH2r ".toHex($dim-1,2).' #0000 range-map-short';
                 } else {
-                    croak "TODO: _var_access_assign($f):", Dumper($lhs_type,$rhs_type,$rhs_type_attr,$rhs_expr_Uxntal,$lhs_var_access,$rhs_ast);
+                    todo("_var_access_assign($f): " . Dumper($lhs_type,$rhs_type,$rhs_type_attr,$rhs_expr_Uxntal,$lhs_var_access,$rhs_ast),1);
                 }
             } else {
                 my ($rhs_var,$rhs_idxs,$rhs_idx_expr_type) = __unpack_var_access_ast($rhs_ast);
@@ -1833,7 +1731,7 @@ sub __copy_substr($stref, $f, $info, $lhs_ast, $rhs_ast) {
             } else {
                 # Problem is that the RHS can be an expression
                 # Something like str // "str" // fstr()
-                # This becomes rather complicated so I will only deal with constant strings, TODO
+                todo('This becomes rather complicated so I will only deal with constant strings');
 # So if we have str trim, then trim can't return anything meaningful; if we have str ladjust, it should return the length of the arg.
 # In fact, if we have trim on the RHS, this should be a special case. Probably same for any function returning an allocatable string
 # trimmed_str to_str trimmed_str_len to_str_len min
@@ -1843,6 +1741,7 @@ sub __copy_substr($stref, $f, $info, $lhs_ast, $rhs_ast) {
                     : $rhs_ast->[0] == 1
                         ? __get_len_from_RetVal($stref,$rhs_ast->[1])
                         : $lhs_len; # a hack, TODO, it means we need to get the length of all strings being concatenated
+                todo('we need to get the length of all strings being concatenated');
                 # # This works only if there is only one function call
                 # if (exists $info->{'FunctionCalls'} and
                 # scalar @{$info->{'FunctionCalls'}}==1) {
@@ -1928,7 +1827,7 @@ sub __copy_substr($stref, $f, $info, $lhs_ast, $rhs_ast) {
             elsif ($rhs_ast->[0] == 1) { # a function call
                 # get the return type of the function
                 my $sig = $stref->{'Subroutines'}{$rhs_ast->[1]}{'Signature'};
-                croak 'TODO: function on RHS of strncpy: '.Dumper($sig);
+                todo( 'Function on RHS of strncpy: '. Dumper($sig),1);
             }
         } elsif ($lhs_idx_expr_type == 0 and $rhs_idx_expr_type == 2) {
             # RHS is a slice, LHS is a string variable
@@ -1987,7 +1886,7 @@ sub __copy_substr($stref, $f, $info, $lhs_ast, $rhs_ast) {
                 $uxntal_code = "$rhs_var_access $rhs_idx_expr #0001 SUB2 ADD2 LDA $lhs_var_access $lhs_idx_expr ADD2 STA (  WV20240723: WRONG? ) ";
                 # croak "WV20240723: WRONG, $lhs_idx_expr_b is BASE-1 so needs #0001 SUB2\n".$uxntal_code;
             } else {
-                croak 'TODO: array of strings';
+                todo( 'Array of strings',1);
             }
 
         } else {
@@ -2287,7 +2186,6 @@ sub _pointer_analysis($stref,$f) {
                     }
                     elsif (exists $state->{'Parameters'}{$call_arg}) {
                         $state->{'Pointers'}{$call_arg}='&';
-                        # carp 'TODO: a const scalar passed as arg: ',$call_arg_expr_str ;
                     }
                 }
             }
@@ -2381,17 +2279,14 @@ sub _emit_subroutine_sig_Uxntal($stref, $f, $annline){
                 } else {
                     unshift @{$uxntal_arg_decls},$uxntal_arg_decl;
                 }
-                # croak 'TODO: arg decl for result var, can be a string'
             }
         }
 
-        # my $args_str = join( ' ', @{$uxntal_arg_decls} );
         my $rline = '@'.$name;
         my $isMain = 0;
         if (exists $stref->{'Subroutines'}{$f}{'Program'} and $stref->{'Subroutines'}{$f}{'Program'}==1
         ) {
             $isMain = 1;
-            # $rline = '|0100';
         }
         return  ($rline,$uxntal_arg_decls, $uxntal_args_to_store, $uxntal_write_args,$isMain);
 } # END of _emit_subroutine_sig_Uxntal
@@ -2552,7 +2447,7 @@ sub _emit_var_decl_Uxntal ($stref,$f,$info,$var){
                     $clist_Uxntal = join(' ', map { toRawHex($_->[1],$word_sz) } @{$initial_value});
                     $c_var_decl.=$clist_Uxntal;
                 } else {
-                    croak "TODO";
+                    todo( "Initial value is array but not comma-sep list",1);
                 }
             }
             elsif ($initial_value eq '') {
@@ -2619,7 +2514,7 @@ sub _emit_if_without_then_Uxntal($stref,$f,$info,$c_line) {
     } else {
         # I don't think that an if without then could ever be more than 256 bytes. 
         # But I can't be sure so why take chances
-        # TODO: calculate the bytes and decide based on that.
+        todo('Calculate the bytes and decide based on that.');
         my $rel_ok=0;
         if ($rel_ok) {
             $cc_line = "\n$cond_expr #00 EQU ,&$branch$branch_id JCN\n" . $cc_line; 
@@ -2635,7 +2530,7 @@ sub _emit_ifthen_Uxntal ($stref, $f, $info, $branch_id){
     my $cond_expr_ast=$info->{'Cond'}{'AST'};
     my ($cond_expr,$word_sz) = _emit_expression_Uxntal($cond_expr_ast,$stref,$f,$info);
     my $cond_is_const = __eval_Uxntal_cond_expr($cond_expr); # returns [bool, bool] where the first bool says const or not, the second if the const is true or false
-    # TODO: if we want to do this right, we should actually skip the block entirely. We need some state for this.
+    todo('If we want to do this right, we should actually skip the block entirely. We need some state for this.');
     if ( not $cond_is_const->[0] ) {
         my $rline = "$cond_expr ;&$branch$branch_id JCN2\n" .
                     ";&$branch${branch_id}_$end JMP2\n" .
@@ -2647,12 +2542,12 @@ sub _emit_ifthen_Uxntal ($stref, $f, $info, $branch_id){
                 "&$branch$branch_id";
         return '';
     } else { # const and false, so always skip the top branch
-        croak 'TODO';
+        todo( 'IF-THEN const and false, so always skip the top branch',1);
     }
 }
 
 sub __eval_Uxntal_cond_expr($cond_expr) {
-    # TODO
+    todo( 'IF-THEN __eval_Uxntal_cond_expr',);
     return [0,0]
 }
 sub _emit_ifbranch_end_Uxntal ($id, $state){
@@ -2771,7 +2666,7 @@ sub _emit_expression_Uxntal ($ast, $stref, $f, $info) {
                 } else { # If the shift argument is not a constant, we need to determine at run time if it is positive or negative
                     # We know this *must* be a byte, so we remove the MSB
                     my $shift_n_bits = _emit_expression_Uxntal($args->[2], $stref, $f,$info) . ' NIP';
-                    croak "ishft works only with shorts" if $word_sz==1;
+                    todo( "ishft works only with shorts",1) if $word_sz==1;
                     return ("$val_to_shift $shift_n_bits ishft",2);
                     # croak 'TODO ISHFT RUNTIME: '.Dumper($args);
                 }
@@ -2851,8 +2746,7 @@ sub _emit_expression_Uxntal ($ast, $stref, $f, $info) {
                 }
             }
             (my $opcode, my $lexp, my $rexp) =@{$ast};
-            # Uxn does not have pow or mod so these would have to be functions
-            # TODO these are not implemented yet
+            # Uxn does not have pow or mod so these are library functions
             if ($opcode == 8) { # eq '^' pow
                 $ast = [1,'pow',[27,$lexp,$rexp] ] ;
                 return _emit_function_call_expr_Uxntal($stref,$f,$info,$ast);
@@ -3025,7 +2919,7 @@ sub _emit_subroutine_call_expr_Uxntal($stref,$f,$line,$info){
             push @call_arg_expr_strs_Uxntal, $uxntal_var_access.' ( SCALAR IN ARG by VAL ) ';
         }
         else { # A var, either nor scalar or scalar but used as Out or InOut
-        # But this could be e.g. str(ib:ie), in which case it is a substring, TODO!
+            todo('This could be e.g. str(ib:ie), in which case it is a substring');
             if ($arg_expr_ast->[0] == 10 and scalar @{$arg_expr_ast}==3) { # an array or string access, need a substring or subarray
                 my $var = $arg_expr_ast->[1];
                 my $word_sz = $Sf->{'WordSizes'}{$var};
@@ -3219,7 +3113,7 @@ sub __emit_call_arg_Uxntal_expr($stref,$f,$info,$subname,$call_arg_expr_str,$ast
         return ($uxntal_expr .' ( INTRINSIC ARG by VAL ) ',$word_sz);
     }
     else { # A var, either not scalar or scalar but used as Out or InOut
-    # But this could be e.g. str(ib:ie), in which case it is a substring, TODO!
+        todo('This could be e.g. str(ib:ie), in which case it is a substring');
         if ($arg_expr_ast->[0] == 10 and scalar @{$arg_expr_ast}==3) { # an array or string access, need a substring or subarray
                 my $var = $arg_expr_ast->[1];
                 if (is_array($stref,$f,$var)) {
@@ -3505,7 +3399,7 @@ sub _emit_list_print_Uxntal($stref,$f,$line,$info,$unit,$advance,$list_to_print)
             $line_Uxntal = __implicit_do_in_print($elt,$stref,$f,$info,$line,$unit);
         } else {
             my ($arg_to_print_Uxntal,$word_sz) = _emit_expression_Uxntal($elt,$stref, $f, $info);
-            # TODO: feels like a HACK
+            todo('feels like a HACK');
             if (substr($print_fn_Uxntal,0,10) eq 'print-char' and $elt->[0] == 2) {
                 my ($uxntal_var_access, $word_sz) = _var_access_read($stref,$f,$info,$elt);
                 croak "$uxntal_var_access: word size is $word_sz" if $word_sz !=1;
@@ -3657,14 +3551,14 @@ sub _emit_print_from_ast($stref,$f,$line,$info,$unit,$elt){
         return 'print-int'.$suffix;
     }
     elsif ($code==7 or $code==8) {
-        croak("TODO: printing of ".$sigils[$code]."\n");
+        todo("Printing of ".$sigils[$code]."\n",1);
     }
     elsif ($code>=15 and $code<=26) {
         return 'print-bool'.$suffix;
     }
     elsif ($code==13) {
         # I guess this should be a print-string of the string returned by the concatenation operation
-        croak("TODO: printing of string concatenation expression\n");
+        todo("Printing of string concatenation expression\n",1);
     }
     elsif ($code==0) {
         # This could be an implicit do. If it is a comma-list and the snd elt is an assignment

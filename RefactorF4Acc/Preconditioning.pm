@@ -1227,7 +1227,7 @@ sub _precondition_subroutine_with_includes { my ($stref, $f) = @_;
             if (exists $info->{'VarDecl'} ) {
                 if (exists $info->{'VarDecl'}{'Names'}) {
                     if ( @{$info->{'VarDecl'}{'Names'}} > 1 ) {
-                        croak "TODO: FIRST SPLIT THIS LINE! $line";
+                        todo( "FIRST SPLIT THIS LINE! $line",1)
                     } else {
                         my $var_name = $info->{'VarDecl'}{'Names'};
                         $prior_declarations{$var_name}=1;
@@ -1240,7 +1240,7 @@ sub _precondition_subroutine_with_includes { my ($stref, $f) = @_;
             elsif (exists $info->{'ParamDecl'} ) {
                 if (exists $info->{'ParamDecl'}{'Names'}) {
                     if ( @{$info->{'ParamDecl'}{'Names'}} > 1 ) {
-                        croak "TODO: FIRST SPLIT THIS LINE! $line";
+                        todo( "FIRST SPLIT THIS LINE! $line",1);
                     } else {
                         my $par_name = $info->{'ParamDecl'}{'Names'};
                         $prior_declarations{$par_name}=1;

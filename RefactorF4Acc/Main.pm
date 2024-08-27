@@ -347,7 +347,7 @@ sub parse_args { (my $args)=@_;
     if (defined $args) {
         %opts = %{$args};
     } #else {
-    getopts( 'Vvw:iIdhACTgbBGSc:P:s:o:', \%opts );
+    getopts( 'Vvw:iIdhACtTgbBGSc:P:s:o:', \%opts );
     #}
 	if ($opts{'V'}) {
 		die "Version: $VERSION\n";
@@ -435,6 +435,7 @@ sub parse_args { (my $args)=@_;
     $WW = $WARNING_LEVEL >= 2 ? 1 : 0;
     $WWW = $WARNING_LEVEL >= 3 ? 1 : 0;
 	$DBG = ( $opts{'d'} ) ? 1 : 0;
+    $TODO = ( $opts{'t'} ) ? 1 : 0;
     $SHOW = $opts{'S'} ? 1: 0;
 
     $Config{'INLINE_INCLUDES'} = $opts{'I'}  ? 1 : 0;
