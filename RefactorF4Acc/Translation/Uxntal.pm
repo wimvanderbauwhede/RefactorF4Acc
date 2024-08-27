@@ -1391,6 +1391,8 @@ sub _var_access_assign($stref,$f,$info,$lhs_ast,$rhs_ast) {
                 push @idx_exprs_Uxntal,$idx_expr_Uxntal;
             }
             croak 'IN PROGRESS: multi-dim arrays ',Dumper( \@idx_exprs_Uxntal,$lhs_idx_offsets_dims);
+            # If we ignore slices, all we need is the correct indexing:
+            # array(i,j) => array + (i-i_offset) +(j-j_offset)*i_sz
         } elsif  ($idx_expr_type == 0) { # array = rhs_expr
             my $decl = getDecl($stref,$f,$lhs_var);
             # It looks like ModuleVars are *copied* per function, not linked.
@@ -1586,6 +1588,15 @@ sub _var_access_assign($stref,$f,$info,$lhs_ast,$rhs_ast) {
     }
     return $uxntal_code;
 } # END of _var_access_assign()
+
+# returns the linear index, but needs to be combined with $word_sz
+sub _F2D2U($i_lb,$i_hb,$j_lb,$i_expr,$stref,$f,$info) {
+    my $i_rng = eval($i_hb - $i_lb + 1); # This should be a constant
+    my $i_rng_expr = _emit_expression_Uxntal([29,$i_rng],$stref,$f,$info);
+    my $i_lb_expr = _emit_expression_Uxntal([29,$i_lb],$stref,$f,$info);
+    my $j_lb_expr = _emit_expression_Uxntal([29,$j_lb],$stref,$f,$info);
+    return "$j_lb_expr SUB2 $i_rng_expr MUL2 $i_expr ADD2 $i_lb_expr SUB2";
+}
 
 sub __is_write_arg($stref,$f,$var) {
     # my $decl =  get_var_record_from_set($stref->{'Subroutines'}{$f}{'Vars'},$var) ;
