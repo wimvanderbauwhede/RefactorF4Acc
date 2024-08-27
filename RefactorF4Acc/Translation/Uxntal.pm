@@ -482,6 +482,7 @@ Instead of the nice but cumbersome approach we had until now, from now on it is 
 # If the routine uses a call stack, add vars to be allocated on the stack to StackAllocInfo
      # $Sf->{'UseCallStack'}=1; # override for debugging
     my $use_stack = __use_stack($stref,$f);
+    
     my @stack_alloc_info_nbytes_inits=();
     my @stack_alloc_info=();
     my @stack_array_string_inits=();
@@ -495,11 +496,26 @@ Instead of the nice but cumbersome approach we had until now, from now on it is 
 
             if (exists $info->{'VarDecl'}  ) {
                 my $var = $info->{'VarDecl'}{'Name'};
-                if (not exists $stref->{'Subroutines'}{$var}
-                and (not exists $stref->{'Subroutines'}{$f}{'Signature'}{'ResultVar'}
-                or $var ne $stref->{'Subroutines'}{$f}{'Signature'}{'ResultVar'} )
+                my $is_sub = (exists($stref->{'Subroutines'}{$var}) ? 1 :0);
+                if ( $is_sub) {
+                    my $type = 'of unknown type';
+                    if (not exists $info->{'VarDecl'}{'Type'} and
+                    exists $info->{'ParsedVarDecl'}) {
+                        $type = $info->{'ParsedVarDecl'}{'TypeTup'}{'Type'};
+                    }
+
+                    # say Dumper $info->{'ParsedVarDecl'};
+                    error("Local declaration of var $var ($type) in $f masks a function, this is not allowed in a recursive subroutine", 0,'ERROR_MASK');
+                };
+                my $is_res_x = (exists($stref->{'Subroutines'}{$f}{'Signature'}{'ResultVar'}) ? 1: 0);
+                my $is_res = $is_res_x ? (($var eq $stref->{'Subroutines'}{$f}{'Signature'}{'ResultVar'}) ? 1: 0) : 0;
+
+                if ((not exists $stref->{'Subroutines'}{$var})
+                and ((not exists $stref->{'Subroutines'}{$f}{'Signature'}{'ResultVar'})
+                or ($var ne $stref->{'Subroutines'}{$f}{'Signature'}{'ResultVar'}) )
                 ) { # otherwise it is a function
                 # say "Stack alloc for $var in $f";
+                croak "Stack alloc for $var in $f",$line,Dumper($info) if $f eq 'lookupNamedConstant' and $line=~/isArray/;
                     push @{$pass_state->{'StackAllocInfo'}}, _stack_allocation($stref,$f,$var);
                 }
             } elsif (exists $info->{'ArgDecl'}) {
@@ -1709,7 +1725,7 @@ sub __var_access($stref,$f,$var) {
             ? ' LDA2 ' # passed by reference
             : '' # not passed
         );
-}
+} # END of __var_access
 
 sub __unpack_var_access_ast($ast) {
     if (ref($ast) eq 'ARRAY' and scalar @{$ast} >= 2) {
@@ -2050,12 +2066,14 @@ sub __stack_access($stref,$f,$var) {
 # Instead of ;arg STA$short_mode we need .fp LDZ2 $Sf->{'StackOffset'}{$var} ADD2 STA$short_mode
 # i.e. __stack_access($stref,$f,$var). "STA$short_mode"
 sub _stack_allocation($stref,$f,$var) {
+
     my $Sf = $stref->{'Subroutines'}{$f};
     my $word_sz = $Sf->{'WordSizes'}{$var} ;
     my $uxntal_code = '';
     my $offset = $Sf->{'CurrentOffset'};
     my $nbytes=2;
     my $array_string_init='';
+    croak $f ,$var, is_array_or_string($stref,$f,$var) if $var eq 'isArray' and $f eq 'lookupNamedConstant';
     if  (is_array_or_string($stref,$f,$var)) {
          if (is_arg($stref,$f,$var)) {
         #         passed by reference, so
