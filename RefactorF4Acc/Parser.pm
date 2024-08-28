@@ -1496,9 +1496,10 @@ or $line=~/^character\s*\(\s*len\s*=\s*[\w\*]+\s*\)/
 						'LineID' => $info->{'LineID'}
 					};
 				} else {
-					( my $iter, my $range ) = split( /\s*=\s*/, $do_stmt );
+					( my $iter, my $range ) = split( /(?<!kind)\s*=\s*/, $do_stmt ); # a bit ad hoc
 					# ( my $range_start, my $range_stop, my $range_step ) = split( /s*,\s*/, $range ); # This is naive
 					( my $range_start, my $range_stop, my $range_step ) = _parse_comma_sep_expr_list($range);
+					# croak Dumper( $range, $range_start,  $range_stop,  $range_step ) if $range=~/kind/;
 					my $range_start_ast = $range_start=~/^\-?\d+$/ ? [29,$range_start] : parse_expression($range_start,  $info,  $stref,  $f);
 					my $range_stop_ast = $range_stop=~/^\-?\d+$/ ? [29,$range_stop] :  parse_expression($range_stop,  $info,  $stref,  $f);
 					my $range_step_ast = [29,1]; # default
@@ -4900,6 +4901,7 @@ sub _parse_if_cond {
 
 # --------------------------------------------------------------------------------
 # Takes a string which contains a comma-separated list of expressions, returns a list of the expressions
+# The expressions themselves can contain parens and commas
 sub _parse_comma_sep_expr_list {
 
 	( my $str ) = @_;

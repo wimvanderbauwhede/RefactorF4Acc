@@ -83,7 +83,8 @@ our @sigils = ('(', '&', '$', 'ADD', 'SUB', 'mul', 'div', 'mod', 'pow', '=', '@'
 
 # For shorter labels
 
-our $shorten_var_names = 0;
+our $shorten_var_names = 1;
+our $omit_comments = 1;
 our $branch = 'b';
 our $loop = 'l';
 our $while_loop = 'w';
@@ -518,7 +519,7 @@ Instead of the nice but cumbersome approach we had until now, from now on it is 
             my ($sig_line,$arg_decls, $args_to_store,$write_args,$isMain) = _emit_subroutine_sig_Uxntal( $stref, $f, $annline);
             $pass_state->{'Subroutine'}{'ArgDecls'}=$arg_decls;
             $pass_state->{'Subroutine'}{'Sig'}=[
-                "( ____ $line )",
+                ($omit_comments ? '' : "( ____ $line )"),
                 $sig_line, ($use_stack ? 'push-frame' :''),
                 ($use_stack ? toHex($stack_alloc_nbytes,2).' stack-alloc' : '') # FIXME: not pure, $use_stack and $stack_alloc_nbytes are global
                 ];
@@ -949,7 +950,11 @@ Instead of the nice but cumbersome approach we had until now, from now on it is 
         }
 
         elsif (exists $info->{'Comments'} ) {
-            $c_line = '( '.$line.' )';
+            if ($omit_comments) {
+                $skip=1;
+            } else {
+                $c_line = '( '.$line.' )';
+            }
         }
         elsif (exists $info->{'Use'}) {
             if ($line=~/$f/) {
@@ -976,11 +981,11 @@ Instead of the nice but cumbersome approach we had until now, from now on it is 
             $c_line = ';&'.__shorten_fq_name($f.'_'.$info->{'Goto'}{'Label'}).' JMP2';
         }
         elsif (exists $info->{'Continue'}) {
-            if (exists $info->{'Label'}) { # continue lines don't have to have a label
-                $c_line='&'.__shorten_fq_name( $f.'_'.$info->{'Label'});
-            } else {
+            # if (exists $info->{'Label'}) { # continue lines don't have to have a label
+            #     $c_line='&'.__shorten_fq_name( $f.'_'.$info->{'Label'});
+            # } else {
                 $c_line='( continue )';
-            }
+            # }
         }
         elsif (exists $info->{'Common'}) {
             $c_line='';
@@ -2800,13 +2805,13 @@ sub _emit_expression_Uxntal ($ast, $stref, $f, $info) {
                 return ("$lv $rv".' { 0100 $100 } STH2r concat',2);
             } else {
                 if ($l_word_sz!=$r_word_sz) {
-                    croak "Word sizes for ".$sigils[$opcode]." must be the same: $l_word_sz <> $r_word_sz ( $lv <> $rv )".Dumper($ast)." in $f";
+                    error( "Kinds for arguments to ".$sigils[$opcode]." must be the identical: $l_word_sz <> $r_word_sz for ".emit_expr_from_ast($ast)." in $f",0,'ERROR_KIND_MISMATCH');
                 }
                 my $short_mode =  $l_word_sz == 2 ? '2' : '';
                 # Because LTH and GTH are for unsigned ints, we need special functions for the inequalities
                 if ($opcode >= 17 and $opcode <= 20) { # <, >, <= or >=
                     add_to_used_lib_subs($sigils[$opcode].$short_mode);
-                }             
+                }
                 elsif ($opcode == 5 or $opcode == 6) {
                     add_to_used_lib_subs($sigils[$opcode].$short_mode);
                 }
@@ -2855,10 +2860,14 @@ sub __substitute_PlaceHolders_Uxntal($expr_str,$info,$isChar){
             $ph_str=~s/^[\']/\"/; # make opening quote "
             $expr_str=~s/$ph/$ph_str/;
         }
-        my $len = toRawHex(length($expr_str)-1,2);
-        if ($len eq '0001' and $isChar) {
+        my $str_len = length($expr_str)-1;
+        if ($str_len > 127 ) {
+            error('Maximum string length is 96 characters',0,'ERROR_INVALID');
+        }
+        my $len_Uxntal = toRawHex($str_len,2);
+        if ($len_Uxntal eq '0001' and $isChar) {
             $expr_str = toHex(ord(substr($expr_str,1,1)),1);
-        } elsif ($len eq '0000') { # empty string is a string!
+        } elsif ($len_Uxntal eq '0000') { # empty string is a string!
             $expr_str = '#00'; #"{ 0000 } STH2r"; #  '#00'; #
         } else {
             # replace space and nl by their ascii code
@@ -2867,7 +2876,12 @@ sub __substitute_PlaceHolders_Uxntal($expr_str,$info,$isChar){
             $expr_str =~s/\n/ 0a \"/g;
             $expr_str =~s/\"\s*$//;
             $expr_str =~s/^\"\s+//; # remove opening quote if first char was \s or \n
-            $expr_str = "{ $len $expr_str } STH2r";
+            if ($str_len > 48 ) {
+                my $str_part_1 = substr($expr_str,0,49);
+                my $str_part_2 = ' "'.substr($expr_str,49);
+                $expr_str = $str_part_1 . $str_part_2;
+            }
+            $expr_str = "{ $len_Uxntal $expr_str } STH2r";
         }
     }
     return $expr_str;

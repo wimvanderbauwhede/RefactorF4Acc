@@ -46,19 +46,19 @@ our %uxntal_lib_subroutines = (
 	'JMP2r'
 ],
 'not'	=>['@not #01 SWP SUB JMP2r'],
-'mod' => [
+'mod2' => [
     '( a:16 b:16 -- m:16 )',
-	'@mod',
+	'@mod2',
 	'OVR2 OVR2  ( a b a b )',
 	'DIV2  ( a b a/b )',
 	'MUL2  ( a b*(a/b) )',
 	'SUB2 ( a-b*(a/b) )',
 	'JMP2r'
 ],
-'pow' => [
+'pow2' => [
     '( mantissa: short; exponent: short>0 )',
     '( m* e* -- r* )',
-    '@pow',
+    '@pow2',
     '#0000 NEQ2 ,&one JCN',
     'POP2 #0001 JMP2r',
     '&one',
