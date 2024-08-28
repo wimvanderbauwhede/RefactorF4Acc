@@ -20,6 +20,8 @@ use RefactorF4Acc::Refactoring::Helpers qw(
     get_annotated_sourcelines
     );
 
+use RefactorF4Acc::Parser::Expressions qw( emit_expr_from_ast );
+
 use RefactorF4Acc::Refactoring::CaseToIf qw( replace_case_by_if );
 
 use RefactorF4Acc::Refactoring::FoldConstants qw( fold_constants_all );
@@ -37,6 +39,8 @@ use RefactorF4Acc::Translation::UxntalStaging qw(
     load_global_memory_map_from_file
     remove_unwanted_global_allocations_from_memory_map
     );
+
+
 
 #
 #   (c) 2010-2024 Wim Vanderbauwhede <Wim.Vanderbauwhede@Glasgow.ac.uk>
@@ -1381,21 +1385,28 @@ sub _var_access_assign($stref,$f,$info,$lhs_ast,$rhs_ast) {
             my $idx_expr = defined $idx ? ($idx eq $lhs_idx_offset_Uxntal) ? '' : "$idx $lhs_idx_offset_expr".( $short_mode ? ' #0002 MUL2 ': '') .' ADD2 ' : '';
             $uxntal_code = "$rhs_expr_Uxntal  $lhs_var_access $idx_expr STA$short_mode"; # index, load the value
         } elsif  ($idx_expr_type == 3) { # array(i,j) = rhs_expr
+            # multi-dim arrays, in principle this should work for 1, 2, 3 and even more dimensions
+            my ($rhs_expr_Uxntal, $rhs_word_sz) = _emit_expression_Uxntal($rhs_ast,$stref,$f,$info);
+            if ($rhs_word_sz!=$word_sz){
+                croak "LHS and RHS word sizes don't match: $word_sz <> $rhs_word_sz for assignment to $lhs_var in $f";
+            }
             my $lhs_idx_offsets_dims = __get_array_index_offsets_dims($stref,$f,$lhs_var);
             # The index expressions are $idxs, which will start with a comma.
             my @index_asts = @{$idxs};
             shift @index_asts;
-            my $n_dims = scalar @index_asts;
-            if ($n_dims>2) {
-                error("Only 1_D and 2-D arrays are supported: $lhs_var in $f is $n_dims-D");
-            }
+            # my $n_dims = scalar @index_asts;
+            # if ($n_dims>2) {
+            #     error("Only 1_D and 2-D arrays are supported: $lhs_var in $f is $n_dims-D");
+            # }
             my $idx_exprs_Uxntal=[];
             for my $index_ast (@index_asts) {
                 my ($idx_expr_Uxntal, $idx_word_sz) = _emit_expression_Uxntal($index_ast,$stref,$f,$info);
                 push @{$idx_exprs_Uxntal},$idx_expr_Uxntal;
             }
             my $lin_idx_Uxntal_expr = _multi_dim_array_access_to_Uxntal($idx_exprs_Uxntal,$lhs_idx_offsets_dims, $stref,$f,$info);
-            croak 'IN PROGRESS: multi-dim arrays ',Dumper($lin_idx_Uxntal_expr);
+            my $idx_expr = $lin_idx_Uxntal_expr.( $short_mode ? ' #0002 MUL2 ': '');
+            $uxntal_code = "$rhs_expr_Uxntal  $lhs_var_access $idx_expr STA$short_mode"; # index, load the value
+
             # If we ignore slices, all we need is the correct indexing:
             # array(i,j) => array + (i-i_offset) +(j-j_offset)*i_sz
         } elsif  ($idx_expr_type == 0) { # array = rhs_expr
@@ -1648,23 +1659,27 @@ sub __unpack_var_access_ast($ast) {
                 $idxs=$ast->[2]; # is still an ast here, probably keep it that way
                 $idx_expr_type = $idxs->[0] == 27 ? 3 : $idxs->[0] == 12 ? 2 : 1;
                 if ($idx_expr_type == 3) {
-                    warning('Multi-dimensional array support in progress: '.Dumper($ast));
+                    for my $idx_ast (@{$idxs}[1 .. scalar @{$idxs} -1 ] ) {
+                        # my $idx_ast = $idxs->[$ii];
+                        if ($idx_ast->[0] == 12) { 
+                            error('Multi-dimensional arrays with slices are not supported: '.emit_expr_from_ast($ast),0,'ERROR_UNSUPPORTED');
+                        }
+                    }
                 }
             } else {
-                error('Array access AST must have 3 items: '.Dumper($ast));
+                error('Invalid array access: '.emit_expr_from_ast($ast),0,'ERROR_INVALID');
             }
         } elsif ($ast->[0] == 2) {
             if (scalar @{$ast} != 2) {
-                error('Scalar AST must have 2 items: '.Dumper($ast));
+                error('Invalid scalar access: '.emit_expr_from_ast($ast),0,'ERROR_INVALID');
             }
         } else {
-            croak Dumper $ast;
-            error('AST must be an @ or $: '.Dumper($ast));
+            error('Variable being accessed must be an array or scalar: '.emit_expr_from_ast($ast),0,'ERROR_INVALID');
         }
         return ($var,$idxs,$idx_expr_type);
     } else {
         croak Dumper($ast);
-        error('AST must be a list: '.Dumper($ast));
+        error('AST must be a list: '.Dumper($ast),0,'ERROR_INVALID');
     }
 } # END of __unpack_var_access_ast
 
