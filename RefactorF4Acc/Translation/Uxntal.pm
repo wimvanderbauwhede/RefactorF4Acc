@@ -4,7 +4,7 @@ use v5.30;
 
 use RefactorF4Acc::Config;
 use RefactorF4Acc::Utils;
-use RefactorF4Acc::Utils::Functional qw( min max );
+use RefactorF4Acc::Utils::Functional qw( min max zip );
 
 use RefactorF4Acc::F95SpecWords qw(
     %F95_intrinsic_functions
@@ -1385,12 +1385,17 @@ sub _var_access_assign($stref,$f,$info,$lhs_ast,$rhs_ast) {
             # The index expressions are $idxs, which will start with a comma.
             my @index_asts = @{$idxs};
             shift @index_asts;
-            my @idx_exprs_Uxntal=();
-            for my $index_ast (@index_asts) {
-                my ($idx_expr_Uxntal, $idx_word_sz) = _emit_expression_Uxntal($rhs_ast,$stref,$f,$info);
-                push @idx_exprs_Uxntal,$idx_expr_Uxntal;
+            my $n_dims = scalar @index_asts;
+            if ($n_dims>2) {
+                error("Only 1_D and 2-D arrays are supported: $lhs_var in $f is $n_dims-D");
             }
-            croak 'IN PROGRESS: multi-dim arrays ',Dumper( \@idx_exprs_Uxntal,$lhs_idx_offsets_dims);
+            my $idx_exprs_Uxntal=[];
+            for my $index_ast (@index_asts) {
+                my ($idx_expr_Uxntal, $idx_word_sz) = _emit_expression_Uxntal($index_ast,$stref,$f,$info);
+                push @{$idx_exprs_Uxntal},$idx_expr_Uxntal;
+            }
+            my $lin_idx_Uxntal_expr = _multi_dim_array_access_to_Uxntal($idx_exprs_Uxntal,$lhs_idx_offsets_dims, $stref,$f,$info);
+            croak 'IN PROGRESS: multi-dim arrays ',Dumper($lin_idx_Uxntal_expr);
             # If we ignore slices, all we need is the correct indexing:
             # array(i,j) => array + (i-i_offset) +(j-j_offset)*i_sz
         } elsif  ($idx_expr_type == 0) { # array = rhs_expr
@@ -1398,8 +1403,8 @@ sub _var_access_assign($stref,$f,$info,$lhs_ast,$rhs_ast) {
             # It looks like ModuleVars are *copied* per function, not linked.
             # So I need to get the actual decl from the module
             my $dim = exists $decl->{'ConstDim'}
-                ? __Uxntal_array_size($decl->{'ConstDim'})
-                : __Uxntal_array_size($decl->{'Dim'});
+                ? __array_size($decl->{'ConstDim'})
+                : __array_size($decl->{'Dim'});
             my $array_length = $dim;
             if ($rhs_ast->[0] == 28) { # Array literal
                 my ($rhs_array_literal,$rhs_word_sz) = _emit_expression_Uxntal($rhs_ast, $stref,$f, $info);
@@ -1421,9 +1426,9 @@ sub _var_access_assign($stref,$f,$info,$lhs_ast,$rhs_ast) {
                 if (is_character($stref,$f,$lhs_var) ) { # Array of characters
                 # If so, we set every elt to that string
                     my $dim = exists $decl->{'ConstDim'}
-                        ? __Uxntal_array_size($decl->{'ConstDim'})
-                        : __Uxntal_array_size($decl->{'Dim'});
-                    # my $dim =  __Uxntal_array_size($decl->{'Dim'});
+                        ? __array_size($decl->{'ConstDim'})
+                        : __array_size($decl->{'Dim'});
+                    # my $dim =  __array_size($decl->{'Dim'});
                     my $array_length = $dim;
                     my $isChar=1;
                     my $rhs_char_literal = __substitute_PlaceHolders_Uxntal($rhs_ast->[1],$info,$isChar);
@@ -1492,8 +1497,8 @@ sub _var_access_assign($stref,$f,$info,$lhs_ast,$rhs_ast) {
                     my $decl = getDecl($stref,$f,$lhs_var);
                     # carp Dumper($decl);
                     my $array_length = exists $decl->{'ConstDim'}
-                    ? __Uxntal_array_size($decl->{'ConstDim'})
-                    : __Uxntal_array_size($decl->{'Dim'});
+                    ? __array_size($decl->{'ConstDim'})
+                    : __array_size($decl->{'Dim'});
                     # my $elt_iter = [10,$elt->[1],[36,'LIT2 &'.$iter.' $2']];
                     # my ($arg_to_print_Uxntal,$word_sz) = _emit_expression_Uxntal($elt_iter,$stref, $f, $info);
                     # my $elt_0 = [10,$elt->[1],[29,'0']];
@@ -1526,8 +1531,8 @@ sub _var_access_assign($stref,$f,$info,$lhs_ast,$rhs_ast) {
                 # So we simply assign the RHS to the first elt of the LHS
 
                 my $dim = exists $lhs_var_decl->{'ConstDim'}
-                    ? __Uxntal_array_size($lhs_var_decl->{'ConstDim'})
-                    : __Uxntal_array_size($lhs_var_decl->{'Dim'});
+                    ? __array_size($lhs_var_decl->{'ConstDim'})
+                    : __array_size($lhs_var_decl->{'Dim'});
                 # my $array_length = $dim;
                 my ($rhs_expr_Uxntal, $word_sz) = _emit_expression_Uxntal($rhs_ast,$stref,$f,$info);
                 if ($word_sz==1) { # byte array
@@ -1588,15 +1593,6 @@ sub _var_access_assign($stref,$f,$info,$lhs_ast,$rhs_ast) {
     }
     return $uxntal_code;
 } # END of _var_access_assign()
-
-# returns the linear index, but needs to be combined with $word_sz
-sub _F2D2U($i_lb,$i_hb,$j_lb,$i_expr,$stref,$f,$info) {
-    my $i_rng = eval($i_hb - $i_lb + 1); # This should be a constant
-    my $i_rng_expr = _emit_expression_Uxntal([29,$i_rng],$stref,$f,$info);
-    my $i_lb_expr = _emit_expression_Uxntal([29,$i_lb],$stref,$f,$info);
-    my $j_lb_expr = _emit_expression_Uxntal([29,$j_lb],$stref,$f,$info);
-    return "$j_lb_expr SUB2 $i_rng_expr MUL2 $i_expr ADD2 $i_lb_expr SUB2";
-}
 
 sub __is_write_arg($stref,$f,$var) {
     # my $decl =  get_var_record_from_set($stref->{'Subroutines'}{$f}{'Vars'},$var) ;
@@ -1997,10 +1993,10 @@ sub _stack_allocation($stref,$f,$var) {
             if (is_array($stref,$f,$var)) {
                 croak Dumper $decl if $var eq 'res';
                 # my $decl = getDecl($stref,$f,$var);
-                # my $dim =  __Uxntal_array_size($decl->{'Dim'});
+                # my $dim =  __array_size($decl->{'Dim'});
                 my $dim = exists $decl->{'ConstDim'}
-                    ? __Uxntal_array_size($decl->{'ConstDim'})
-                    : __Uxntal_array_size($decl->{'Dim'}) ;
+                    ? __array_size($decl->{'ConstDim'})
+                    : __array_size($decl->{'Dim'}) ;
                 $nbytes= $dim*$word_sz+2; # 2 bytes for size field
                 my $init_array = toHex($dim,2).' .fp LDZ2 '.toHex($offset,2). ' ADD2 STA2' ."\n";
                 $init_array.= __create_array_zeroing(
@@ -2415,8 +2411,8 @@ sub _emit_var_decl_Uxntal ($stref,$f,$info,$var){
         # croak "$subset $f ". Dumper( $decl) if $var eq 'funktalTokens';
         my $dim = $array
             ? exists $decl->{'ConstDim'}
-                ? __Uxntal_array_size($decl->{'ConstDim'})
-                : __Uxntal_array_size($decl->{'Dim'})
+                ? __array_size($decl->{'ConstDim'})
+                : __array_size($decl->{'Dim'})
             : 1;
         my $ftype = $decl->{'Type'};
         my $strlen=0;
@@ -3378,8 +3374,8 @@ sub _emit_list_print_Uxntal($stref,$f,$line,$info,$unit,$advance,$list_to_print)
             my $decl = getDecl($stref,$f,$var_name);
 
             my $array_length = exists $decl->{'ConstDim'}
-            ? __Uxntal_array_size($decl->{'ConstDim'})
-            : __Uxntal_array_size($decl->{'Dim'});
+            ? __array_size($decl->{'ConstDim'})
+            : __array_size($decl->{'Dim'});
             my $elt_iter = [10,$elt->[1],[36,'LIT2 &'.$iter.' $2']];
             my ($arg_to_print_Uxntal,$word_sz) = _emit_expression_Uxntal($elt_iter,$stref, $f, $info);
             my $elt_0 = [10,$elt->[1],[29,'0']];
@@ -4160,7 +4156,7 @@ sub getDecl($stref,$f,$var) {
 }
 # ----------------------------------------------------------------------------------------------------
 
-sub __Uxntal_array_size($dims){
+sub __array_size($dims){
 # carp Dumper $dims;
     my $array_size=1;
     for my $dim (@{$dims}) {
@@ -4170,6 +4166,64 @@ sub __Uxntal_array_size($dims){
         $array_size*=$dim_size;
     }
     return $array_size;
+}
+
+sub __array_bounds($dims){
+# carp Dumper $dims;
+    my $array_bounds=[];
+    for my $dim (@{$dims}) {
+        my $lb=$dim->[0];
+        my $ub=$dim->[1];
+        my $dim_size = eval("$ub-$lb+1");
+        push @{$array_bounds}, [$lb,$dim_size];
+    }
+    return $array_bounds;
+}
+
+# returns the linear index, but needs to be combined with $word_sz
+sub _multi_dim_array_access_to_Uxntal($index_exprs,$array_bounds, $stref,$f,$info) {
+my ($i_expr,$j_expr) = @{$index_exprs};
+    my ($i_bounds,$j_bounds) = @{$array_bounds};
+    my ($i_lb,$i_rng)=@{$i_bounds};
+    my ($j_lb,$j_rng)=@{$j_bounds};
+    my ($i_rng_expr,$word_sz) = _emit_expression_Uxntal([29,$i_rng],$stref,$f,$info);
+    (my $i_lb_expr,$word_sz) = _emit_expression_Uxntal([29,$i_lb],$stref,$f,$info);
+    (my $j_lb_expr,$word_sz) = _emit_expression_Uxntal([29,$j_lb],$stref,$f,$info);
+    # say multi_dim_to_Uxntal_lin_idx([$i_expr],[$i_lb_expr],['#0001',$i_rng_expr]);
+    my $lin_idx_expr = __multi_dim_to_Uxntal_lin_idx($index_exprs,[$i_lb_expr,$j_lb_expr],['#0001',$i_rng_expr,]);
+    return $lin_idx_expr;
+    # return "$j_expr $j_lb_expr SUB2 $i_rng_expr MUL2 $i_expr ADD2 $i_lb_expr SUB2";
+}
+
+sub __multi_dim_to_Uxntal_lin_idx($index_exprs,$lb_exprs,$range_exprs) {
+    # croak Dumper ($index_exprs,$lb_exprs,$range_exprs);
+    my @adjusted_indices = map { $_->[0].' '. $_->[1].' SUB2' } @{zip($index_exprs,$lb_exprs)};
+    my @lin_idx_terms=();
+    my $idx_cnt=0;
+    for my $ijk (@adjusted_indices){
+        $idx_cnt++;
+        # say "IDX CNT: $idx_cnt";
+        my $lin_idx_term = $ijk;
+        my $rng_cnt=0;
+        for my $rng_expr (@{$range_exprs}) {
+            # 1 0 => ok
+            # 1 1 => jmp
+            # 2 0 => ok
+            # 2 1 => ok
+            # 2 2 => jmp
+            # say "IDX CNT: $idx_cnt, RNG CNT: $rng_cnt";
+            if ($rng_cnt < $idx_cnt) {
+                $lin_idx_term.=" $rng_expr MUL2" unless $rng_expr eq '#0001';
+                # say "LIN IDX: $lin_idx_term"
+            }
+            $rng_cnt++;
+            # last if $rng_cnt == $idx_cnt;
+        }
+        push @lin_idx_terms,$lin_idx_term;
+    }
+    my $lin_idx = join(' ', @lin_idx_terms);
+    $lin_idx .= ' ADD2' x (scalar(@lin_idx_terms)-1); # 1-D, nothing; 2-D, 1; 3-D, 2
+    return $lin_idx
 }
 
 sub __is_operator($opcode) {
@@ -4409,8 +4463,8 @@ sub _gen_array_string_inits($stref,$f,$var,$pass_state) {
     if (is_array($stref,$f,$var)) {
         my $word_sz = $stref->{'Subroutines'}{$f}{'WordSizes'}{$var};
         my $sz = exists $decl->{'ConstDim'}
-        ? __Uxntal_array_size($decl->{'ConstDim'})
-        : __Uxntal_array_size($decl->{'Dim'}) ;
+        ? __array_size($decl->{'ConstDim'})
+        : __array_size($decl->{'Dim'}) ;
         $uxntal_array_string_init = __create_array_zeroing(";$fq_var",$sz,$word_sz);
     }
     elsif (is_string($stref,$f,$var)) {
