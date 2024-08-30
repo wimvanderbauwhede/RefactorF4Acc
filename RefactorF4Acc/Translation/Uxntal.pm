@@ -83,7 +83,7 @@ our @sigils = ('(', '&', '$', 'ADD', 'SUB', 'mul', 'div', 'mod', 'pow', '=', '@'
 
 # For shorter labels
 
-our $shorten_var_names = 1;
+our $shorten_var_names = 0;
 our $omit_comments = 1;
 our $branch = 'b';
 our $loop = 'l';
@@ -2102,6 +2102,32 @@ sub __create_fq_varname($stref,$f,$var_name) {
 
     return __shorten_fq_name($fq_varname);
 } # END of __create_fq_varname
+
+# The problem with this is that it does not work with staging:
+# There is no guarantee that the variables occur in the same order.
+# So instead, we need a hashing mechanism 
+# We could hash to a hex string of 4 chars, that should be enough
+# Suppose we roll our own
+# Sum 8 bytes into a short, turn into a hex, concatenate
+# I think I should check for collisions and throw an error if there is any
+sub __shorten_hash($fq_varname){
+    $fq_varname=~s/^Funktal//;
+    my $hexconcat=0;
+
+    for my $i ( 0 .. (length($fq_varname) >>3)) {
+        my $chunk = substr($fq_varname,$i*8,8);
+        next if $chunk eq '';
+        my @bytes  = split('',$chunk);
+        my $bytesum=0;my $bytexor=256;
+        my $ii=1;
+        for my $byte (@bytes) {
+            $bytesum = $bytesum + ord($byte)*$ii;
+            $ii++;
+        }
+        $hexconcat = $hexconcat . sprintf("%x",$bytesum);#^ $bytesum;
+    }
+    return $hexconcat;
+}
 
 sub __shorten_fq_name ($fq_varname) {
     # Somehow BROKEN, probably because I missed some
