@@ -1635,22 +1635,29 @@ sub _procLine {
               $tline =~ s/[zZ](\".+?\")/$hex/;
             }
             $line = $tline;
-            my $ct      = 0;
-
-            while ( $line =~ /(\'.*?\')/ ) {
+            my $ct = 0;
+            # cs = "'" // achar(tokenVal) // "'"
+            # Say \'
+            # Could very well be
+            # cs = '"' // achar(tokenVal) // '"'
+            # write(0,*) "reconstructTypeNameExpr: Error: token is not TypeSynonym or TypeIdentifier: ", getTokenExtLabelVal( typeNameSyn), " BUG!"
+            while ( $line =~ /(\'[^\"]*?\"?[^\"]*?\')/ ) {
                 my $strconst = $1;
                 my $ph       = '__PH' . $ct . '__';
                 $phs_ref->{$ph} = $strconst;
                 $line =~ s/\'.*?\'/$ph/;
                 $ct++;
             }
-            while ( $line =~ /(\".*?\")/ ) { 
+            while ( $line =~ /(\"[^\']*?\'?[^\']*?\")/ ) { 
                 my $strconst = $1;
+                # carp "$line => $strconst" if $tline =~/cs\ =\ \"\'\"\ \/\/\ achar\(tokenVal\)\ \/\/\ \"\'\"/;
                 my $ph       = '__PH' . $ct . '__';
                 $phs_ref->{$ph} = $strconst;
                 $line =~ s/\".*?\"/$ph/;
+                # carp "$line" if $tline =~/cs\ =\ \"\'\"\ \/\/\ achar\(tokenVal\)\ \/\/\ \"\'\"/;
                 $ct++;
             }
+            # croak $line,Dumper($phs_ref) if $tline =~/cs\ =\ \"\'\"\ \/\/\ achar\(tokenVal\)\ \/\/\ \"\'\"/;
             my $lcline =
               ( substr( $line, 0, 2 ) eq '! ' )
               ? $line

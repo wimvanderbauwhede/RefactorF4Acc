@@ -1990,7 +1990,7 @@ END IF
 #croak "$f <$mline>" if $mline=~/^rfos01/ ;
 
 					$info = _parse_assignment( $mline, $info, $stref, $f );
-					# croak Dumper($info) if $mline=~/isuccess/;
+					# croak $mline,Dumper($info) if $mline=~/cs.+achar.tokenVal/;
 			}
 			# GOTO is handled separately in _identify_loops_breaks
 #			elsif ($mline=~/go\s*to\s+(\w+)/) {

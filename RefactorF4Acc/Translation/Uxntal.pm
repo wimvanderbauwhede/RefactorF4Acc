@@ -1,3 +1,30 @@
+=pod TODOS
+
+* Easy
+write(0,*) '    token:',getTokenLabel(token),getTokenVal(token), decodeTokenStr(token)
+currently becomes
+{ 000a 20 " 20 " 20 " 20 "token: } STH2r print-string-stderr #20 #19 DEO ( , )
+and should become
+{ 000a 20 20 20 20 "token: } STH2r print-string-stderr #20 #19 DEO ( , )
+
+* In progress
+cs(ii:ii) =  '"'
+currently becomes
+{ 0001 " } STH2r .fp LDZ2 #0015 ADD2 #0001 strncpy ( STATIC LEN ) ( COPY SUBSTR )
+and should become
+{ 0001 22 } STH2r ...
+
+* Hard; but apparently this means that '//' was not parsed as an expression
+FunktalDecoders.f90 line 308
+cs = "'" // achar(tokenVal) // "'"
+currently becomes
+{ 001a """ 20 "// 20 "achar(tokenVal) 20 "// 20 " } STH2r .fp LDZ2 #0015 ADD2 #0007 strncpy ( STATIC LEN ) ( COPY SUBSTR )
+which is quite WRONG: 
+the '//' should be a string concatenation
+the 'achar' is a function
+the quotes should stay single quotes so emit ASCII 27
+=cut
+
 package RefactorF4Acc::Translation::Uxntal;
 
 use v5.30;
@@ -2884,13 +2911,17 @@ sub _emit_expression_Uxntal ($ast, $stref, $f, $info) {
 # We add extra info  to distingiush between a character and a string of length 1
 sub __substitute_PlaceHolders_Uxntal($expr_str,$info,$isChar){
     if (not defined $isChar) { $isChar=0; }
+    my $orig_str = $expr_str;
     if ($expr_str=~/__PH/ and exists $info->{'PlaceHolders'}) {
         # croak $expr_str.Dumper($info->{'PlaceHolders'})
+        # We probably want to refrain from prepending the opening quote 
+        # until we have replaced all quotes
         while ($expr_str =~ /(__PH\d+__)/) {
             my $ph=$1;
             my $ph_str = $info->{'PlaceHolders'}{$ph};
+            # croak $ph_str if $ph_str=~/\"\'\"/;
             $ph_str=~s/[\'\"]$//; # remove closing quotes
-            $ph_str=~s/^[\']/\"/; # make opening quote "
+            $ph_str=~s/^[\']/\"/; # make opening quote " FIXME: not OK for "'" ?
             $expr_str=~s/$ph/$ph_str/;
         }
         my $str_len = length($expr_str)-1;
@@ -2900,21 +2931,31 @@ sub __substitute_PlaceHolders_Uxntal($expr_str,$info,$isChar){
         my $len_Uxntal = toRawHex($str_len,2);
         if ($len_Uxntal eq '0001' and $isChar) {
             $expr_str = toHex(ord(substr($expr_str,1,1)),1);
+        } elsif ($len_Uxntal eq '0001' ) {
+            carp "HERE: <$expr_str>";
         } elsif ($len_Uxntal eq '0000') { # empty string is a string!
             $expr_str = '#00'; #"{ 0000 } STH2r"; #  '#00'; #
         } else {
+            # replace double quote as character by its ascii code. FIXME
             # replace space and nl by their ascii code
             # ' ' => ' 20 "'
+            # $expr_str =~s/\s+\"\s+/ 22 /g;
             $expr_str =~s/\s/ 20 \"/g;
             $expr_str =~s/\n/ 0a \"/g;
             $expr_str =~s/\"\s*$//;
             $expr_str =~s/^\"\s+//; # remove opening quote if first char was \s or \n
+            # double quote followed by space should be removed
+            $expr_str =~s/\s+\"\s+/ /g;
             if ($str_len > 48 ) {
                 my $str_part_1 = substr($expr_str,0,49);
                 my $str_part_2 = ' "'.substr($expr_str,49);
+                $str_part_2 =~s/^\s+\"?//;
+                $str_part_2 = ' "'.$str_part_2 ;
                 $expr_str = $str_part_1 . $str_part_2;
             }
+            # croak "<$expr_str> from <$orig_str>, ".Dumper($info->{'PlaceHolders'}) if $expr_str =~/BUG/;
             $expr_str = "{ $len_Uxntal $expr_str } STH2r";
+            croak "<$len_Uxntal> $expr_str" eq '0001 "';
         }
     }
     return $expr_str;
