@@ -2931,8 +2931,8 @@ sub __substitute_PlaceHolders_Uxntal($expr_str,$info,$isChar){
         my $len_Uxntal = toRawHex($str_len,2);
         if ($len_Uxntal eq '0001' and $isChar) {
             $expr_str = toHex(ord(substr($expr_str,1,1)),1);
-        } elsif ($len_Uxntal eq '0001' ) {
-            carp "HERE: <$expr_str>";
+        } elsif ($len_Uxntal eq '0001' and $expr_str eq '""') {
+            $expr_str = "{ $len_Uxntal 22 } STH2r";
         } elsif ($len_Uxntal eq '0000') { # empty string is a string!
             $expr_str = '#00'; #"{ 0000 } STH2r"; #  '#00'; #
         } else {
@@ -2941,21 +2941,23 @@ sub __substitute_PlaceHolders_Uxntal($expr_str,$info,$isChar){
             # ' ' => ' 20 "'
             # $expr_str =~s/\s+\"\s+/ 22 /g;
             $expr_str =~s/\s/ 20 \"/g;
+            $expr_str =~s/20\s+\"\s+/20/g;
             $expr_str =~s/\n/ 0a \"/g;
             $expr_str =~s/\"\s*$//;
             $expr_str =~s/^\"\s+//; # remove opening quote if first char was \s or \n
             # double quote followed by space should be removed
             $expr_str =~s/\s+\"\s+/ /g;
+
             if ($str_len > 48 ) {
                 my $str_part_1 = substr($expr_str,0,49);
-                my $str_part_2 = ' "'.substr($expr_str,49);
+                my $str_part_2 = substr($expr_str,49);
                 $str_part_2 =~s/^\s+\"?//;
                 $str_part_2 = ' "'.$str_part_2 ;
                 $expr_str = $str_part_1 . $str_part_2;
             }
-            # croak "<$expr_str> from <$orig_str>, ".Dumper($info->{'PlaceHolders'}) if $expr_str =~/BUG/;
+            # croak "<$expr_str> from <$orig_str>, ".Dumper($info->{'PlaceHolders'}) if $expr_str =~/reconstructTypeNameExpr:/;
             $expr_str = "{ $len_Uxntal $expr_str } STH2r";
-            croak "<$len_Uxntal> $expr_str" eq '0001 "';
+            # croak "<$len_Uxntal> $expr_str" if  "$len_Uxntal $expr_str" eq '0001 "';
         }
     }
     return $expr_str;
