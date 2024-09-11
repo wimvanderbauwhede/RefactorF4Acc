@@ -94,6 +94,7 @@ our $substr = 's';
 our $fqp = 'fq';
 our $fqn_counter = 0;
 our %fqns = ();
+our %short_names_check = ();
 
 our $Varvara_magic_code = 7188;
 =pod Varvara devices
@@ -2111,7 +2112,7 @@ sub __create_fq_varname($stref,$f,$var_name) {
 # Sum 8 bytes into a short, turn into a hex, concatenate
 # I think I should check for collisions and throw an error if there is any
 sub __shorten_hash($fq_varname){
-    $fq_varname=~s/^Funktal//;
+    $fq_varname=~s/unktal//;
     my $hexconcat=0;
 
     for my $i ( 0 .. (length($fq_varname) >>3)) {
@@ -2126,6 +2127,11 @@ sub __shorten_hash($fq_varname){
         }
         $hexconcat = $hexconcat . sprintf("%x",$bytesum);#^ $bytesum;
     }
+    if (exists $short_names_check{$hexconcat}) {
+        error("Short name for $fq_varname collides with that for " . $short_names_check{$hexconcat} .', only fix is to rename one of them',0,'ERROR_COLLISION');
+    } else {
+        $short_names_check{$hexconcat} = $fq_varname;
+    }
     return $hexconcat;
 }
 
@@ -2133,10 +2139,11 @@ sub __shorten_fq_name ($fq_varname) {
     # Somehow BROKEN, probably because I missed some
     if ($shorten_var_names){
         if (not exists $fqns{$fq_varname}) {
-            my $short_name = "$fqp$fqn_counter";
+            my $short_name = 'fq' . __shorten_hash($fq_varname);
+            # "$fqp$fqn_counter";
             $fqns{$fq_varname} = $short_name;
             $fq_varname = $short_name;
-            $fqn_counter++;
+            # $fqn_counter++;
         } else {
             $fq_varname = $fqns{$fq_varname}
         }
