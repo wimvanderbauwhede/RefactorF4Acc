@@ -3091,6 +3091,7 @@ sub _emit_function_call_expr_Uxntal($stref,$f,$info,$ast){
     my $short_mode=''; # We need this for generic intrinsics
     if (exists $F95_intrinsic_function_sigs{$subname}) {
         # my $intent = 'in';
+        # So if it is an integer, we assume it is kind=2
         my $is_generic = 0;
         if ($F95_intrinsic_function_sigs{$subname}[-1] eq 'logical'
         or $F95_intrinsic_function_sigs{$subname}[-1] eq 'character') {
@@ -3118,6 +3119,7 @@ sub _emit_function_call_expr_Uxntal($stref,$f,$info,$ast){
                     my $call_arg_expr_str =
                     ($call_arg_ast->[0] == 2 or $call_arg_ast->[0] == 10 or $call_arg_ast->[0] > 28)
                     ? $call_arg_ast->[1] : '';
+                    # I think this is generic
                     my ($uxntal_expr,$word_sz) = __emit_call_arg_Uxntal_expr($stref,$f,$info,$subname,$call_arg_expr_str,$call_arg_ast,$idx,'in');
                     if ($is_generic and $idx==1) {
                         $short_mode = $word_sz ==2 ? '2' : '';
@@ -3126,6 +3128,7 @@ sub _emit_function_call_expr_Uxntal($stref,$f,$info,$ast){
                 }
             }
         }
+        # croak $word_sz,$short_mode,Dumper($args) if $subname eq 'pow';
         add_to_used_lib_subs($subname.$short_mode);
     } else {
         my $Ssubname = $stref->{'Subroutines'}{$subname};
