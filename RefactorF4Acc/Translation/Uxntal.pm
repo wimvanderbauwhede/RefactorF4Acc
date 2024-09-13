@@ -2929,10 +2929,23 @@ sub __substitute_PlaceHolders_Uxntal($expr_str,$info,$isChar){
             error('Maximum string length is 96 characters',0,'ERROR_INVALID');
         }
         my $len_Uxntal = toRawHex($str_len,2);
-        if ($len_Uxntal eq '0001' and $isChar) {
+        if ($len_Uxntal eq '0001' and $isChar) { 
+            # croak $expr_str,' => ',substr($expr_str,1,1),' => ',ord(substr($expr_str,1,1)) if $expr_str=~/\)/;
             $expr_str = toHex(ord(substr($expr_str,1,1)),1);
-        } elsif ($len_Uxntal eq '0001' and $expr_str eq '""') {
-            $expr_str = "{ $len_Uxntal 22 } STH2r";
+        # } elsif ($len_Uxntal eq '0001' and $expr_str eq '""') {
+        #     $expr_str = "{ $len_Uxntal 22 } STH2r";
+        # } elsif ( $expr_str =~/\"\(\s/ ) {
+        #     $expr_str =~s/\"\(\s/28 20/;
+        #     $expr_str = "{ $len_Uxntal $expr_str } STH2r";
+        # } elsif ( $expr_str =~/\"\($/ ) {
+        #     $expr_str =~s/\"\(/28/;
+        #     $expr_str = "{ $len_Uxntal $expr_str } STH2r";
+        # } elsif ( $expr_str =~/\"\)\s/ ) { croak "<$expr_str>";
+        #     $expr_str =~s/\"\)\s/29 20/;
+        #     $expr_str = "{ $len_Uxntal $expr_str } STH2r";
+        # } elsif ( $expr_str =~/\"\)/ ) { croak "<$expr_str>";
+        #     $expr_str =~s/\"\)/29/;
+        #     $expr_str = "{ $len_Uxntal $expr_str } STH2r";
         } elsif ($len_Uxntal eq '0000') { # empty string is a string!
             $expr_str = '#00'; #"{ 0000 } STH2r"; #  '#00'; #
         } else {
@@ -2960,6 +2973,17 @@ sub __substitute_PlaceHolders_Uxntal($expr_str,$info,$isChar){
             # croak "<$len_Uxntal> $expr_str" if  "$len_Uxntal $expr_str" eq '0001 "';
         }
     }
+    my @chunks_chars_to_ascii=();
+    my @chunks = split(/\s+/,$expr_str);
+    for my $chunk (@chunks) {
+        if (substr($chunk,0,1) eq '"' and length($chunk)==2) {
+            my $chunk_ascii = toRawHex(ord(substr($chunk,1,1)),1);
+            push @chunks_chars_to_ascii, $chunk_ascii;
+        } else {
+            push @chunks_chars_to_ascii, $chunk;
+        }
+    }
+    $expr_str = join(' ',@chunks_chars_to_ascii);
     return $expr_str;
 } # END of __substitute_PlaceHolders
 
