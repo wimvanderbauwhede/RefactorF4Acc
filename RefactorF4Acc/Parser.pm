@@ -788,11 +788,18 @@ MODULE
 					$do_counter--;
 					my $corresponding_do_info = pop @do_stack;
 					$info->{'EndDo'} = $corresponding_do_info->{'Do'};
+
 					delete $info->{'EndDo'}{'Label'};
 					my $do_label = $corresponding_do_info->{'Do'}{'Label'};
 					if (defined $do_label and $do_label ne 'LABEL_NOT_DEFINED') {
 						$Sf->{'DoLabelTarget'}{$do_label}='EndDo';
 					}
+					delete $info->{'EndDo'}{'ConstructName'};
+					my $do_label = $corresponding_do_info->{'Do'}{'ConstructName'};
+					if (defined $do_label and $do_label ne 'CONSTRUCT_NAME_NOT_DEFINED') {
+						$Sf->{'DoConstructNameTarget'}{$do_label}='EndDo';
+					}
+
 				}
 				$prev_stmt_was_spec=0;
 			}
@@ -1466,9 +1473,13 @@ or $line=~/^character\s*\(\s*len\s*=\s*[\w\*]+\s*\)/
 #WV20150304: We parse the do and store the iterator and the range { 'Iterator' => $i,'Range' =>[$start,$stop]}
 				my $do_stmt = $line;
 				my $label   = $info->{'Label'} // 'LABEL_NOT_DEFINED';
+				my $construct_name = $info->{'ConstructName'} // 'CONSTRUC_NAME_NOT_DEFINED';
 				if ( $do_stmt =~ /do\s+\d+/ ) {
 					$do_stmt =~ s/^do\s+(\d+)\s+//;
-					my $label = $1;
+					$label = $1;
+				} elsif ( $do_stmt =~ /\w+\:\s+do\s+\d+/ ) {
+					$do_stmt =~ s/^(\w+)\:\s+do\s+//;
+					$construct_name = $1;
 				} else {
 					$do_stmt =~ s/^do\s+//;
 				}
@@ -1478,13 +1489,13 @@ or $line=~/^character\s*\(\s*len\s*=\s*[\w\*]+\s*\)/
 					# we can parse this as a normal expression I think
 					my $ast = parse_expression($do_stmt,  $info,  $stref,  $f);
 					my $mvars = get_vars_from_expression($ast,{});
-					
 					my $vars= [ sort keys %{$mvars} ];
 #					warn 'Support for WHILE: '.$line;#.Dumper($vars);
 					$info->{'Do'} = {
 						'While' =>1,
 						'Iterator' => '',
 						'Label'    => $label,
+						'ConstructName'    => $construct_name,
 						'ExpressionsAST' => $ast,
 						# improper use, these are the vars from the while expression
 						'Range'    => {
@@ -1497,6 +1508,7 @@ or $line=~/^character\s*\(\s*len\s*=\s*[\w\*]+\s*\)/
 					$info->{'Do'} = {
 						'Bare' => 1,
 						'Label'    => $label,
+						'ConstructName'    => $construct_name,
 						'LineID' => $info->{'LineID'}
 					};
 				} else {
@@ -1541,6 +1553,7 @@ or $line=~/^character\s*\(\s*len\s*=\s*[\w\*]+\s*\)/
 					$info->{'Do'} = {
 						'Iterator' => $iter,
 						'Label'    => $label,
+						'ConstructName'    => $construct_name,
 						'Range'    => {
 							'Expressions' => [ $range_start, $range_stop, $range_step ],
 							'ExpressionASTs' =>[ $range_start_ast, $range_stop_ast, $range_step_ast ],
@@ -4003,7 +4016,9 @@ sub _identify_loops_breaks {
 			# BeginDo: we find a do with a label
 			# This can be a 'proper' do .. end do but only if either there is and end do or there is a continue. Otherwise I should keep the label!
 			# So I need a check on the labels
-
+			$line =~ /^\s*(\w+):*\s+do\s+(\d+)\s+\w/ && do {
+				error('DO with both construct-name and label not supported');
+			};
 			$line =~ /^\s*\d*\s+do\s+(\d+)\s+\w/ && do {
 				my $label = $1;
 				$info->{'BeginDo'}{'Label'} = $label;
@@ -4018,6 +4033,19 @@ sub _identify_loops_breaks {
 					$nest++;
 				} else {
 					push @{ $do_loops{$label}[0] }, $index;
+				}
+				$srcref->[$index] = [ $line, $info ];
+				next;
+			};
+			$line =~ /^\s*(\w+):*\s+do\s+\w/ && do {
+				my $construct_name = $1;
+				$info->{'BeginDo'}{'ConstructName'} = $construct_name;
+				$Sf->{'DoConstructNameTarget'}{$construct_name}='Unknown';
+				if ( not exists $do_loops{$construct_name} ) {
+					@{ $do_loops{$construct_name} } = ( [$index], $nest );
+					$nest++;
+				} else {
+					push @{ $do_loops{$construct_name}[0] }, $index;
 				}
 				$srcref->[$index] = [ $line, $info ];
 				next;
