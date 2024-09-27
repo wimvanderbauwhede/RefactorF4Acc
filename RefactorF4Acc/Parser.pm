@@ -389,7 +389,10 @@ sub analyse_lines {
 				push @blocks_stack,$block;
 				say $lline. "\t\tPUSH $block_nest_counter" if $in_excluded_block and $DBG;
 			};
-			$line=~/^do\s+(\w+)\s+\w+\s*=/ && do {
+			$line=~/^\w+\:\s+do\s+\d+\s+\w+\s*=/ && do { # mixed F77/F90 style, not supported
+				error('DO with both construct-name and label not supported');
+			};
+			$line=~/^do\s+(\d+)\s+\w+\s*=/ && do { # F77 style
 				++$block_nest_counter;
 				++$block_counter;
 				my $block={'Nest'=>$block_nest_counter, 'Type' => 'do', 'Label' => $1, 'LineID' => $index, 'InBlock' => $current_block };
@@ -398,10 +401,11 @@ sub analyse_lines {
 				push @blocks_stack,$block;
 				say $lline. "\t\tPUSH $block_nest_counter" if $in_excluded_block and $DBG;
 			};
-			$line=~/^do\s+\w+\s*=/ && do {
+			$line=~/^(?:(\w+)\:\s+)?do\s+\w+\s*=/ && do { # F90 style
+				my $construct_name = $1 // '';
 				++$block_nest_counter;
 				++$block_counter;
-				my $block={'Nest'=>$block_nest_counter, 'Type' => 'do', 'Label' => '', 'LineID' => $index, 'InBlock' => $current_block };
+				my $block={'Nest'=>$block_nest_counter, 'Type' => 'do', 'Label' => $construct_name, 'LineID' => $index, 'InBlock' => $current_block };
 				$info->{'Block'}= $block;
 				$current_block=$block;
 				push @blocks_stack,$block;
@@ -3987,6 +3991,7 @@ sub _identify_loops_breaks {
 	if ( defined $srcref ) {
 		my %do_loops = ();
 		my %gotos    = ();
+		my %exits    = ();
 
 		#   my %labels=();
 		my $nest = 0;
@@ -4028,6 +4033,17 @@ sub _identify_loops_breaks {
 				$line=~s/\sgo\s+to\s/ goto /;
 				# carp 'GOTO: '.$line;
 #				say " GOTO: $line";
+				$srcref->[$index] = [ $line, $info ];
+				next;
+			};
+#    (Un)conditional GO TO, assigned GO TO, and computed GO TO statements
+			# Exit with explicit construct-name
+			$line =~ /^exit\s+(\w+)\s*$/ && do {
+				my $construct_name = $1;
+				$info->{'Exit'}{'ConstructName'} = $construct_name;
+				$Sf->{'ReferencedConstructNames'}{$construct_name}=$construct_name;
+				$Sf->{'Exits'}{$construct_name} = 1;
+				push @{ $exits{$construct_name} }, [ $index, $nest ];
 				$srcref->[$index] = [ $line, $info ];
 				next;
 			};
@@ -5613,6 +5629,22 @@ sub __move_DATA_to_InitialValue { my ($var_name, $data, $stref, $f ) = @_;
 
 =pod
 TODO, one day:
+
+DO-loops in F90 can have a construct-name and an EXIT, like break in C or last in Perl
+
+	[construct-name :] DO [label] [loop-control]
+
+EXIT can take a construct-name
+
+	EXIT [do-construct-name]
+
+Where:
+do-construct-name is the name of a DO construct that contains the EXIT statement. If do-
+construct-name is omitted, the EXIT statement applies to the innermost DO construct in
+which the EXIT statement appears.
+
+So to support this, I think I should add a construct-name to a do that doesn't have one, 
+and keep track of the most recent one. 
 
 STRUCTURE /PRODUCT/
 	INTEGER*4 ID
