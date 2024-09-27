@@ -880,7 +880,11 @@ Instead of the nice but cumbersome approach we had until now, from now on it is 
         elsif (exists $info->{'If'} and not exists $info->{'IfThen'} ) {
             if (exists $info->{'Goto'}) {
                 $c_line = ';&'.__shorten_fq_name($f.'_'.$info->{'Goto'}{'Label'}).' JMP2';
-            } else {
+            }
+            elsif (exists $info->{'Exit'}) {
+                $c_line = ';&'.__shorten_fq_name($f.'_'.$info->{'Exit'}{'ConstructName'}).' JMP2';
+            } 
+            else {
                 croak "If without Then, not assignment, goto or call: $line";
             }
             my $indent = $info->{'Indent'};
@@ -915,9 +919,7 @@ Instead of the nice but cumbersome approach we had until now, from now on it is 
             pop @{$pass_state->{'IfStack'}};
             $pass_state->{'IfId'}=$pass_state->{'IfStack'}[-1];
         }
-        elsif (
-                exists $info->{'EndDo'}
-            ) {
+        elsif ( exists $info->{'EndDo'} ) {
                 my $do_tup = pop @{$pass_state->{'DoStack'}};
                 if ($do_tup->[-1] eq 'Do') {
                     # croak Dumper $f,$annline,$do_tup;
@@ -929,10 +931,12 @@ Instead of the nice but cumbersome approach we had until now, from now on it is 
                     $c_line = ";$do_iter LDA2 $inc OVR2 OVR2 NEQ2 ".';&'.$loop.'_'.$f.'_'.$do_id.' JCN2 '."\n;$do_iter LDA2 $inc ;$do_iter STA2\n".
                     '&'.$loop.'_'.$end.'_'.$f."_$do_id POP2 POP2\n";
                 } else { # while
-                # croak Dumper $do_tup;
                     my ($do_id, $do_while_cond) = @{$do_tup};
                     ($c_line,my $word_sz) =  _emit_expression_Uxntal($do_while_cond,$stref, $f, $info);
                     $c_line .= "\n".';&'.$while_loop.'_'.$f.'_'.$do_id.' JCN2';
+                }
+                if ( exists $info->{'EndDo'}{'ConstructName'} ) {
+                    $c_line .= "\n".'&'.__shorten_fq_name($f.'_'.$info->{'EndDo'}{'ConstructName'})
                 }
         }
         elsif ( exists $info->{'EndProgram'} ) {
@@ -1008,12 +1012,11 @@ Instead of the nice but cumbersome approach we had until now, from now on it is 
         elsif (exists $info->{'Goto'} ) {
             $c_line = ';&'.__shorten_fq_name($f.'_'.$info->{'Goto'}{'Label'}).' JMP2';
         }
+        elsif (exists $info->{'Exit'}) {
+            $c_line = ';&'.__shorten_fq_name($f.'_'.$info->{'Exit'}{'ConstructName'}).' JMP2';
+        } 
         elsif (exists $info->{'Continue'}) {
-            # if (exists $info->{'Label'}) { # continue lines don't have to have a label
-            #     $c_line='&'.__shorten_fq_name( $f.'_'.$info->{'Label'});
-            # } else {
-                $c_line='( continue )';
-            # }
+            $c_line='( continue )';
         }
         elsif (exists $info->{'Common'}) {
             $c_line='';

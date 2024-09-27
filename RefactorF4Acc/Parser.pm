@@ -794,12 +794,13 @@ MODULE
 					if (defined $do_label and $do_label ne 'LABEL_NOT_DEFINED') {
 						$Sf->{'DoLabelTarget'}{$do_label}='EndDo';
 					}
-					delete $info->{'EndDo'}{'ConstructName'};
-					my $do_label = $corresponding_do_info->{'Do'}{'ConstructName'};
-					if (defined $do_label and $do_label ne 'CONSTRUCT_NAME_NOT_DEFINED') {
-						$Sf->{'DoConstructNameTarget'}{$do_label}='EndDo';
-					}
 
+					# delete $info->{'EndDo'}{'ConstructName'};
+					my $do_construct_name = $corresponding_do_info->{'Do'}{'ConstructName'};
+					if (defined $do_construct_name and $do_construct_name ne 'CONSTRUCT_NAME_NOT_DEFINED') {
+						$Sf->{'DoConstructNameTarget'}{$do_construct_name}='EndDo';
+						$info->{'EndDo'}{'ConstructName'}=$do_construct_name;
+					}
 				}
 				$prev_stmt_was_spec=0;
 			}
@@ -4008,6 +4009,7 @@ sub _identify_loops_breaks {
 
 		#   my %labels=();
 		my $nest = 0;
+		my $current_construct_name = 'CONSTRUC_NAME_NOT_DEFINED';
 		for my $index ( 0 .. scalar( @{$srcref} ) - 1 ) {
 			my $line = $srcref->[$index][0];
 			my $info = $srcref->[$index][1];
@@ -4039,6 +4041,22 @@ sub _identify_loops_breaks {
 			};
 			$line =~ /^\s*(\w+):*\s+do\s+\w/ && do {
 				my $construct_name = $1;
+				$current_construct_name = $construct_name;
+				$info->{'BeginDo'}{'ConstructName'} = $construct_name;
+				$Sf->{'DoConstructNameTarget'}{$construct_name}='Unknown';
+				if ( not exists $do_loops{$construct_name} ) {
+					@{ $do_loops{$construct_name} } = ( [$index], $nest );
+					$nest++;
+				} else {
+					push @{ $do_loops{$construct_name}[0] }, $index;
+				}
+				$srcref->[$index] = [ $line, $info ];
+				next;
+			};
+			$line =~ /^\s+do\s+\w/ && do { # DO without label or construct-name
+			# We give it a construct-name based on the LineID
+				my $construct_name = '__DO'.$info->{'LineID'};
+				$current_construct_name = $construct_name;
 				$info->{'BeginDo'}{'ConstructName'} = $construct_name;
 				$Sf->{'DoConstructNameTarget'}{$construct_name}='Unknown';
 				if ( not exists $do_loops{$construct_name} ) {
@@ -4068,6 +4086,16 @@ sub _identify_loops_breaks {
 			# Exit with explicit construct-name
 			$line =~ /^exit\s+(\w+)\s*$/ && do {
 				my $construct_name = $1;
+				$info->{'Exit'}{'ConstructName'} = $construct_name;
+				$Sf->{'ReferencedConstructNames'}{$construct_name}=$construct_name;
+				$Sf->{'Exits'}{$construct_name} = 1;
+				push @{ $exits{$construct_name} }, [ $index, $nest ];
+				$srcref->[$index] = [ $line, $info ];
+				next;
+			};
+			# Exit without explicit construct-name
+			$line =~ /^exit\s*$/ && do {
+				my $construct_name = $current_construct_name;
 				$info->{'Exit'}{'ConstructName'} = $construct_name;
 				$Sf->{'ReferencedConstructNames'}{$construct_name}=$construct_name;
 				$Sf->{'Exits'}{$construct_name} = 1;
