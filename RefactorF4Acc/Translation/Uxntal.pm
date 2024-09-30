@@ -67,8 +67,6 @@ use RefactorF4Acc::Translation::UxntalStaging qw(
     remove_unwanted_global_allocations_from_memory_map
     );
 
-
-
 #
 #   (c) 2010-2024 Wim Vanderbauwhede <Wim.Vanderbauwhede@Glasgow.ac.uk>
 #
@@ -662,7 +660,18 @@ Instead of the nice but cumbersome approach we had until now, from now on it is 
                 # $c_line .= "\n&$branch$branch_id";
             }
         }
+        elsif (exists $info->{'Stop'}) {
+            # $pass_state->{'Subroutine'}{'HasExitOrStop'} = 1;
+            add_to_used_lib_subs('exit');
+            # This is laziness: rather than generate the 'stop'
+            # we tag an exit call to the end
+            $c_line = 'exit';
+        }
         elsif (exists $info->{'SubroutineCall'} and not exists $info->{'IOCall'}) {
+            # if ($info->{'SubroutineCall'}{'Name'} eq 'exit') {
+                # $pass_state->{'Subroutine'}{'HasExitOrStop'} = 1;
+                # add_to_used_lib_subs('exit');
+            # }
             $c_line = _emit_subroutine_call_expr_Uxntal($stref,$f,$line,$info);
             # If without Then
             if (exists $info->{'If'} and not exists $info->{'IfThen'}) {
@@ -940,9 +949,13 @@ Instead of the nice but cumbersome approach we had until now, from now on it is 
                 }
         }
         elsif ( exists $info->{'EndProgram'} ) {
+            carp '<',$pass_state->{'Subroutine'}{'IsMain'} ,'>';
             $info->{'Indent'} = '' ;
-            # $c_line = 'BRK' ;
-            $c_line = $use_stack ? '!pop-frame' : 'JMP2r';
+            $c_line = $use_stack ? '!pop-frame' : 'POP2r';
+            if (  $pass_state->{'Subroutine'}{'IsMain'} ne '' ) {
+                $c_line .= ' exit ' ; # I'd rather not have this if it is already there, but it's just a few redundant bytes
+            }
+            $c_line .= ' BRK ( MAIN ) ' ;
         }
         elsif ( exists $info->{'EndSubroutine'} ) {
             # Here we must emit the code to put the values for Out and InOut args on the stack
@@ -1061,6 +1074,7 @@ Instead of the nice but cumbersome approach we had until now, from now on it is 
         'Subroutine' => {
             'WriteArgs' => {}, # This should probably replace Pointers
             'IsMain' => '',
+            'HasExitOrStop' => 0,
             'TranslatedCode'=>[],
             'ArgDecls'=>[],
             'ArrayStringInits'=>[],
@@ -1076,6 +1090,7 @@ Instead of the nice but cumbersome approach we had until now, from now on it is 
     }
     ];
      ($stref,$state) = stateful_pass_inplace($stref,$f,$pass_translate_to_Uxntal, $state,'pass_translate_to_Uxntal() ' . __LINE__  ) ;
+
 # --------------------------------------------------------------------------------------------
     my $sub_uxntal_code = $state->[2]{'Subroutine'};
     # $stref->{'Uxntal'}{'Subroutines'}{$f}=$sub_uxntal_code;
@@ -2957,13 +2972,13 @@ sub __substitute_PlaceHolders_Uxntal($expr_str,$info,$isChar){
             # ' ' => ' 20 "'
             # $expr_str =~s/\s+\"\s+/ 22 /g;
             $expr_str =~s/\s/ 20 \"/g;
-            $expr_str =~s/20\s+\"\s+/20/g;
+            $expr_str =~s/20\s+\"\s+/20 /g;
             $expr_str =~s/\n/ 0a \"/g;
             $expr_str =~s/\"\s*$//;
             $expr_str =~s/^\"\s+//; # remove opening quote if first char was \s or \n
             # double quote followed by space should be removed
             $expr_str =~s/\s+\"\s+/ /g;
-
+# croak "<$len_Uxntal> <$expr_str>" if  $expr_str=~/20\s*20\s*20\s*20\s+\"token:/;
             if ($str_len > 48 ) {
                 my $str_part_1 = substr($expr_str,0,49);
                 my $str_part_2 = substr($expr_str,49);
@@ -2973,7 +2988,7 @@ sub __substitute_PlaceHolders_Uxntal($expr_str,$info,$isChar){
             }
             # croak "<$expr_str> from <$orig_str>, ".Dumper($info->{'PlaceHolders'}) if $expr_str =~/reconstructTypeNameExpr:/;
             $expr_str = "{ $len_Uxntal $expr_str } STH2r";
-            # croak "<$len_Uxntal> $expr_str" if  "$len_Uxntal $expr_str" eq '0001 "';
+            # croak "<$len_Uxntal> $expr_str" if  $expr_str=~/20202020\s+\"token:/;
         }
     }
     my @chunks_chars_to_ascii=();
