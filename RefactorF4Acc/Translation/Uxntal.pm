@@ -949,7 +949,7 @@ Instead of the nice but cumbersome approach we had until now, from now on it is 
                 }
         }
         elsif ( exists $info->{'EndProgram'} ) {
-            carp '<',$pass_state->{'Subroutine'}{'IsMain'} ,'>';
+            # carp '<',$pass_state->{'Subroutine'}{'IsMain'} ,'>';
             $info->{'Indent'} = '' ;
             $c_line = $use_stack ? '!pop-frame' : 'POP2r';
             if (  $pass_state->{'Subroutine'}{'IsMain'} ne '' ) {
@@ -2937,7 +2937,7 @@ sub __substitute_PlaceHolders_Uxntal($expr_str,$info,$isChar){
         while ($expr_str =~ /(__PH\d+__)/) {
             my $ph=$1;
             my $ph_str = $info->{'PlaceHolders'}{$ph};
-            # croak $ph_str if $ph_str=~/\"\'\"/;
+            # say "PH STR<$ph_str>";# if $ph_str=~/\"\'\"/;
             $ph_str=~s/[\'\"]$//; # remove closing quotes
             $ph_str=~s/^[\']/\"/; # make opening quote " FIXME: not OK for "'" ?
             $expr_str=~s/$ph/$ph_str/;
@@ -2947,7 +2947,11 @@ sub __substitute_PlaceHolders_Uxntal($expr_str,$info,$isChar){
             error('Maximum string length is 96 characters',0,'ERROR_INVALID');
         }
         my $len_Uxntal = toRawHex($str_len,2);
-        if ($len_Uxntal eq '0001' and $isChar) { 
+        # say "EXPR STR:<$expr_str>" if $len_Uxntal eq '0033';
+        if ($len_Uxntal eq '0001' and $expr_str eq '""') {
+            $expr_str = '{ 0001 22 }';
+        }
+        elsif ($len_Uxntal eq '0001' and $isChar) { 
             # croak $expr_str,' => ',substr($expr_str,1,1),' => ',ord(substr($expr_str,1,1)) if $expr_str=~/\)/;
             $expr_str = toHex(ord(substr($expr_str,1,1)),1);
         # } elsif ($len_Uxntal eq '0001' and $expr_str eq '""') {
@@ -2971,6 +2975,7 @@ sub __substitute_PlaceHolders_Uxntal($expr_str,$info,$isChar){
             # replace space and nl by their ascii code
             # ' ' => ' 20 "'
             # $expr_str =~s/\s+\"\s+/ 22 /g;
+            # croak "<$len_Uxntal> <$expr_str>" if  $expr_str=~/\"\s/;
             $expr_str =~s/\s/ 20 \"/g;
             $expr_str =~s/20\s+\"\s+/20 /g;
             $expr_str =~s/\n/ 0a \"/g;
@@ -2978,19 +2983,32 @@ sub __substitute_PlaceHolders_Uxntal($expr_str,$info,$isChar){
             $expr_str =~s/^\"\s+//; # remove opening quote if first char was \s or \n
             # double quote followed by space should be removed
             $expr_str =~s/\s+\"\s+/ /g;
+            # say "EXPR STR 2:<$expr_str>" if $len_Uxntal eq '0033';
 # croak "<$len_Uxntal> <$expr_str>" if  $expr_str=~/20\s*20\s*20\s*20\s+\"token:/;
+#FIXME: this should not split in the middle of a hex code!
             if ($str_len > 48 ) {
-                my $str_part_1 = substr($expr_str,0,49);
-                my $str_part_2 = substr($expr_str,49);
+                my $nchars = 49;
+                my $i = $nchars-1;
+                while ($i>0 and substr($expr_str,$i,1) ne ' ') {
+                    --$i;
+                }
+                $nchars = $i==0? 49:$i+1;
+                my $str_part_1 = substr($expr_str,0,$nchars);
+                my $str_part_2 = substr($expr_str,$nchars);
                 $str_part_2 =~s/^\s+\"?//;
-                $str_part_2 = ' "'.$str_part_2 ;
+                if ($str_part_2 !~/^\"/) {
+                    $str_part_2 = ' "'.$str_part_2 ;
+                } else {
+                    $str_part_2 = ' '.$str_part_2 ;
+                }
                 $expr_str = $str_part_1 . $str_part_2;
             }
+            # say "EXPR STR 3:<$expr_str>" if $len_Uxntal eq '0033';
             # croak "<$expr_str> from <$orig_str>, ".Dumper($info->{'PlaceHolders'}) if $expr_str =~/reconstructTypeNameExpr:/;
             $expr_str = "{ $len_Uxntal $expr_str } STH2r";
-            # croak "<$len_Uxntal> $expr_str" if  $expr_str=~/20202020\s+\"token:/;
         }
     }
+
     my @chunks_chars_to_ascii=();
     my @chunks = split(/\s+/,$expr_str);
     for my $chunk (@chunks) {
@@ -3002,6 +3020,11 @@ sub __substitute_PlaceHolders_Uxntal($expr_str,$info,$isChar){
         }
     }
     $expr_str = join(' ',@chunks_chars_to_ascii);
+    # if  ($expr_str=~/Binder\ 20/) {
+    #     die "FINAL EXPR<$expr_str>";
+    # } else {
+    #     say "FINAL EXPR<$expr_str>";
+    # }
     return $expr_str;
 } # END of __substitute_PlaceHolders
 
