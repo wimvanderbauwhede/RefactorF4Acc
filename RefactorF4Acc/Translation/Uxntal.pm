@@ -526,6 +526,8 @@ Instead of the nice but cumbersome approach we had until now, from now on it is 
     } # use stack
 
 # --------------------------------------------------------------------------------------------
+    local $Data::Dumper::Indent=0;
+
     my $pass_translate_to_Uxntal = sub ($annline, $state){
         (my $line,my $info)=@{$annline};
         my $c_line= $line eq '' ? '' : "( $line )";
@@ -910,27 +912,51 @@ Instead of the nice but cumbersome approach we had until now, from now on it is 
             $pass_state->{'IfId'}=$id;
             push @{$pass_state->{'BranchStack'}},$id;
             ($c_line, my $skip_branch) = _emit_ifthen_Uxntal($stref, $f, $info, $id);
-            $pass_state->{'SkipBranch'}=[$skip_branch,$id];
+            if ($pass_state->{'SkipBranch'}[0]==0){
+                $pass_state->{'SkipBranch'}=[$skip_branch,$id];
+            }
+            say 'IF:',Dumper $pass_state->{'SkipBranch'};
         } elsif (exists $info->{'ElseIf'} ) {
             # say "EX-CASE: $line => ElseIf IfId=$id" if $f eq 'decodeTokenStr';
             ($c_line, my $branch_id) = _emit_ifbranch_end_Uxntal($id,$pass_state);
-            ($c_line, my $skip_branch) .= _emit_ifthen_Uxntal($stref, $f, $info, $branch_id);
+            if ($pass_state->{'IfId'} == $pass_state->{'SkipBranch'}[1]){
+                if ($pass_state->{'SkipBranch'}[0]==1) {
+                    $pass_state->{'SkipBranch'}[0]=0;
+                    $c_line = "( $c_line ) ( ELSE IF: SKIP 1 ) ";
+                }
+                elsif ($pass_state->{'SkipBranch'}[0]==2) {
+                    $pass_state->{'SkipBranch'}[0]=3;
+                    $c_line = "( $c_line ) ( ELSE IF: SKIP 2 ) ";
+                }
+            }
+            say 'ELSE of ELSE IF:',Dumper $pass_state->{'SkipBranch'},$branch_id,$pass_state->{'IfStack'},$pass_state->{'IfId'};
+            my ($c_line_if, $skip_branch) = _emit_ifthen_Uxntal($stref, $f, $info, $branch_id);
+            $c_line .= $c_line_if;
             push @{$pass_state->{'BranchStack'}},$branch_id;
-            $pass_state->{'SkipBranch'}=[$skip_branch,$branch_id];
+            $pass_state->{'SkipBranch'}=[$skip_branch,$pass_state->{'IfId'}];
+            say 'IF of ELSE IF:',Dumper $pass_state->{'SkipBranch'};
         } elsif (exists $info->{'Else'} ) {
             ($c_line, my $branch_id) = _emit_ifbranch_end_Uxntal($id,$pass_state);
-            if ($branch_id == $pass_state->{'SkipBranch'}[1]){
-                if ($pass_state->{'SkipBranch'}[0]==1) {$pass_state->{'SkipBranch'}[0]=0}
-                elsif ($pass_state->{'SkipBranch'}[0]==2) {$pass_state->{'SkipBranch'}[0]=3}
+            if ($pass_state->{'IfId'} == $pass_state->{'SkipBranch'}[1]){
+                if ($pass_state->{'SkipBranch'}[0]==1) {
+                    $pass_state->{'SkipBranch'}[0]=0;
+                    $c_line = "( $c_line ) ( ELSE: SKIP 1 ) ";
+                    }
+                elsif ($pass_state->{'SkipBranch'}[0]==2) {
+                    $pass_state->{'SkipBranch'}[0]=3;
+                    $c_line = "( $c_line ) ( ELSE: SKIP 2 ) ";
+                    }
             }
+            say 'ELSE:',Dumper $pass_state->{'SkipBranch'},$branch_id,$pass_state->{'IfStack'},$pass_state->{'IfId'},$pass_state->{'BranchStack'};
             # say "EX-CASE: $line => Else IfId=$id" if $f eq 'decodeTokenStr';
             $c_line .= "&$branch$branch_id";
             push @{$pass_state->{'BranchStack'}},$branch_id;
         } elsif (exists $info->{'EndIf'} ) {
             my $branch_id = pop @{$pass_state->{'BranchStack'}};
             if ($branch_id == $pass_state->{'SkipBranch'}[1]){
-                if ($pass_state->{'SkipBranch'}[0]==3) {$pass_state->{'SkipBranch'}[0]=0}
+                if ($pass_state->{'SkipBranch'}[0]==3) {$pass_state->{'SkipBranch'}[0]=4}
             }
+            say 'END IF:',Dumper $pass_state->{'SkipBranch'},$pass_state->{'BranchStack'},$pass_state->{'IfId'};
             my $if_id = $pass_state->{'IfId'};
             $c_line = ';&'.$cond.'_'.$end.$if_id.' JMP2 '."\n"
             .'&'.$branch.$branch_id.'_'.$end."\n".' &'.$cond.'_'.$end.$if_id;
@@ -1068,9 +1094,17 @@ Instead of the nice but cumbersome approach we had until now, from now on it is 
         chomp $c_line;
         $skip_comment=1;
         push @{$pass_state->{'Subroutine'}{'TranslatedCode'}},"( ____ $line )" unless $skip_comment or $line=~/^\s*$/;
-        if ($pass_state->{'SkipBranch'}[0] == 1 or $pass_state->{'SkipBranch'}[0] == 3){
-            $skip=1;
-            say "SKIPPING BRANCH CODE: $line";
+        # say "LINE $line: ", Dumper $pass_state->{'SkipBranch'};
+        if ($pass_state->{'SkipBranch'}[0] == 1 or $pass_state->{'SkipBranch'}[0] == 3
+        or $pass_state->{'SkipBranch'}[0] == 4){
+            if ($pass_state->{'SkipBranch'}[0] == 4) {
+                $pass_state->{'SkipBranch'}[0] == 0
+            }
+            # $skip=1;
+            say "SKIPPING BRANCH CODE: $line => $c_line";
+            $c_line = " ( $c_line ) ( SKIP BRANCH $line ) ";
+        } else {
+            $c_line = "$c_line ( KEEP $line ) ";
         }
         push @{$pass_state->{'Subroutine'}{'TranslatedCode'}},$c_line unless $skip;
         # push @{$pass_state->{'TranslatedCode'}},$info->{'Indent'}.$c_line     unless $skip;
@@ -1099,6 +1133,7 @@ Instead of the nice but cumbersome approach we had until now, from now on it is 
         },
         'IfStack'=>[],'IfId' =>0,
         'BranchStack'=>[],'IfBranchId' =>0,
+        'SkipBranch' => [0,0],
         'DoStack'=>[], 'DoId' => 0,
     }
     ];
@@ -2665,8 +2700,9 @@ if (exists $info->{'EndIf'}) {
 }
 
 =cut
-        my $rline = "$cond_expr ;&$branch$branch_id JCN2\n" .
-                    ";&$branch${branch_id}_$end JMP2\n" .
+# croak "<$cond_expr> => ",Dumper $cond_is_const;
+    my $rline = "$cond_expr ;&$branch$branch_id JCN2\n" .
+                ";&$branch${branch_id}_$end JMP2\n" .
                 "&$branch$branch_id";
     if ( not $cond_is_const->[0] ) {
         return ($rline,0);
@@ -2675,16 +2711,26 @@ if (exists $info->{'EndIf'}) {
         #             ";&$branch${branch_id}_$end JMP2\n" .
         #         "&$branch$branch_id";
         # return '';
-        return ($rline,1);
+        return ($rline,2);
     } else { # const and false, so always skip the top branch
         # todo( 'IF-THEN const and false, so always skip the top branch',1);
-        return ($rline,2);
+        return ($rline,1);
     }
 }
 
+# returns [bool, bool] where the first bool says const or not, the second if the const is true or false
 sub __eval_Uxntal_cond_expr($cond_expr) {
     todo( 'IF-THEN __eval_Uxntal_cond_expr',);
-    return [0,0]
+    if ($cond_expr=~/^\#(\d+)/) {
+        my $val=hex($1);
+        if ($val==0) {
+            return [1,0];
+        } else {
+            return [1,1];
+        }
+    } else {
+        return [0,0];
+    }
 }
 sub _emit_ifbranch_end_Uxntal ($id, $state){
     # my $branch_id = $state->{'IfBranchId'};
