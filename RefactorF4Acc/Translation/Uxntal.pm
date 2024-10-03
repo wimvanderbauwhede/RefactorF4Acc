@@ -67,8 +67,6 @@ use RefactorF4Acc::Translation::UxntalStaging qw(
     remove_unwanted_global_allocations_from_memory_map
     );
 
-
-
 #
 #   (c) 2010-2024 Wim Vanderbauwhede <Wim.Vanderbauwhede@Glasgow.ac.uk>
 #
@@ -528,6 +526,8 @@ Instead of the nice but cumbersome approach we had until now, from now on it is 
     } # use stack
 
 # --------------------------------------------------------------------------------------------
+    local $Data::Dumper::Indent=0;
+
     my $pass_translate_to_Uxntal = sub ($annline, $state){
         (my $line,my $info)=@{$annline};
         my $c_line= $line eq '' ? '' : "( $line )";
@@ -662,7 +662,18 @@ Instead of the nice but cumbersome approach we had until now, from now on it is 
                 # $c_line .= "\n&$branch$branch_id";
             }
         }
+        elsif (exists $info->{'Stop'}) {
+            # $pass_state->{'Subroutine'}{'HasExitOrStop'} = 1;
+            add_to_used_lib_subs('exit');
+            # This is laziness: rather than generate the 'stop'
+            # we tag an exit call to the end
+            $c_line = 'exit';
+        }
         elsif (exists $info->{'SubroutineCall'} and not exists $info->{'IOCall'}) {
+            # if ($info->{'SubroutineCall'}{'Name'} eq 'exit') {
+                # $pass_state->{'Subroutine'}{'HasExitOrStop'} = 1;
+                # add_to_used_lib_subs('exit');
+            # }
             $c_line = _emit_subroutine_call_expr_Uxntal($stref,$f,$line,$info);
             # If without Then
             if (exists $info->{'If'} and not exists $info->{'IfThen'}) {
@@ -880,7 +891,11 @@ Instead of the nice but cumbersome approach we had until now, from now on it is 
         elsif (exists $info->{'If'} and not exists $info->{'IfThen'} ) {
             if (exists $info->{'Goto'}) {
                 $c_line = ';&'.__shorten_fq_name($f.'_'.$info->{'Goto'}{'Label'}).' JMP2';
-            } else {
+            }
+            elsif (exists $info->{'Exit'}) {
+                $c_line = ';&'.__shorten_fq_name($f.'_'.$info->{'Exit'}{'ConstructName'}).' JMP2';
+            } 
+            else {
                 croak "If without Then, not assignment, goto or call: $line";
             }
             my $indent = $info->{'Indent'};
@@ -896,28 +911,59 @@ Instead of the nice but cumbersome approach we had until now, from now on it is 
             push @{$pass_state->{'IfStack'}},$id;
             $pass_state->{'IfId'}=$id;
             push @{$pass_state->{'BranchStack'}},$id;
-            $c_line = _emit_ifthen_Uxntal($stref, $f, $info, $id);
+            ($c_line, my $skip_branch) = _emit_ifthen_Uxntal($stref, $f, $info, $id);
+            if ($pass_state->{'SkipBranch'}[0]==0){
+                $pass_state->{'SkipBranch'}=[$skip_branch,$id];
+            }
+            say 'IF:',Dumper $pass_state->{'SkipBranch'};
         } elsif (exists $info->{'ElseIf'} ) {
             # say "EX-CASE: $line => ElseIf IfId=$id" if $f eq 'decodeTokenStr';
             ($c_line, my $branch_id) = _emit_ifbranch_end_Uxntal($id,$pass_state);
-            $c_line .= _emit_ifthen_Uxntal($stref, $f, $info, $branch_id);
+            if ($pass_state->{'IfId'} == $pass_state->{'SkipBranch'}[1]){
+                if ($pass_state->{'SkipBranch'}[0]==1) {
+                    $pass_state->{'SkipBranch'}[0]=0;
+                    $c_line = "( $c_line ) ( ELSE IF: SKIP 1 ) ";
+                }
+                elsif ($pass_state->{'SkipBranch'}[0]==2) {
+                    $pass_state->{'SkipBranch'}[0]=3;
+                    $c_line = "( $c_line ) ( ELSE IF: SKIP 2 ) ";
+                }
+            }
+            say 'ELSE of ELSE IF:',Dumper $pass_state->{'SkipBranch'},$branch_id,$pass_state->{'IfStack'},$pass_state->{'IfId'};
+            my ($c_line_if, $skip_branch) = _emit_ifthen_Uxntal($stref, $f, $info, $branch_id);
+            $c_line .= $c_line_if;
             push @{$pass_state->{'BranchStack'}},$branch_id;
+            $pass_state->{'SkipBranch'}=[$skip_branch,$pass_state->{'IfId'}];
+            say 'IF of ELSE IF:',Dumper $pass_state->{'SkipBranch'};
         } elsif (exists $info->{'Else'} ) {
-            # say "EX-CASE: $line => Else IfId=$id" if $f eq 'decodeTokenStr';
             ($c_line, my $branch_id) = _emit_ifbranch_end_Uxntal($id,$pass_state);
+            if ($pass_state->{'IfId'} == $pass_state->{'SkipBranch'}[1]){
+                if ($pass_state->{'SkipBranch'}[0]==1) {
+                    $pass_state->{'SkipBranch'}[0]=0;
+                    $c_line = "( $c_line ) ( ELSE: SKIP 1 ) ";
+                    }
+                elsif ($pass_state->{'SkipBranch'}[0]==2) {
+                    $pass_state->{'SkipBranch'}[0]=3;
+                    $c_line = "( $c_line ) ( ELSE: SKIP 2 ) ";
+                    }
+            }
+            say 'ELSE:',Dumper $pass_state->{'SkipBranch'},$branch_id,$pass_state->{'IfStack'},$pass_state->{'IfId'},$pass_state->{'BranchStack'};
+            # say "EX-CASE: $line => Else IfId=$id" if $f eq 'decodeTokenStr';
             $c_line .= "&$branch$branch_id";
             push @{$pass_state->{'BranchStack'}},$branch_id;
         } elsif (exists $info->{'EndIf'} ) {
             my $branch_id = pop @{$pass_state->{'BranchStack'}};
+            if ($branch_id == $pass_state->{'SkipBranch'}[1]){
+                if ($pass_state->{'SkipBranch'}[0]==3) {$pass_state->{'SkipBranch'}[0]=4}
+            }
+            say 'END IF:',Dumper $pass_state->{'SkipBranch'},$pass_state->{'BranchStack'},$pass_state->{'IfId'};
             my $if_id = $pass_state->{'IfId'};
             $c_line = ';&'.$cond.'_'.$end.$if_id.' JMP2 '."\n"
             .'&'.$branch.$branch_id.'_'.$end."\n".' &'.$cond.'_'.$end.$if_id;
             pop @{$pass_state->{'IfStack'}};
             $pass_state->{'IfId'}=$pass_state->{'IfStack'}[-1];
         }
-        elsif (
-                exists $info->{'EndDo'}
-            ) {
+        elsif ( exists $info->{'EndDo'} ) {
                 my $do_tup = pop @{$pass_state->{'DoStack'}};
                 if ($do_tup->[-1] eq 'Do') {
                     # croak Dumper $f,$annline,$do_tup;
@@ -929,16 +975,22 @@ Instead of the nice but cumbersome approach we had until now, from now on it is 
                     $c_line = ";$do_iter LDA2 $inc OVR2 OVR2 NEQ2 ".';&'.$loop.'_'.$f.'_'.$do_id.' JCN2 '."\n;$do_iter LDA2 $inc ;$do_iter STA2\n".
                     '&'.$loop.'_'.$end.'_'.$f."_$do_id POP2 POP2\n";
                 } else { # while
-                # croak Dumper $do_tup;
                     my ($do_id, $do_while_cond) = @{$do_tup};
                     ($c_line,my $word_sz) =  _emit_expression_Uxntal($do_while_cond,$stref, $f, $info);
                     $c_line .= "\n".';&'.$while_loop.'_'.$f.'_'.$do_id.' JCN2';
                 }
+                if ( exists $info->{'EndDo'}{'ConstructName'} ) {
+                    $c_line .= "\n".'&'.__shorten_fq_name($f.'_'.$info->{'EndDo'}{'ConstructName'})
+                }
         }
         elsif ( exists $info->{'EndProgram'} ) {
+            # carp '<',$pass_state->{'Subroutine'}{'IsMain'} ,'>';
             $info->{'Indent'} = '' ;
-            # $c_line = 'BRK' ;
-            $c_line = $use_stack ? '!pop-frame' : 'JMP2r';
+            $c_line = $use_stack ? '!pop-frame' : 'POP2r';
+            if (  $pass_state->{'Subroutine'}{'IsMain'} ne '' ) {
+                $c_line .= ' exit ' ; # I'd rather not have this if it is already there, but it's just a few redundant bytes
+            }
+            $c_line .= ' BRK ( MAIN ) ' ;
         }
         elsif ( exists $info->{'EndSubroutine'} ) {
             # Here we must emit the code to put the values for Out and InOut args on the stack
@@ -1008,12 +1060,11 @@ Instead of the nice but cumbersome approach we had until now, from now on it is 
         elsif (exists $info->{'Goto'} ) {
             $c_line = ';&'.__shorten_fq_name($f.'_'.$info->{'Goto'}{'Label'}).' JMP2';
         }
+        elsif (exists $info->{'Exit'}) {
+            $c_line = ';&'.__shorten_fq_name($f.'_'.$info->{'Exit'}{'ConstructName'}).' JMP2';
+        } 
         elsif (exists $info->{'Continue'}) {
-            # if (exists $info->{'Label'}) { # continue lines don't have to have a label
-            #     $c_line='&'.__shorten_fq_name( $f.'_'.$info->{'Label'});
-            # } else {
-                $c_line='( continue )';
-            # }
+            $c_line='( continue )';
         }
         elsif (exists $info->{'Common'}) {
             $c_line='';
@@ -1043,6 +1094,18 @@ Instead of the nice but cumbersome approach we had until now, from now on it is 
         chomp $c_line;
         $skip_comment=1;
         push @{$pass_state->{'Subroutine'}{'TranslatedCode'}},"( ____ $line )" unless $skip_comment or $line=~/^\s*$/;
+        # say "LINE $line: ", Dumper $pass_state->{'SkipBranch'};
+        if ($pass_state->{'SkipBranch'}[0] == 1 or $pass_state->{'SkipBranch'}[0] == 3
+        or $pass_state->{'SkipBranch'}[0] == 4){
+            if ($pass_state->{'SkipBranch'}[0] == 4) {
+                $pass_state->{'SkipBranch'}[0] == 0
+            }
+            # $skip=1;
+            say "SKIPPING BRANCH CODE: $line => $c_line";
+            $c_line = " ( $c_line ) ( SKIP BRANCH $line ) ";
+        } else {
+            $c_line = "$c_line ( KEEP $line ) ";
+        }
         push @{$pass_state->{'Subroutine'}{'TranslatedCode'}},$c_line unless $skip;
         # push @{$pass_state->{'TranslatedCode'}},$info->{'Indent'}.$c_line     unless $skip;
         return ([$annline],[$stref,$f,$pass_state]);
@@ -1058,6 +1121,7 @@ Instead of the nice but cumbersome approach we had until now, from now on it is 
         'Subroutine' => {
             'WriteArgs' => {}, # This should probably replace Pointers
             'IsMain' => '',
+            'HasExitOrStop' => 0,
             'TranslatedCode'=>[],
             'ArgDecls'=>[],
             'ArrayStringInits'=>[],
@@ -1069,10 +1133,12 @@ Instead of the nice but cumbersome approach we had until now, from now on it is 
         },
         'IfStack'=>[],'IfId' =>0,
         'BranchStack'=>[],'IfBranchId' =>0,
+        'SkipBranch' => [0,0],
         'DoStack'=>[], 'DoId' => 0,
     }
     ];
      ($stref,$state) = stateful_pass_inplace($stref,$f,$pass_translate_to_Uxntal, $state,'pass_translate_to_Uxntal() ' . __LINE__  ) ;
+
 # --------------------------------------------------------------------------------------------
     my $sub_uxntal_code = $state->[2]{'Subroutine'};
     # $stref->{'Uxntal'}{'Subroutines'}{$f}=$sub_uxntal_code;
@@ -2619,24 +2685,52 @@ sub _emit_ifthen_Uxntal ($stref, $f, $info, $branch_id){
     my ($cond_expr,$word_sz) = _emit_expression_Uxntal($cond_expr_ast,$stref,$f,$info);
     my $cond_is_const = __eval_Uxntal_cond_expr($cond_expr); # returns [bool, bool] where the first bool says const or not, the second if the const is true or false
     todo('If we want to do this right, we should actually skip the block entirely. We need some state for this.');
+=pod 
+What we need is some state that says $skip_branch = 0 (do nothing) | 1 (top) | 2 (bottom)
+# right at the end
+if ($pass_state->{'SkipBranch'}==1 or $pass_state->{'SkipBranch'}==3) {skip all lines}
+
+if (exists 'IfThen') { returns $pass_state->{'SkipBranch'} }
+if (exists $info->{'Else'}) {
+    if ($pass_state->{'SkipBranch'}==1) {$pass_state->{'SkipBranch'}=0}
+    elsif ($pass_state->{'SkipBranch'}==2) {$pass_state->{'SkipBranch'}=3}
+}
+if (exists $info->{'EndIf'}) {
+    if ($pass_state->{'SkipBranch'}==3) {$pass_state->{'SkipBranch'}=0}
+}
+
+=cut
+# croak "<$cond_expr> => ",Dumper $cond_is_const;
+    my $rline = "$cond_expr ;&$branch$branch_id JCN2\n" .
+                ";&$branch${branch_id}_$end JMP2\n" .
+                "&$branch$branch_id";
     if ( not $cond_is_const->[0] ) {
-        my $rline = "$cond_expr ;&$branch$branch_id JCN2\n" .
-                    ";&$branch${branch_id}_$end JMP2\n" .
-                "&$branch$branch_id";
-        return $rline;
+        return ($rline,0);
     } elsif ($cond_is_const->[1]) { # const and true, so always do the top branch
-        my $rline = "$cond_expr ;&$branch$branch_id JCN2\n" .
-                    ";&$branch${branch_id}_$end JMP2\n" .
-                "&$branch$branch_id";
-        return '';
+        # my $rline = "$cond_expr ;&$branch$branch_id JCN2\n" .
+        #             ";&$branch${branch_id}_$end JMP2\n" .
+        #         "&$branch$branch_id";
+        # return '';
+        return ($rline,2);
     } else { # const and false, so always skip the top branch
-        todo( 'IF-THEN const and false, so always skip the top branch',1);
+        # todo( 'IF-THEN const and false, so always skip the top branch',1);
+        return ($rline,1);
     }
 }
 
+# returns [bool, bool] where the first bool says const or not, the second if the const is true or false
 sub __eval_Uxntal_cond_expr($cond_expr) {
     todo( 'IF-THEN __eval_Uxntal_cond_expr',);
-    return [0,0]
+    if ($cond_expr=~/^\#(\d+)/) {
+        my $val=hex($1);
+        if ($val==0) {
+            return [1,0];
+        } else {
+            return [1,1];
+        }
+    } else {
+        return [0,0];
+    }
 }
 sub _emit_ifbranch_end_Uxntal ($id, $state){
     # my $branch_id = $state->{'IfBranchId'};
@@ -2919,7 +3013,7 @@ sub __substitute_PlaceHolders_Uxntal($expr_str,$info,$isChar){
         while ($expr_str =~ /(__PH\d+__)/) {
             my $ph=$1;
             my $ph_str = $info->{'PlaceHolders'}{$ph};
-            # croak $ph_str if $ph_str=~/\"\'\"/;
+            # say "PH STR<$ph_str>";# if $ph_str=~/\"\'\"/;
             $ph_str=~s/[\'\"]$//; # remove closing quotes
             $ph_str=~s/^[\']/\"/; # make opening quote " FIXME: not OK for "'" ?
             $expr_str=~s/$ph/$ph_str/;
@@ -2929,10 +3023,27 @@ sub __substitute_PlaceHolders_Uxntal($expr_str,$info,$isChar){
             error('Maximum string length is 96 characters',0,'ERROR_INVALID');
         }
         my $len_Uxntal = toRawHex($str_len,2);
-        if ($len_Uxntal eq '0001' and $isChar) {
+        # say "EXPR STR:<$expr_str>" if $len_Uxntal eq '0033';
+        if ($len_Uxntal eq '0001' and $expr_str eq '""') {
+            $expr_str = '{ 0001 22 }';
+        }
+        elsif ($len_Uxntal eq '0001' and $isChar) { 
+            # croak $expr_str,' => ',substr($expr_str,1,1),' => ',ord(substr($expr_str,1,1)) if $expr_str=~/\)/;
             $expr_str = toHex(ord(substr($expr_str,1,1)),1);
-        } elsif ($len_Uxntal eq '0001' and $expr_str eq '""') {
-            $expr_str = "{ $len_Uxntal 22 } STH2r";
+        # } elsif ($len_Uxntal eq '0001' and $expr_str eq '""') {
+        #     $expr_str = "{ $len_Uxntal 22 } STH2r";
+        # } elsif ( $expr_str =~/\"\(\s/ ) {
+        #     $expr_str =~s/\"\(\s/28 20/;
+        #     $expr_str = "{ $len_Uxntal $expr_str } STH2r";
+        # } elsif ( $expr_str =~/\"\($/ ) {
+        #     $expr_str =~s/\"\(/28/;
+        #     $expr_str = "{ $len_Uxntal $expr_str } STH2r";
+        # } elsif ( $expr_str =~/\"\)\s/ ) { croak "<$expr_str>";
+        #     $expr_str =~s/\"\)\s/29 20/;
+        #     $expr_str = "{ $len_Uxntal $expr_str } STH2r";
+        # } elsif ( $expr_str =~/\"\)/ ) { croak "<$expr_str>";
+        #     $expr_str =~s/\"\)/29/;
+        #     $expr_str = "{ $len_Uxntal $expr_str } STH2r";
         } elsif ($len_Uxntal eq '0000') { # empty string is a string!
             $expr_str = '#00'; #"{ 0000 } STH2r"; #  '#00'; #
         } else {
@@ -2940,26 +3051,56 @@ sub __substitute_PlaceHolders_Uxntal($expr_str,$info,$isChar){
             # replace space and nl by their ascii code
             # ' ' => ' 20 "'
             # $expr_str =~s/\s+\"\s+/ 22 /g;
+            # croak "<$len_Uxntal> <$expr_str>" if  $expr_str=~/\"\s/;
             $expr_str =~s/\s/ 20 \"/g;
-            $expr_str =~s/20\s+\"\s+/20/g;
+            $expr_str =~s/20\s+\"\s+/20 /g;
             $expr_str =~s/\n/ 0a \"/g;
             $expr_str =~s/\"\s*$//;
             $expr_str =~s/^\"\s+//; # remove opening quote if first char was \s or \n
             # double quote followed by space should be removed
             $expr_str =~s/\s+\"\s+/ /g;
-
+            # say "EXPR STR 2:<$expr_str>" if $len_Uxntal eq '0033';
+# croak "<$len_Uxntal> <$expr_str>" if  $expr_str=~/20\s*20\s*20\s*20\s+\"token:/;
+#FIXME: this should not split in the middle of a hex code!
             if ($str_len > 48 ) {
-                my $str_part_1 = substr($expr_str,0,49);
-                my $str_part_2 = substr($expr_str,49);
+                my $nchars = 49;
+                my $i = $nchars-1;
+                while ($i>0 and substr($expr_str,$i,1) ne ' ') {
+                    --$i;
+                }
+                $nchars = $i==0? 49:$i+1;
+                my $str_part_1 = substr($expr_str,0,$nchars);
+                my $str_part_2 = substr($expr_str,$nchars);
                 $str_part_2 =~s/^\s+\"?//;
-                $str_part_2 = ' "'.$str_part_2 ;
+                if ($str_part_2 !~/^\"/) {
+                    $str_part_2 = ' "'.$str_part_2 ;
+                } else {
+                    $str_part_2 = ' '.$str_part_2 ;
+                }
                 $expr_str = $str_part_1 . $str_part_2;
             }
+            # say "EXPR STR 3:<$expr_str>" if $len_Uxntal eq '0033';
             # croak "<$expr_str> from <$orig_str>, ".Dumper($info->{'PlaceHolders'}) if $expr_str =~/reconstructTypeNameExpr:/;
             $expr_str = "{ $len_Uxntal $expr_str } STH2r";
-            # croak "<$len_Uxntal> $expr_str" if  "$len_Uxntal $expr_str" eq '0001 "';
         }
     }
+
+    my @chunks_chars_to_ascii=();
+    my @chunks = split(/\s+/,$expr_str);
+    for my $chunk (@chunks) {
+        if (substr($chunk,0,1) eq '"' and length($chunk)==2) {
+            my $chunk_ascii = toRawHex(ord(substr($chunk,1,1)),1);
+            push @chunks_chars_to_ascii, $chunk_ascii;
+        } else {
+            push @chunks_chars_to_ascii, $chunk;
+        }
+    }
+    $expr_str = join(' ',@chunks_chars_to_ascii);
+    # if  ($expr_str=~/Binder\ 20/) {
+    #     die "FINAL EXPR<$expr_str>";
+    # } else {
+    #     say "FINAL EXPR<$expr_str>";
+    # }
     return $expr_str;
 } # END of __substitute_PlaceHolders
 
@@ -2972,8 +3113,9 @@ sub _emit_subroutine_call_expr_Uxntal($stref,$f,$line,$info){
     # This is only for local subroutines, so handle the others here
     if (exists $info->{'SubroutineCall'}{'IsExternal'}) {
         if ($subname eq 'exit' or $subname eq 'stop') { # I might change this so that exit() actually exits
-        # FIXME: I think stop is not handled like a call
-            return 'BRK';
+        croak 'FIXME: I think stop is not handled like a call' if $subname eq 'stop';
+            add_to_used_lib_subs('exit');
+            return 'exit BRK';
         }
         elsif (exists  $F95_intrinsic_subroutine_sigs{$subname}) {
             add_to_used_lib_subs($subname);
@@ -3091,6 +3233,7 @@ sub _emit_function_call_expr_Uxntal($stref,$f,$info,$ast){
     my $short_mode=''; # We need this for generic intrinsics
     if (exists $F95_intrinsic_function_sigs{$subname}) {
         # my $intent = 'in';
+        # So if it is an integer, we assume it is kind=2
         my $is_generic = 0;
         if ($F95_intrinsic_function_sigs{$subname}[-1] eq 'logical'
         or $F95_intrinsic_function_sigs{$subname}[-1] eq 'character') {
@@ -3118,6 +3261,7 @@ sub _emit_function_call_expr_Uxntal($stref,$f,$info,$ast){
                     my $call_arg_expr_str =
                     ($call_arg_ast->[0] == 2 or $call_arg_ast->[0] == 10 or $call_arg_ast->[0] > 28)
                     ? $call_arg_ast->[1] : '';
+                    # I think this is generic
                     my ($uxntal_expr,$word_sz) = __emit_call_arg_Uxntal_expr($stref,$f,$info,$subname,$call_arg_expr_str,$call_arg_ast,$idx,'in');
                     if ($is_generic and $idx==1) {
                         $short_mode = $word_sz ==2 ? '2' : '';
@@ -3126,6 +3270,7 @@ sub _emit_function_call_expr_Uxntal($stref,$f,$info,$ast){
                 }
             }
         }
+        # croak $word_sz,$short_mode,Dumper($args) if $subname eq 'pow';
         add_to_used_lib_subs($subname.$short_mode);
     } else {
         my $Ssubname = $stref->{'Subroutines'}{$subname};

@@ -55,6 +55,15 @@ our %uxntal_lib_subroutines = (
 	'SUB2 ( a-b*(a/b) )',
 	'JMP2r'
 ],
+'mod' => [
+    '( a:8 b:8 -- m:8 )',
+	'@mod',
+	'OVR OVR  ( a b a b )',
+	'DIV  ( a b a/b )',
+	'MUL  ( a b*(a/b) )',
+	'SUB ( a-b*(a/b) )',
+	'JMP2r'
+],
 'pow2' => [
     '( mantissa: short; exponent: short>0 )',
     '( m* e* -- r* )',
@@ -74,6 +83,27 @@ our %uxntal_lib_subroutines = (
     'OVR2 ( 2 e 2 )',
     'NEQ2 ,&l JCN',
     'POP2 STH2r POP2r POP2r',
+    'JMP2r' 
+],
+'pow' => [
+    '( mantissa: byte; exponent: byte>0 )',
+    '( m e -- r )',
+    '@pow',
+    '#00 NEQ ,&one JCN',
+    'POP #01 JMP2r',
+    '&one',
+    '#01 NEQ ,&calc JCN',
+    'JMP2r',
+    '&calc',
+    'STH STH DUPr',
+    '#01 ( 1 | e m acc=m )',
+    '&l',
+    'INC',
+    'OVRr MULr ( 2 | e m acc )',
+    'ROTr DUPr STHr ROTr ROTr ( 2 e | e m acc )',
+    'OVR ( 2 e 2 )',
+    'NEQ ,&l JCN',
+    'POP STHr POPr POPr',
     'JMP2r' 
 ],
 'iachar' => [

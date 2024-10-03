@@ -389,7 +389,10 @@ sub analyse_lines {
 				push @blocks_stack,$block;
 				say $lline. "\t\tPUSH $block_nest_counter" if $in_excluded_block and $DBG;
 			};
-			$line=~/^do\s+(\w+)\s+\w+\s*=/ && do {
+			$line=~/^\w+\:\s+do\s+\d+\s+\w+\s*=/ && do { # mixed F77/F90 style, not supported
+				error('DO with both construct-name and label not supported');
+			};
+			$line=~/^do\s+(\d+)\s+\w+\s*=/ && do { # F77 style
 				++$block_nest_counter;
 				++$block_counter;
 				my $block={'Nest'=>$block_nest_counter, 'Type' => 'do', 'Label' => $1, 'LineID' => $index, 'InBlock' => $current_block };
@@ -398,10 +401,11 @@ sub analyse_lines {
 				push @blocks_stack,$block;
 				say $lline. "\t\tPUSH $block_nest_counter" if $in_excluded_block and $DBG;
 			};
-			$line=~/^do\s+\w+\s*=/ && do {
+			$line=~/^(?:(\w+)\:\s+)?do\s+\w+\s*=/ && do { # F90 style
+				my $construct_name = $1 // '';
 				++$block_nest_counter;
 				++$block_counter;
-				my $block={'Nest'=>$block_nest_counter, 'Type' => 'do', 'Label' => '', 'LineID' => $index, 'InBlock' => $current_block };
+				my $block={'Nest'=>$block_nest_counter, 'Type' => 'do', 'Label' => $construct_name, 'LineID' => $index, 'InBlock' => $current_block };
 				$info->{'Block'}= $block;
 				$current_block=$block;
 				push @blocks_stack,$block;
@@ -784,10 +788,18 @@ MODULE
 					$do_counter--;
 					my $corresponding_do_info = pop @do_stack;
 					$info->{'EndDo'} = $corresponding_do_info->{'Do'};
+
 					delete $info->{'EndDo'}{'Label'};
 					my $do_label = $corresponding_do_info->{'Do'}{'Label'};
 					if (defined $do_label and $do_label ne 'LABEL_NOT_DEFINED') {
 						$Sf->{'DoLabelTarget'}{$do_label}='EndDo';
+					}
+
+					# delete $info->{'EndDo'}{'ConstructName'};
+					my $do_construct_name = $corresponding_do_info->{'Do'}{'ConstructName'};
+					if (defined $do_construct_name and $do_construct_name ne 'CONSTRUCT_NAME_NOT_DEFINED') {
+						$Sf->{'DoConstructNameTarget'}{$do_construct_name}='EndDo';
+						$info->{'EndDo'}{'ConstructName'}=$do_construct_name;
 					}
 				}
 				$prev_stmt_was_spec=0;
@@ -1462,9 +1474,13 @@ or $line=~/^character\s*\(\s*len\s*=\s*[\w\*]+\s*\)/
 #WV20150304: We parse the do and store the iterator and the range { 'Iterator' => $i,'Range' =>[$start,$stop]}
 				my $do_stmt = $line;
 				my $label   = $info->{'Label'} // 'LABEL_NOT_DEFINED';
+				my $construct_name = $info->{'ConstructName'} // 'CONSTRUC_NAME_NOT_DEFINED';
 				if ( $do_stmt =~ /do\s+\d+/ ) {
 					$do_stmt =~ s/^do\s+(\d+)\s+//;
-					my $label = $1;
+					$label = $1;
+				} elsif ( $do_stmt =~ /\w+\:\s+do\s+\d+/ ) {
+					$do_stmt =~ s/^(\w+)\:\s+do\s+//;
+					$construct_name = $1;
 				} else {
 					$do_stmt =~ s/^do\s+//;
 				}
@@ -1474,13 +1490,13 @@ or $line=~/^character\s*\(\s*len\s*=\s*[\w\*]+\s*\)/
 					# we can parse this as a normal expression I think
 					my $ast = parse_expression($do_stmt,  $info,  $stref,  $f);
 					my $mvars = get_vars_from_expression($ast,{});
-					
 					my $vars= [ sort keys %{$mvars} ];
 #					warn 'Support for WHILE: '.$line;#.Dumper($vars);
 					$info->{'Do'} = {
 						'While' =>1,
 						'Iterator' => '',
 						'Label'    => $label,
+						'ConstructName'    => $construct_name,
 						'ExpressionsAST' => $ast,
 						# improper use, these are the vars from the while expression
 						'Range'    => {
@@ -1493,6 +1509,7 @@ or $line=~/^character\s*\(\s*len\s*=\s*[\w\*]+\s*\)/
 					$info->{'Do'} = {
 						'Bare' => 1,
 						'Label'    => $label,
+						'ConstructName'    => $construct_name,
 						'LineID' => $info->{'LineID'}
 					};
 				} else {
@@ -1537,6 +1554,7 @@ or $line=~/^character\s*\(\s*len\s*=\s*[\w\*]+\s*\)/
 					$info->{'Do'} = {
 						'Iterator' => $iter,
 						'Label'    => $label,
+						'ConstructName'    => $construct_name,
 						'Range'    => {
 							'Expressions' => [ $range_start, $range_stop, $range_step ],
 							'ExpressionASTs' =>[ $range_start_ast, $range_stop_ast, $range_step_ast ],
@@ -3987,9 +4005,11 @@ sub _identify_loops_breaks {
 	if ( defined $srcref ) {
 		my %do_loops = ();
 		my %gotos    = ();
+		my %exits    = ();
 
 		#   my %labels=();
 		my $nest = 0;
+		my $current_construct_name = 'CONSTRUC_NAME_NOT_DEFINED';
 		for my $index ( 0 .. scalar( @{$srcref} ) - 1 ) {
 			my $line = $srcref->[$index][0];
 			my $info = $srcref->[$index][1];
@@ -3998,7 +4018,9 @@ sub _identify_loops_breaks {
 			# BeginDo: we find a do with a label
 			# This can be a 'proper' do .. end do but only if either there is and end do or there is a continue. Otherwise I should keep the label!
 			# So I need a check on the labels
-
+			$line =~ /^\s*(\w+):*\s+do\s+(\d+)\s+\w/ && do {
+				error('DO with both construct-name and label not supported');
+			};
 			$line =~ /^\s*\d*\s+do\s+(\d+)\s+\w/ && do {
 				my $label = $1;
 				$info->{'BeginDo'}{'Label'} = $label;
@@ -4017,6 +4039,35 @@ sub _identify_loops_breaks {
 				$srcref->[$index] = [ $line, $info ];
 				next;
 			};
+			$line =~ /^\s*(\w+):*\s+do\s+\w/ && do {
+				my $construct_name = $1;
+				$current_construct_name = $construct_name;
+				$info->{'BeginDo'}{'ConstructName'} = $construct_name;
+				$Sf->{'DoConstructNameTarget'}{$construct_name}='Unknown';
+				if ( not exists $do_loops{$construct_name} ) {
+					@{ $do_loops{$construct_name} } = ( [$index], $nest );
+					$nest++;
+				} else {
+					push @{ $do_loops{$construct_name}[0] }, $index;
+				}
+				$srcref->[$index] = [ $line, $info ];
+				next;
+			};
+			$line =~ /^\s+do\s+\w/ && do { # DO without label or construct-name
+			# We give it a construct-name based on the LineID
+				my $construct_name = '__DO'.$info->{'LineID'};
+				$current_construct_name = $construct_name;
+				$info->{'BeginDo'}{'ConstructName'} = $construct_name;
+				$Sf->{'DoConstructNameTarget'}{$construct_name}='Unknown';
+				if ( not exists $do_loops{$construct_name} ) {
+					@{ $do_loops{$construct_name} } = ( [$index], $nest );
+					$nest++;
+				} else {
+					push @{ $do_loops{$construct_name}[0] }, $index;
+				}
+				$srcref->[$index] = [ $line, $info ];
+				next;
+			};
 #    (Un)conditional GO TO, assigned GO TO, and computed GO TO statements
 			# Goto
 			$line =~ /^\s*\d*\s+.*?[\)\ ]\s*go\s*to\s+(\d+)\s*$/ && do {
@@ -4028,6 +4079,27 @@ sub _identify_loops_breaks {
 				$line=~s/\sgo\s+to\s/ goto /;
 				# carp 'GOTO: '.$line;
 #				say " GOTO: $line";
+				$srcref->[$index] = [ $line, $info ];
+				next;
+			};
+#    (Un)conditional GO TO, assigned GO TO, and computed GO TO statements
+			# Exit with explicit construct-name
+			$line =~ /^exit\s+(\w+)\s*$/ && do {
+				my $construct_name = $1;
+				$info->{'Exit'}{'ConstructName'} = $construct_name;
+				$Sf->{'ReferencedConstructNames'}{$construct_name}=$construct_name;
+				$Sf->{'Exits'}{$construct_name} = 1;
+				push @{ $exits{$construct_name} }, [ $index, $nest ];
+				$srcref->[$index] = [ $line, $info ];
+				next;
+			};
+			# Exit without explicit construct-name
+			$line =~ /^exit\s*$/ && do {
+				my $construct_name = $current_construct_name;
+				$info->{'Exit'}{'ConstructName'} = $construct_name;
+				$Sf->{'ReferencedConstructNames'}{$construct_name}=$construct_name;
+				$Sf->{'Exits'}{$construct_name} = 1;
+				push @{ $exits{$construct_name} }, [ $index, $nest ];
 				$srcref->[$index] = [ $line, $info ];
 				next;
 			};
@@ -5613,6 +5685,22 @@ sub __move_DATA_to_InitialValue { my ($var_name, $data, $stref, $f ) = @_;
 
 =pod
 TODO, one day:
+
+DO-loops in F90 can have a construct-name and an EXIT, like break in C or last in Perl
+
+	[construct-name :] DO [label] [loop-control]
+
+EXIT can take a construct-name
+
+	EXIT [do-construct-name]
+
+Where:
+do-construct-name is the name of a DO construct that contains the EXIT statement. If do-
+construct-name is omitted, the EXIT statement applies to the innermost DO construct in
+which the EXIT statement appears.
+
+So to support this, I think I should add a construct-name to a do that doesn't have one, 
+and keep track of the most recent one. 
 
 STRUCTURE /PRODUCT/
 	INTEGER*4 ID
