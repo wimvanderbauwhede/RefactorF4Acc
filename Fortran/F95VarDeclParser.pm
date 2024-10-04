@@ -55,13 +55,14 @@ sub parse_F95_var_decl {
 		$typetup->{'Type'}= $typetup->{'Type'}{'Main'};
 	}
 	if (ref($typetup) eq 'ARRAY') {
-
 		$pt->{TypeTup} = { each %{$typetup->[0]}, Kind => 4};
 	} elsif (exists $pt->{TypeTup}{Kind}) {
 		if (ref($pt->{TypeTup}{Kind}) eq 'ARRAY') {
 			 $pt->{TypeTup}{Kind} = $pt->{TypeTup}{Kind}[0];
 		}
 		$pt->{TypeTup}{Kind}*=1 unless ($pt->{TypeTup}{Kind} =~/\W/ or $pt->{TypeTup}{Kind} eq ':' );
+	} else {
+		$pt->{TypeTup}{Kind}=4; # Add a default 
 	}
 #	print "parse_F95_var_decl:".Dumper($pt);
     if ((exists $pt->{'Attributes'}) && (ref($pt->{'Attributes'}) eq 'HASH')) {

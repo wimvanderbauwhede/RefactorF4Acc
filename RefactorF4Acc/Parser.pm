@@ -310,7 +310,7 @@ sub analyse_lines {
 			}
 
 			# Skip comments (we already marked them in SrcReader)
-			if ( $lline =~ /^\s*\!/ && $lline !~ /^\!\s*\$(?:ACC|RF4A)\s/i ) {
+			if ( $lline =~ /^\s*\!/ && $lline !~ /^\!\s*\$(?:ACC|RF4A|OMP)\s/i ) {
 				next;
 			}
 			if (exists $info->{'Macro'} and not exists $info->{'Includes'} ) {
@@ -320,6 +320,9 @@ sub analyse_lines {
 			# Handle $RF4A on individual line
 			if ( $lline =~ /^\!\s*\$(?:ACC|RF4A)\s.+$/i ) {
 				( $stref, $info ) = __handle_acc_pragma( $stref, $f, $index, $lline );
+			}
+			elsif ( $lline =~ /^\!\s*\$OMP\s.+$/i ) {
+				( $stref, $info ) = __handle_omp_pragma( $stref, $f, $index, $lline );
 			}
 			if (exists $info->{'Pragmas'}{'BeginKernel'}) {
 				$Sf->{'HasKernelRegion'}=1;
@@ -3234,6 +3237,57 @@ sub __handle_acc_pragma {
 
 }    # END of __handle_acc_pragma()
 
+sub __handle_omp_pragma {
+	( my $stref, my $f, my $index, my $line, my $info ) = @_; # returns $info->{'Pragmas'}
+	my $ompline = $line;
+
+	my $is_ompline = ($ompline =~ s/^\!\s*\$OMP\s+//i);
+	if ($is_ompline ) {
+		# Split on spaces
+		my @chunks = split( /\s+/, $ompline );
+		# Strip Begin/End
+		my $pragma_name_prefix = 'Begin';
+		if ( $chunks[0] =~ /Begin/i ) {
+			shift @chunks;
+		}
+		if ( $chunks[0] =~ /End/i ) {
+			shift @chunks;
+			$pragma_name_prefix = 'End';
+		}
+
+		( my $pragma_name, my @pragma_args ) = @chunks;
+		$pragma_name =  ucfirst( lc($pragma_name) );
+		if ($pragma_name eq 'Parallel' and uc($pragma_args[0]) eq 'DO') {
+			$pragma_name .= 'Do';
+			shift @pragma_args;
+		}
+
+		$info->{'Pragmas'}{ $pragma_name_prefix . $pragma_name } = [@pragma_args];
+
+		# This is a way to handle nested pragma regions, in particular to exclude Inline inside a Subroutine region
+		# TODO: make this work with Modules as well
+		if ($pragma_name_prefix eq 'Begin') {
+			$stref->{'Subroutines'}{$f}{'In'.$pragma_name.'Region'} = [@pragma_args];
+		}
+		if ($pragma_name_prefix eq 'End') {
+			delete $stref->{'Subroutines'}{$f}{'In'.$pragma_name.'Region'} ;
+		}
+
+		# WV20170517 This is not used, KernelWrappers is meant for LoopDetect but that was never finished.
+
+		# if (    $pragma_name =~ /Subroutine|KernelWrapper/i
+		# 	and $pragma_name_prefix eq 'Begin' )
+		# {
+		# 	$stref->{'KernelWrappers'}{ $pragma_args[0] }
+		# 	{ $pragma_name_prefix . ucfirst( lc($pragma_name) ) } =
+		# 	[ $f, $index ];
+		# 	$stref = outer_loop_start_detect( $pragma_args[0], $stref );
+		# }
+	}
+	return ( $stref, $info );
+
+}    # END of __handle_omp_pragma()
+
 sub __handle_trailing_pragmas { my (
 	$pragma_comment, # String ->
 	$pragmas # Pragmas ->
@@ -3407,7 +3461,7 @@ sub __parse_f95_decl {
                 #     $memspace=$1;
 				# }
             }
-
+# carp Dumper $pt;
 			if ((not exists $pt->{'Attributes'}{'Allocatable'}) or 
 				$pt->{'TypeTup'}{'Kind'} eq ':' ) {
 				# This is a HACK because we changed the structure of Dim in the case of allocatable arrays
@@ -4305,24 +4359,32 @@ sub __reorder_io_control_specs{(my $tline) = @_;
 	# first split on parens.
 	# split on left paren 
 	my @chunks = split(/\s*\(\s*/,$tline);
+
 	# remove IO call
 	my $io_call = shift @chunks;
 	# reconstruct
     my $ttline = join('(',@chunks);
 	# split on right paren 
 	@chunks = split(/\s*\)\s*/,$ttline);
-	# remove anything after closing paren
-	my $rest = pop @chunks;
-	# but it could be a format
-	if ($rest=~/[\'\"]/) { # it's a format
-	    push @chunks, $rest;
-	}
-	# reconstruct
-    $ttline = join(')',@chunks);
 
+	# remove anything after closing paren
+	my $rest = '';
+	if (scalar( @chunks)>1) {
+		$rest = pop @chunks; 
+	# but it could be a format
+		if ($rest=~/[\'\"]/) { # it's a format
+			push @chunks, $rest;
+		}
+	}
+
+	# reconstruct
+	if (scalar( @chunks)>1) {
+		$ttline = join(')',@chunks);
+	} else {
+		$ttline = $chunks[0].')';
+	}
 	# now split on commas. Probably still weak because of formats. Unless the formats are replaced by placeholders.
 	@chunks = split(/\s*,\s*/,$ttline);
-
 	# UNIT, FMT and NML must be in that order unless they are named
 	my %specs_to_order = ();
 	for my $chunk (@chunks) {
@@ -4372,7 +4434,7 @@ sub __reorder_io_control_specs{(my $tline) = @_;
 sub _parse_read_write_print {
 
     ( my $line, my $info, my $stref, my $f ) = @_;
- 
+
     my $sub_or_func = sub_func_incl_mod( $f, $stref );
     my $Sf          = $stref->{$sub_or_func}{$f};
     my $tline=$line;
@@ -4388,13 +4450,15 @@ sub _parse_read_write_print {
     if (not (exists $info->{'PrintCall'} or exists $info->{'AcceptCall'}) ) {
     	# Normalise by removing UNIT, NML and FMT keywords as they are optional
 		# This only works if they are in the right order. So order them first.
-		my $tline = __reorder_io_control_specs($tline);
-# 		If the optional characters UNIT= are omitted before io-unit, io-unit must be the first item in
-# io-control-specs. If the optional characters FMT= are omitted before format, format must be
-# the second item in io-control-specs. If the optional characters NML= are omitted before
-# namelist-group-name, namelist-group-name must be the second item in io-control-specs.
-		# That leaves IOSTAT, REC and SIZE for READ
-    	$tline=~s/(unit|nml|fmt)\s*=\s*//gi;
+		if ($tline=~/\w+\s*\(/) { # Assumes that, if there are no parens, the arg is just a value, not a kv pair
+		$tline = __reorder_io_control_specs($tline);
+	# 		If the optional characters UNIT= are omitted before io-unit, io-unit must be the first item in
+	# io-control-specs. If the optional characters FMT= are omitted before format, format must be
+	# the second item in io-control-specs. If the optional characters NML= are omitted before
+	# namelist-group-name, namelist-group-name must be the second item in io-control-specs.
+			# That leaves IOSTAT, REC and SIZE for READ
+			$tline=~s/(unit|nml|fmt)\s*=\s*//gi;
+		}
     }
 
     # Rather than having Attributes, Arguments and Expressions I will simply have Vars.Written and Vars.Read
@@ -4439,7 +4503,7 @@ sub _parse_read_write_print {
 		# say "TLINE3: $tline";
 
         $attrs_ast = parse_expression($tline,$info,$stref,$f);
-		
+
 #		say "REST: $rest, ERR: $err";
         #say emit_expr_from_ast($attrs_ast);
     }

@@ -719,11 +719,14 @@ sub populate_UsesTransitively { my ($stref,$f) = @_;
 # So, we are in $f, and we have $name. What we want is the transitive closure, so assuming we have all the Uses, we should do
 # We must do something similar for use via containers
 sub _build_UsesTransitively_rec { my ($stref,$f) = @_;
+	return $stref if $f eq 'omp_lib';
     my $sub_incl_or_mod = sub_func_incl_mod($f, $stref);
     my $Sf = $stref->{$sub_incl_or_mod}{$f};
 	if (not exists $stref->{$sub_incl_or_mod}{$f}{'Source'}) {
 		my $sm = substr(lc($sub_incl_or_mod),0,-1);
-		error( "No source for $sm $f",0,'ERROR404');
+		error( "No source for $sm $f",0,'ERROR404'); 
+		# This is OK in principle, but if we want to support OpenMP it is not
+		# I will for now, ad-hoc, add an exception for OpenMP
 	}
 	elsif (not exists $Sf->{'UsesTransitively'}) {
 		if (not -e $stref->{$sub_incl_or_mod}{$f}{'Source'}) {
@@ -736,6 +739,7 @@ sub _build_UsesTransitively_rec { my ($stref,$f) = @_;
     if (exists $Sf->{'Uses'} and scalar keys %{$Sf->{'Uses'}}>0) {
         $Sf->{'UsesTransitively'} = {%{$Sf->{'UsesTransitively'}},%{$Sf->{'Uses'}}};
         for my $used_module (sort keys %{$Sf->{'Uses'}}) {
+			next if $used_module eq  'omp_lib';
             $stref = _build_UsesTransitively_rec($stref,$used_module);
             $Sf->{'UsesTransitively'} = {%{$Sf->{'UsesTransitively'}},%{$stref->{'Modules'}{$used_module}{'UsesTransitively'}} };
         }

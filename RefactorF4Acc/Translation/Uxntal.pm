@@ -1098,7 +1098,7 @@ Instead of the nice but cumbersome approach we had until now, from now on it is 
         if ($pass_state->{'SkipBranch'}[0] == 1 or $pass_state->{'SkipBranch'}[0] == 3
         or $pass_state->{'SkipBranch'}[0] == 4){
             if ($pass_state->{'SkipBranch'}[0] == 4) {
-                $pass_state->{'SkipBranch'}[0] == 0
+                $pass_state->{'SkipBranch'}[0] = 0;
             }
             # $skip=1;
             say "SKIPPING BRANCH CODE: $line => $c_line";
