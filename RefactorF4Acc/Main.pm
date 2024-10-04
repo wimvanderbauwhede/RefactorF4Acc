@@ -214,7 +214,7 @@ sub main {
 
     # say "\n MAIN \n";
     # map {say $_} @{pp_annlines($stref->{'Subroutines'}{'test_loop_nature'}{'AnnLines'},1)};
-                # croak Dumper $stref->{Subroutines}{shapiro_map_24}{DeclaredOrigArgs}{List};
+    # croak Dumper $stref->{Subroutines}{findhap}{DeclaredOrigLocalVars}{Set};
 
     if ($V) {
         say "--------------". ('-' x length($code_unit_name)) ;

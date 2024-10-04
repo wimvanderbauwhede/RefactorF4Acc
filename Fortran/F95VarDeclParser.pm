@@ -214,8 +214,9 @@ sub attribute_parser {
 sub type_parser {
 		sequence [
         {'Type' =>	sequence( [{'Main' => word},maybe( {'Opt'=>word} ) ])  },
-        choice( sequence([symbol('*'),{ 'Kind' => natural }]), # integer*4
-        maybe( parens( choice( 
+        choice( 
+			sequence([symbol('*'),{ 'Kind' => natural }]), # integer*4
+        	maybe( parens( choice( 
                 {'Kind' => natural}, # integer(4)
 				{'Kind' => char('*')}, # character(*)
 				{'Kind' => char(':')}, 
@@ -229,7 +230,9 @@ sub type_parser {
 							)
 							} # character(len=*)
 						]
-					)  ))
+					)  
+					)
+				)
             )
 		]
 }

@@ -1354,9 +1354,11 @@ or $line=~/^character\s*\(\s*len\s*=\s*[\w\*]+\s*\)/
 				#croak if $line=~/__pipe\s\!\$ACC/;
 		}
 #== F95 declaration, no need for refactoring
-		 elsif ( $line =~ /^(.+)\s*::\s*(?:.+)(?:\s*|\s+\!\$ACC.+)$/ ) {# croak if $line=~/__pipe\s\!\$ACC/;
+		 elsif ( $line =~ /^(.+)\s*::\s*(?:.+)(?:\s*|\s+\!\$ACC.+)$/ ) {# 
+		 
 
 				( $Sf, $info ) = __parse_f95_decl( $stref, $f, $Sf, $indent, $line, $info);
+				# croak Dumper $Sf if $line=~/allocatable.+ids/;
 				my $parsed_as_f95_decl = 0;
 				if (exists $info->{'ParseError'}) {
 					delete $info->{'ParseError'};
@@ -3406,7 +3408,7 @@ sub __parse_f95_decl {
     my $is_module = (exists $stref->{'Modules'}{$f}) ? 1 : 0;
 
 	my $pt = parse_F95_var_decl($line);
-	# croak Dumper $pt if $line=~/testinitialvalue/i;
+	# croak Dumper $pt if $line=~/ids/i;
 
 	if (exists $pt->{'ParseError'}) {
 		warning( 'Parse error on F90 variable declaration on line '.$info->{'LineID'}.' in '. $Sf->{'Source'}.":\n\n\t$line\n\nProbably unsupported mixed F77/F90 syntax; trying F77 parser", 0, 'PARSE ERROR');
@@ -3464,13 +3466,14 @@ sub __parse_f95_decl {
 				# }
             }
 # carp Dumper $pt;
-			if ((not exists $pt->{'Attributes'}{'Allocatable'}) or 
-				$pt->{'TypeTup'}{'Kind'} eq ':' ) {
-				# This is a HACK because we changed the structure of Dim in the case of allocatable arrays
+			# if (
+			# 	(not exists $pt->{'Attributes'}{'Allocatable'}) or 
+			# 	$pt->{'TypeTup'}{'Kind'} eq ':' ) {
+			# 	# This is a HACK because we changed the structure of Dim in the case of allocatable arrays (in parsedVarDecl_to_Decl)
 				$info->{'ParsedVarDecl'} = $pt;
-				# Note that scalars have a 'Dim' => [0] field! FIXME!
-				# croak $line. Dumper $pt if $line=~/vdummy/ and $f eq 'f2';
-			}
+			# 	# Note that scalars have a 'Dim' => [0] field! FIXME!
+			# 	# croak $line. Dumper $pt if $line=~/vdummy/ and $f eq 'f2';
+			# }
 			$info->{'VarDecl'} = {
 				'Indent' => $indent,
 				'Names'  => $pt->{'Vars'},
@@ -3485,7 +3488,7 @@ sub __parse_f95_decl {
 
 			my $decls = __create_Decls_from_ParsedVarDecl($info,$init_decl,$f);
 			for my $decl (@{$decls}) {
-				# croak Dumper $decl if $line=~/testinitialvalue/i;
+				
 				my $tvar = $decl->{'Name'} ;
 				if ($decl->{'Dim'}) {
 					$decl=__get_params_from_dim($decl,$Sf);
@@ -3514,6 +3517,7 @@ sub __parse_f95_decl {
 				if (ref($orig_decl) ne 'HASH') {
 					$orig_decl  = {};
 				}
+				# croak Dumper $decl if $line=~/ids/i;
 				# WV20231213 why is this necessary?
 				# if ($decl->{'Type'} eq 'character'
 				# 	and exists $decl->{'Attr'}
