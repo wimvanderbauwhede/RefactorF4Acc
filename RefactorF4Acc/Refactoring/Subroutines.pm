@@ -150,7 +150,6 @@ sub _refactor_subroutine_main {
 
 		if ( $Sf->{'RefactorGlobals'} == 1 ) {
 			($stref,$annlines) = refactor_COMMON_blocks_and_CONTAINed_subs( $stref, $f, $annlines );
-
 		} elsif ( $DBG and $Sf->{'RefactorGlobals'} == 2 ) {
 			croak 'SHOULD BE OBSOLETE!';
 		}

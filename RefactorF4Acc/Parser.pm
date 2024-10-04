@@ -452,16 +452,18 @@ sub analyse_lines {
 				}
 				my @valid_qualifiers = qw(pure recursive elemental);
 				my %procs_qualifiers = map {$_=>1} (@valid_qualifiers,@valid_procs);
-				my ( $proc_return_type,$a_or_s,$attr) = type_via_implicits($stref,$f,$proc_name);
-				# my $proc_return_type = '';
-				# croak Dumper $proc_return_type if $proc_name eq 'ff083';
-				for my $maybe_type (@proc_type_chunks ) {
-					if (not exists $procs_qualifiers{$maybe_type}) {
-						$proc_return_type = $maybe_type;
-						last;
+				my $proc_return_type = ''; # Only functions have a return type
+				if ($proc_type eq 'function') {
+					( $proc_return_type,my $a_or_s,my $attr) = type_via_implicits($stref,$f,$proc_name);
+					# my $proc_return_type = '';
+					# croak Dumper $proc_return_type if $proc_name eq 'ff083';
+					for my $maybe_type (@proc_type_chunks ) {
+						if (not exists $procs_qualifiers{$maybe_type}) {
+							$proc_return_type = $maybe_type;
+							last;
+						}
 					}
 				}
-
 				if ($proc_type eq 'block data') {
 					$full_proc_type = 'block data';
 					$proc_name = 'block_data';
@@ -1472,12 +1474,12 @@ or $line=~/^character\s*\(\s*len\s*=\s*[\w\*]+\s*\)/
 #@    Range =>
 #@        Vars => [ ... ]
 #@        Expressions' => [ ... ]
-			elsif ( $line =~ /^do\b/) {
+			elsif ( $line =~ /^(?:\w+\:\s+)?do\b/) {
 
 #WV20150304: We parse the do and store the iterator and the range { 'Iterator' => $i,'Range' =>[$start,$stop]}
 				my $do_stmt = $line;
 				my $label   = $info->{'Label'} // 'LABEL_NOT_DEFINED';
-				my $construct_name = $info->{'ConstructName'} // 'CONSTRUC_NAME_NOT_DEFINED';
+				my $construct_name = $info->{'ConstructName'} // 'CONSTRUCT_NAME_NOT_DEFINED';
 				if ( $do_stmt =~ /do\s+\d+/ ) {
 					$do_stmt =~ s/^do\s+(\d+)\s+//;
 					$label = $1;
@@ -4063,7 +4065,7 @@ sub _identify_loops_breaks {
 
 		#   my %labels=();
 		my $nest = 0;
-		my $current_construct_name = 'CONSTRUC_NAME_NOT_DEFINED';
+		my $current_construct_name = 'CONSTRUCT_NAME_NOT_DEFINED';
 		for my $index ( 0 .. scalar( @{$srcref} ) - 1 ) {
 			my $line = $srcref->[$index][0];
 			my $info = $srcref->[$index][1];

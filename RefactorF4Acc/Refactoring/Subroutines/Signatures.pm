@@ -100,7 +100,7 @@ sub create_refactored_subroutine_signature {
     }
 
     push @{$rlines}, [ $rline, $info ];
-
+ 
     return $rlines;
 }    # END of create_refactored_subroutine_signature()
 # -----------------------------------------------------------------------------
@@ -171,7 +171,14 @@ sub refactor_subroutine_signature {
     # Now combine the original subroutine arguments with the ex-globals and store in $Sf->{'RefactoredArgs'}{'List'}
     my $args_ref = (exists $Sf->{'OrigArgs'}) ? ordered_union( $Sf->{'OrigArgs'}{'List'}, \@nexglobs ) : \@nexglobs;
     $Sf->{'RefactoredArgs'}{'List'} = $args_ref;
-    %{ $Sf->{'RefactoredArgs'}{'Set'}} = map {$_ => {'IODir' => 'Unknown'} } @{ $args_ref };
+    for my $arg  (@{ $args_ref }) {
+        if (not exists $Sf->{'RefactoredArgs'}{'Set'}{$arg}{'IODir'}
+        or $Sf->{'RefactoredArgs'}{'Set'}{$arg}{'IODir'} eq ''
+        ) {
+            $Sf->{'RefactoredArgs'}{'Set'}{$arg}{'IODir'} = 'Unknown';
+        }
+        # $Sf->{'RefactoredArgs'}{'Set'}} = map {$_ => {'IODir' => 'Unknown'} } @{ $args_ref };
+    }
     $Sf->{'HasRefactoredArgs'} = 1;
 
     return $stref;

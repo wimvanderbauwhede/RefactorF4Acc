@@ -100,6 +100,7 @@ sub refactor_COMMON_blocks_and_CONTAINed_subs {  # 218 lines Was _refactor_globa
 	my $inc_counter = scalar keys %{ $Sf->{'Includes'} };
 	my $first_non_spec_stmt=1;
 	my $first_vardecl = 1;
+	# croak Dumper $stref->{Subroutines}{nhash}{RefactoredArgs}{Set}{idtab} if $f eq 'nhash';
 	# Loop over all lines in $f
 	for my $annline ( @{$annlines} ) {
 		( my $line, my $info ) = @{$annline};
