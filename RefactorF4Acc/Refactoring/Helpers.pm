@@ -664,13 +664,15 @@ sub emit_f95_var_decl {
     my $dimstr = '';
     if ( ref($dim) eq 'ARRAY' and scalar @{$dim}>0 
         and not (scalar @{$dim}==1 and $dim->[0].'' eq '0')) {
-            carp 'DIM:',Dumper($dim);
+            # carp 'DIM:',Dumper($dim);
         if ( ref($dim->[0]) eq 'ARRAY'   ) {
             if (scalar @{$dim->[0]}>0){
             my @dimpairs = map { $_->[0].':'.$_->[1] } @{ $dim };
             $dimstr = 'dimension(' . join( ',', @dimpairs) . ')';
             } else {
-                $dimstr = 'dimension(:)'; # FIXME: support higher dims
+                my @emptydims = map { ':' } @{ $dim };
+                $dimstr = 'dimension('. join( ',', @emptydims)
+                .')'; # FIXME: support higher dims
             }
         } else { # assuming it is alread a list of '$b:$e' strings
                 $dimstr = 'dimension(' . join( ',', @{$dim}) . ')';

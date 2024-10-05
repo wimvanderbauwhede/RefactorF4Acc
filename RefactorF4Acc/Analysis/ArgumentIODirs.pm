@@ -293,11 +293,11 @@ sub _analyse_src_for_iodirs {
         else {
             my $args      = dclone($Sf->{'RefactoredArgs'}{'Set'});
             my $args_list = $Sf->{'RefactoredArgs'}{'List'};
-            for my $arg (@{$args_list}) {
-                if (exists $args->{$arg}{'IODir'}) {
-                    say "IODIR FOR $arg: ".$args->{$arg}{'IODir'};
-                }
-            }
+            # for my $arg (@{$args_list}) {
+            #     if (exists $args->{$arg}{'IODir'}) {
+            #         say "IODIR FOR $arg: ".$args->{$arg}{'IODir'};
+            #     }
+            # }
             if (exists $Sf->{'HasEntries'}) {
                 say "INFO: Setting IODir to Ignore for all args in subroutine $f because of ENTRIES" if $I;
                 for my $arg ($args_list) {
