@@ -1304,7 +1304,7 @@ sub __use_stack($stref,$f) {
 #     if it is an arg, it's by reference
 # an assignment of a array var to another array
 #    if it is an arg, it's by reference
-#     if it is a local, we do a array copy I think
+#    if it is a local, we do an array copy I think
 # TODO
 # If I want to incorporate string access in here, I need the full ast because
 # $idx is a pair
@@ -4593,6 +4593,10 @@ __var_access does not actually load anything. So we can actually use it.
 So if it is an In, we can use _var_access_read;
 otherwise, we can use __var_access
 
+J3/22-007r1(Draft Fortran 2023)
+15.5.2.4 Argument association
+NOTE 2
+Fortran argument association is usually similar to call by reference and call by value-result. If the VALUE attribute is specified, the effect is as if the actual argument were assigned to a temporary variable, and that variable were then argument associated with the dummy argument. Subsequent changes to the value or definition status of the dummy argument do not affect the actual argument. The actual mechanism by which this happens is determined by the processor.
 
 ###########################################
 
