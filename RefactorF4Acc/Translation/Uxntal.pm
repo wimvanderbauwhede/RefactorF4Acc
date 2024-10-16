@@ -907,7 +907,7 @@ Instead of the nice but cumbersome approach we had until now, from now on it is 
             $c_line .= ' '."&$branch$branch_id"; #$indent.
         }
         elsif (exists $info->{'IfThen'} and not exists $info->{'ElseIf'} ) {
-            carp 'COND AST:',Dumper $info->{'Cond'}{'AST'};
+            # carp 'COND AST:',Dumper $info->{'Cond'}{'AST'};
             # say "EX-CASE: $line => If IfId = $id" if $f eq 'decodeTokenStr';
             $pass_state->{'IfBranchId'} = $id;
             push @{$pass_state->{'IfStack'}},$id;
@@ -4802,7 +4802,7 @@ say "\neliminate_if_const_cond($f)\n" if $DBG;
     for my $annline ( @{$annlines} ) {
         ( my $line, my $info ) = @{$annline};
         say "LINE: $line";
-        say Dumper $info;
+        # say Dumper $info;
         if (exists $info->{'If'} ) {
             if (!$is_dead_code) {
                 if ($info->{'Cond'}{'AST'}[0] == 31) {
@@ -4830,7 +4830,9 @@ say "\neliminate_if_const_cond($f)\n" if $DBG;
             }
         }
         elsif (exists $info->{'Else'} or exists $info->{'ElseIf'}) {
+            say $is_dead_code,';',Dumper $case_stack;
             my $case = pop @{$case_stack};
+            my $remove_else = 0;
             if ($case eq 'IfTrue') {
                     $info->{'DeadCode'} = 1;
                     $is_dead_code = 1;
@@ -4838,8 +4840,9 @@ say "\neliminate_if_const_cond($f)\n" if $DBG;
             elsif ($case eq 'IfFalse') {
                     $is_dead_code = 0;
                     if (exists $info->{'ElseIf'}) {
-                        $info->{'If'} = $info->{'ElseIf'};
-                        delete $info->{'ElseIf'};
+                        $remove_else=1;
+                        # $info->{'If'} = $info->{'ElseIf'};
+                        # delete $info->{'ElseIf'};
                     }
                     elsif (exists $info->{'Else'}) {
                         $info->{'DeadCode'} = 1;
@@ -4853,35 +4856,54 @@ say "\neliminate_if_const_cond($f)\n" if $DBG;
                     $is_dead_code = 0;
             } 
             # else { # means it is a non-const condition, so keep the line
-
+            say $is_dead_code,';',Dumper $case_stack;
             # }
             if (!$is_dead_code){
                 if( exists $info->{'ElseIf'}) {
                     if ($info->{'Cond'}{'AST'}[0] == 31) {
                         if  ($info->{'Cond'}{'AST'}[1] eq '.true.') {
-                            $info->{'Else'} = 1;
-                            delete $info->{'ElseIf'};
-                            $is_dead_code = 0;
-                            push @{$case_stack}, 'ElseIfTrue';
+                            if ($remove_else) {
+                                $info->{'DeadCode'} = 1;
+                                push @{$case_stack}, 'IfTrue';
+                            } else {
+                                $info->{'Else'} = 1;
+                                delete $info->{'ElseIf'};
+                                push @{$case_stack}, 'ElseIfTrue';
+                            }
+
+                            # $is_dead_code = 0;
+
                             # ELSE IF && .true. => change to ELSE and remove any subsequent ELSE (IF) down to the END IF
                         }
                         elsif  ($info->{'Cond'}{'AST'}[1] eq '.false.') {
                             $info->{'DeadCode'} = 1;
                             $is_dead_code = 1;
-                            push @{$case_stack}, 'ElseIfFalse';
+                            if ($remove_else) {
+                                push @{$case_stack}, 'IfFalse';
+                            } else {
+                                push @{$case_stack}, 'ElseIfFalse';
+                            }
                             # ELSE IF && .false. => remove ELSE IF and anything up to next ELSE (IF) or END IF
 
                         }
                     } else {
-                        $is_dead_code = 0;
+                        # $is_dead_code = 0;
                         push @{$case_stack}, 'ElseIf';
                     }
                 } else {
-                    $is_dead_code = 0;
-                    push @{$case_stack}, 'Else';
+                    # $is_dead_code = 0;
+                    # if (not $remove_else) {
+                    say "ELSE LINE: $line";
+                    if ( exists $info->{'DeadCode'}) {
+                    $is_dead_code = 1;
+                     } 
+                        push @{$case_stack}, 'Else';
+                     
+                    # }
                 }
             } else {
                 $info->{'DeadCode'} = 1;
+                say "REPUSH $case";
                 push @{$case_stack}, $case;#'ElseIf';
             }
 
@@ -4893,6 +4915,11 @@ say "\neliminate_if_const_cond($f)\n" if $DBG;
             if ($case eq 'IfTrue' or $case eq 'IfFalse' ) { #  or $is_dead_code or $case eq 'ElseIfTrue'
                 $info->{'DeadCode'} = 1;
                 $is_dead_code = 0;
+            }
+            if (scalar @{$case_stack}==0) {
+                $is_dead_code = 0;
+            } elsif ($is_dead_code) {
+                $info->{'DeadCode'} = 1;
             }
         }
         else {
