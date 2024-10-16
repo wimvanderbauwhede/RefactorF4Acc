@@ -1,0 +1,68 @@
+if cond1 then
+	block1
+else if cond2
+	block2
+else if cond3
+	block3
+else
+	block4
+end if
+~~~~
+if cond1 is const and true
+=> 
+
+block1
+
+ 'If' && .true. => remove if and everything below and including the ELSE (IF) until and including the END IF
+
+~~~~
+if cond1 is const and false
+
+ 'If' && .false. => 
+
+if cond2
+	block2
+else if cond3
+	block3
+else
+	block4
+end if
+~~~~
+if cond2 is const and true 
+
+if cond1 then
+	block1
+else 
+	block2
+end if
+~~~~
+if cond2 is const and false 
+
+if cond1 then
+	block1
+else if cond3
+	block3
+else
+	block4
+end if
+~~~~
+if cond3 is const and true
+
+if cond1 then
+	block1
+else if cond2
+	block2
+else 
+	block3
+end if
+
+~~~~
+if cond3 is const and false 
+
+if cond1 then
+	block1
+else if cond2
+	block2
+else 
+	block4
+end if
