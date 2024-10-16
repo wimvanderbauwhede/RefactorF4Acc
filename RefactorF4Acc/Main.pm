@@ -214,7 +214,7 @@ sub main {
 
     # say "\n MAIN \n";
     # map {say $_} @{pp_annlines($stref->{'Subroutines'}{'test_loop_nature'}{'AnnLines'},1)};
-                # croak Dumper $stref->{Subroutines}{shapiro_map_24}{DeclaredOrigArgs}{List};
+    # croak Dumper $stref->{Subroutines}{findhap}{DeclaredOrigLocalVars}{Set};
 
     if ($V) {
         say "--------------". ('-' x length($code_unit_name)) ;
@@ -240,8 +240,8 @@ sub main {
     } else {
        $stref = precondition_decls( $code_unit_name, $stref );
     }
-    # here we lost it
-    # croak Dumper $stref->{Modules}{Dvd}{ModuleVars}{Set}{dvdIcn};
+    # 
+    
    if ($code_unit_name eq '' and scalar @{ $Config{'SOURCEFILES'} }>0) {
         # $code_unit_name is empty, i.e. no TOP routine. So we go through all sources one by one by file name
         for my $fp ( @{ $Config{'SOURCEFILES'} } ) {
@@ -265,6 +265,9 @@ sub main {
         say "--------------". ('-' x length($code_unit_name)) ;
         }
 	$stref = build_call_graph($code_unit_name, $stref);
+
+
+
     # 3. Analysis: Analyse the source
     my $stage=0;
 
@@ -280,6 +283,7 @@ sub main {
     } else {
 	   $stref = analyse_all($stref,$code_unit_name, $stage);
     }
+    # Here INTENT for F90/F77 mixed decls is OK
 # croak Dumper pp_annlines( $stref->{'Subroutines'}{'funk2tal'}{'RefactoredCode'});
     # After the analysis we can either do the refactoring of the code, i.e. the main purpose of the compiler
     # or run one or more custom passes.
@@ -313,6 +317,7 @@ sub main {
             $stref = refactor_all($stref,$code_unit_name);
         }
     }
+    # Here INTENT for F90/F77 mixed decls is Unknown
 
 # croak Dumper pp_annlines( $stref->{'RefactoredCode'}{'./funk2tal.f90'});
 	# 5. Emitter: Emit the refactored source

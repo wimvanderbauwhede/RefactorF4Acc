@@ -147,13 +147,15 @@ sub context_free_refactorings {
 
         # BeginDo: just remove the label
         elsif ( exists $info->{'BeginDo'} ) {
-        	my $label = $info->{'BeginDo'}{'Label'};
-        	# This should have an extra check
+            if (exists $info->{'BeginDo'}{'Label'}){
+                my $label = $info->{'BeginDo'}{'Label'};
+                # This should have an extra check
 
-        	if ($Sf->{'DoLabelTarget'}{$label} eq 'Continue' or $Sf->{'DoLabelTarget'}{$label} eq 'EndDo')  {
-            	$line =~ s/do\s+\d+\s+/do /;
-            	$info->{'Ref'}++;
-        	}
+                if ($Sf->{'DoLabelTarget'}{$label} eq 'Continue' or $Sf->{'DoLabelTarget'}{$label} eq 'EndDo')  {
+                    $line =~ s/do\s+\d+\s+/do /;
+                    $info->{'Ref'}++;
+                }
+            }
         }
 
         # EndDo: replace label CONTINUE by END DO;

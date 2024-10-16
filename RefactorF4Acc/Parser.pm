@@ -310,7 +310,7 @@ sub analyse_lines {
 			}
 
 			# Skip comments (we already marked them in SrcReader)
-			if ( $lline =~ /^\s*\!/ && $lline !~ /^\!\s*\$(?:ACC|RF4A)\s/i ) {
+			if ( $lline =~ /^\s*\!/ && $lline !~ /^\!\s*\$(?:ACC|RF4A|OMP)\s/i ) {
 				next;
 			}
 			if (exists $info->{'Macro'} and not exists $info->{'Includes'} ) {
@@ -320,6 +320,9 @@ sub analyse_lines {
 			# Handle $RF4A on individual line
 			if ( $lline =~ /^\!\s*\$(?:ACC|RF4A)\s.+$/i ) {
 				( $stref, $info ) = __handle_acc_pragma( $stref, $f, $index, $lline );
+			}
+			elsif ( $lline =~ /^\!\s*\$OMP\s.+$/i ) {
+				( $stref, $info ) = __handle_omp_pragma( $stref, $f, $index, $lline );
 			}
 			if (exists $info->{'Pragmas'}{'BeginKernel'}) {
 				$Sf->{'HasKernelRegion'}=1;
@@ -449,16 +452,18 @@ sub analyse_lines {
 				}
 				my @valid_qualifiers = qw(pure recursive elemental);
 				my %procs_qualifiers = map {$_=>1} (@valid_qualifiers,@valid_procs);
-				my ( $proc_return_type,$a_or_s,$attr) = type_via_implicits($stref,$f,$proc_name);
-				# my $proc_return_type = '';
-				# croak Dumper $proc_return_type if $proc_name eq 'ff083';
-				for my $maybe_type (@proc_type_chunks ) {
-					if (not exists $procs_qualifiers{$maybe_type}) {
-						$proc_return_type = $maybe_type;
-						last;
+				my $proc_return_type = ''; # Only functions have a return type
+				if ($proc_type eq 'function') {
+					( $proc_return_type,my $a_or_s,my $attr) = type_via_implicits($stref,$f,$proc_name);
+					# my $proc_return_type = '';
+					# croak Dumper $proc_return_type if $proc_name eq 'ff083';
+					for my $maybe_type (@proc_type_chunks ) {
+						if (not exists $procs_qualifiers{$maybe_type}) {
+							$proc_return_type = $maybe_type;
+							last;
+						}
 					}
 				}
-
 				if ($proc_type eq 'block data') {
 					$full_proc_type = 'block data';
 					$proc_name = 'block_data';
@@ -1349,9 +1354,11 @@ or $line=~/^character\s*\(\s*len\s*=\s*[\w\*]+\s*\)/
 				#croak if $line=~/__pipe\s\!\$ACC/;
 		}
 #== F95 declaration, no need for refactoring
-		 elsif ( $line =~ /^(.+)\s*::\s*(?:.+)(?:\s*|\s+\!\$ACC.+)$/ ) {# croak if $line=~/__pipe\s\!\$ACC/;
+		 elsif ( $line =~ /^(.+)\s*::\s*(?:.+)(?:\s*|\s+\!\$ACC.+)$/ ) {# 
+		 
 
 				( $Sf, $info ) = __parse_f95_decl( $stref, $f, $Sf, $indent, $line, $info);
+				# croak Dumper $Sf if $line=~/allocatable.+ids/;
 				my $parsed_as_f95_decl = 0;
 				if (exists $info->{'ParseError'}) {
 					delete $info->{'ParseError'};
@@ -1469,12 +1476,12 @@ or $line=~/^character\s*\(\s*len\s*=\s*[\w\*]+\s*\)/
 #@    Range =>
 #@        Vars => [ ... ]
 #@        Expressions' => [ ... ]
-			elsif ( $line =~ /^do\b/) {
+			elsif ( $line =~ /^(?:\w+\:\s+)?do\b/) {
 
 #WV20150304: We parse the do and store the iterator and the range { 'Iterator' => $i,'Range' =>[$start,$stop]}
 				my $do_stmt = $line;
 				my $label   = $info->{'Label'} // 'LABEL_NOT_DEFINED';
-				my $construct_name = $info->{'ConstructName'} // 'CONSTRUC_NAME_NOT_DEFINED';
+				my $construct_name = $info->{'ConstructName'} // 'CONSTRUCT_NAME_NOT_DEFINED';
 				if ( $do_stmt =~ /do\s+\d+/ ) {
 					$do_stmt =~ s/^do\s+(\d+)\s+//;
 					$label = $1;
@@ -3234,6 +3241,57 @@ sub __handle_acc_pragma {
 
 }    # END of __handle_acc_pragma()
 
+sub __handle_omp_pragma {
+	( my $stref, my $f, my $index, my $line, my $info ) = @_; # returns $info->{'Pragmas'}
+	my $ompline = $line;
+
+	my $is_ompline = ($ompline =~ s/^\!\s*\$OMP\s+//i);
+	if ($is_ompline ) {
+		# Split on spaces
+		my @chunks = split( /\s+/, $ompline );
+		# Strip Begin/End
+		my $pragma_name_prefix = 'Begin';
+		if ( $chunks[0] =~ /Begin/i ) {
+			shift @chunks;
+		}
+		if ( $chunks[0] =~ /End/i ) {
+			shift @chunks;
+			$pragma_name_prefix = 'End';
+		}
+
+		( my $pragma_name, my @pragma_args ) = @chunks;
+		$pragma_name =  ucfirst( lc($pragma_name) );
+		if ($pragma_name eq 'Parallel' and uc($pragma_args[0]) eq 'DO') {
+			$pragma_name .= 'Do';
+			shift @pragma_args;
+		}
+
+		$info->{'Pragmas'}{ $pragma_name_prefix . $pragma_name } = [@pragma_args];
+
+		# This is a way to handle nested pragma regions, in particular to exclude Inline inside a Subroutine region
+		# TODO: make this work with Modules as well
+		if ($pragma_name_prefix eq 'Begin') {
+			$stref->{'Subroutines'}{$f}{'In'.$pragma_name.'Region'} = [@pragma_args];
+		}
+		if ($pragma_name_prefix eq 'End') {
+			delete $stref->{'Subroutines'}{$f}{'In'.$pragma_name.'Region'} ;
+		}
+
+		# WV20170517 This is not used, KernelWrappers is meant for LoopDetect but that was never finished.
+
+		# if (    $pragma_name =~ /Subroutine|KernelWrapper/i
+		# 	and $pragma_name_prefix eq 'Begin' )
+		# {
+		# 	$stref->{'KernelWrappers'}{ $pragma_args[0] }
+		# 	{ $pragma_name_prefix . ucfirst( lc($pragma_name) ) } =
+		# 	[ $f, $index ];
+		# 	$stref = outer_loop_start_detect( $pragma_args[0], $stref );
+		# }
+	}
+	return ( $stref, $info );
+
+}    # END of __handle_omp_pragma()
+
 sub __handle_trailing_pragmas { my (
 	$pragma_comment, # String ->
 	$pragmas # Pragmas ->
@@ -3350,7 +3408,7 @@ sub __parse_f95_decl {
     my $is_module = (exists $stref->{'Modules'}{$f}) ? 1 : 0;
 
 	my $pt = parse_F95_var_decl($line);
-	# croak Dumper $pt if $line=~/testinitialvalue/i;
+	# croak Dumper $pt if $line=~/ids/i;
 
 	if (exists $pt->{'ParseError'}) {
 		warning( 'Parse error on F90 variable declaration on line '.$info->{'LineID'}.' in '. $Sf->{'Source'}.":\n\n\t$line\n\nProbably unsupported mixed F77/F90 syntax; trying F77 parser", 0, 'PARSE ERROR');
@@ -3407,14 +3465,15 @@ sub __parse_f95_decl {
                 #     $memspace=$1;
 				# }
             }
-
-			if ((not exists $pt->{'Attributes'}{'Allocatable'}) or 
-				$pt->{'TypeTup'}{'Kind'} eq ':' ) {
-				# This is a HACK because we changed the structure of Dim in the case of allocatable arrays
+# carp Dumper $pt;
+			# if (
+			# 	(not exists $pt->{'Attributes'}{'Allocatable'}) or 
+			# 	$pt->{'TypeTup'}{'Kind'} eq ':' ) {
+			# 	# This is a HACK because we changed the structure of Dim in the case of allocatable arrays (in parsedVarDecl_to_Decl)
 				$info->{'ParsedVarDecl'} = $pt;
-				# Note that scalars have a 'Dim' => [0] field! FIXME!
-				# croak $line. Dumper $pt if $line=~/vdummy/ and $f eq 'f2';
-			}
+			# 	# Note that scalars have a 'Dim' => [0] field! FIXME!
+			# 	# croak $line. Dumper $pt if $line=~/vdummy/ and $f eq 'f2';
+			# }
 			$info->{'VarDecl'} = {
 				'Indent' => $indent,
 				'Names'  => $pt->{'Vars'},
@@ -3429,7 +3488,7 @@ sub __parse_f95_decl {
 
 			my $decls = __create_Decls_from_ParsedVarDecl($info,$init_decl,$f);
 			for my $decl (@{$decls}) {
-				# croak Dumper $decl if $line=~/testinitialvalue/i;
+				
 				my $tvar = $decl->{'Name'} ;
 				if ($decl->{'Dim'}) {
 					$decl=__get_params_from_dim($decl,$Sf);
@@ -3458,6 +3517,7 @@ sub __parse_f95_decl {
 				if (ref($orig_decl) ne 'HASH') {
 					$orig_decl  = {};
 				}
+				# croak Dumper $decl if $line=~/ids/i;
 				# WV20231213 why is this necessary?
 				# if ($decl->{'Type'} eq 'character'
 				# 	and exists $decl->{'Attr'}
@@ -4009,7 +4069,7 @@ sub _identify_loops_breaks {
 
 		#   my %labels=();
 		my $nest = 0;
-		my $current_construct_name = 'CONSTRUC_NAME_NOT_DEFINED';
+		my $current_construct_name = 'CONSTRUCT_NAME_NOT_DEFINED';
 		for my $index ( 0 .. scalar( @{$srcref} ) - 1 ) {
 			my $line = $srcref->[$index][0];
 			my $info = $srcref->[$index][1];
@@ -4305,24 +4365,32 @@ sub __reorder_io_control_specs{(my $tline) = @_;
 	# first split on parens.
 	# split on left paren 
 	my @chunks = split(/\s*\(\s*/,$tline);
+
 	# remove IO call
 	my $io_call = shift @chunks;
 	# reconstruct
     my $ttline = join('(',@chunks);
 	# split on right paren 
 	@chunks = split(/\s*\)\s*/,$ttline);
-	# remove anything after closing paren
-	my $rest = pop @chunks;
-	# but it could be a format
-	if ($rest=~/[\'\"]/) { # it's a format
-	    push @chunks, $rest;
-	}
-	# reconstruct
-    $ttline = join(')',@chunks);
 
+	# remove anything after closing paren
+	my $rest = '';
+	if (scalar( @chunks)>1) {
+		$rest = pop @chunks; 
+	# but it could be a format
+		if ($rest=~/[\'\"]/) { # it's a format
+			push @chunks, $rest;
+		}
+	}
+
+	# reconstruct
+	if (scalar( @chunks)>1) {
+		$ttline = join(')',@chunks);
+	} else {
+		$ttline = $chunks[0].')';
+	}
 	# now split on commas. Probably still weak because of formats. Unless the formats are replaced by placeholders.
 	@chunks = split(/\s*,\s*/,$ttline);
-
 	# UNIT, FMT and NML must be in that order unless they are named
 	my %specs_to_order = ();
 	for my $chunk (@chunks) {
@@ -4372,7 +4440,7 @@ sub __reorder_io_control_specs{(my $tline) = @_;
 sub _parse_read_write_print {
 
     ( my $line, my $info, my $stref, my $f ) = @_;
- 
+
     my $sub_or_func = sub_func_incl_mod( $f, $stref );
     my $Sf          = $stref->{$sub_or_func}{$f};
     my $tline=$line;
@@ -4388,13 +4456,15 @@ sub _parse_read_write_print {
     if (not (exists $info->{'PrintCall'} or exists $info->{'AcceptCall'}) ) {
     	# Normalise by removing UNIT, NML and FMT keywords as they are optional
 		# This only works if they are in the right order. So order them first.
-		my $tline = __reorder_io_control_specs($tline);
-# 		If the optional characters UNIT= are omitted before io-unit, io-unit must be the first item in
-# io-control-specs. If the optional characters FMT= are omitted before format, format must be
-# the second item in io-control-specs. If the optional characters NML= are omitted before
-# namelist-group-name, namelist-group-name must be the second item in io-control-specs.
-		# That leaves IOSTAT, REC and SIZE for READ
-    	$tline=~s/(unit|nml|fmt)\s*=\s*//gi;
+		if ($tline=~/\w+\s*\(/) { # Assumes that, if there are no parens, the arg is just a value, not a kv pair
+		$tline = __reorder_io_control_specs($tline);
+	# 		If the optional characters UNIT= are omitted before io-unit, io-unit must be the first item in
+	# io-control-specs. If the optional characters FMT= are omitted before format, format must be
+	# the second item in io-control-specs. If the optional characters NML= are omitted before
+	# namelist-group-name, namelist-group-name must be the second item in io-control-specs.
+			# That leaves IOSTAT, REC and SIZE for READ
+			$tline=~s/(unit|nml|fmt)\s*=\s*//gi;
+		}
     }
 
     # Rather than having Attributes, Arguments and Expressions I will simply have Vars.Written and Vars.Read
@@ -4439,7 +4509,7 @@ sub _parse_read_write_print {
 		# say "TLINE3: $tline";
 
         $attrs_ast = parse_expression($tline,$info,$stref,$f);
-		
+
 #		say "REST: $rest, ERR: $err";
         #say emit_expr_from_ast($attrs_ast);
     }

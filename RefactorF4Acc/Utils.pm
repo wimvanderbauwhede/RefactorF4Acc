@@ -351,7 +351,8 @@ if ($DBG and not defined $var or $var eq '') {croak "VAR not defined!"}
         ($type, $array_or_scalar, $attr)=@{$type_kind_attr};
     }
     if ($type eq 'Unknown') {
-        print "INFO: Common <", $var, "> has no rule in {'Implicits'}{$f}, typing via Fortran defaults\n" if $I;
+        print "INFO: Common <", $var, "> has no rule in {'Implicits'}{$f}, typing via Fortran defaults\n"
+         if $I;
         # In the absence of an implicit statement, a program unit is treated as if it had a host with the declaration
         #  implicit integer (i-n), real (a-h, o-z)
         if ($var=~/^[i-nI-N]/) { #

@@ -291,7 +291,14 @@ sub eval_expression_with_parameters { (my $expr_str,my $info, my $stref, my $f, 
 		}
 	} else {
 		$evaled_expr_str=~s/\-/ -/g;
-		$evaled_expr_str=~s/\/\//./g;
+		$evaled_expr_str=~s/\/\//./g; # string concat
+		# For logical expressions
+		$evaled_expr_str=~s/\.true\./1/g;
+		$evaled_expr_str=~s/\.false\./0/g;
+		$evaled_expr_str=~s/\.(not|and|or|xor)\./$1/g;
+		$evaled_expr_str=~s/\.eqv\./==/g;
+		$evaled_expr_str=~s/\.neqv\./!=/g;
+		# For integers with kind info
 		while ($evaled_expr_str=~/\d+_[1248]/) {
 			$evaled_expr_str=~s/(\d+)_[1248]/$1/;
 		}
@@ -310,6 +317,7 @@ sub eval_expression_with_parameters { (my $expr_str,my $info, my $stref, my $f, 
 } # END of eval_expression_with_parameters()
 
 # This returns an AST for constant folding
+# UNUSED!
 sub eval_expression_with_parameters_to_AST { (my $expr_str,my $info, my $stref, my $f) = @_;
 	# say "EXPR STR $expr_str";
 	my $expr_str_no_ph = _substitute_PlaceHolders($expr_str,$info);
@@ -332,9 +340,17 @@ sub eval_expression_with_parameters_to_AST { (my $expr_str,my $info, my $stref, 
 			return [32,"'".$expr_val."'"];
 		} elsif ($info->{'ParsedParDecl'}{'TypeTup'}{'Type'} eq 'integer') {
 			return [29,$expr_val];
-		} elsif ($info->{'ParsedParDecl'}{'TypeTup'}{'Type'} eq 'logica') {
-			croak "TODO: support for logical";
-			return [31,$expr_val];
+		} elsif ($info->{'ParsedParDecl'}{'TypeTup'}{'Type'} eq 'logical') {
+			# croak "TODO: support for logical";
+			if ($expr_val==0) {
+				return [31,'.false'];
+			}
+			elsif ($expr_val==1) {
+				return [31,'.true'];
+			}
+			else {
+				croak("LOGICAL expression can only eval to 1 or 0: $expr_val");
+			}
 		} else { # assume it's a real
 			return [30,$expr_val];
 		}

@@ -664,9 +664,14 @@ sub emit_f95_var_decl {
     my $dimstr = '';
     if ( ref($dim) eq 'ARRAY' and scalar @{$dim}>0 
         and not (scalar @{$dim}==1 and $dim->[0].'' eq '0')) {
-        if ( ref($dim->[0]) eq 'ARRAY' ) {
+            carp 'DIM:',Dumper($dim);
+        if ( ref($dim->[0]) eq 'ARRAY'   ) {
+            if (scalar @{$dim->[0]}>0){
             my @dimpairs = map { $_->[0].':'.$_->[1] } @{ $dim };
             $dimstr = 'dimension(' . join( ',', @dimpairs) . ')';
+            } else {
+                $dimstr = 'dimension(:)'; # FIXME: support higher dims
+            }
         } else { # assuming it is alread a list of '$b:$e' strings
                 $dimstr = 'dimension(' . join( ',', @{$dim}) . ')';
         }
@@ -1486,12 +1491,16 @@ sub parsedVarDecl_to_Decl { my ($pvd, $decl,$f) = @_;
         $mdecl->{'Allocatable'}='allocatable';
 
         my $alloc_dim = exists $pvd->{'Attributes'}{'Dim'}
-            ? $pvd->{'Attributes'}{'Dim'}[0]
-            : 0;
+            ? $pvd->{'Attributes'}{'Dim'}[0] ne ':'
+                ? $pvd->{'Attributes'}{'Dim'}[0] : 0
+                : 0;
         if ($alloc_dim==0) {
             if ($pvd->{'TypeTup'}{'Kind'} eq ':'	) {
                 warning("allocatable character string ".$mdecl->{'Name'}." in $f");
                 # error("TODO: allocatable character string".Dumper($mdecl));
+            }
+            elsif ($pvd->{'Attributes'}{'Dim'}[0] eq ':') {
+                warning("allocatable array ".$mdecl->{'Name'}." in $f");
             }
         } else {
         # So what we do is replace every value with this pair of empty strings.

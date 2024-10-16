@@ -1589,6 +1589,7 @@ sub find_implied_do_in_ast { (my $ast, my $vars)=@_;
 
     return $vars;
 } # END of find_implied_do_in_ast
+
 # I'm only looking for arguments, so I don't bother with index vars
 # Funny enough it seems I also need constant args because I look for ReferencedLabels
 # I think only keeping these would be enough; and also maybe I should give them a proper Type and sigil
@@ -1606,22 +1607,22 @@ sub _find_args_in_ast { (my $ast, my $args) =@_;
 		}
 	}
 	elsif (($ast->[0] & 0xFF)== 2) { # scalar
-	        my $mvar = $ast->[1];
-	        $args->{'Set'}{$mvar}={'Type'=>'Scalar'} ;
-            push @{$args->{'List'}},$mvar;
-	    }
+        my $mvar = $ast->[1];
+        $args->{'Set'}{$mvar}={'Type'=>'Scalar'} ;
+        push @{$args->{'List'}},$mvar;
+    }
 	elsif (($ast->[0] & 0xFF)== 10) { # array
-	        my $mvar = $ast->[1];
-	        $args->{'Set'}{$mvar}={'Type'=>'Array'} ;
-            push @{$args->{'List'}},$mvar;
+        my $mvar = $ast->[1];
+        $args->{'Set'}{$mvar}={'Type'=>'Array'} ;
+        push @{$args->{'List'}},$mvar;
 	}
     elsif (($ast->[0] & 0xFF) > 28) { # constants
-    # constants
-    my $mvar = $ast->[1];
-    $args->{'Set'}{$mvar}={'Type'=>'Const','SubType'=>$sigils[ ($ast->[0] & 0xFF) ]} ;
-    push @{$args->{'List'}},$mvar;
+        # constants
+        my $mvar = $ast->[1];
+        $args->{'Set'}{$mvar}={'Type'=>'Const','SubType'=>$sigils[ ($ast->[0] & 0xFF) ]} ;
+        push @{$args->{'List'}},$mvar;
     } else {
-        say "Arg is expression: ".Dumper($ast);
+        say "Arg is expression: ". emit_expr_from_ast($ast);
     }
     return $args;
 } # END of _find_args_in_ast
