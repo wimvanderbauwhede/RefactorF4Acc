@@ -24,6 +24,7 @@ use RefactorF4Acc::ExpressionAST::Evaluate qw(
     replace_consts_in_ast_no_iters
     eval_expression_with_parameters
     eval_intrinsic
+    eval_cond_expr_ast_after_const_folding
     );
 use RefactorF4Acc::Parser::Expressions qw( emit_expr_from_ast parse_expression_no_context get_vars_from_expression);
 use RefactorF4Acc::Emitter qw( emit_AnnLines );
@@ -132,7 +133,8 @@ sub fold_constants {
                     #say "IF statement, TODO: ".Dumper($info->{'Cond'}{'Expr'});
                     my $cond_expr_ast = $info->{'Cond'}{'AST'};
                     my $const_fold_cond_expr_ast = fold_constants_in_expr($stref, $f, $block_id, $cond_expr_ast);
-                    $info->{'Cond'}{'AST'} = $const_fold_cond_expr_ast;
+                    my $evaled_cond_expr_ast = eval_cond_expr_ast_after_const_folding($const_fold_cond_expr_ast);
+                    $info->{'Cond'}{'AST'} = $evaled_cond_expr_ast;
                 }
             }
             elsif ( exists $info->{'Do'} ) { #  the expressions for the loop bounds have been folded:
@@ -334,7 +336,9 @@ sub fold_constants_no_iters {
                 #say "IF statement, TODO: ".Dumper($info->{'Cond'}{'Expr'});
                 my $cond_expr_ast = $info->{'Cond'}{'AST'};
                 my $const_fold_cond_expr_ast = fold_constants_in_expr_no_iters($stref, $f, $cond_expr_ast,$info);
-                $info->{'Cond'}{'AST'} = $const_fold_cond_expr_ast;
+                my $evaled_cond_expr_ast = eval_cond_expr_ast_after_const_folding($const_fold_cond_expr_ast);
+                # croak Dumper $const_fold_cond_expr_ast if $const_fold_cond_expr_ast->[0]==21;
+                $info->{'Cond'}{'AST'} = $evaled_cond_expr_ast;
             }
             elsif ( exists $info->{'Do'} ) { #  the expressions for the loop bounds have been folded:
             if (not exists $info->{'Do'}{'While'}) {

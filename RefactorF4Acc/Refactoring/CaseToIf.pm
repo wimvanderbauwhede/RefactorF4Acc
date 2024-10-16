@@ -49,7 +49,7 @@ our @EXPORT_OK = qw(
 #@     Set => {...}
 #@     List => [...]
 
-sub replace_case_by_if { my ( $stref, $f, $annlines ) = @_;
+sub replace_case_by_if { my ( $stref, $f ) = @_;
 	# my $Sf = $stref->{'Subroutines'}{$f};
 	# $Sf->{'RefactoredCode'}=$annlines;
 

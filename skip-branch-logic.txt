@@ -2,18 +2,22 @@ if cond1 then
 	block1
 else if cond2
 	block2
-else if cond3
-	block3
+	if cond3
+		block3
+	else
+		block4
+	end if
 else
-	block4
+	block5
 end if
+
 ~~~~
 if cond1 is const and true
 => 
 
 block1
 
- 'If' && .true. => remove if and everything below and including the ELSE (IF) until and including the END IF
+ 'If' && .true. => remove IF and everything below and including the ELSE (IF) until and including the END IF
 
 ~~~~
 if cond1 is const and false
@@ -27,6 +31,11 @@ else if cond3
 else
 	block4
 end if
+
+remove IF and anything before the first ELSE (IF) or END IF
+change ELSE IF to IF
+remove ELSE 
+
 ~~~~
 if cond2 is const and true 
 
@@ -35,6 +44,9 @@ if cond1 then
 else 
 	block2
 end if
+
+ELSE IF && .true. => change to ELSE and remove any subsequent ELSE (IF) down to the END IF
+
 ~~~~
 if cond2 is const and false 
 
@@ -45,8 +57,11 @@ else if cond3
 else
 	block4
 end if
+
+ELSE IF && .false. => remove ELSE IF and anything up to next ELSE (IF) or END IF
+
 ~~~~
-if cond3 is const and true
+if cond3 is const and true => same as cond1 above
 
 if cond1 then
 	block1

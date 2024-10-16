@@ -53,7 +53,7 @@ use RefactorF4Acc::Refactoring::CaseToIf qw( replace_case_by_if );
 
 use RefactorF4Acc::Refactoring::FoldConstants qw( fold_constants_all );
 
-# use RefactorF4Acc::Emitter qw( emit_AnnLines );
+use RefactorF4Acc::Emitter qw( emit_AnnLines );
 
 use RefactorF4Acc::Translation::UxntalLibHandler qw(
     load_uxntal_lib_subroutines
@@ -217,7 +217,8 @@ sub translate_program_to_Uxntal($stref,$program_name){
 
     $stref = do_passes_recdescent($stref,$program_name,
         [
-            \&replace_case_by_if ,
+            \&replace_case_by_if,
+            \&eliminate_if_const_cond,
             \&translate_sub_to_Uxntal
         ], {}
     );
@@ -906,6 +907,7 @@ Instead of the nice but cumbersome approach we had until now, from now on it is 
             $c_line .= ' '."&$branch$branch_id"; #$indent.
         }
         elsif (exists $info->{'IfThen'} and not exists $info->{'ElseIf'} ) {
+            carp 'COND AST:',Dumper $info->{'Cond'}{'AST'};
             # say "EX-CASE: $line => If IfId = $id" if $f eq 'decodeTokenStr';
             $pass_state->{'IfBranchId'} = $id;
             push @{$pass_state->{'IfStack'}},$id;
@@ -917,6 +919,7 @@ Instead of the nice but cumbersome approach we had until now, from now on it is 
             }
             say 'IF:',Dumper $pass_state->{'SkipBranch'};
         } elsif (exists $info->{'ElseIf'} ) {
+            
             # say "EX-CASE: $line => ElseIf IfId=$id" if $f eq 'decodeTokenStr';
             ($c_line, my $branch_id) = _emit_ifbranch_end_Uxntal($id,$pass_state);
             if ($pass_state->{'IfId'} == $pass_state->{'SkipBranch'}[1]){
@@ -4784,3 +4787,133 @@ sub _remove_redundant_labels($uxntal_source_lines) {
 
     return $processed_uxntal_source_lines;
 } # END of _remove_redundant_labels
+
+
+sub eliminate_if_const_cond( $stref, $f ) {
+say "\neliminate_if_const_cond($f)\n" if $DBG;
+    my $refactored_annlines = [];
+    # my $dead_code_regions={};
+    # my $dead_code_stack=[];
+    # my $if_block_counter=0;
+    my $is_dead_code = 0;
+    my $case_stack = [];
+
+    my $annlines = get_annotated_sourcelines($stref,$f);
+    for my $annline ( @{$annlines} ) {
+        ( my $line, my $info ) = @{$annline};
+        say "LINE: $line";
+        say Dumper $info;
+        if (exists $info->{'If'} ) {
+            if (!$is_dead_code) {
+                if ($info->{'Cond'}{'AST'}[0] == 31) {
+                    if  ($info->{'Cond'}{'AST'}[1] eq '.true.') {
+                        # remove IF and everything below and including the ELSE (IF) until and including the END IF
+                        # So what we need is some indication that we are in an If block that needs to be removed
+                        $info->{'DeadCode'} = 1;
+                        $is_dead_code = 0;
+                        push @{$case_stack}, 'IfTrue';
+                    }
+                    elsif  ($info->{'Cond'}{'AST'}[1] eq '.false.') {
+                        # remove IF and anything before the first ELSE (IF) or END IF
+                        $info->{'DeadCode'} = 1;
+                        $is_dead_code = 1;
+                        push @{$case_stack}, 'IfFalse';
+                        # change ELSE IF to IF; remove ELSE 
+                    }
+                } else {
+                    $is_dead_code = 0;
+                    push @{$case_stack}, 'If';
+                }
+            } else {
+                $info->{'DeadCode'} = 1;
+                push @{$case_stack}, 'If';
+            }
+        }
+        elsif (exists $info->{'Else'} or exists $info->{'ElseIf'}) {
+            my $case = pop @{$case_stack};
+            if ($case eq 'IfTrue') {
+                    $info->{'DeadCode'} = 1;
+                    $is_dead_code = 1;
+            }
+            elsif ($case eq 'IfFalse') {
+                    $is_dead_code = 0;
+                    if (exists $info->{'ElseIf'}) {
+                        $info->{'If'} = $info->{'ElseIf'};
+                        delete $info->{'ElseIf'};
+                    }
+                    elsif (exists $info->{'Else'}) {
+                        $info->{'DeadCode'} = 1;
+                    }
+            }
+            elsif ($case eq 'ElseIfTrue') {
+                    $info->{'DeadCode'} = 1;
+                    $is_dead_code = 1;
+            }
+            elsif ($case eq 'ElseIfFalse') {
+                    $is_dead_code = 0;
+            } 
+            # else { # means it is a non-const condition, so keep the line
+
+            # }
+            if (!$is_dead_code){
+                if( exists $info->{'ElseIf'}) {
+                    if ($info->{'Cond'}{'AST'}[0] == 31) {
+                        if  ($info->{'Cond'}{'AST'}[1] eq '.true.') {
+                            $info->{'Else'} = 1;
+                            delete $info->{'ElseIf'};
+                            $is_dead_code = 0;
+                            push @{$case_stack}, 'ElseIfTrue';
+                            # ELSE IF && .true. => change to ELSE and remove any subsequent ELSE (IF) down to the END IF
+                        }
+                        elsif  ($info->{'Cond'}{'AST'}[1] eq '.false.') {
+                            $info->{'DeadCode'} = 1;
+                            $is_dead_code = 1;
+                            push @{$case_stack}, 'ElseIfFalse';
+                            # ELSE IF && .false. => remove ELSE IF and anything up to next ELSE (IF) or END IF
+
+                        }
+                    } else {
+                        $is_dead_code = 0;
+                        push @{$case_stack}, 'ElseIf';
+                    }
+                } else {
+                    $is_dead_code = 0;
+                    push @{$case_stack}, 'Else';
+                }
+            } else {
+                $info->{'DeadCode'} = 1;
+                push @{$case_stack}, $case;#'ElseIf';
+            }
+
+
+        }
+        elsif (exists $info->{'EndIf'} ) { # We can only remove the END IF if it was not shared. 
+            my $case = pop @{$case_stack};
+            say "CASE AT END IF: $case";
+            if ($case eq 'IfTrue' or $case eq 'IfFalse' ) { #  or $is_dead_code or $case eq 'ElseIfTrue'
+                $info->{'DeadCode'} = 1;
+                $is_dead_code = 0;
+            }
+        }
+        else {
+            # Anything else
+            if ($is_dead_code==1) {
+                $info->{'DeadCode'}=1;
+            }
+        }
+        say $is_dead_code,';',Dumper $case_stack;
+        if ( not exists $info->{'DeadCode'}) {
+        #     push @{$refactored_annlines},[$line.' ! DEAD CODE !!! ',$info]
+        # } else {
+            push @{$refactored_annlines},[$line,$info]
+        }
+    }
+
+    my $mod_sub_or_func = sub_func_incl_mod( $f, $stref );
+    my $Sf = $stref->{$mod_sub_or_func}{$f};
+    $Sf->{'RefactoredCode'} = $refactored_annlines;
+	$stref = emit_AnnLines($stref,$f,$Sf->{'RefactoredCode'});
+	say "CODE UNIT $f: ", Dumper pp_annlines($Sf->{'RefactoredCode'}) ;
+
+    return $stref;
+} # END of eliminate_if_const_cond

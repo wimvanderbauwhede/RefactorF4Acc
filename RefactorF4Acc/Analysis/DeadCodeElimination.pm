@@ -30,10 +30,10 @@ use Exporter;
 );
 
 =info
-I want a flexible way to optimise away dead code.
-Basically, I go through the code and register when I find e.g. a Do or If, and then and EndDo or EndIf.
-If in between there are only comments, then all that can be removed.
-Actually, if there are no assignments or subroutine calls, the code can be removed.
+This does not identify all dead code, it only identifies empty IF and DO blocks
+
+- Find a Do or If and the corresponding EndDo or EndIf.
+- If there are no assignments or subroutine calls, the code can be removed.
 
 WV20211208 This does not go far enough. In a subroutine, any non-arg variable assigned to but not read is redundant
 and can be eliminated. So if we find an assignment or a subroutine/function call where the var is Out or InOut,
@@ -41,11 +41,11 @@ we check if that var is used further in the code unit. If not, it is redundant.
 
 I have the basic analysis for this in Refactoring/Fixes.pm
 
-We need a better handling of if statements:
+Handling of if statements:
 
 * If -> EndIf => remove If; remove Endif
 * If -> Else => remove If; the Else should become an If (.not. () )
-If -> ElseIf => remove If; ElseIf becomes If
+* If -> ElseIf => remove If; ElseIf becomes If
 * ElseIf -> Endif => remove ElseIf
 * ElseIf -> Else => remove ElsIf
 * Else -> EndIf => remove Else
@@ -111,6 +111,7 @@ say "\nAnalysis::analyse_for_dead_code($f)\n" if $DBG;
             if ($prev_if_keyword->[0] ne 'Live' ) {
                 $dead_code_regions->{$prev_if_keyword->[1]{'LineID'}} = $prev_if_keyword->[1];
                 if  ($prev_if_keyword->[0] eq 'If' and exists $info->{'Else'}) {
+                    # This is refactoring!
                     # If/Else
                     # die 'Else -> If Not: ', Dumper $info;
                     my $line_id = $info->{'LineID'};
@@ -132,6 +133,7 @@ say "\nAnalysis::analyse_for_dead_code($f)\n" if $DBG;
                     or $prev_if_keyword->[0] eq 'ElseIf')
                     and exists $info->{'ElseIf'}
                     ) {
+                    # This is refactoring!
                     delete $info->{'ElseIf'};
                     $info->{'If'}=1;
                     $line=~s/else\s+//;
@@ -200,7 +202,6 @@ say "\nAnalysis::analyse_for_dead_code($f)\n" if $DBG;
         if (not exists $info->{'Assignment'} and not exists $info->{'SubroutineCall'}
             and $maybe_dead_code) {
             say "MAYBE DEAD LINE: $line ".$info->{'LineID'} if $DBG;
-            die if $info->{'LineID'}==54;
             push @{$dead_code_stack}, $annline;
         } else {
             say "NOT DEAD CODE: ".$line . ' => clear stack: '.Dumper $dead_code_stack if $DBG;
@@ -230,6 +231,7 @@ say "\nAnalysis::analyse_for_dead_code($f)\n" if $DBG;
 =pod
 Another nice thing to do is constant detection and then replacing if() by #if
 =cut
+
 =pod
 Removal of IF branches with constant conditions
 
@@ -238,5 +240,115 @@ Removal of IF branches with constant conditions
 
 
 =cut
+
+sub analyse_if_const_cond {( my $stref, my $f ) = @_; 
+say "\nAnalysis::analyse_if_const_cond($f)\n" if $DBG;
+    my $refactored_annlines = [];
+    # my $dead_code_regions={};
+    # my $dead_code_stack=[];
+    # my $if_block_counter=0;
+    my $maybe_dead_code = 0;
+    my $case_stack = [];
+
+    my $annlines = get_annotated_sourcelines($stref,$f);
+    for my $annline ( @{$annlines} ) {
+        ( my $line, my $info ) = @{$annline};
+        # say "LINE: $line";
+        if (exists $info->{'If'} ) {
+            if (!$maybe_dead_code) {
+                if ($info->{'Cond'}{'AST'}[0] == 31) {
+                    if  ($info->{'Cond'}{'AST'}[1] eq '.true') {
+                        # remove IF and everything below and including the ELSE (IF) until and including the END IF
+                        # So what we need is some indication that we are in an If block that needs to be removed
+                        $info->{'DeadCode'} = 1;
+                        $maybe_dead_code = 0;
+                        push @{$case_stack}, 'IfTrue';
+                    } 
+                    elsif  ($info->{'Cond'}{'AST'}[1] eq '.false') {
+                        # remove IF and anything before the first ELSE (IF) or END IF
+                        $info->{'DeadCode'} = 1;
+                        $maybe_dead_code = 0;
+                        push @{$case_stack}, 'IfFalse';
+                        # change ELSE IF to IF; remove ELSE 
+                    }
+                } else {
+                    $maybe_dead_code = 0;
+                    push @{$case_stack}, 'If';
+                }
+            } else {
+                $info->{'DeadCode'} = 1;
+            }
+        }
+        elsif (exists $info->{'Else'} or exists $info->{'ElseIf'}) {
+            if ($case_stack->[-1] eq 'IfTrue') {
+                    $info->{'DeadCode'} = 1;
+                    $maybe_dead_code = 1;
+            }
+            elsif ($case_stack->[-1] eq 'IfFalse') {
+                    $maybe_dead_code = 0;
+                    if (exists $info->{'ElseIf'}) {
+                        $info->{'If'} = $info->{'ElseIf'};
+                        delete $info->{'ElseIf'};
+                    }
+                    elsif (exists $info->{'Else'}) {
+                        $info->{'DeadCode'} = 1;
+                    }
+            }
+            elsif ($case_stack->[-1] eq 'ElseIfTrue') {
+                    $info->{'DeadCode'} = 1;
+                    $maybe_dead_code = 1;
+            }
+            elsif ($case_stack->[-1] eq 'ElseIfFalse') {
+                    $maybe_dead_code = 0;
+            }
+            if (!$maybe_dead_code) {
+                if ($info->{'Cond'}{'AST'}[0] == 31) {
+                    if  ($info->{'Cond'}{'AST'}[1] eq '.true') {
+                        if (exists $info->{'ElseIf'}) {
+                            $info->{'If'} = $info->{'ElseIf'};
+                            delete $info->{'ElseIf'};
+                        }
+                        $maybe_dead_code = 0;
+                        push @{$case_stack}, 'ElseIfTrue';
+                        # ELSE IF && .true. => change to ELSE and remove any subsequent ELSE (IF) down to the END IF
+                    }
+                    elsif  ($info->{'Cond'}{'AST'}[1] eq '.false') {
+                        $info->{'DeadCode'} = 1;
+                        $maybe_dead_code = 1;
+                        push @{$case_stack}, 'ElseIfFalse';
+                        # ELSE IF && .false. => remove ELSE IF and anything up to next ELSE (IF) or END IF
+
+                    }
+                } else {
+                    $maybe_dead_code = 0;
+                    push @{$case_stack}, 'ElseIf';
+                }
+            } else {
+                $info->{'DeadCode'} = 1;
+            }
+
+
+        }
+        elsif (exists $info->{'EndIf'} ) {
+            my $case = pop @{$case_stack};
+            if ($case eq 'IfTrue' or $case eq 'ElseIfTrue') {
+                $info->{'DeadCode'} = 1;
+                $maybe_dead_code = 0;
+            }
+        }
+        else {
+            # Anything else
+            if ($maybe_dead_code==1) {
+                $info->{'DeadCode'}=1;
+            }
+        }
+        push @{$refactored_annlines},[$line,$info];
+    }
+
+    my $mod_sub_or_func = sub_func_incl_mod( $f, $stref );
+    $stref->{$mod_sub_or_func}{$f}{'AnnLines'} = $refactored_annlines;
+    return $stref;
+}
+
 
 1;

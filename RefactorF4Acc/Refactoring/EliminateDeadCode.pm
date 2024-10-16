@@ -8,11 +8,11 @@ use RefactorF4Acc::Refactoring::Helpers qw(
   stateless_pass
   get_annotated_sourcelines
 );
-use RefactorF4Acc::Refactoring::Fixes qw(  
+use RefactorF4Acc::Refactoring::Fixes qw(
   remove_redundant_arguments_and_fix_intents
 );
 use RefactorF4Acc::Refactoring::RemoveRedundantAssignments qw(
-  remove_redundant_assignments  
+  remove_redundant_assignments
 );
 use RefactorF4Acc::Analysis::DeadCodeElimination qw( analyse_for_dead_code );
 
@@ -45,7 +45,7 @@ sub pass_eliminate_dead_code {
     ( my $stref, my $code_unit_name ) = @_;
 
     $Config{'FIXES'}{'remove_redundant_arguments_and_fix_intents'} = 1;
-    $Config{'FIXES'}{'_remove_unused_variables'}                  = 1;    
+    $Config{'FIXES'}{'_remove_unused_variables'}                  = 1;
     $stref = pass_wrapper_subs_in_module(
         $stref,
         '',
@@ -66,7 +66,7 @@ sub pass_eliminate_dead_code {
             [ \&remove_redundant_arguments_and_fix_intents ],
             [ \&remove_redundant_assignments ],
             [ \&analyse_for_dead_code],
-            [ \&_eliminate_dead_code]            
+            [ \&_eliminate_dead_code]
         ]
     );
 

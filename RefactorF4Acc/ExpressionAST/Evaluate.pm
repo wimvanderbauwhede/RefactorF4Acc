@@ -63,6 +63,7 @@ use Exporter;
 &replace_consts_in_ast_no_iters
 &fold_constants_in_expr
 &fold_constants_in_expr_no_iters
+&eval_cond_expr_ast_after_const_folding
 );
 
 
@@ -284,7 +285,7 @@ sub eval_expression_with_parameters { (my $expr_str,my $info, my $stref, my $f, 
 		if ($expr_val_ast->[0] != 29) {
 			if ($err) {
 				error("$expr_str does not reduce to an integer");
-			} 
+			}
 			return $evaled_expr_str;
 		} else {
 			return $expr_val_ast->[1];
@@ -303,7 +304,7 @@ sub eval_expression_with_parameters { (my $expr_str,my $info, my $stref, my $f, 
 			$evaled_expr_str=~s/(\d+)_[1248]/$1/;
 		}
 		my $expr_val=eval($evaled_expr_str);
-		# croak "EXPR <$expr_str> TO EVAL: $evaled_expr_str => $expr_val".Dumper($info) if $expr_str_no_ph =~/CONCAT/;
+		# croak "EXPR <$expr_str> TO EVAL: $evaled_expr_str => $expr_val".Dumper($info);
 		# carp Dumper($evaled_expr_str,$info);
 		if (exists $info->{'ParsedParDecl'} and $info->{'ParsedParDecl'}{'TypeTup'}{'Type'} eq 'character') {
 			if ($err) {
@@ -549,5 +550,32 @@ sub _substitute_PlaceHolders { my ($expr_str,$info) = @_;
     return $expr_str;
 } # END of _substitute_PlaceHolders
 
-
+sub eval_cond_expr_ast_after_const_folding { my ($cond_expr_ast) = @_;
+	my $expr_str_to_eval= emit_expr_from_ast($cond_expr_ast);
+	$expr_str_to_eval=~s/\-/ -/g;
+	$expr_str_to_eval=~s/\/\//./g; # string concat
+	# For logical expressions
+	$expr_str_to_eval=~s/\.true\./1/g;
+	$expr_str_to_eval=~s/\.false\./0/g;
+	$expr_str_to_eval=~s/\.(not|and|or|xor)\./ $1 /g;
+	$expr_str_to_eval=~s/\.eqv\./==/g;
+	$expr_str_to_eval=~s/\.neqv\./!=/g;
+	# For integers with kind info
+	while ($expr_str_to_eval=~/\d+_[1248]/) {
+		$expr_str_to_eval=~s/(\d+)_[1248]/$1/;
+	}
+	say "EXPR TO EVAL: $expr_str_to_eval" if $DBG;
+	my $expr_val=eval($expr_str_to_eval);
+	if (not defined $expr_val) {
+		return $cond_expr_ast
+	}
+	elsif ($expr_val == 1) {
+		return [31,'.true.'];
+	}
+	elsif ($expr_val == 0) {
+		return [31,'.false.'];
+	} else {
+		return $cond_expr_ast
+	}
+}
 1;
