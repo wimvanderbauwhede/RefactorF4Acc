@@ -4818,7 +4818,7 @@ say "\neliminate_if_const_cond($f)\n" if $DBG;
                         $info->{'DeadCode'} = 1;
                         $is_dead_code = 1;
                         push @{$case_stack}, 'IfFalse';
-                        # change ELSE IF to IF; remove ELSE 
+                        # change ELSE IF to IF; remove ELSE and in that case, remove END IF
                     }
                 } else {
                     $is_dead_code = 0;
@@ -4826,7 +4826,7 @@ say "\neliminate_if_const_cond($f)\n" if $DBG;
                 }
             } else {
                 $info->{'DeadCode'} = 1;
-                push @{$case_stack}, 'If';
+                push @{$case_stack}, 'DeadIf';
             }
         }
         elsif (exists $info->{'Else'} or exists $info->{'ElseIf'}) {
@@ -4834,7 +4834,7 @@ say "\neliminate_if_const_cond($f)\n" if $DBG;
             my $case = pop @{$case_stack};
             my $remove_else = 0;
             if ($case eq 'IfTrue') {
-                    $info->{'DeadCode'} = 1;
+                    $info->{'DeadCode'} = 1; # remove ELSE IF and everything until END IF
                     $is_dead_code = 1;
             }
             elsif ($case eq 'IfFalse') {
@@ -4845,18 +4845,11 @@ say "\neliminate_if_const_cond($f)\n" if $DBG;
                         # delete $info->{'ElseIf'};
                     }
                     elsif (exists $info->{'Else'}) {
-                        $info->{'DeadCode'} = 1;
+                        $info->{'DeadCode'} = 1; # remove ELSE; requires removing END IF
                     }
             }
-            elsif ($case eq 'ElseIfTrue') {
-                    $info->{'DeadCode'} = 1;
-                    $is_dead_code = 1;
-            }
-            elsif ($case eq 'ElseIfFalse') {
-                    $is_dead_code = 0;
-            } 
             # else { # means it is a non-const condition, so keep the line
-            say $is_dead_code,';',Dumper $case_stack;
+            say $is_dead_code,';',Dumper $case_stack;#, Dumper $info;
             # }
             if (!$is_dead_code){
                 if( exists $info->{'ElseIf'}) {
@@ -4868,7 +4861,8 @@ say "\neliminate_if_const_cond($f)\n" if $DBG;
                             } else {
                                 $info->{'Else'} = 1;
                                 delete $info->{'ElseIf'};
-                                push @{$case_stack}, 'ElseIfTrue';
+                                push @{$case_stack}, 'IfTrue';
+                                # push @{$case_stack}, 'ElseIfTrue';
                             }
 
                             # $is_dead_code = 0;
@@ -4878,30 +4872,33 @@ say "\neliminate_if_const_cond($f)\n" if $DBG;
                         elsif  ($info->{'Cond'}{'AST'}[1] eq '.false.') {
                             $info->{'DeadCode'} = 1;
                             $is_dead_code = 1;
-                            if ($remove_else) {
+                            # if ($remove_else) {
                                 push @{$case_stack}, 'IfFalse';
-                            } else {
-                                push @{$case_stack}, 'ElseIfFalse';
-                            }
+                            # } else {
+                            #     push @{$case_stack}, 'ElseIfFalse';
+                            # }
                             # ELSE IF && .false. => remove ELSE IF and anything up to next ELSE (IF) or END IF
 
                         }
-                    } else {
+                    } else { # Not const
+                    if ($remove_else) {
+                        delete $info->{'ElseIf'};
+                        $info->{'If'}=1;
+                    }
                         # $is_dead_code = 0;
-                        push @{$case_stack}, 'ElseIf';
+                        push @{$case_stack}, 'If';
                     }
                 } else {
                     # $is_dead_code = 0;
                     # if (not $remove_else) {
-                    say "ELSE LINE: $line";
-                    if ( exists $info->{'DeadCode'}) {
-                    $is_dead_code = 1;
-                     } 
-                        push @{$case_stack}, 'Else';
-                     
+                    say "ELSE LINE: $line; ",(exists $info->{'DeadCode'}?1:0),';',$is_dead_code;
+                    # if ( exists $info->{'DeadCode'}) {
+                    # $is_dead_code = 1;
+                    #  } 
+                        push @{$case_stack}, 'If';
                     # }
                 }
-            } else {
+            } else { # Dead code, keep any DeadIf on the stack
                 $info->{'DeadCode'} = 1;
                 say "REPUSH $case";
                 push @{$case_stack}, $case;#'ElseIf';
@@ -4909,18 +4906,25 @@ say "\neliminate_if_const_cond($f)\n" if $DBG;
 
 
         }
-        elsif (exists $info->{'EndIf'} ) { # We can only remove the END IF if it was not shared. 
+        elsif (exists $info->{'EndIf'} ) { 
+            # We can only remove the END IF if it was not shared, or it is in a dead code region
             my $case = pop @{$case_stack};
             say "CASE AT END IF: $case";
-            if ($case eq 'IfTrue' or $case eq 'IfFalse' ) { #  or $is_dead_code or $case eq 'ElseIfTrue'
+            if ($case eq 'DeadIf') {
                 $info->{'DeadCode'} = 1;
+            } else {
                 $is_dead_code = 0;
+
             }
-            if (scalar @{$case_stack}==0) {
-                $is_dead_code = 0;
-            } elsif ($is_dead_code) {
+            if ($case ne 'If' and scalar @{$case_stack}==0) {
                 $info->{'DeadCode'} = 1;
+                # $is_dead_code = 0;
             }
+            # if (scalar @{$case_stack}==0) {
+            #     $is_dead_code = 0;
+            # } elsif ($is_dead_code) {
+            #     $info->{'DeadCode'} = 1;
+            # }
         }
         else {
             # Anything else

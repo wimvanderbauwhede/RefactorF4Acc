@@ -81,3 +81,84 @@ else if cond2
 else 
 	block4
 end if
+
+====
+
+False means remove the IF, block and subsequent ELSE or END IF
+True means remove the IF and the ELSE below the block; but the END IF depends on if there previously was a non-cond IF
+
+We push 'If', 'IfTrue' or 'IfFalse' on the stack
+When we meet an ELSE IF, then we pop; so we should only ever have one.
+When we reach and END IF, if there is still an 'If' on the stack it means we need to keep the END IF
+
+cond1 False
+if cond0
+BLOCK0
+else [if cond1
+BLOCK1
+else] if cond2
+BLOCK2
+else
+BLOCK3
+end if
+
+cond1 True
+if cond0
+BLOCK0
+else [if cond1]
+BLOCK1
+[else if cond2
+BLOCK2
+else
+BLOCK3]
+end if
+
+cond0 True
+[if cond0]
+BLOCK0
+[else if cond1
+BLOCK1
+else if cond2
+BLOCK2
+else
+BLOCK3
+end if]
+
+cond0 False
+[if cond0
+BLOCK0
+else] if cond1
+BLOCK1
+else if cond2
+BLOCK2
+else
+BLOCK3
+end if
+
+cond2 True
+if cond0
+BLOCK0 
+else if cond1
+BLOCK1
+else [if cond2]
+BLOCK2
+[else
+BLOCK3]
+end if
+
+No elseif:
+
+cond0 True
+[if cond0]
+BLOCK0
+[else 
+BLOCK3
+end if]
+
+
+cond0 False
+[if cond0
+BLOCK0
+else] 
+BLOCK3
+[end if]
