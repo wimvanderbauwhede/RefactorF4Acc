@@ -19,7 +19,7 @@ FunktalDecoders.f90 line 308
 cs = "'" // achar(tokenVal) // "'"
 currently becomes
 { 001a """ 20 "// 20 "achar(tokenVal) 20 "// 20 " } STH2r .fp LDZ2 #0015 ADD2 #0007 strncpy ( STATIC LEN ) ( COPY SUBSTR )
-which is quite WRONG: 
+which is quite WRONG:
 the '//' should be a string concatenation
 the 'achar' is a function
 the quotes should stay single quotes so emit ASCII 27
@@ -463,7 +463,7 @@ Instead of the nice but cumbersome approach we had until now, from now on it is 
 # If the routine uses a call stack, add vars to be allocated on the stack to StackAllocInfo
      # $Sf->{'UseCallStack'}=1; # override for debugging
     my $use_stack = __use_stack($stref,$f);
-    
+
     my @stack_alloc_info_nbytes_inits=();
     my @stack_alloc_info=();
     my @stack_array_string_inits=();
@@ -895,7 +895,7 @@ Instead of the nice but cumbersome approach we had until now, from now on it is 
             }
             elsif (exists $info->{'Exit'}) {
                 $c_line = ';&'.__shorten_fq_name($f.'_'.$info->{'Exit'}{'ConstructName'}).' JMP2';
-            } 
+            }
             else {
                 croak "If without Then, not assignment, goto or call: $line";
             }
@@ -919,7 +919,7 @@ Instead of the nice but cumbersome approach we had until now, from now on it is 
             }
             say 'IF:',Dumper $pass_state->{'SkipBranch'};
         } elsif (exists $info->{'ElseIf'} ) {
-            
+
             # say "EX-CASE: $line => ElseIf IfId=$id" if $f eq 'decodeTokenStr';
             ($c_line, my $branch_id) = _emit_ifbranch_end_Uxntal($id,$pass_state);
             if ($pass_state->{'IfId'} == $pass_state->{'SkipBranch'}[1]){
@@ -1065,7 +1065,7 @@ Instead of the nice but cumbersome approach we had until now, from now on it is 
         }
         elsif (exists $info->{'Exit'}) {
             $c_line = ';&'.__shorten_fq_name($f.'_'.$info->{'Exit'}{'ConstructName'}).' JMP2';
-        } 
+        }
         elsif (exists $info->{'Continue'}) {
             $c_line='( continue )';
         }
@@ -1677,7 +1677,7 @@ sub _var_access_assign($stref,$f,$info,$lhs_ast,$rhs_ast) {
                             ( $word_sz==2 ? '#0002 MUL2' : '')
                             ." DUP2 $rhs_var_access ADD2 $rhs_idx_expr_b ADD2 LDA$short_mode " .
                             ( $short_mode eq '2' ? 'SWP2' : 'ROT ROT' ). ' '
-                            . "$lhs_var_access ADD2 
+                            . "$lhs_var_access ADD2
                             STA$short_mode JMP2r } STH2r $rhs_len ".
                             toHex($array_length-1,2). ' min '
                             . ' #0000 range-map-short ( ARRAY SLICE COPY ) ';
@@ -1763,7 +1763,7 @@ sub __unpack_var_access_ast($ast) {
                 if ($idx_expr_type == 3) {
                     for my $idx_ast (@{$idxs}[1 .. scalar @{$idxs} -1 ] ) {
                         # my $idx_ast = $idxs->[$ii];
-                        if ($idx_ast->[0] == 12) { 
+                        if ($idx_ast->[0] == 12) {
                             error('Multi-dimensional arrays with slices are not supported: '.emit_expr_from_ast($ast),0,'ERROR_UNSUPPORTED');
                         }
                     }
@@ -2202,7 +2202,7 @@ sub __create_fq_varname($stref,$f,$var_name) {
 
 # The problem with this is that it does not work with staging:
 # There is no guarantee that the variables occur in the same order.
-# So instead, we need a hashing mechanism 
+# So instead, we need a hashing mechanism
 # We could hash to a hex string of 4 chars, that should be enough
 # Suppose we roll our own
 # Sum 8 bytes into a short, turn into a hex, concatenate
@@ -2669,14 +2669,14 @@ sub _emit_if_without_then_Uxntal($stref,$f,$info,$c_line) {
     } elsif ($cond_expr =~/^\#/) { # a num constant but not zero
         return '( IF cond is always true, removed )'."\n".$cc_line;
     } else {
-        # I don't think that an if without then could ever be more than 256 bytes. 
+        # I don't think that an if without then could ever be more than 256 bytes.
         # But I can't be sure so why take chances
         todo('Calculate the bytes and decide based on that.');
         my $rel_ok=0;
         if ($rel_ok) {
-            $cc_line = "\n$cond_expr #00 EQU ,&$branch$branch_id JCN\n" . $cc_line; 
+            $cc_line = "\n$cond_expr #00 EQU ,&$branch$branch_id JCN\n" . $cc_line;
         } else {
-            $cc_line = "\n$cond_expr #00 EQU ;&$branch$branch_id JCN2\n" . $cc_line; 
+            $cc_line = "\n$cond_expr #00 EQU ;&$branch$branch_id JCN2\n" . $cc_line;
         }
         $cc_line .= "\n&$branch$branch_id";
     }
@@ -2688,7 +2688,7 @@ sub _emit_ifthen_Uxntal ($stref, $f, $info, $branch_id){
     my ($cond_expr,$word_sz) = _emit_expression_Uxntal($cond_expr_ast,$stref,$f,$info);
     my $cond_is_const = __eval_Uxntal_cond_expr($cond_expr); # returns [bool, bool] where the first bool says const or not, the second if the const is true or false
     todo('If we want to do this right, we should actually skip the block entirely. We need some state for this.');
-=pod 
+=pod
 What we need is some state that says $skip_branch = 0 (do nothing) | 1 (top) | 2 (bottom)
 # right at the end
 if ($pass_state->{'SkipBranch'}==1 or $pass_state->{'SkipBranch'}==3) {skip all lines}
@@ -3011,7 +3011,7 @@ sub __substitute_PlaceHolders_Uxntal($expr_str,$info,$isChar){
     my $orig_str = $expr_str;
     if ($expr_str=~/__PH/ and exists $info->{'PlaceHolders'}) {
         # croak $expr_str.Dumper($info->{'PlaceHolders'})
-        # We probably want to refrain from prepending the opening quote 
+        # We probably want to refrain from prepending the opening quote
         # until we have replaced all quotes
         while ($expr_str =~ /(__PH\d+__)/) {
             my $ph=$1;
@@ -3030,7 +3030,7 @@ sub __substitute_PlaceHolders_Uxntal($expr_str,$info,$isChar){
         if ($len_Uxntal eq '0001' and $expr_str eq '""') {
             $expr_str = '{ 0001 22 }';
         }
-        elsif ($len_Uxntal eq '0001' and $isChar) { 
+        elsif ($len_Uxntal eq '0001' and $isChar) {
             # croak $expr_str,' => ',substr($expr_str,1,1),' => ',ord(substr($expr_str,1,1)) if $expr_str=~/\)/;
             $expr_str = toHex(ord(substr($expr_str,1,1)),1);
         # } elsif ($len_Uxntal eq '0001' and $expr_str eq '""') {
@@ -3462,7 +3462,7 @@ sub toUxntalType($ftype,$kind ){
     }
 
     my %corr = (
-        'logical'          => 1, 
+        'logical'          => 1,
         'integer'          =>  $word_sz,
         # 'real'             => ($ftype eq 'real' and $kind == 8 ? 'double' : 'float'),
         # 'double precision' => 'double',
@@ -3889,7 +3889,7 @@ sub __implicit_do_in_print($elt,$stref,$f,$info,$line,$unit) {
 sub _analyse_write_call($stref,$f,$info){
     my $call_args_ast = $info->{'IOCall'}{'Args'}{'AST'}[2];
     my $iolist_ast = $info->{'IOList'}{'AST'};
-# carp Dumper $call_args_ast,$iolist_ast; 
+# carp Dumper $call_args_ast,$iolist_ast;
     # This is really complicated.
     # The first arg can be an integer, a variable or '*'
     # If it's zero, it's STDERR, so we need #19 instead of #18
@@ -4390,7 +4390,7 @@ sub getDecl($stref,$f,$var) {
         $mdecl = $stref->{'Modules'}{$module_name}{'ModuleVars'}{'Set'}{$var};
     }
 
-    if (not defined $decl and not defined $mdecl) { 
+    if (not defined $decl and not defined $mdecl) {
         if (exists $stref->{'Subroutines'}{$f}{'InModule'}) {
             my $module_name = $stref->{'Subroutines'}{$f}{'InModule'};
             my $Mf = $stref->{'Modules'}{$module_name};
@@ -4789,8 +4789,8 @@ sub _remove_redundant_labels($uxntal_source_lines) {
 } # END of _remove_redundant_labels
 
 
-sub eliminate_if_const_cond( $stref, $f ) {
-say "\neliminate_if_const_cond($f)\n" if $DBG;
+sub eliminate_if_const_cond_FIRST_ATTEMPT( $stref, $f ) {
+    say "\neliminate_if_const_cond($f)\n" if $DBG;
     my $refactored_annlines = [];
     # my $dead_code_regions={};
     # my $dead_code_stack=[];
@@ -4894,7 +4894,7 @@ say "\neliminate_if_const_cond($f)\n" if $DBG;
                     say "ELSE LINE: $line; ",(exists $info->{'DeadCode'}?1:0),';',$is_dead_code;
                     # if ( exists $info->{'DeadCode'}) {
                     # $is_dead_code = 1;
-                    #  } 
+                    #  }
                         push @{$case_stack}, 'If';
                     # }
                 }
@@ -4906,7 +4906,7 @@ say "\neliminate_if_const_cond($f)\n" if $DBG;
 
 
         }
-        elsif (exists $info->{'EndIf'} ) { 
+        elsif (exists $info->{'EndIf'} ) {
             # We can only remove the END IF if it was not shared, or it is in a dead code region
             my $case = pop @{$case_stack};
             say "CASE AT END IF: $case";
@@ -4947,4 +4947,166 @@ say "\neliminate_if_const_cond($f)\n" if $DBG;
 	say "CODE UNIT $f: ", Dumper pp_annlines($Sf->{'RefactoredCode'}) ;
 
     return $stref;
+} # END of eliminate_if_const_cond_FIRST_ATTEMPT
+
+
+sub eliminate_if_const_cond( $stref, $f ) {
+    say "\neliminate_if_const_cond($f)\n" if $DBG;
+    my $refactored_annlines = [];
+    my $is_dead_code = 0;
+    my $if_stacks=[[]];
+    my $if_counter=0;
+
+    my $annlines = get_annotated_sourcelines($stref,$f);
+    for my $annline ( @{$annlines} ) {
+        ( my $line, my $info ) = @{$annline};
+        say "LINE: $line";
+        say 'BEFORE: ',$is_dead_code,';',Dumper $if_stacks->[$if_counter],';',$if_counter;
+        if (exists $info->{'IfThen'} and not exists $info->{'ElseIf'}) {
+            my $case = scalar @{$if_stacks->[$if_counter]} > 0 ? pop @{$if_stacks->[$if_counter]} : 'NoPrevious';
+            say "IF CASE: $case";
+            ++$if_counter;
+            if ($is_dead_code and ($case eq 'If' or $case eq 'DeadIf')) {
+                $info->{'DeadCode'}=1;
+                push @{$if_stacks->[$if_counter]}, 'DeadIf';
+            } else {
+                my $cond_is_const = $info->{'Cond'}{'AST'}[0] == 31;
+                if ($cond_is_const) {
+                    if ( $info->{'Cond'}{'AST'}[1] eq '.true.') {
+                        #delete IF line
+                        $info->{'DeadCode'}=1;
+                        push @{$if_stacks->[$if_counter]}, 'IfTrue';
+                        $is_dead_code=0;
+
+                    }
+                    elsif ( $info->{'Cond'}{'AST'}[1] eq '.false.' ) {
+                        #delete IF line
+                        $info->{'DeadCode'}=1;
+                        push @{$if_stacks->[$if_counter]}, 'IfFalse';
+                        $is_dead_code=1;
+                    }
+                } else {
+                    push @{$if_stacks->[$if_counter]}, 'If';
+                }
+            }
+        }
+        elsif (exists $info->{'ElseIf'}) {
+            my $case = pop @{$if_stacks->[$if_counter]};
+            say "ELSE IF CASE: $case";
+            if ($is_dead_code and ($case eq 'If' or $case eq 'DeadIf')) {
+                $info->{'DeadCode'}=1;
+                push @{$if_stacks->[$if_counter]}, 'DeadIf';
+            } else {
+                my $change_elseif_to_if=0;
+                if ($case eq 'IfTrue') {
+                    $info->{'DeadCode'}=1;
+                    $is_dead_code=1;
+                }
+                elsif ($case eq 'IfFalse') {
+                # change ElseIf to If
+                    $change_elseif_to_if=1;
+                    delete $info->{'ElseIf'};
+                    $info->{'If'}=1;
+                    $is_dead_code=0;
+                }
+                else {
+                # else push the If back on the stack
+                    push @{$if_stacks->[$if_counter]}, 'If';
+                }
+                if (!$is_dead_code){
+                    my $cond_is_const = $info->{'Cond'}{'AST'}[0] == 31;
+                    if ($cond_is_const) {
+                        if ( $info->{'Cond'}{'AST'}[1] eq '.true.') {
+                            #delete IF line
+                            $info->{'DeadCode'}=1;
+                            push @{$if_stacks->[$if_counter]}, 'IfTrue';
+                            $is_dead_code=0;
+                        }
+                        elsif ( $info->{'Cond'}{'AST'}[1] eq '.false.' ) {
+                            if ($case eq 'If') {
+                                delete $info->{'ElseIf'};
+                                delete $info->{'IfThen'};
+                                $info->{'Else'}=1;
+                            } else {
+                                $info->{'DeadCode'}=1;
+                            }
+                            push @{$if_stacks->[$if_counter]}, 'IfFalse';
+                            $is_dead_code=1;
+                        }
+                    } else {
+                        push @{$if_stacks->[$if_counter]}, 'If';
+                    }
+                } else {
+                    push @{$if_stacks->[$if_counter]}, $case;
+                }
+            }
+        }
+        elsif (exists $info->{'Else'}) {
+            my $case = pop  @{$if_stacks->[$if_counter]};
+            say "ELSE CASE: $case";
+            if ($is_dead_code) {
+                $info->{'DeadCode'}=1;
+                if ($case ne 'IfFalse') {
+                    push @{$if_stacks->[$if_counter]}, 'DeadIf';
+                } else {
+                    $is_dead_code=0;
+                    push @{$if_stacks->[$if_counter]}, 'IfTrue';
+                }
+            } else {
+                if ($case eq 'IfTrue') {
+                    $info->{'DeadCode'}=1;
+                    $is_dead_code=1;
+                }
+                elsif ($case eq 'IfFalse') {
+                    $info->{'DeadCode'}=1;
+                    $is_dead_code=0;
+                }
+                else {
+                    # else push the If back on the stack
+                    push @{$if_stacks->[$if_counter]}, 'If';
+                }
+                if (!$is_dead_code){
+                    push @{$if_stacks->[$if_counter]}, 'IfTrue';
+                } else {
+                    push @{$if_stacks->[$if_counter]}, $case;
+                }
+            }
+        }
+        elsif (exists $info->{'EndIf'}) {
+            my $case = pop @{$if_stacks->[$if_counter]};
+            say "END IF CASE: $case";
+            if ($is_dead_code) {
+                say 'STACK: ',Dumper $if_stacks->[$if_counter];#,';',$if_counter ;
+                if ( $case ne 'DeadIf') {
+                    $is_dead_code=0;
+                }
+            } else {
+                if ($case ne 'If' and scalar @{$if_stacks->[$if_counter]}==0) {
+                    $info->{'DeadCode'}=1;
+                }
+                $is_dead_code=0;
+            }
+            $if_stacks->[$if_counter]=[];
+            --$if_counter;
+        } elsif ($is_dead_code) {
+            $info->{'DeadCode'}=1;
+        }
+
+        say 'AFTER: ',$is_dead_code,';',Dumper $if_stacks->[$if_counter];
+
+        if ( not exists $info->{'DeadCode'}) {
+            push @{$refactored_annlines},[$line,$info]
+        } else {
+            say "LINE $line is DEAD CODE";
+        }
+    }
+
+    my $mod_sub_or_func = sub_func_incl_mod( $f, $stref );
+    my $Sf = $stref->{$mod_sub_or_func}{$f};
+    $Sf->{'RefactoredCode'} = $refactored_annlines;
+	$stref = emit_AnnLines($stref,$f,$Sf->{'RefactoredCode'});
+	say "CODE UNIT $f: ", Dumper pp_annlines($Sf->{'RefactoredCode'}) ;
+
+    return $stref;
+
 } # END of eliminate_if_const_cond
