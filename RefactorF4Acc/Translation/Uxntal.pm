@@ -4963,10 +4963,9 @@ sub eliminate_if_const_cond( $stref, $f ) {
         say "LINE: $line";
         say 'BEFORE: ',$is_dead_code,';',Dumper $if_stacks->[$if_counter],';',$if_counter;
         if (exists $info->{'IfThen'} and not exists $info->{'ElseIf'}) {
-            my $case = scalar @{$if_stacks->[$if_counter]} > 0 ? pop @{$if_stacks->[$if_counter]} : 'NoPrevious';
-            say "IF CASE: $case";
+            say "IF $if_counter";
             ++$if_counter;
-            if ($is_dead_code and ($case eq 'If' or $case eq 'DeadIf')) {
+            if ($is_dead_code) {
                 $info->{'DeadCode'}=1;
                 push @{$if_stacks->[$if_counter]}, 'DeadIf';
             } else {
@@ -5037,7 +5036,7 @@ sub eliminate_if_const_cond( $stref, $f ) {
                         push @{$if_stacks->[$if_counter]}, 'If';
                     }
                 } else {
-                    push @{$if_stacks->[$if_counter]}, $case;
+                    push @{$if_stacks->[$if_counter]}, 'DeadIf';
                 }
             }
         }
@@ -5068,7 +5067,7 @@ sub eliminate_if_const_cond( $stref, $f ) {
                 if (!$is_dead_code){
                     push @{$if_stacks->[$if_counter]}, 'IfTrue';
                 } else {
-                    push @{$if_stacks->[$if_counter]}, $case;
+                    push @{$if_stacks->[$if_counter]}, 'DeadIf';
                 }
             }
         }
