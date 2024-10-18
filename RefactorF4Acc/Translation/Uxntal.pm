@@ -914,52 +914,52 @@ Instead of the nice but cumbersome approach we had until now, from now on it is 
             $pass_state->{'IfId'}=$id;
             push @{$pass_state->{'BranchStack'}},$id;
             ($c_line, my $skip_branch) = _emit_ifthen_Uxntal($stref, $f, $info, $id);
-            if ($pass_state->{'SkipBranch'}[0]==0){
-                $pass_state->{'SkipBranch'}=[$skip_branch,$id];
-            }
-            say 'IF:',Dumper $pass_state->{'SkipBranch'};
+            # if ($pass_state->{'SkipBranch'}[0]==0){
+            #     $pass_state->{'SkipBranch'}=[$skip_branch,$id];
+            # }
+            # say 'IF:',Dumper $pass_state->{'SkipBranch'};
         } elsif (exists $info->{'ElseIf'} ) {
 
             # say "EX-CASE: $line => ElseIf IfId=$id" if $f eq 'decodeTokenStr';
             ($c_line, my $branch_id) = _emit_ifbranch_end_Uxntal($id,$pass_state);
-            if ($pass_state->{'IfId'} == $pass_state->{'SkipBranch'}[1]){
-                if ($pass_state->{'SkipBranch'}[0]==1) {
-                    $pass_state->{'SkipBranch'}[0]=0;
-                    $c_line = "( $c_line ) ( ELSE IF: SKIP 1 ) ";
-                }
-                elsif ($pass_state->{'SkipBranch'}[0]==2) {
-                    $pass_state->{'SkipBranch'}[0]=3;
-                    $c_line = "( $c_line ) ( ELSE IF: SKIP 2 ) ";
-                }
-            }
-            say 'ELSE of ELSE IF:',Dumper $pass_state->{'SkipBranch'},$branch_id,$pass_state->{'IfStack'},$pass_state->{'IfId'};
+            # if ($pass_state->{'IfId'} == $pass_state->{'SkipBranch'}[1]){
+            #     if ($pass_state->{'SkipBranch'}[0]==1) {
+            #         $pass_state->{'SkipBranch'}[0]=0;
+            #         $c_line = "( $c_line ) ( ELSE IF: SKIP 1 ) ";
+            #     }
+            #     elsif ($pass_state->{'SkipBranch'}[0]==2) {
+            #         $pass_state->{'SkipBranch'}[0]=3;
+            #         $c_line = "( $c_line ) ( ELSE IF: SKIP 2 ) ";
+            #     }
+            # }
+            # say 'ELSE of ELSE IF:',Dumper $pass_state->{'SkipBranch'},$branch_id,$pass_state->{'IfStack'},$pass_state->{'IfId'};
             my ($c_line_if, $skip_branch) = _emit_ifthen_Uxntal($stref, $f, $info, $branch_id);
             $c_line .= $c_line_if;
             push @{$pass_state->{'BranchStack'}},$branch_id;
-            $pass_state->{'SkipBranch'}=[$skip_branch,$pass_state->{'IfId'}];
-            say 'IF of ELSE IF:',Dumper $pass_state->{'SkipBranch'};
+            # $pass_state->{'SkipBranch'}=[$skip_branch,$pass_state->{'IfId'}];
+            # say 'IF of ELSE IF:',Dumper $pass_state->{'SkipBranch'};
         } elsif (exists $info->{'Else'} ) {
             ($c_line, my $branch_id) = _emit_ifbranch_end_Uxntal($id,$pass_state);
-            if ($pass_state->{'IfId'} == $pass_state->{'SkipBranch'}[1]){
-                if ($pass_state->{'SkipBranch'}[0]==1) {
-                    $pass_state->{'SkipBranch'}[0]=0;
-                    $c_line = "( $c_line ) ( ELSE: SKIP 1 ) ";
-                    }
-                elsif ($pass_state->{'SkipBranch'}[0]==2) {
-                    $pass_state->{'SkipBranch'}[0]=3;
-                    $c_line = "( $c_line ) ( ELSE: SKIP 2 ) ";
-                    }
-            }
-            say 'ELSE:',Dumper $pass_state->{'SkipBranch'},$branch_id,$pass_state->{'IfStack'},$pass_state->{'IfId'},$pass_state->{'BranchStack'};
+            # if ($pass_state->{'IfId'} == $pass_state->{'SkipBranch'}[1]){
+            #     if ($pass_state->{'SkipBranch'}[0]==1) {
+            #         $pass_state->{'SkipBranch'}[0]=0;
+            #         $c_line = "( $c_line ) ( ELSE: SKIP 1 ) ";
+            #         }
+            #     elsif ($pass_state->{'SkipBranch'}[0]==2) {
+            #         $pass_state->{'SkipBranch'}[0]=3;
+            #         $c_line = "( $c_line ) ( ELSE: SKIP 2 ) ";
+            #         }
+            # }
+            # say 'ELSE:',Dumper $pass_state->{'SkipBranch'},$branch_id,$pass_state->{'IfStack'},$pass_state->{'IfId'},$pass_state->{'BranchStack'};
             # say "EX-CASE: $line => Else IfId=$id" if $f eq 'decodeTokenStr';
             $c_line .= "&$branch$branch_id";
             push @{$pass_state->{'BranchStack'}},$branch_id;
         } elsif (exists $info->{'EndIf'} ) {
             my $branch_id = pop @{$pass_state->{'BranchStack'}};
-            if ($branch_id == $pass_state->{'SkipBranch'}[1]){
-                if ($pass_state->{'SkipBranch'}[0]==3) {$pass_state->{'SkipBranch'}[0]=4}
-            }
-            say 'END IF:',Dumper $pass_state->{'SkipBranch'},$pass_state->{'BranchStack'},$pass_state->{'IfId'};
+            # if ($branch_id == $pass_state->{'SkipBranch'}[1]){
+            #     if ($pass_state->{'SkipBranch'}[0]==3) {$pass_state->{'SkipBranch'}[0]=4}
+            # }
+            # say 'END IF:',Dumper $pass_state->{'SkipBranch'},$pass_state->{'BranchStack'},$pass_state->{'IfId'};
             my $if_id = $pass_state->{'IfId'};
             $c_line = ';&'.$cond.'_'.$end.$if_id.' JMP2 '."\n"
             .'&'.$branch.$branch_id.'_'.$end."\n".' &'.$cond.'_'.$end.$if_id;
@@ -1098,17 +1098,17 @@ Instead of the nice but cumbersome approach we had until now, from now on it is 
         $skip_comment=1;
         push @{$pass_state->{'Subroutine'}{'TranslatedCode'}},"( ____ $line )" unless $skip_comment or $line=~/^\s*$/;
         # say "LINE $line: ", Dumper $pass_state->{'SkipBranch'};
-        if ($pass_state->{'SkipBranch'}[0] == 1 or $pass_state->{'SkipBranch'}[0] == 3
-        or $pass_state->{'SkipBranch'}[0] == 4){
-            if ($pass_state->{'SkipBranch'}[0] == 4) {
-                $pass_state->{'SkipBranch'}[0] = 0;
-            }
-            # $skip=1;
-            say "SKIPPING BRANCH CODE: $line => $c_line";
-            $c_line = " ( $c_line ) ( SKIP BRANCH $line ) ";
-        } else {
-            $c_line = "$c_line ( KEEP $line ) ";
-        }
+        # if ($pass_state->{'SkipBranch'}[0] == 1 or $pass_state->{'SkipBranch'}[0] == 3
+        # or $pass_state->{'SkipBranch'}[0] == 4){
+        #     if ($pass_state->{'SkipBranch'}[0] == 4) {
+        #         $pass_state->{'SkipBranch'}[0] = 0;
+        #     }
+        #     # $skip=1;
+        #     say "SKIPPING BRANCH CODE: $line => $c_line";
+        #     $c_line = " ( $c_line ) ( SKIP BRANCH $line ) ";
+        # } else {
+        #     $c_line = "$c_line ( KEEP $line ) ";
+        # }
         push @{$pass_state->{'Subroutine'}{'TranslatedCode'}},$c_line unless $skip;
         # push @{$pass_state->{'TranslatedCode'}},$info->{'Indent'}.$c_line     unless $skip;
         return ([$annline],[$stref,$f,$pass_state]);
@@ -1136,7 +1136,7 @@ Instead of the nice but cumbersome approach we had until now, from now on it is 
         },
         'IfStack'=>[],'IfId' =>0,
         'BranchStack'=>[],'IfBranchId' =>0,
-        'SkipBranch' => [0,0],
+        # 'SkipBranch' => [0,0],
         'DoStack'=>[], 'DoId' => 0,
     }
     ];
@@ -4952,18 +4952,34 @@ sub eliminate_if_const_cond_FIRST_ATTEMPT( $stref, $f ) {
 
 sub eliminate_if_const_cond( $stref, $f ) {
     say "\neliminate_if_const_cond($f)\n" if $DBG;
+    local $DBG=0;
     my $refactored_annlines = [];
     my $is_dead_code = 0;
     my $if_stacks=[[]];
     my $if_counter=0;
-
     my $annlines = get_annotated_sourcelines($stref,$f);
     for my $annline ( @{$annlines} ) {
         ( my $line, my $info ) = @{$annline};
-        say "LINE: $line";
-        say 'BEFORE: ',$is_dead_code,';',Dumper $if_stacks->[$if_counter],';',$if_counter;
-        if (exists $info->{'IfThen'} and not exists $info->{'ElseIf'}) {
-            say "IF $if_counter";
+        if ($DBG) {
+            say "\nLINE: $line";
+            local $Data::Dumper::Indent = 0;
+            say 'BEFORE: ',$is_dead_code,';',Dumper( $if_stacks->[$if_counter]),' ',$if_counter;
+        }
+        if (exists $info->{'If'} and not exists $info->{'IfThen'}) {
+            say "IF without THEN " if $DBG;
+            my $cond_is_const = $info->{'Cond'}{'AST'}[0] == 31;
+            if ($cond_is_const) {
+                if ( $info->{'Cond'}{'AST'}[1] eq '.true.') {
+                    delete $info->{'If'}
+                }
+                elsif ( $info->{'Cond'}{'AST'}[1] eq '.false.' ) {
+                    #delete IF line
+                    $info->{'DeadCode'}=1;
+                }
+            }
+        }
+        elsif (exists $info->{'IfThen'} and not exists $info->{'ElseIf'}) {
+            say "IF $if_counter" if $DBG;
             ++$if_counter;
             if ($is_dead_code) {
                 $info->{'DeadCode'}=1;
@@ -4991,15 +5007,21 @@ sub eliminate_if_const_cond( $stref, $f ) {
         }
         elsif (exists $info->{'ElseIf'}) {
             my $case = pop @{$if_stacks->[$if_counter]};
-            say "ELSE IF CASE: $case";
+            say "ELSE IF CASE: $case" if $DBG;
             if ($is_dead_code and ($case eq 'If' or $case eq 'DeadIf')) {
                 $info->{'DeadCode'}=1;
                 push @{$if_stacks->[$if_counter]}, 'DeadIf';
             } else {
                 my $change_elseif_to_if=0;
                 if ($case eq 'IfTrue') {
+                    # if ($case eq 'If') {
                     $info->{'DeadCode'}=1;
                     $is_dead_code=1;
+                    # } else {
+                    #     delete $info->{'ElseIf'};
+                    #     $info->{'If'}=1;
+                    #     $is_dead_code=0;                        
+                    # }
                 }
                 elsif ($case eq 'IfFalse') {
                 # change ElseIf to If
@@ -5011,13 +5033,20 @@ sub eliminate_if_const_cond( $stref, $f ) {
                 else {
                 # else push the If back on the stack
                     push @{$if_stacks->[$if_counter]}, 'If';
+                    $is_dead_code=0;
                 }
                 if (!$is_dead_code){
                     my $cond_is_const = $info->{'Cond'}{'AST'}[0] == 31;
                     if ($cond_is_const) {
                         if ( $info->{'Cond'}{'AST'}[1] eq '.true.') {
-                            #delete IF line
-                            $info->{'DeadCode'}=1;
+                            if ($case eq 'If') {
+                                delete $info->{'ElseIf'};
+                                $info->{'Else'}=1;
+                                # $is_dead_code=0;  
+                            } else {
+                                #delete IF line
+                                $info->{'DeadCode'}=1;
+                            }
                             push @{$if_stacks->[$if_counter]}, 'IfTrue';
                             $is_dead_code=0;
                         }
@@ -5042,7 +5071,7 @@ sub eliminate_if_const_cond( $stref, $f ) {
         }
         elsif (exists $info->{'Else'}) {
             my $case = pop  @{$if_stacks->[$if_counter]};
-            say "ELSE CASE: $case";
+            say "ELSE CASE: $case" if $DBG;
             if ($is_dead_code) {
                 $info->{'DeadCode'}=1;
                 if ($case ne 'IfFalse') {
@@ -5064,23 +5093,43 @@ sub eliminate_if_const_cond( $stref, $f ) {
                     # else push the If back on the stack
                     push @{$if_stacks->[$if_counter]}, 'If';
                 }
-                if (!$is_dead_code){
+                # if (!$is_dead_code){
                     push @{$if_stacks->[$if_counter]}, 'IfTrue';
-                } else {
-                    push @{$if_stacks->[$if_counter]}, 'DeadIf';
-                }
+                # } else {
+                #     push @{$if_stacks->[$if_counter]}, 'DeadIf';
+                # }
             }
         }
         elsif (exists $info->{'EndIf'}) {
             my $case = pop @{$if_stacks->[$if_counter]};
-            say "END IF CASE: $case";
+            say "END IF CASE: $case" if $DBG;
             if ($is_dead_code) {
-                say 'STACK: ',Dumper $if_stacks->[$if_counter];#,';',$if_counter ;
+                say 'STACK: ',Dumper( $if_stacks),' ',$if_counter  if $DBG;
+                my $stack_has_if = 0;
+                for my $st (@{$if_stacks}) {
+                    if (scalar @{$st}>0 and $st->[0] eq 'If') {
+                        $stack_has_if=1;last;
+                    }
+                }
+                # say "STACK HAS IF?: $stack_has_if";
                 if ( $case ne 'DeadIf') {
                     $is_dead_code=0;
+                    # $info->{'DeadCode'}=1;
+                }
+                if (!$stack_has_if) {
+                    $is_dead_code=0;    
+                    $info->{'DeadCode'}=1;
+                } else {
+                    say 'STACK has IF, keep END IF'  if $DBG;
                 }
             } else {
-                if ($case ne 'If' and scalar @{$if_stacks->[$if_counter]}==0) {
+                my $stack_has_if=0;
+                for my $st (@{$if_stacks}) {
+                    if (scalar @{$st}>0 and $st->[0] eq 'If') {
+                        $stack_has_if=1;last;
+                    }
+                }
+                if ($case ne 'If' and !$stack_has_if) {
                     $info->{'DeadCode'}=1;
                 }
                 $is_dead_code=0;
@@ -5091,11 +5140,11 @@ sub eliminate_if_const_cond( $stref, $f ) {
             $info->{'DeadCode'}=1;
         }
 
-        say 'AFTER: ',$is_dead_code,';',Dumper $if_stacks->[$if_counter];
+        say 'AFTER: ',$is_dead_code,';',Dumper( $if_stacks->[$if_counter]),' ',$if_counter if $DBG;
 
         if ( not exists $info->{'DeadCode'}) {
             push @{$refactored_annlines},[$line,$info]
-        } else {
+        } elsif ($DBG) {
             say "LINE $line is DEAD CODE";
         }
     }
@@ -5104,7 +5153,7 @@ sub eliminate_if_const_cond( $stref, $f ) {
     my $Sf = $stref->{$mod_sub_or_func}{$f};
     $Sf->{'RefactoredCode'} = $refactored_annlines;
 	$stref = emit_AnnLines($stref,$f,$Sf->{'RefactoredCode'});
-	say "CODE UNIT $f: ", Dumper pp_annlines($Sf->{'RefactoredCode'}) ;
+	say "CODE UNIT $f: ", Dumper pp_annlines($Sf->{'RefactoredCode'}) if $DBG;
 
     return $stref;
 
