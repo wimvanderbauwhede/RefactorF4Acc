@@ -325,11 +325,12 @@ sub varlist_parser_PREV {
 	] )
 }
 
-sub param_assignment {
+sub param_assignment { 
     sequence( [
         {'Lhs' => mixedCaseWord },
         symbol('='),
-		{'Rhs' => choice(
+		{'Rhs' => 
+		choice(
 			regex('^(?:\(\/|\[).+?(?:\]|\/\))'), # Array constant
 			regex('^[^,]+'), # This is OK
 		)

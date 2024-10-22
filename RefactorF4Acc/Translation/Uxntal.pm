@@ -1081,6 +1081,7 @@ Instead of the nice but cumbersome approach we had until now, from now on it is 
             $c_line = ';&'.__shorten_fq_name($f.'_'.$info->{'Goto'}{'Label'}).' JMP2';
         }
         elsif (exists $info->{'Exit'}) {
+            carp Dumper $info;
             $c_line = ';&'.__shorten_fq_name($f.'_'.$info->{'Exit'}{'ConstructName'}).' JMP2';
         }
         elsif (exists $info->{'Continue'}) {
@@ -1211,6 +1212,7 @@ sub _get_word_sizes($stref,$f){
 
     for my $var (@{$Sf->{'AllVarsAndPars'}{'List'}}) {
         next if $var =~/__PH\d+__/; # FIXME: hack!
+        # carp "VAR: $var";
         # my $subset = in_nested_set($Sf,'Vars',$var);
         # if ($subset eq '') {
         #     croak "$f $var";
@@ -4110,6 +4112,7 @@ sub __analyse_write_call_arg($stref,$f,$info,$arg,$i){
 # TODO: I am not going to do this.
 # I will simply use m and ignore w
 sub __parse_fmt($fmt_str,$stref,$f,$info){
+    local $Data::Dumper::Indent=1;
     my $print_calls=[];
     my $offsets=[0];
     # if ($fmt_str ne '*') {
@@ -4124,6 +4127,7 @@ sub __parse_fmt($fmt_str,$stref,$f,$info){
             } elsif ($nchars=~/^(\d)$/) {
                 $nchars=$1;
             } else { # For formats without numbers, we need to count the characters for each item in the IO list
+            # carp Dumper $info;
                 my $val_ast = ($info->{'IOList'}{'AST'}[0]==27)
                     # more than one argument in the IO list
                     ? $info->{'IOList'}{'AST'}[$chunk_idx]
