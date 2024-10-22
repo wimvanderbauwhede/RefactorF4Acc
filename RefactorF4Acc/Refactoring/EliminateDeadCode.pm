@@ -105,7 +105,7 @@ sub _eliminate_dead_code { (my $stref, my $f)=@_;
 
 sub eliminate_if_const_cond( $stref, $f ) {
     say "\neliminate_if_const_cond($f)\n" if $DBG;
-    local $DBG=1;
+    # local $DBG=1;
     my $refactored_annlines = [];
     my $is_dead_code = 0;
     my $if_stacks=[[]];
@@ -306,7 +306,7 @@ sub eliminate_if_const_cond( $stref, $f ) {
     my $Sf = $stref->{$mod_sub_or_func}{$f};
     $Sf->{'RefactoredCode'} = $refactored_annlines;
 	$stref = emit_AnnLines($stref,$f,$Sf->{'RefactoredCode'});
-	say "CODE UNIT $f: ", Dumper pp_annlines($Sf->{'RefactoredCode'}) if $DBG;
+	say "eliminate_if_const_cond: CODE UNIT $f: ", Dumper pp_annlines($Sf->{'RefactoredCode'}) if $DBG;
 
     return $stref;
 

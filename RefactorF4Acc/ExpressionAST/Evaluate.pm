@@ -305,12 +305,16 @@ sub eval_expression_with_parameters { (my $expr_str,my $info, my $stref, my $f, 
 		}
 		my $expr_val=eval($evaled_expr_str);
 		# croak "EXPR <$expr_str> TO EVAL: $evaled_expr_str => $expr_val".Dumper($info);
-		# carp Dumper($evaled_expr_str,$info);
+		# carp $evaled_expr_str,Dumper($info);
 		if (exists $info->{'ParsedParDecl'} and $info->{'ParsedParDecl'}{'TypeTup'}{'Type'} eq 'character') {
 			if ($err) {
 				error("$expr_str does not reduce to an integer");
 			}
-			return "'".$expr_val."'";
+			if (exists $info->{'ParsedParDecl'}{'Attributes'}{'Dim'}) { # It's an array of strings, return as is
+				return $evaled_expr_str;
+			} else {
+				return "'".$expr_val."'";
+			}
 		} else {
 			return $expr_val;
 		}

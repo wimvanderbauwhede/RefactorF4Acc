@@ -47,8 +47,8 @@ use RefactorF4Acc::Refactoring::Helpers qw(
     get_annotated_sourcelines
     );
 
-use RefactorF4Acc::Parser::Expressions qw( emit_expr_from_ast );
-
+use RefactorF4Acc::Parser::Expressions qw( emit_expr_from_ast parse_expression_no_context );
+    
 use RefactorF4Acc::Refactoring::CaseToIf qw( replace_case_by_if );
 use RefactorF4Acc::Refactoring::EliminateDeadCode qw( eliminate_if_const_cond );
 
@@ -331,11 +331,11 @@ Instead of the nice but cumbersome approach we had until now, from now on it is 
     # And we check if there are any Data declarations, and store those in $Sf->{'Data'}
     my $pass_prep_analysis = sub ($annline,$state){
         my ($line, $info) = @{$annline};
-
+        # say "LINE: $line ",Dumper($info);
         if (exists $info->{'Signature'} ) {
             $state->{'Args'} = { map { $_=>1 } @{$info->{'Signature'}{'Args'}{'List'}}};
         }
-        elsif (exists $info->{'VarDecl'} ) {
+        elsif (exists $info->{'VarDecl'}  and not exists $info->{'ParamDecl'}) {
             my $var = $info->{'VarDecl'}{'Name'};
             if (exists $state->{'Args'}{$var} ) {
                 $state->{'Pointers'}{$var}='*'; # means should be treated as a pointer
@@ -371,7 +371,15 @@ Instead of the nice but cumbersome approach we had until now, from now on it is 
             }
         }
         elsif ( exists $info->{'ParamDecl'} ) {
-            my $var = $info->{'ParamDecl'}{'Var'};
+            my $var = 
+                exists $info->{'ParamDecl'}{'Var'} 
+                    ? $info->{'ParamDecl'}{'Var'} 
+                    : $info->{'ParamDecl'}{'Name'} 
+                        ? $info->{'ParamDecl'}{'Name'} 
+                        : exists $info->{'ParsedParDecl'} 
+                            ? $info->{'ParsedParDecl'}{'Vars'}[0]
+                            : error("Can't get name for parameter declaration $line")
+                ;
             $state->{'Pointers'}{$var}='';
             $state->{'Parameters'}{$var}=1;
             my $word_sz=0;
@@ -596,7 +604,15 @@ Instead of the nice but cumbersome approach we had until now, from now on it is 
         }
         elsif ( exists $info->{'ParamDecl'} ) {
             # A parameter should become a macro
-            my $var = $info->{'ParamDecl'}{'Var'};
+            my $var = 
+                exists $info->{'ParamDecl'}{'Var'} 
+                    ? $info->{'ParamDecl'}{'Var'} 
+                    : $info->{'ParamDecl'}{'Name'} 
+                        ? $info->{'ParamDecl'}{'Name'} 
+                        : exists $info->{'ParsedParDecl'} 
+                            ? $info->{'ParsedParDecl'}{'Vars'}[0]
+                            : error("Can't get name for parameter declaration $line")
+            ;
             ($stref,my $uxntal_par, my $alloc_sz) = _emit_var_decl_Uxntal($stref,$f,$info,$var);
             if (not exists $stref->{'Uxntal'}{'Macros'}{'Set'}{$uxntal_par}) {
                 $stref->{'Uxntal'}{'Macros'}{'Set'}{$uxntal_par}=$uxntal_par;
@@ -1694,7 +1710,26 @@ sub _var_access_assign($stref,$f,$info,$lhs_ast,$rhs_ast) {
                 }
             }
         } elsif  ( $idx_expr_type == 2) {
-            error('Array slice is not yet supported: '.Dumper($lhs_ast));
+            
+            # I will support the trivial case that I need first:
+            # p(start:stop) = p_init
+            # This is simply a range-map-short to copy from p_init into p, we have something very similar already
+                my ($rhs_var,$rhs_idxs,$rhs_idx_expr_type) = __unpack_var_access_ast($rhs_ast);
+                my $rhs_var_access = __var_access($stref,$f,$rhs_var);
+                if (is_array($stref,$f,$rhs_var)) { # RHS is a full, unindexed array
+                croak 'NOT READY YET!';
+            my $array_length=0; # TODO
+            $uxntal_code = "{ ( iter ) ".
+                ( $word_sz==2 ? '#0002 MUL2' : '')
+                ." DUP2 $rhs_var_access ADD2 LDA$short_mode " .
+                ( $short_mode eq '2' ? 'SWP2' : 'ROT ROT' ). ' '
+                . "$lhs_var_access ADD2 STA$short_mode JMP2r } STH2r ".
+                toHex($array_length-1,2)
+                . ' #0000 range-map-short ( ARRAY COPY ) ';
+                add_to_used_lib_subs('range-map-short');
+                say $uxntal_code;
+                }
+                error('Array slice is not yet supported: '.Dumper($lhs_ast));
         } else {
             croak "Unknown index expression type: $idx_expr_type";
         }
@@ -2272,11 +2307,10 @@ sub _pointer_analysis($stref,$f) {
     # $Sf->{'WordSizes'} is populated above;
     my $pass_pointer_analysis = sub ($annline,$state){
         my ($line, $info) = @{$annline};
-
         if (exists $info->{'Signature'} ) {
             $state->{'Args'} = { map { $_=>1 } @{$info->{'Signature'}{'Args'}{'List'}}};
         }
-        elsif (exists $info->{'VarDecl'} ) {
+        elsif (exists $info->{'VarDecl'} and not exists $info->{'ParamDecl'}) {
             my $var = $info->{'VarDecl'}{'Name'};
             if (exists $state->{'Args'}{$var} ) {
                 $state->{'Pointers'}{$var}='*'; # means should be treated as a pointer
@@ -2306,7 +2340,15 @@ sub _pointer_analysis($stref,$f) {
             $state->{'WordSizes'}{$var}=$word_sz;
         }
         elsif ( exists $info->{'ParamDecl'} ) {
-            my $var = $info->{'ParamDecl'}{'Var'};
+            my $var = 
+                exists $info->{'ParamDecl'}{'Var'} 
+                    ? $info->{'ParamDecl'}{'Var'} 
+                    : $info->{'ParamDecl'}{'Name'} 
+                        ? $info->{'ParamDecl'}{'Name'} 
+                        : exists $info->{'ParsedParDecl'} 
+                            ? $info->{'ParsedParDecl'}{'Vars'}[0]
+                            : error("Can't get name for parameter declaration $line")
+            ;
             $state->{'Pointers'}{$var}='';
             $state->{'Parameters'}{$var}=1;
             my $word_sz=0;
@@ -2633,6 +2675,20 @@ sub _emit_var_decl_Uxntal ($stref,$f,$info,$var){
                     my $hex_val = toRawHex($val,1);
                     $c_var_decl .= "$hex_val " x $dim;
                     $alloc_sz=$dim;
+                } elsif ($initial_value =~/^\(\//) { # HACK! 
+                    # croak "Array constant <$initial_value> ",Dumper($info);
+                    my $array_vals_str =  $initial_value;
+                    $array_vals_str=~s/^\(\///;
+                    $array_vals_str=~s/\/\)$//;
+                    my $len = scalar split(/\s*,\s*/,$array_vals_str);
+                    my ($array_vals_ast, $rest, $err) = parse_expression_no_context($array_vals_str,$info,$stref,$f);
+                    my ($expr_str, $word_sz ) = _emit_expression_Uxntal(  $array_vals_ast,$stref,$f,$info);
+                    # Problem is that the array can store strings, and then we need to know the length of the string instead of word_sz.
+                    my $alloc_sz = $len*$word_sz; 
+                    $c_var_decl .= $expr_str;
+                    carp Dumper $c_var_decl;
+                    # So what does this become in Uxn? assuming for now strings without spaces:
+
                 } else {
                     my $initParDecl = getDecl($stref,$f,$initial_value);
                     if (defined $initParDecl and exists $initParDecl->{'Val'}) {
@@ -2984,7 +3040,8 @@ sub _emit_expression_Uxntal ($ast, $stref, $f, $info) {
             }
         }
         elsif (scalar @{$ast} > 3 and $opcode == 27) { # the ast is a comma-separated list ','
-            carp "WHY DOES THIS HAPPEN? ";
+            # carp "WHY DOES THIS HAPPEN? ";
+            # carp Dumper $ast;
             my @args_lst_Uxntal=();
             for my $idx (1 .. scalar @{$ast}-1) {
                 my $arg = $ast->[$idx];

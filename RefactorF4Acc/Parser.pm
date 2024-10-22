@@ -3408,7 +3408,7 @@ sub __parse_f95_decl {
     my $is_module = (exists $stref->{'Modules'}{$f}) ? 1 : 0;
 
 	my $pt = parse_F95_var_decl($line);
-	# croak Dumper $pt if $line=~/ids/i;
+	# croak Dumper $pt if $line=~/regs/i;
 
 	if (exists $pt->{'ParseError'}) {
 		warning( 'Parse error on F90 variable declaration on line '.$info->{'LineID'}.' in '. $Sf->{'Source'}.":\n\n\t$line\n\nProbably unsupported mixed F77/F90 syntax; trying F77 parser", 0, 'PARSE ERROR');
@@ -3421,7 +3421,7 @@ sub __parse_f95_decl {
 		$info->{'ParsedParDecl'} = $pt;
 		my $parliststr = $1;
 		( $Sf, $info ) = _parse_f77_par_decl(  $Sf, $stref, $f, $indent,  $line, $info, $parliststr , $pt);
-		# croak $line,Dumper $info if $line=~/false/;
+		# croak $line,Dumper $info if $line=~/regs/;
 	} else {
 		# F95 VarDecl, continued
 		if (not defined $pt->{'Vars'}[0] and exists $pt->{'Pars'} and defined $pt->{'Pars'}{'Var'}) {

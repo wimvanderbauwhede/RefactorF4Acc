@@ -29,6 +29,7 @@ sub parse_F95_var_decl {
 	(my $str) = @_;
 #$str=~s/^\s+//;
 #chomp $str;
+# local $VV=1;
 	print $str,"\n" if $VV;
 
 	my $p =f95_var_decl_parser();
@@ -92,12 +93,12 @@ sub parse_F95_var_decl {
         # 	$pt->{'Attributes'}{'Dim'} = [0];
         # }
     }
+# carp Dumper $pt;
 
 	my $varlist = $pt->{'Vars'} ;
 	if (ref($varlist) ne 'ARRAY') {
 		$pt->{'Vars'} = [$varlist];
 	} 
-# carp Dumper $pt->{'Vars'};
     my $parlist = $pt->{'Pars'};
    if (ref($parlist) eq 'HASH') {
 		my $lhs =$parlist->{Lhs};
@@ -328,7 +329,10 @@ sub param_assignment {
     sequence( [
         {'Lhs' => mixedCaseWord },
         symbol('='),
-		{'Rhs' => regex('^[^,]+') # This is OK
+		{'Rhs' => choice(
+			regex('^(?:\(\/|\[).+?(?:\]|\/\))'), # Array constant
+			regex('^[^,]+'), # This is OK
+		)
 		# choice(
 		# 	regex('^[\w\s\*\+\-\/]+'),
 		# 	regex('^[\-\.\dedq]+'),
