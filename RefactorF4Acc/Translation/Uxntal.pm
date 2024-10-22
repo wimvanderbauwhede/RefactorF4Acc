@@ -81,7 +81,7 @@ use warnings FATAL => qw(uninitialized);
 use strict;
 use Carp;
 use Data::Dumper;
-
+local $Data::Dumper::Indent=1;
 use Exporter;
 
 no warnings qw(experimental::signatures);
@@ -538,7 +538,7 @@ Instead of the nice but cumbersome approach we had until now, from now on it is 
     } # use stack
 
 # --------------------------------------------------------------------------------------------
-    local $Data::Dumper::Indent=0;
+    
 
     my $pass_translate_to_Uxntal = sub ($annline, $state){
         (my $line,my $info)=@{$annline};
@@ -671,6 +671,7 @@ Instead of the nice but cumbersome approach we had until now, from now on it is 
 
         if (exists $info->{'Assignment'} ) {
             # say "Assignment: $line" if $f eq 'move';
+            
             ($c_line,$pass_state) = _emit_assignment_Uxntal($stref, $f, $info,$pass_state) ;
             if (exists $info->{'If'} and not exists $info->{'IfThen'}) {
                 $c_line = _emit_if_without_then_Uxntal($stref,$f,$info,$c_line);
@@ -1011,6 +1012,7 @@ Instead of the nice but cumbersome approach we had until now, from now on it is 
             $c_line = $use_stack ? '!pop-frame' : 'POP2r';
             if (  $pass_state->{'Subroutine'}{'IsMain'} ne '' ) {
                 $c_line .= ' exit ' ; # I'd rather not have this if it is already there, but it's just a few redundant bytes
+                add_to_used_lib_subs('exit');
             }
             $c_line .= ' BRK ( MAIN ) ' ;
         }
@@ -1543,8 +1545,9 @@ sub _var_access_assign($stref,$f,$info,$lhs_ast,$rhs_ast) {
             my $array_length = $dim;
             if ($rhs_ast->[0] == 28) { # Array literal
                 my ($rhs_array_literal,$rhs_word_sz) = _emit_expression_Uxntal($rhs_ast, $stref,$f, $info);
+            # croak Dumper $rhs_array_literal;
                 # unique ID the cheap way
-                my $ref = \$rhs_ast; $ref=~s/REF..//;$ref=~s/\)//;
+                my $ref = \$rhs_ast->[1]; $ref=~s/REF..//;$ref=~s/\)//;
                 $uxntal_code = "$rhs_array_literal ;&$ref STA2 " .
                 "{ ( iter ) ".
                     ( $word_sz==2 ? '#0002 MUL2' : '')
@@ -2923,8 +2926,9 @@ sub _emit_expression_Uxntal ($ast, $stref, $f, $info) {
         }
         elsif ($opcode == 28) { # (/
             # this is very lazy, but it works
-            my $lst_expr = _emit_expression_Uxntal($ast->[1], $stref, $f,$info);
+            my ($lst_expr,$word_sz) = _emit_expression_Uxntal($ast->[1], $stref, $f,$info);
             $lst_expr =~s/\#//g;
+            # carp Dumper $ast,$lst_expr;
             return ("{ $lst_expr } STH2r",2);
         }
         elsif ($opcode > 28 and $opcode < 36) { # literal constants (bool, number, character, string), emit in place
@@ -3046,7 +3050,7 @@ sub _emit_expression_Uxntal ($ast, $stref, $f, $info) {
         }
         elsif (scalar @{$ast} > 3 and $opcode == 27) { # the ast is a comma-separated list ','
             # carp "WHY DOES THIS HAPPEN? ";
-            # carp Dumper $ast;
+            # carp 'COMMASEP:',Dumper $ast;
             my @args_lst_Uxntal=();
             for my $idx (1 .. scalar @{$ast}-1) {
                 my $arg = $ast->[$idx];
@@ -4115,7 +4119,6 @@ sub __analyse_write_call_arg($stref,$f,$info,$arg,$i){
 # TODO: I am not going to do this.
 # I will simply use m and ignore w
 sub __parse_fmt($fmt_str,$stref,$f,$info){
-    local $Data::Dumper::Indent=1;
     my $print_calls=[];
     my $offsets=[0];
     # if ($fmt_str ne '*') {

@@ -1974,8 +1974,8 @@ END IF
 				$info->{'NonSpecificationStatement'} = 1;
 			}
 #== Placeholders for unsupported statements
-# • control statements:
-			elsif ($line=~/\b(cycle|exit)\b/) {
+# • control statements: CYCLE (EXIT is now supported elsewhere)
+			elsif ($line=~/\b(cycle)\b/) { croak;
 				my $keyword = $1;
 				$info->{ ucfirst($keyword) } = 1;
 				warning(uc($keyword).' is ignored in analysis',3);
