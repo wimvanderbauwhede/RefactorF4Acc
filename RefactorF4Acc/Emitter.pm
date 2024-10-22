@@ -600,8 +600,20 @@ sub emit_AnnLines {
             # if ( $info->{'Do'}{'Range'}{'Expressions'}[-1] == 1 ) {
             #     pop @{ $info->{'Do'}{'Range'}{'Expressions'} };
             # }
-            my $do_expr_str =
-            join( ', ', @{ $info->{'Do'}{'Range'}{'Expressions'} } );
+
+            my @do_expr_terms = ();
+            my $i=0;
+            # This is a HACK because non-const terms are undef
+            for my $term (@{ $info->{'Do'}{'Range'}{'Expressions'} } ) {
+                if (defined $term) {
+                    push @do_expr_terms, $term;
+                } else {
+                    my $term_str = emit_expr_from_ast($info->{'Do'}{'Range'}{'ExpressionASTs'}[$i]);
+                    push @do_expr_terms, $term_str;
+                }
+                ++$i;
+            }
+            my $do_expr_str = join( ', ',  @do_expr_terms );
             $rline =
             $indent . 'do' . $label . ' ' . $iter . ' = ' . $do_expr_str;
 

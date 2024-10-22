@@ -1476,7 +1476,7 @@ or $line=~/^character\s*\(\s*len\s*=\s*[\w\*]+\s*\)/
 #@    Range =>
 #@        Vars => [ ... ]
 #@        Expressions' => [ ... ]
-			elsif ( $line =~ /^(?:\w+\:\s+)?do\b/) {
+			elsif ( $line =~ /^(?:\w+\s*\:\s+)?do\b/) {
 
 #WV20150304: We parse the do and store the iterator and the range { 'Iterator' => $i,'Range' =>[$start,$stop]}
 				my $do_stmt = $line;
@@ -1485,8 +1485,11 @@ or $line=~/^character\s*\(\s*len\s*=\s*[\w\*]+\s*\)/
 				if ( $do_stmt =~ /do\s+\d+/ ) {
 					$do_stmt =~ s/^do\s+(\d+)\s+//;
 					$label = $1;
-				} elsif ( $do_stmt =~ /\w+\:\s+do\s+\d+/ ) {
-					$do_stmt =~ s/^(\w+)\:\s+do\s+//;
+				} elsif ( $do_stmt =~ /\w+\s*\:\s+do\s+\d+/ ) {
+					$do_stmt =~ s/^(\w+)\s*\:\s+do\s+//;
+					$construct_name = $1;
+				} elsif ( $do_stmt =~ /\w+\s*\:\s+do\s+/ ) {
+					$do_stmt =~ s/^(\w+)\s*\:\s+do\s+//;
 					$construct_name = $1;
 				} else {
 					$do_stmt =~ s/^do\s+//;
@@ -3408,7 +3411,7 @@ sub __parse_f95_decl {
     my $is_module = (exists $stref->{'Modules'}{$f}) ? 1 : 0;
 
 	my $pt = parse_F95_var_decl($line);
-	# croak Dumper $pt if $line=~/ids/i;
+	# croak Dumper $pt if $line=~/regs/i;
 
 	if (exists $pt->{'ParseError'}) {
 		warning( 'Parse error on F90 variable declaration on line '.$info->{'LineID'}.' in '. $Sf->{'Source'}.":\n\n\t$line\n\nProbably unsupported mixed F77/F90 syntax; trying F77 parser", 0, 'PARSE ERROR');
@@ -3421,7 +3424,7 @@ sub __parse_f95_decl {
 		$info->{'ParsedParDecl'} = $pt;
 		my $parliststr = $1;
 		( $Sf, $info ) = _parse_f77_par_decl(  $Sf, $stref, $f, $indent,  $line, $info, $parliststr , $pt);
-		# croak $line,Dumper $info if $line=~/false/;
+		# croak $line,Dumper $info if $line=~/regs/;
 	} else {
 		# F95 VarDecl, continued
 		if (not defined $pt->{'Vars'}[0] and exists $pt->{'Pars'} and defined $pt->{'Pars'}{'Var'}) {
@@ -4457,6 +4460,7 @@ sub _parse_read_write_print {
     	# Normalise by removing UNIT, NML and FMT keywords as they are optional
 		# This only works if they are in the right order. So order them first.
 		if ($tline=~/\w+\s*\(/) { # Assumes that, if there are no parens, the arg is just a value, not a kv pair
+		# say "TLINE (ORIG): $tline" if $tline=~/write/;
 		$tline = __reorder_io_control_specs($tline);
 	# 		If the optional characters UNIT= are omitted before io-unit, io-unit must be the first item in
 	# io-control-specs. If the optional characters FMT= are omitted before format, format must be
@@ -4469,39 +4473,42 @@ sub _parse_read_write_print {
 
     # Rather than having Attributes, Arguments and Expressions I will simply have Vars.Written and Vars.Read
 
-#    say "TLINE: $tline";
+#    say "TLINE (REORDERED): $tline" if $tline=~/write/;
     my $attrs_ast=[];
     my $exprs_ast=[];
     my $err=0;
     my $rest='';
     my $case=0;
     if ($tline=~/^\w+\s*\(/) {
-        ($attrs_ast, $rest, $err) = parse_expression_no_context($tline,$info,$stref,$f);
+		# say "WRITE CASE 1 <$tline>";
+        ($attrs_ast, $rest, $err,my $_has_funcs) = parse_expression_no_context($tline,$info,$stref,$f);
 			# say Dumper($attrs_ast); die if $line=~/write.+getTokenLabelVal.+typeCtorTokenSeq/;
-
-			if ($attrs_ast->[2][0]==14) {
-				my $attrs_ast_ = [
-					$attrs_ast->[0],$attrs_ast->[1],
-					$attrs_ast->[2][1]
-				];
-				$exprs_ast = [0,$attrs_ast->[2][2]];
-				$attrs_ast = $attrs_ast_;
-				$err=0;
+# say "WRITE CASE 1 <$rest> $err";
+		if ($attrs_ast->[2][0]==14) {
+			my $attrs_ast_ = [
+				$attrs_ast->[0],$attrs_ast->[1],
+				$attrs_ast->[2][1]
+			];
+			$exprs_ast = [0,$attrs_ast->[2][2]];
+			$attrs_ast = $attrs_ast_;
+			$err=0;
+		}
+		if ($attrs_ast->[2][0]== 27) {
+			if ($attrs_ast->[2][1][0]== 2) {
+				my $unitvar = $attrs_ast->[2][1][1];
+				$info->{'UnitVar'} = $unitvar;
 			}
-			if ($attrs_ast->[2][0]== 27) {
-				if ($attrs_ast->[2][1][0]== 2) {
-					my $unitvar = $attrs_ast->[2][1][1];
-					$info->{'UnitVar'} = $unitvar;
-				}
-			}
+		}
         $case=1;
-        if ($err) {
+        if ($err or $rest!~/^\s*$/) {
+			# say "WRITE CASE 2 $tline";
             # Case 2.
             $case=2;
             #The $rest string contains the part after the closing parens so just parse that as well
             $exprs_ast = parse_expression($rest,$info,$stref,$f);
         }
     } else {
+		# say "WRITE CASE 3";
         # Case 3.
         $case=3;
         $tline=~s/^(\w+)\s*//;
@@ -4513,7 +4520,7 @@ sub _parse_read_write_print {
 #		say "REST: $rest, ERR: $err";
         #say emit_expr_from_ast($attrs_ast);
     }
-    #say Dumper($attrs_ast, $rest, $err);
+    # say Dumper($attrs_ast, $rest, $exprs_ast, $err);
     my $attr_pairs = $case == 3 ? {} : find_assignments_to_scalars_in_ast($attrs_ast,{});
     # This is not good enough because implied do is (v(i),i=i_start,i_stop)
     # So what I should so is say: if we have ',' and elt 1 is '=' then also consider elt 2

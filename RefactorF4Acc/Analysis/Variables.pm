@@ -433,6 +433,7 @@ sub analyse_used_variables {
 
 			for my $mvar (@chunks) {
 				croak $f.' '.Dumper($mvar) if ref($mvar) eq 'ARRAY' or $mvar=~/ARRAY/;
+				croak $f.' '.$mvar.Dumper($info) if $mvar eq 'for_t' or $mvar eq 'dok';
 
                 next if exists $stref->{'Subroutines'}{$f}{'CalledSubs'}{'Set'}{$mvar};    # Means it's a function
 				next if $mvar =~ /^\d+(?:_[1248])?$/;
@@ -590,9 +591,9 @@ sub identify_vars_on_line {
 				# croak Dumper @chunks;
 			}
 		} elsif ( exists $info->{'Do'} ) {
-			# if ($line=~/do.+int.+len/ ) {
-				# say $line;
-				# carp Dumper($info->{'Do'});
+			# if ($line=~/\:\s+do/ ) {
+			# 	say $line;
+			# 	carp Dumper($info->{'Do'});
 			# }
 			@chunks = exists $info->{'Do'}{'Iterator'} ? ( @chunks, $info->{'Do'}{'Iterator'}, @{ $info->{'Do'}{'Range'}{'Vars'} } ) : ();
 		} elsif ( (exists $info->{'Assignment'} and not exists $info->{'Data'}) or exists $info->{'StatementFunction'}) {
