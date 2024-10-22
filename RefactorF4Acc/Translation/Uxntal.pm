@@ -318,6 +318,8 @@ Instead of the nice but cumbersome approach we had until now, from now on it is 
 =cut
     $stref = _get_word_sizes($stref,$f);
     # $stref = _handle_function_pointers($stref,$f);
+    # TODO: do we still need this?
+    todo( '_pointer_analysis: do we still need this?' );
     $stref = _pointer_analysis($stref,$f);
     my $Sf = $stref->{'Subroutines'}{$f};
 
@@ -1123,7 +1125,7 @@ Instead of the nice but cumbersome approach we had until now, from now on it is 
     {
         'Args' => {'Set' =>{}, 'List' => [] },
         'Subroutine' => {
-            'WriteArgs' => {}, # This should probably replace Pointers
+            'WriteArgs' => {},
             'IsMain' => '',
             'HasExitOrStop' => 0,
             'TranslatedCode'=>[],
@@ -1176,20 +1178,21 @@ Instead of the nice but cumbersome approach we had until now, from now on it is 
 
 } # END of translate_sub_to_Uxntal
 
-sub _handle_function_pointers($stref,$f) {
-    my $Sf = $stref->{'Subroutines'}{$f};
+# UNUSED
+# sub _handle_function_pointers($stref,$f) {
+#     my $Sf = $stref->{'Subroutines'}{$f};
 
-    for my $var (@{$Sf->{'AllVarsAndPars'}{'List'}}) {
-        next if $var =~/__PH\d+__/; # FIXME: hack!
-        if (exists $stref->{'Subroutines'}{$var}) {
-            if (exists $stref->{'Subroutines'}{$var}{'Pointee'}) {
-                my $pointed_sub = $stref->{'Subroutines'}{$var}{'Pointee'};
-                $stref = translate_sub_to_Uxntal($stref,$pointed_sub)
-            }
-        }
-    }
-    return $stref;
-}
+#     for my $var (@{$Sf->{'AllVarsAndPars'}{'List'}}) {
+#         next if $var =~/__PH\d+__/; # FIXME: hack!
+#         if (exists $stref->{'Subroutines'}{$var}) {
+#             if (exists $stref->{'Subroutines'}{$var}{'Pointee'}) {
+#                 my $pointed_sub = $stref->{'Subroutines'}{$var}{'Pointee'};
+#                 $stref = translate_sub_to_Uxntal($stref,$pointed_sub)
+#             }
+#         }
+#     }
+#     return $stref;
+# }
 sub _get_word_sizes($stref,$f){
     my $Sf = $stref->{'Subroutines'}{$f};
 
