@@ -3,9 +3,9 @@
 * Easy
 write(0,*) '    token:',getTokenLabel(token),getTokenVal(token), decodeTokenStr(token)
 currently becomes
-{ 000a 20 " 20 " 20 " 20 "token: } STH2r print-string-stderr #20 #19 DEO ( , )
+{ 000a 20 " 20 " 20 " 20 "token: } STH2r print-string-stderr #2019 DEO ( , )
 and should become
-{ 000a 20 20 20 20 "token: } STH2r print-string-stderr #20 #19 DEO ( , )
+{ 000a 20 20 20 20 "token: } STH2r print-string-stderr #2019 DEO ( , )
 
 * In progress
 cs(ii:ii) =  '"'
@@ -248,7 +248,7 @@ sub translate_program_to_Uxntal($stref,$program_name){
         ($stref->{'HasCLArgs'} ? @{$stref->{'Uxntal'}{'Console'}} :()),
         ($stref->{'HasReadFile'} ? @{$stref->{'Uxntal'}{'ReadFile'}} :()),
         ($stref->{'HasWriteFile'} ? @{$stref->{'Uxntal'}{'WriteFile'}} :()),
-        '|0000',
+        # '|0000',
         ($stref->{'UseCallStack'} ? @{$stref->{'Uxntal'}{'CallStackPointers'}} : ()),
         ($stref->{'HasCLArgs'} ? @{$stref->{'Uxntal'}{'CLIHandling'}{'Preamble'}} : ()),
         '','|0100',
@@ -269,7 +269,6 @@ sub translate_program_to_Uxntal($stref,$program_name){
         @used_uxntal_lib_subroutine_sources,
         '( Parameters )',
         @{$stref->{'Uxntal'}{'Macros'}{'List'}},
-        # '@nl #0a18 DEO JMP2r',
         '( Module Globals )',
         '@totalMemUsage '.toRawHex($stref->{'Uxntal'}{'Globals'}{'totalMemUsage'},2),
         @{$stref->{'Uxntal'}{'Globals'}{'List'}},
@@ -668,8 +667,7 @@ Instead of the nice but cumbersome approach we had until now, from now on it is 
                 }
                 
                 $c_line = $do_stop . ' '.($do_step==1 ? 'INC2': ' ( '.toHex($do_step,2).' ADD2'.' ) ') . ' '.$do_start . "\n" .
-                # 'DUP2 EQU2k ;&loop_end_'.$f.'_'.$id.' JCN2'. "\n" .
-                'OVR2 OVR2 SUB2 #fff7 GTH2 ;&'.$loop_end_label.' JCN2'. "\n" .
+                'OVR2 OVR2 SUB2 #fff7 GTH2 ?&'.$loop_end_label.' '. "\n" .
                 '&'.$loop_label . "\n" .
                 ';'.$do_iterator.' STA2 ';
             }
@@ -701,27 +699,12 @@ Instead of the nice but cumbersome approach we had until now, from now on it is 
             $c_line = 'exit';
         }
         elsif (exists $info->{'SubroutineCall'} and not exists $info->{'IOCall'}) {
-            # if ($info->{'SubroutineCall'}{'Name'} eq 'exit') {
-                # $pass_state->{'Subroutine'}{'HasExitOrStop'} = 1;
-                # add_to_used_lib_subs('exit');
-            # }
+
             $c_line = _emit_subroutine_call_expr_Uxntal($stref,$f,$line,$info);
             # If without Then
             if (exists $info->{'If'} and not exists $info->{'IfThen'}) {
                 $c_line = _emit_if_without_then_Uxntal($stref,$f,$info,$c_line);
-            #     my $indent = $info->{'Indent'};
-            #     my $branch_id = $info->{'LineID'};
-            #     my $cond_expr_ast=$info->{'Cond'}{'AST'};
-            #     my ($cond_expr,$word_sz) = _emit_expression_Uxntal($cond_expr_ast,$stref,$f,$info);
-            # # What we have is e.g.
-            # # if (fl(1:2) == __PH0__) VV = .true.
-            # # What we need is
-            # # NOT <cond> <label_end> JCN
-            #     $c_line = "\n$cond_expr #00 EQU ;&$branch$branch_id JCN2\n" .$c_line;
-            #     # $c_line = "\n$cond_expr #00 EQU ;&$branch$branch_id JCN2\n" . $indent.$c_line;
-            # # <expr>
-            #     # $c_line .= $indent.' '."&$branch$branch_id ( INDENTED BRANCH )";
-            #     $c_line .= ' '."&$branch$branch_id";
+
             }
         }
         elsif (exists $info->{'IOCall'}) {
@@ -824,7 +807,7 @@ Instead of the nice but cumbersome approach we had until now, from now on it is 
                     my $iostat = __create_fq_varname($stref,$f,$info->{'IOStat'});
                     my ($uxntal_var_access, $word_sz) = _var_access_read($stref,$f,$info, [2,$info->{'FileNameVar'}]);
                     $c_line = $uxntal_var_access .
-                    " #0002 ADD2 .File/name DEO2";
+                    " INC2 INC2 .File/name DEO2";
                     if (not exists $stref->{'Subroutines'}{$f}{'FileHandle'}) {
                         $stref->{'Subroutines'}{$f}{'FileHandle'}{$unit}={
                             'Unit' => $fq_unit,
@@ -925,10 +908,10 @@ Instead of the nice but cumbersome approach we had until now, from now on it is 
         }
         elsif (exists $info->{'If'} and not exists $info->{'IfThen'} ) {
             if (exists $info->{'Goto'}) {
-                $c_line = ';&'.__shorten_fq_name($f.'_'.$info->{'Goto'}{'Label'}).' JMP2';
+                $c_line = '!&'.__shorten_fq_name($f.'_'.$info->{'Goto'}{'Label'}).' ';
             }
             elsif (exists $info->{'Exit'}) {
-                $c_line = ';&'.__shorten_fq_name($f).'_'.$info->{'Exit'}{'ConstructName'}.'_'.$end.' JMP2';
+                $c_line = '!&'.__shorten_fq_name($f).'_'.$info->{'Exit'}{'ConstructName'}.'_'.$end.' ';
             }
             else {
                 croak "If without Then, not assignment, goto or call: $line";
@@ -937,7 +920,7 @@ Instead of the nice but cumbersome approach we had until now, from now on it is 
             my $branch_id = $info->{'LineID'};
             my $cond_expr_ast=$info->{'Cond'}{'AST'};
             my ($cond_expr,$word_sz) = _emit_expression_Uxntal($cond_expr_ast,$stref,$f,$info);
-            $c_line = ' '."$cond_expr #00 EQU ;&$branch$branch_id JCN2\n" . $c_line;
+            $c_line = ' '."$cond_expr #00 EQU ?&$branch$branch_id \n" . $c_line;
             $c_line .= ' '."&$branch$branch_id"; #$indent.
         }
         elsif (exists $info->{'IfThen'} and not exists $info->{'ElseIf'} ) {
@@ -995,7 +978,7 @@ Instead of the nice but cumbersome approach we had until now, from now on it is 
             # }
             # say 'END IF:',Dumper $pass_state->{'SkipBranch'},$pass_state->{'BranchStack'},$pass_state->{'IfId'};
             my $if_id = $pass_state->{'IfId'};
-            $c_line = ';&'.$cond.'_'.$end.$if_id.' JMP2 '."\n"
+            $c_line = '!&'.$cond.'_'.$end.$if_id.' '."\n"
             .'&'.$branch.$branch_id.'_'.$end."\n".' &'.$cond.'_'.$end.$if_id;
             pop @{$pass_state->{'IfStack'}};
             $pass_state->{'IfId'}=$pass_state->{'IfStack'}[-1];
@@ -1012,19 +995,23 @@ Instead of the nice but cumbersome approach we had until now, from now on it is 
                         $loop_label = $f.'_'.$info->{'EndDo'}{'ConstructName'};
                         $loop_end_label = $f.'_'.$info->{'EndDo'}{'ConstructName'}.'_'.$end;
                     }
-                    my $inc = $do_step == 1 ? 'INC2' : toHex($do_step,2). ($do_step>0 ? ' ADD2' : ' SUB2');
+                    my $inc = $do_step == 1 
+                        ? 'INC2' 
+                        : $do_step == 2
+                            ? 'INC2 INC2'
+                            : toHex($do_step,2). ($do_step>0 ? ' ADD2' : ' SUB2');
                     my $dec = $do_step == 1 ? '#0001 SUB2' : toHex($do_step,2). ($do_step<0 ? ' ADD2' : ' SUB2');
                     # This says, INC and then compare, if it is not equal, loop again
                     # But fortran says compare then INC
                     # Also, NEQ2 only works if the step is 1! Otherwise we need a signed number comp
                     # iter+2 < end
                     if ($do_step == 1) {
-                        $c_line = ";$do_iter LDA2 $inc OVR2 OVR2 NEQ2 ".';&'.$loop_label.' JCN2 '."\n;$do_iter LDA2 $inc ;$do_iter STA2\n".
+                        $c_line = ";$do_iter LDA2 $inc OVR2 OVR2 NEQ2 ".'?&'.$loop_label.' '."\n;$do_iter LDA2 $inc ;$do_iter STA2\n".
                         '&'.$loop_end_label." POP2 POP2\n";
                     } elsif ($do_step>0) { # assuming the step is positive
-                        $c_line = ";$do_iter LDA2 $inc OVR2 OVR2 GTH2 ".';&'.$loop_label.' JCN2 '."\n;$do_iter LDA2 $inc ;$do_iter STA2\n".
+                        $c_line = ";$do_iter LDA2 $inc OVR2 OVR2 GTH2 ".'?&'.$loop_label.' '."\n;$do_iter LDA2 $inc ;$do_iter STA2\n".
                         '&'.$loop_end_label." POP2 POP2\n";
-                        add_to_used_lib_subs('gt2');
+                        # add_to_used_lib_subs('gt2');
                     } else {
                         todo('DO with negative STEP');croak;
                     }
@@ -1035,7 +1022,7 @@ Instead of the nice but cumbersome approach we had until now, from now on it is 
                     if (exists $info->{'EndDo'}{'ConstructName'} ) {
                         $while_loop_label = $f.'_'.$info->{'EndDo'}{'ConstructName'};
                     }
-                    $c_line .= "\n".';&'.$while_loop_label.' JCN2';
+                    $c_line .= "\n".'?&'.$while_loop_label;
                 }
                 # if ( exists $info->{'EndDo'}{'ConstructName'}) {
                 #     $c_line .= "\n".'&'.__shorten_fq_name($f).'_'.$info->{'EndDo'}{'ConstructName'}.'_'.$end;
@@ -1118,13 +1105,13 @@ Instead of the nice but cumbersome approach we had until now, from now on it is 
             $c_line = '#'.$line;
         }
         elsif (exists $info->{'Goto'} ) {
-            $c_line = ';&'.__shorten_fq_name($f.'_'.$info->{'Goto'}{'Label'}).' JMP2';
+            $c_line = '!&'.__shorten_fq_name($f.'_'.$info->{'Goto'}{'Label'}).' ';
         }
         elsif (exists $info->{'Exit'}) {
             # The way we construct the loop, it means we have only the upper bound on the stack
             # But the loop exit will POP twice
             # So let's just DUP2 the bound
-            $c_line = 'DUP2 ;&'.$f.'_'.$info->{'Exit'}{'ConstructName'}.'_'.$end.' JMP2';
+            $c_line = 'DUP2 !&'.$f.'_'.$info->{'Exit'}{'ConstructName'}.'_'.$end.' ';
         }
         elsif (exists $info->{'Continue'}) {
             $c_line='( continue )';
@@ -1415,8 +1402,10 @@ sub _var_access_read($stref,$f,$info,$ast) {
                 my $idx_offset_Uxntal =  toHex($idx_offset,2);
                 my $idx_offset_expr = $idx_offset==0? '' : $idx_offset_Uxntal.' SUB2';
                 (my $idx,my $idx_word_sz) = _emit_expression_Uxntal($idxs,$stref,$f,$info);
-                my $idx_expr = defined $idx ? ($idx eq $idx_offset_Uxntal) ? '' :
-                "$idx $idx_offset_expr".( $short_mode ? ' #0002 MUL2 ': '') .' ADD2 ' : '';
+                my $idx_expr = defined $idx 
+                    ? ($idx eq $idx_offset_Uxntal) ? '' 
+                    : "$idx $idx_offset_expr".( $short_mode ? ' #10 SFT2 ': '') .' ADD2 ' : '';
+                $idx_expr = __simplify_arith_expr($idx_expr);
                 $uxntal_code =     "$var_access $idx_expr LDA$short_mode"; # index, load the value
             } elsif ($idx_expr_type == 2) {
                 croak('Array slice is not yet supported: '.Dumper($ast));
@@ -1546,7 +1535,8 @@ sub _var_access_assign($stref,$f,$info,$lhs_ast,$rhs_ast) {
                 croak "LHS and RHS word sizes don't match: $word_sz <> $rhs_word_sz for assignment to $lhs_var in $f";
             }
             my ($idx,$idx_word_sz) = _emit_expression_Uxntal($idxs,$stref,$f,$info);
-            my $idx_expr = defined $idx ? ($idx eq $lhs_idx_offset_Uxntal) ? '' : "$idx $lhs_idx_offset_expr".( $short_mode ? ' #0002 MUL2 ': '') .' ADD2 ' : '';
+            my $idx_expr = defined $idx ? ($idx eq $lhs_idx_offset_Uxntal) ? '' : "$idx $lhs_idx_offset_expr".( $short_mode ? ' #10 SFT2 ( HERE ) ': '') .' ADD2 ' : '';
+            $idx_expr = __simplify_arith_expr($idx_expr);
             $uxntal_code = "$rhs_expr_Uxntal  $lhs_var_access $idx_expr STA$short_mode"; # index, load the value
         } elsif  ($idx_expr_type == 3) { # array(i,j) = rhs_expr
             # multi-dim arrays, in principle this should work for 1, 2, 3 and even more dimensions
@@ -1568,7 +1558,7 @@ sub _var_access_assign($stref,$f,$info,$lhs_ast,$rhs_ast) {
                 push @{$idx_exprs_Uxntal},$idx_expr_Uxntal;
             }
             my $lin_idx_Uxntal_expr = _multi_dim_array_access_to_Uxntal($idx_exprs_Uxntal,$lhs_idx_offsets_dims, $stref,$f,$info);
-            my $idx_expr = $lin_idx_Uxntal_expr.( $short_mode ? ' #0002 MUL2 ': '');
+            my $idx_expr = $lin_idx_Uxntal_expr.( $short_mode ? ' #10 SFT2 ': '');
             $uxntal_code = "$rhs_expr_Uxntal  $lhs_var_access $idx_expr STA$short_mode"; # index, load the value
 
             # If we ignore slices, all we need is the correct indexing:
@@ -1588,7 +1578,7 @@ sub _var_access_assign($stref,$f,$info,$lhs_ast,$rhs_ast) {
                 my $ref = \$rhs_ast->[1]; $ref=~s/REF..//;$ref=~s/\)//;
                 $uxntal_code = "$rhs_array_literal ;&$ref STA2 " .
                 "{ ( iter ) ".
-                    ( $word_sz==2 ? '#0002 MUL2' : '')
+                    ( $word_sz==2 ? '#10 SFT2' : '')
                     .' DUP2 LIT2 &'.$ref.' $2 ADD2 LDA' .$short_mode.
                     ( $short_mode eq '2' ? ' SWP2' : ' ROT ROT' )
                     . " $lhs_var_access ADD2 STA$short_mode JMP2r } STH2r ".
@@ -1724,7 +1714,7 @@ sub _var_access_assign($stref,$f,$info,$lhs_ast,$rhs_ast) {
                     # This is a range-map
                     if ($rhs_idx_expr_type==0) {
                         $uxntal_code = "{ ( iter ) ".
-                            ( $word_sz==2 ? '#0002 MUL2' : '')
+                            ( $word_sz==2 ? '#10 SFT2' : '')
                             ." DUP2 $rhs_var_access ADD2 LDA$short_mode " .
                             ( $short_mode eq '2' ? 'SWP2' : 'ROT ROT' ). ' '
                             . "$lhs_var_access ADD2 STA$short_mode JMP2r } STH2r ".
@@ -1737,7 +1727,7 @@ sub _var_access_assign($stref,$f,$info,$lhs_ast,$rhs_ast) {
                         (my $rhs_idx_expr_e,$idx_word_sz) = _emit_expression_Uxntal($rhs_idxs->[2], $stref, $f,$info);
                         my $rhs_len = __calc_len($rhs_idx_expr_b,$rhs_idx_expr_e);
                         $uxntal_code = "{ ( iter ) ".
-                            ( $word_sz==2 ? '#0002 MUL2' : '')
+                            ( $word_sz==2 ? '#10 SFT2' : '')
                             ." DUP2 $rhs_var_access ADD2 $rhs_idx_expr_b ADD2 LDA$short_mode " .
                             ( $short_mode eq '2' ? 'SWP2' : 'ROT ROT' ). ' '
                             . "$lhs_var_access ADD2
@@ -1766,7 +1756,7 @@ sub _var_access_assign($stref,$f,$info,$lhs_ast,$rhs_ast) {
                 croak 'NOT READY YET!';
             my $array_length=0; # TODO
             $uxntal_code = "{ ( iter ) ".
-                ( $word_sz==2 ? '#0002 MUL2' : '')
+                ( $word_sz==2 ? '#10 SFT2' : '')
                 ." DUP2 $rhs_var_access ADD2 LDA$short_mode " .
                 ( $short_mode eq '2' ? 'SWP2' : 'ROT ROT' ). ' '
                 . "$lhs_var_access ADD2 STA$short_mode JMP2r } STH2r ".
@@ -1920,7 +1910,7 @@ sub __copy_substr($stref, $f, $info, $lhs_ast, $rhs_ast) {
             if ($lhs_idx_expr_b eq $lhs_idx_expr_e ) {
                 # simplyfied case of s_to(b1:b1) = "X", so the RHS is a single-character string
                 my $lhs_idx_expr =  ($lhs_idx_expr_b eq '#0001') ? '#0002' : "$lhs_idx_expr_b INC2 ";
-                $uxntal_code = "$rhs_Uxntal_expr #0002 ADD2 LDA $lhs_var_access $lhs_idx_expr ADD2 STA ( WV20240723: WRONG? ) ";
+                $uxntal_code = "$rhs_Uxntal_expr INC2 INC2 LDA $lhs_var_access $lhs_idx_expr ADD2 STA ( WV20240723: WRONG? ) ";
             } else { # It is not possible to tell at compile time if these are compatible.
                 # So to avoid overwriting, we use the LHS slice
                 $uxntal_code = "$rhs_Uxntal_expr $lhs_var_access $lhs_idx_expr_b #0001 SUB2 ADD2 ( WV20240723: WRONG? ) ".
@@ -1959,7 +1949,7 @@ sub __copy_substr($stref, $f, $info, $lhs_ast, $rhs_ast) {
                 # if ($rhs_len == -1) { $rhs_len = 64; }
                 if ($rhs_len == -2) {
                     # Means the RHS is actually a character
-                    $uxntal_code = "$rhs_Uxntal_expr $lhs_var_access #0002 ADD2 STA";
+                    $uxntal_code = "$rhs_Uxntal_expr $lhs_var_access INC2 INC2 STA";
                     if ($lhs_is_allocatable) {
                         $uxntal_code .= " $lhs_var_access #0001 STA2";
                     }
@@ -2045,7 +2035,7 @@ sub __copy_substr($stref, $f, $info, $lhs_ast, $rhs_ast) {
             # First, check for the special condition b==e
             if ($rhs_idx_expr_b eq $rhs_idx_expr_e ) {
                 my $rhs_idx_expr =  ($rhs_idx_expr_b eq '#0001') ? '#0002' : "$rhs_idx_expr_b INC2 ";
-                $uxntal_code = "$rhs_var_access $rhs_idx_expr ADD2 LDA $lhs_var_access #0002 ADD2 STA ( WV20240723: WRONG? ) ";
+                $uxntal_code = "$rhs_var_access $rhs_idx_expr ADD2 LDA $lhs_var_access INC2 INC2 STA ( WV20240723: WRONG? ) ";
             } else {
                 # I think here we must put in a safeguarding condition that e-b should be < length
                 # Or we could just copy length bytes
@@ -2070,7 +2060,7 @@ sub __copy_substr($stref, $f, $info, $lhs_ast, $rhs_ast) {
                 add_to_used_lib_subs('strncpy');
         # if a char, it's easy:
         # #0001 $rhs_var_access STA2
-        # $lhs_var_access LDA2 $rhs_var_access #0002 ADD2 STA2
+        # $lhs_var_access LDA2 $rhs_var_access INC2 INC2 STA2
             }
             elsif (($rhs_ast->[0] == 2 and is_character($stref,$f,$rhs_var)) or $rhs_ast->[0] == 32) {
                 # it's a character-type scalar or a character constant.
@@ -2078,7 +2068,7 @@ sub __copy_substr($stref, $f, $info, $lhs_ast, $rhs_ast) {
                 # s_to(b:b) = 'c'
                 # $lhs_ast = ['@',$s,[':',$i_expr]
                 my ($rhs_Uxntal_expr,$rhs_word_sz) = _emit_expression_Uxntal ($rhs_ast, $stref, $f, $info);
-                $uxntal_code = "$rhs_Uxntal_expr $lhs_var_access #0002 ADD2 STA #0001 $rhs_var_access STA2";
+                $uxntal_code = "$rhs_Uxntal_expr $lhs_var_access INC2 INC2 STA #0001 $rhs_var_access STA2";
             }
         } elsif ($lhs_idx_expr_type == 2 and $rhs_idx_expr_type == 1) {
             # Special case: RHS is array index expression.
@@ -2779,7 +2769,7 @@ sub _emit_if_without_then_Uxntal($stref,$f,$info,$c_line) {
         if ($rel_ok) {
             $cc_line = "\n$cond_expr #00 EQU ,&$branch$branch_id JCN\n" . $cc_line;
         } else {
-            $cc_line = "\n$cond_expr #00 EQU ;&$branch$branch_id JCN2\n" . $cc_line;
+            $cc_line = "\n$cond_expr #00 EQU ?&$branch$branch_id\n" . $cc_line;
         }
         $cc_line .= "\n&$branch$branch_id";
     }
@@ -2807,16 +2797,12 @@ if (exists $info->{'EndIf'}) {
 
 =cut
 # croak "<$cond_expr> => ",Dumper $cond_is_const;
-    my $rline = "$cond_expr ;&$branch$branch_id JCN2\n" .
-                ";&$branch${branch_id}_$end JMP2\n" .
+    my $rline = "$cond_expr ?&$branch$branch_id\n" .
+                "!&$branch${branch_id}_$end \n" .
                 "&$branch$branch_id";
     if ( not $cond_is_const->[0] ) {
         return ($rline,0);
     } elsif ($cond_is_const->[1]) { # const and true, so always do the top branch
-        # my $rline = "$cond_expr ;&$branch$branch_id JCN2\n" .
-        #             ";&$branch${branch_id}_$end JMP2\n" .
-        #         "&$branch$branch_id";
-        # return '';
         return ($rline,2);
     } else { # const and false, so always skip the top branch
         # todo( 'IF-THEN const and false, so always skip the top branch',1);
@@ -2842,7 +2828,7 @@ sub _emit_ifbranch_end_Uxntal ($id, $state){
     # my $branch_id = $state->{'IfBranchId'};
     my $branch_id = pop @{$state->{'BranchStack'}};
     my $if_id = $state->{'IfId'};
-    my $r_line = ';&'.$cond.'_'.$end.$if_id." JMP2 \n";
+    my $r_line = '!&'.$cond.'_'.$end.$if_id." \n";
     $r_line .= "&$branch${branch_id}_$end\n";
     $state->{'IfBranchId'} = $id;
     $branch_id = $state->{'IfBranchId'};
@@ -3303,10 +3289,13 @@ sub _emit_subroutine_call_expr_Uxntal($stref,$f,$line,$info){
                     my $idx_offset = __get_array_index_offset($stref,$f,$var);
                     my $idx_offset_Uxntal =  toHex($idx_offset,2);
                     my $idx_offset_expr = $idx_offset==0? '' : $idx_offset_Uxntal.' SUB2';
+                    if ($idx_offset_expr=~/\#(\w+)\s+ADD2\s+\#(\w+)\s+SUB2/) {
+                        croak $idx_offset_expr;
+                    }
                     my $idx = $idx_expr_b;
                     # my $idx_word_sz =
                     my $idx_expr = defined $idx ? ($idx eq $idx_offset_Uxntal) ? '' :
-                    "$idx $idx_offset_expr".( $short_mode ? ' #0002 MUL2 ': '') .' ADD2 ' : '';
+                    "$idx $idx_offset_expr".( $short_mode ? ' #10 SFT2 ': '') .' ADD2 ' : '';
                     push @call_arg_expr_strs_Uxntal, "$var_access $idx_expr LDA$short_mode".' ( BYTE/SHORT )' # load a pointer, index, load the value
 
 
@@ -3700,7 +3689,7 @@ sub isStrCmp($ast, $stref, $f,$info){
 # returns the Uxntal string with the print instructions
 sub _emit_list_print_Uxntal($stref,$f,$line,$info,$unit,$advance,$list_to_print){
     my $Sf = $stref->{'Subroutines'}{$f};
-    my $port = ($unit eq 'STDERR') ? '#19' : '#18';
+    my $port = ($unit eq 'STDERR') ? '19' : '18';
 # so for every elt in the list, we must work out if it is
 #  - an integer
 # - a character
@@ -3745,6 +3734,7 @@ sub _emit_list_print_Uxntal($stref,$f,$line,$info,$unit,$advance,$list_to_print)
                 $print_fn_Uxntal = '#19 DEO';
             }
             $line_Uxntal = '{ ( iter ) ,&'.$iter.' STR2 '.$arg_to_print_Uxntal.' '.$print_fn_Uxntal.' JMP2r } STH2r '.toHex($array_length-1,2)." $idx_offset_expr #0000 $idx_offset_expr range-map-short ( print-array )";
+            add_to_used_lib_subs($print_fn_Uxntal);
         }
         elsif ($print_fn_Uxntal eq 'print-array-slice') {
             # The range must be the original Fortran one: we correct for the offset in the var access
@@ -3760,7 +3750,7 @@ sub _emit_list_print_Uxntal($stref,$f,$line,$info,$unit,$advance,$list_to_print)
             elsif ($print_fn_Uxntal eq 'print-char-stderr') {
                 $print_fn_Uxntal = '#19 DEO';
             }
-            $line_Uxntal = '{ ( iter ) ,&'.$iter.' STR2 '.$arg_to_print_Uxntal.' '.$print_fn_Uxntal." #20 $port DEO JMP2r } STH2r $e $b range-map-short ( print-array-slice )";
+            $line_Uxntal = '{ ( iter ) ,&'.$iter.' STR2 '.$arg_to_print_Uxntal.' '.$print_fn_Uxntal." #20$port DEO JMP2r } STH2r $e $b range-map-short ( print-array-slice )";
         } elsif ($print_fn_Uxntal eq 'print-implicit-do') {
             $line_Uxntal = __implicit_do_in_print($elt,$stref,$f,$info,$line,$unit);
         } else {
@@ -3773,9 +3763,12 @@ sub _emit_list_print_Uxntal($stref,$f,$line,$info,$unit,$advance,$list_to_print)
             }
             # If a string is a single char, we treat it as a char, so we must print a char
             if (substr($print_fn_Uxntal,0,12) eq 'print-string' and $arg_to_print_Uxntal=~/(:?^\s*\#[0-9a-f]+\s*$|LDA\s*$)/ ) { #
-                $print_fn_Uxntal = "$port DEO";
+                $print_fn_Uxntal = '#'."$port DEO";
             }
-            $line_Uxntal .= "$arg_to_print_Uxntal $print_fn_Uxntal #20 $port DEO ( , )";
+            # Let's not print a zero byte
+            if ($arg_to_print_Uxntal ne '#00') {
+                $line_Uxntal .= "$arg_to_print_Uxntal $print_fn_Uxntal #20$port DEO ( , )";
+            }
         }
         if ($print_fn_Uxntal=~/array|implicit-do/) {
             add_to_used_lib_subs('range-map-short');
@@ -3787,17 +3780,17 @@ sub _emit_list_print_Uxntal($stref,$f,$line,$info,$unit,$advance,$list_to_print)
     my $line_Uxntal = join("\n",@lines_Uxntal);
     if ($advance eq 'yes') {
         if ($unit eq 'STDOUT') {
-            $line_Uxntal .= ' #0a #18 DEO'."\n";
+            $line_Uxntal .= ' #0a18 DEO'."\n";
         }
         elsif ($unit eq 'STDERR') {
-            $line_Uxntal .= ' #0a #19 DEO'."\n";
+            $line_Uxntal .= ' #0a19 DEO'."\n";
         }
     } else {
         if ($unit eq 'STDOUT') {
-            $line_Uxntal .= ' #20 #18 DEO'."\n";
+            $line_Uxntal .= ' #2018 DEO'."\n";
         }
         elsif ($unit eq 'STDERR') {
-            $line_Uxntal .= ' #20 #19 DEO'."\n";
+            $line_Uxntal .= ' #2019 DEO'."\n";
         }
     }
 
@@ -3954,7 +3947,7 @@ sub _emit_print_from_ast($stref,$f,$line,$info,$unit,$elt){
 } # END of _emit_print_from_ast
 
 sub __implicit_do_in_print($elt,$stref,$f,$info,$line,$unit) {
-    my $port = ($unit eq 'STDERR') ? '#19' : '#18';
+    my $port = ($unit eq 'STDERR') ? '19' : '18';
     # Let's assume we have the correct print expression from $elt->[1][1];
     my $print_expr = $elt->[1][1];
     my ($print_expr_Uxntal,$word_sz) = _emit_expression_Uxntal($print_expr,$stref, $f, $info);
@@ -3967,7 +3960,7 @@ sub __implicit_do_in_print($elt,$stref,$f,$info,$line,$unit) {
     my $range_iter = $elt->[1][2][1];
     my $range_iter_Uxntal = __var_access($stref,$f,$range_iter->[1]);
 
-    my $uxntal_line = "{ $range_iter_Uxntal STA2 $print_expr_Uxntal $print_call #20 $port DEO JMP2r } STH2r $range_end_Uxntal $range_start_Uxntal range-map-short";
+    my $uxntal_line = "{ $range_iter_Uxntal STA2 $print_expr_Uxntal $print_call #20$port DEO JMP2r } STH2r $range_end_Uxntal $range_start_Uxntal range-map-short";
     return $uxntal_line;
 }
 
@@ -4394,7 +4387,7 @@ sub  __get_array_index_offsets_dims($stref,$f,$var){
 
 
 sub __emit_list_based_print_write($stref,$f,$line,$info,$unit, $advance){
-    my $port = $unit eq 'STDERR' ? '#19' : '#18';
+    my $port = $unit eq 'STDERR' ? '19' : '18';
 
     my $ast =  $info->{'IO'} eq 'print'
         ? $info->{'IOCall'}{'Args'}{'AST'}
@@ -4430,9 +4423,9 @@ sub __emit_list_based_print_write($stref,$f,$line,$info,$unit, $advance){
 			my $print_call = shift @{$print_call_list};
 			add_to_used_lib_subs($print_call);
 			my ($uxntal_expr,$word_sz) = _emit_expression_Uxntal($arg_ast,$stref, $f, $info);
-			$c_line.= $uxntal_expr.' '.$print_call. " #20 $port DEO"."\n";
+			$c_line.= $uxntal_expr.' '.$print_call. " #20$port DEO"."\n";
 		}
-		$c_line .= " #0a $port DEO" if $advance eq 'yes';
+		$c_line .= " #0a$port DEO" if $advance eq 'yes';
 	}
 
     return $c_line;
@@ -4816,7 +4809,7 @@ sub __create_byte_array_zeroing($str,$len) {
 
 sub __create_short_array_zeroing($str,$len) {
     add_to_used_lib_subs('range-map-short');
-    return "{ ( iter ) #0000 SWP2 #0002 MUL2 $str ADD2 STA2 JMP2r } STH2r ".toHex($len-1,2).' #0000 range-map-short';
+    return "{ ( iter ) #0000 SWP2 #10 SFT2 $str ADD2 STA2 JMP2r } STH2r ".toHex($len-1,2).' #0000 range-map-short';
 }
 sub _gen_array_string_inits($stref,$f,$var,$pass_state) {
     my $uxntal_array_string_init = '';
@@ -4894,3 +4887,22 @@ sub _remove_redundant_labels($uxntal_source_lines) {
     return $processed_uxntal_source_lines;
 } # END of _remove_redundant_labels
 
+sub __simplify_arith_expr($idx_expr) {
+    if ($idx_expr=~/\#(\w+)\s+ADD2\s+\#(\w+)\s+SUB2/) {
+        if ("$1" eq "$2") {
+            my $n = $1;
+            $idx_expr=~s/\#$n\s+ADD2\s+\#$n\s+SUB2//;
+        }
+    } 
+    elsif ($idx_expr=~/\#(\w+)\s+ADD2/) {
+        my $n=$1;
+        if ($n eq '0001') {
+            $idx_expr=~s/\#$n\s+ADD2/INC2/;
+
+        }
+        elsif ($n eq '0002') {
+            $idx_expr=~s/\#$n\s+ADD2/INC2 INC2/;
+        }
+    }
+    return $idx_expr;
+}
