@@ -547,7 +547,6 @@ Instead of the nice but cumbersome approach we had until now, from now on it is 
         my $id = $info->{'LineID'};
         my $skip=0;
         my $skip_comment=0;
-        # say "520 LINE $line ".Dumper($info);
         if (exists $info->{'Signature'} ) {
             # subroutine f(x) becomes @f ;x LDA{sz} if x is read
             # but if x is write, then we have
@@ -638,7 +637,11 @@ Instead of the nice but cumbersome approach we had until now, from now on it is 
         elsif (exists $info->{'Do'} ) {
             if (exists $info->{'Do'}{'While'}) {
                 push @{$pass_state->{'DoStack'}}, [$id,$info->{'Do'}{'ExpressionsAST'},'While'];
-                $c_line = '&'.$while_loop.'_'.$f.'_'.$id . "\n" ;
+                my $while_loop_label = $while_loop.'_'.$f.'_'.$id;
+                if (exists $info->{'Do'}{'ConstructName'} ) {
+                    $while_loop_label = $f.'_'.$info->{'Do'}{'ConstructName'};
+                }
+                $c_line = '&'.$while_loop_label . "\n" ;
             } else {
                 my $do_iterator =  __shorten_fq_name( $f.'_'.$info->{'Do'}{'Iterator'});
                 $stref->{'Subroutines'}{$f}{'DoIterators'}{$info->{'Do'}{'Iterator'}}=$do_iterator;
@@ -657,10 +660,17 @@ Instead of the nice but cumbersome approach we had until now, from now on it is 
                     $id,$do_iterator,$do_step,'Do'];
                 my ($do_start,$word_sz)= _emit_expression_Uxntal($info->{'Do'}{'Range'}{'ExpressionASTs'}[0],$stref, $f, $info);
                 (my $do_stop,$word_sz) =  _emit_expression_Uxntal($info->{'Do'}{'Range'}{'ExpressionASTs'}[1],$stref, $f, $info);
-                $c_line = $do_stop . ' INC2 ' . $do_start . "\n" .
+                my $loop_label = $loop.'_'.$f.'_'.$id;
+                my $loop_end_label = $loop.'_'.$end.'_'.$f.'_'.$id;
+                if (exists $info->{'Do'}{'ConstructName'} ) {
+                    $loop_label = $f.'_'.$info->{'Do'}{'ConstructName'};
+                    $loop_end_label = $f.'_'.$info->{'Do'}{'ConstructName'}.'_'.$end;
+                }
+                
+                $c_line = $do_stop . ' '.($do_step==1 ? 'INC2': ' ( '.toHex($do_step,2).' ADD2'.' ) ') . ' '.$do_start . "\n" .
                 # 'DUP2 EQU2k ;&loop_end_'.$f.'_'.$id.' JCN2'. "\n" .
-                'OVR2 OVR2 SUB2 #fff7 GTH2 ;&'.$loop.'_'.$end.'_'.$f.'_'.$id.' JCN2'. "\n" .
-                '&'.$loop.'_'.$f.'_'.$id . "\n" .
+                'OVR2 OVR2 SUB2 #fff7 GTH2 ;&'.$loop_end_label.' JCN2'. "\n" .
+                '&'.$loop_label . "\n" .
                 ';'.$do_iterator.' STA2 ';
             }
         }
@@ -727,6 +737,7 @@ Instead of the nice but cumbersome approach we had until now, from now on it is 
                 # say 'WRITE: IOCall Args:'.Dumper($call_ast),'IOList:',Dumper($iolist_ast);
                 # say "WRITE: $line";
                 my ($print_calls, $offsets, $unit, $advance,$other_attrs) = _analyse_write_call($stref,$f,$info);
+                # say Dumper($print_calls, $offsets, $unit, $advance,$other_attrs);
                 if (scalar @{$print_calls} == 1) {
                     if (
                         $print_calls->[0] eq 'print-list' or
@@ -735,7 +746,7 @@ Instead of the nice but cumbersome approach we had until now, from now on it is 
                     # add_to_used_lib_subs($print_calls->[0]);
                     $c_line = __emit_list_based_print_write($stref,$f,$line,$info, $unit,$advance);
                     # say "UXNTAL SINGLE WRITE: $c_line $advance";
-                     } elsif ($print_calls->[0] eq 'device-write') {
+                    } elsif ($print_calls->[0] eq 'device-write') {
                         my $unitvar_decl = getDecl($stref,$f,$unit);
                         if (exists $unitvar_decl->{'Val'}) {
                             my $unitvar_val = $unitvar_decl->{'Val'};
@@ -760,7 +771,10 @@ Instead of the nice but cumbersome approach we had until now, from now on it is 
                                 error("WRITE to unit $unit not supported");
                             }
                         }
-                     }
+                    } else {
+                        $c_line = __emit_list_based_print_write($stref,$f,$line,$info, $unit,$advance);
+                        # die $c_line;
+                    }
                 } else {
                     add_to_used_lib_subs('update-len');
                     my ($uxntal_expr_str,$word_sz) = _emit_expression_Uxntal([2,$unit],$stref, $f, $info);
@@ -914,7 +928,7 @@ Instead of the nice but cumbersome approach we had until now, from now on it is 
                 $c_line = ';&'.__shorten_fq_name($f.'_'.$info->{'Goto'}{'Label'}).' JMP2';
             }
             elsif (exists $info->{'Exit'}) {
-                $c_line = ';&'.__shorten_fq_name($f.'_'.$info->{'Exit'}{'ConstructName'}).' JMP2';
+                $c_line = ';&'.__shorten_fq_name($f).'_'.$info->{'Exit'}{'ConstructName'}.'_'.$end.' JMP2';
             }
             else {
                 croak "If without Then, not assignment, goto or call: $line";
@@ -987,24 +1001,46 @@ Instead of the nice but cumbersome approach we had until now, from now on it is 
             $pass_state->{'IfId'}=$pass_state->{'IfStack'}[-1];
         }
         elsif ( exists $info->{'EndDo'} ) {
+                
                 my $do_tup = pop @{$pass_state->{'DoStack'}};
                 if ($do_tup->[-1] eq 'Do') {
                     # croak Dumper $f,$annline,$do_tup;
                     my ($do_id, $do_iter, $do_step) = @{$do_tup};
+                    my $loop_label = $loop.'_'.$f.'_'.$do_id;
+                    my $loop_end_label = $loop.'_'.$end.'_'.$f.'_'.$do_id;
+                    if ( exists $info->{'EndDo'}{'ConstructName'}) {
+                        $loop_label = $f.'_'.$info->{'EndDo'}{'ConstructName'};
+                        $loop_end_label = $f.'_'.$info->{'EndDo'}{'ConstructName'}.'_'.$end;
+                    }
                     my $inc = $do_step == 1 ? 'INC2' : toHex($do_step,2). ($do_step>0 ? ' ADD2' : ' SUB2');
                     my $dec = $do_step == 1 ? '#0001 SUB2' : toHex($do_step,2). ($do_step<0 ? ' ADD2' : ' SUB2');
                     # This says, INC and then compare, if it is not equal, loop again
                     # But fortran says compare then INC
-                    $c_line = ";$do_iter LDA2 $inc OVR2 OVR2 NEQ2 ".';&'.$loop.'_'.$f.'_'.$do_id.' JCN2 '."\n;$do_iter LDA2 $inc ;$do_iter STA2\n".
-                    '&'.$loop.'_'.$end.'_'.$f."_$do_id POP2 POP2\n";
+                    # Also, NEQ2 only works if the step is 1! Otherwise we need a signed number comp
+                    # iter+2 < end
+                    if ($do_step == 1) {
+                        $c_line = ";$do_iter LDA2 $inc OVR2 OVR2 NEQ2 ".';&'.$loop_label.' JCN2 '."\n;$do_iter LDA2 $inc ;$do_iter STA2\n".
+                        '&'.$loop_end_label." POP2 POP2\n";
+                    } elsif ($do_step>0) { # assuming the step is positive
+                        $c_line = ";$do_iter LDA2 $inc OVR2 OVR2 GTH2 ".';&'.$loop_label.' JCN2 '."\n;$do_iter LDA2 $inc ;$do_iter STA2\n".
+                        '&'.$loop_end_label." POP2 POP2\n";
+                        add_to_used_lib_subs('gt2');
+                    } else {
+                        todo('DO with negative STEP');croak;
+                    }
                 } else { # while
                     my ($do_id, $do_while_cond) = @{$do_tup};
                     ($c_line,my $word_sz) =  _emit_expression_Uxntal($do_while_cond,$stref, $f, $info);
-                    $c_line .= "\n".';&'.$while_loop.'_'.$f.'_'.$do_id.' JCN2';
+                    my $while_loop_label = $while_loop.'_'.$f.'_'.$do_id;
+                    if (exists $info->{'EndDo'}{'ConstructName'} ) {
+                        $while_loop_label = $f.'_'.$info->{'EndDo'}{'ConstructName'};
+                    }
+                    $c_line .= "\n".';&'.$while_loop_label.' JCN2';
                 }
-                if ( exists $info->{'EndDo'}{'ConstructName'} ) {
-                    $c_line .= "\n".'&'.__shorten_fq_name($f.'_'.$info->{'EndDo'}{'ConstructName'})
-                }
+                # if ( exists $info->{'EndDo'}{'ConstructName'}) {
+                #     $c_line .= "\n".'&'.__shorten_fq_name($f).'_'.$info->{'EndDo'}{'ConstructName'}.'_'.$end;
+                #     # carp 'ConstructName:'. $info->{'EndDo'}{'ConstructName'} . " => $c_line ";
+                # }
         }
         elsif ( exists $info->{'EndProgram'} ) {
             # carp '<',$pass_state->{'Subroutine'}{'IsMain'} ,'>';
@@ -1085,8 +1121,10 @@ Instead of the nice but cumbersome approach we had until now, from now on it is 
             $c_line = ';&'.__shorten_fq_name($f.'_'.$info->{'Goto'}{'Label'}).' JMP2';
         }
         elsif (exists $info->{'Exit'}) {
-            carp Dumper $info;
-            $c_line = ';&'.__shorten_fq_name($f.'_'.$info->{'Exit'}{'ConstructName'}).' JMP2';
+            # The way we construct the loop, it means we have only the upper bound on the stack
+            # But the loop exit will POP twice
+            # So let's just DUP2 the bound
+            $c_line = 'DUP2 ;&'.$f.'_'.$info->{'Exit'}{'ConstructName'}.'_'.$end.' JMP2';
         }
         elsif (exists $info->{'Continue'}) {
             $c_line='( continue )';

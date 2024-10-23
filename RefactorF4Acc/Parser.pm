@@ -805,6 +805,8 @@ MODULE
 					if (defined $do_construct_name and $do_construct_name ne 'CONSTRUCT_NAME_NOT_DEFINED') {
 						$Sf->{'DoConstructNameTarget'}{$do_construct_name}='EndDo';
 						$info->{'EndDo'}{'ConstructName'}=$do_construct_name;
+					} else {
+						delete $info->{'EndDo'}{'ConstructName'};
 					}
 				}
 				$prev_stmt_was_spec=0;
@@ -4077,14 +4079,16 @@ sub _identify_loops_breaks {
 			my $line = $srcref->[$index][0];
 			my $info = $srcref->[$index][1];
 			next if $line =~ /^\!\s+/;
-
+			my $tline=$line;
+			$tline=~s/^\s+//;
+			$tline=~s/\s+$//;
 			# BeginDo: we find a do with a label
 			# This can be a 'proper' do .. end do but only if either there is and end do or there is a continue. Otherwise I should keep the label!
 			# So I need a check on the labels
-			$line =~ /^\s*(\w+):*\s+do\s+(\d+)\s+\w/ && do {
+			$tline =~ /^\s*(\w+)\s*:\s+do\s+(\d+)\s+\w/ && do {
 				error('DO with both construct-name and label not supported');
 			};
-			$line =~ /^\s*\d*\s+do\s+(\d+)\s+\w/ && do {
+			$tline =~ /^\s*\d*\s+do\s+(\d+)\s+\w/ && do {
 				my $label = $1;
 				$info->{'BeginDo'}{'Label'} = $label;
 #				if (not exists $info->{'Do'}{'Label'}  or $info->{'Do'}{'Label'} eq 'LABEL_NOT_DEFINED') {
@@ -4102,7 +4106,7 @@ sub _identify_loops_breaks {
 				$srcref->[$index] = [ $line, $info ];
 				next;
 			};
-			$line =~ /^\s*(\w+):*\s+do\s+\w/ && do {
+			$tline =~ /^\s*(\w+)\s*:\s+do\s+\w/ && do {
 				my $construct_name = $1;
 				$current_construct_name = $construct_name;
 				$info->{'BeginDo'}{'ConstructName'} = $construct_name;
@@ -4116,7 +4120,7 @@ sub _identify_loops_breaks {
 				$srcref->[$index] = [ $line, $info ];
 				next;
 			};
-			$line =~ /^\s+do\s+\w/ && do { # DO without label or construct-name
+			$tline =~ /^\s+do\s+\w/ && do { # DO without label or construct-name
 			# We give it a construct-name based on the LineID
 				my $construct_name = '__DO'.$info->{'LineID'};
 				$current_construct_name = $construct_name;
@@ -4133,7 +4137,7 @@ sub _identify_loops_breaks {
 			};
 #    (Un)conditional GO TO, assigned GO TO, and computed GO TO statements
 			# Goto
-			$line =~ /^\s*\d*\s+.*?[\)\ ]\s*go\s*to\s+(\d+)\s*$/ && do {
+			$tline =~ /^\s*\d*\s+.*?[\)\ ]\s*go\s*to\s+(\d+)\s*$/ && do {
 				my $label = $1;
 				$info->{'Goto'}{'Label'} = $label;
 				$Sf->{'ReferencedLabels'}{$label}=$label;
@@ -4147,7 +4151,7 @@ sub _identify_loops_breaks {
 			};
 #    (Un)conditional GO TO, assigned GO TO, and computed GO TO statements
 			# Exit with explicit construct-name
-			$line =~ /^exit\s+(\w+)\s*$/ && do {
+			$tline =~ /^exit\s+(\w+)\s*$/ && do { 
 				my $construct_name = $1;
 				$info->{'Exit'}{'ConstructName'} = $construct_name;
 				$Sf->{'ReferencedConstructNames'}{$construct_name}=$construct_name;
@@ -4157,7 +4161,7 @@ sub _identify_loops_breaks {
 				next;
 			};
 			# Exit without explicit construct-name
-			$line =~ /^exit\s*$/ && do {
+			$tline =~ /^exit\s*$/ && do {
 				my $construct_name = $current_construct_name;
 				$info->{'Exit'}{'ConstructName'} = $construct_name;
 				$Sf->{'ReferencedConstructNames'}{$construct_name}=$construct_name;
@@ -4168,7 +4172,7 @@ sub _identify_loops_breaks {
 			};
 #    CONTINUE statement
 			# continue can be end of do loop or break target (amongs others?)
-			$line =~ /^\s*(\d+)\s+(continue|\w)/ && do {
+			$tline =~ /^\s*(\d+)\s+(continue|\w)/ && do {
 				my $label = $1;
 				if (exists $Sf->{'DoLabelTarget'}{$label} ) {
 					$Sf->{'DoLabelTarget'}{$label}='Continue';
@@ -4221,15 +4225,13 @@ sub _identify_loops_breaks {
 				$srcref->[$index] = [ $line, $info ];
 				next;
 			};
-
    # When an open() fails, you can pass a label to some place for error handling
    # Some evil code combines such end-of-do-block labels
-			$line =~ /^\s+open.*?\,\s*err\s*=\s*(\d+)\s*\)/ && do {
+			$tline =~ /^\s+open.*?\,\s*err\s*=\s*(\d+)\s*\)/ && do {
 				my $label = $1;
 				$Sf->{'Gotos'}{$label} = 1;
 				next;
 			};
-
 			$srcref->[$index] = [ $line, $info ];
 		}
 	} else {
