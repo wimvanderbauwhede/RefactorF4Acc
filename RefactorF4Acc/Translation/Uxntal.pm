@@ -3687,6 +3687,7 @@ sub isStrCmp($ast, $stref, $f,$info){
 #         NIP2 POP2r EQU JMP2r
 
 # returns the Uxntal string with the print instructions
+# list-based print
 sub _emit_list_print_Uxntal($stref,$f,$line,$info,$unit,$advance,$list_to_print){
     my $Sf = $stref->{'Subroutines'}{$f};
     my $port = ($unit eq 'STDERR') ? '19' : '18';
