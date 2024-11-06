@@ -914,7 +914,7 @@ Instead of the nice but cumbersome approach we had until now, from now on it is 
                 $c_line = '!&'.__shorten_fq_name($f).'_'.$info->{'Exit'}{'ConstructName'}.'_'.$end.' ';
             }
             else {
-                croak "If without Then, not assignment, goto or call: $line";
+                croak "If without Then, not assignment, goto or call: $line".Dumper($info);
             }
             my $indent = $info->{'Indent'};
             my $branch_id = $info->{'LineID'};

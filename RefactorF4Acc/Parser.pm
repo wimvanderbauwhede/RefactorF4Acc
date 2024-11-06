@@ -4137,7 +4137,9 @@ sub _identify_loops_breaks {
 			};
 #    (Un)conditional GO TO, assigned GO TO, and computed GO TO statements
 			# Goto
-			$tline =~ /^\s*\d*\s+.*?[\)\ ]\s*go\s*to\s+(\d+)\s*$/ && do {
+			# say "TLINE:<$tline>" if $tline=~/goto/;
+			$tline =~ /^\s*(?:\d*\s+)?.*?[\)\ ]\s*go\s*to\s+(\d+)\s*$/ && do {
+				# say "TLINE:<$tline>" ;
 				my $label = $1;
 				$info->{'Goto'}{'Label'} = $label;
 				$Sf->{'ReferencedLabels'}{$label}=$label;
