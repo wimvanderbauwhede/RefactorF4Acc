@@ -418,7 +418,7 @@ sub analyse_lines {
 			#= SUBROUTINE FUNCTION PROGRAM
 			# Procedure block identification
 
-			($line =~ /^
+			(($line =~ /^
 				(
   					  (?:\w+(?:\*?(?:\((?:\w+=)?[\*\d]+\)|\d+))?\s+)*function
 					| (?:(?:pure|elemental|recursive)\s+)*subroutine
@@ -426,12 +426,14 @@ sub analyse_lines {
 					| module
 					| block
 				)\s+(\w+)
-				/x
+				/x 
 			# ($line =~ /^(\w+\s+\w+\s+(?:function|subroutine)|\w+\s+subroutine|[\*\(\)\w]+\s+function|function|subroutine|program|module|block)\s+(\w+)/
-			or $line =~ /^(blockdata)/
+			or $line =~ /^(blockdata)/)
+			and $line !~/^\s*end/
 			) && do {
 				my $full_proc_type=$1;
 				my $proc_name=$2;
+				
 #				say "PROC NAME in $f: $proc_name" if $f ne $proc_name;
 				$full_proc_type=~s/double\s+precision/doubleprecision/;
 				my @proc_type_chunks = split(/\s+/,$full_proc_type);
@@ -491,6 +493,7 @@ sub analyse_lines {
 						'Name'=>$result_var,
 						'Implicit' => 0
 					};
+
 					push @{ $Sf->{'DeclaredOrigLocalVars'}{'List'} },$result_var;
 				}
 
@@ -3102,6 +3105,12 @@ sub __parse_sub_func_prog_decls {
 					$info->{'Signature'}{'ReturnTypeAttr'} = defined $maybe_attr ? $maybe_attr : '';
 				}
 			}
+			elsif ($line =~ /(\w+)\((?:kind=)?(\d)\)\s+function\s/ ) { 
+				my $maybe_type=$1;
+				my $maybe_attr=$2;
+				$info->{'Signature'}{'ReturnType'} = $maybe_type;
+				$info->{'Signature'}{'ReturnTypeAttr'} = defined $maybe_attr ? $maybe_attr : '';				
+			}
 			if ($line =~ /function\s+\w+\s*\(.*\)\s+result\s*\((\w+)\)/ ) {
                 my $result_var=$1;
                 $info->{'Signature'}{'ResultVar'} = $result_var;
@@ -3188,7 +3197,7 @@ sub __parse_sub_func_prog_decls {
 	} else {
 		error( 'Unrecognised subroutine declaration in '.$Sf->{'Source'}.': '.$line);
 	}
-
+# croak Dumper $info->{'Signature'} if exists $info->{'Signature'}{'Function'};
     $Sf->{'Signature'}=$info->{'Signature'};
 	return ( $Sf, $line, $info );
 }    # END of __parse_sub_func_prog_decls()
@@ -4137,7 +4146,9 @@ sub _identify_loops_breaks {
 			};
 #    (Un)conditional GO TO, assigned GO TO, and computed GO TO statements
 			# Goto
-			$tline =~ /^\s*\d*\s+.*?[\)\ ]\s*go\s*to\s+(\d+)\s*$/ && do {
+			# say "TLINE:<$tline>" if $tline=~/goto/;
+			$tline =~ /^\s*(?:\d*\s+)?.*?[\)\ ]\s*go\s*to\s+(\d+)\s*$/ && do {
+				# say "TLINE:<$tline>" ;
 				my $label = $1;
 				$info->{'Goto'}{'Label'} = $label;
 				$Sf->{'ReferencedLabels'}{$label}=$label;

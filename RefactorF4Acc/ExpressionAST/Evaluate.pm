@@ -276,42 +276,43 @@ sub eval_expression_with_parameters { (my $expr_str,my $info, my $stref, my $f, 
     my $expr_ast=parse_expression($expr_str_no_ph,$info, $stref,$f);
 	# croak Dumper $expr_ast if $expr_str =~/__PH/;
     my $expr_ast2 = replace_param_by_val($stref, $f, 0,$expr_ast, {});
-	my $evaled_expr_str= emit_expr_from_ast($expr_ast2);
+	my $expr_str_to_eval= emit_expr_from_ast($expr_ast2);
 	if ($expr_ast2->[0] ==1 and exists $F95_intrinsics{$expr_ast2->[1]} ) {
 		# my $evaled_val = eval_expression_with_parameters($val_expr_str,$info, $stref, $f) ;
 		# TODO: this only works if the args are constant literals. Need to eval the args.
-		my $expr_val_ast = eval_intrinsic($evaled_expr_str,$expr_ast2);
-		carp "INTRINSIC EXPR <$expr_str> TO EVAL: $evaled_expr_str => ",Dumper($expr_val_ast) if $DBG;
+		my $expr_val_ast = eval_intrinsic($expr_str_to_eval,$expr_ast2);
+		carp "INTRINSIC EXPR <$expr_str> TO EVAL: $expr_str_to_eval => ",Dumper($expr_val_ast) if $DBG;
 		if ($expr_val_ast->[0] != 29) {
 			if ($err) {
 				error("$expr_str does not reduce to an integer");
 			}
-			return $evaled_expr_str;
+			return $expr_str_to_eval;
 		} else {
 			return $expr_val_ast->[1];
 		}
 	} else {
-		$evaled_expr_str=~s/\-/ -/g;
-		$evaled_expr_str=~s/\/\//./g; # string concat
+		$expr_str_to_eval=~s/\-/ -/g;
+		$expr_str_to_eval=~s/\/\//./g; # string concat
 		# For logical expressions
-		$evaled_expr_str=~s/\.true\./1/g;
-		$evaled_expr_str=~s/\.false\./0/g;
-		$evaled_expr_str=~s/\.(not|and|or|xor)\./$1/g;
-		$evaled_expr_str=~s/\.eqv\./==/g;
-		$evaled_expr_str=~s/\.neqv\./!=/g;
+		$expr_str_to_eval=~s/\.true\./1/g;
+		$expr_str_to_eval=~s/\.false\./0/g;
+		$expr_str_to_eval=~s/\.(not|and|or|xor)\./$1/g;
+		$expr_str_to_eval=~s/\.eqv\./==/g;
+		$expr_str_to_eval=~s/\.neqv\./!=/g;
 		# For integers with kind info
-		while ($evaled_expr_str=~/\d+_[1248]/) {
-			$evaled_expr_str=~s/(\d+)_[1248]/$1/;
+		while ($expr_str_to_eval=~/\d+_[1248]/) {
+			$expr_str_to_eval=~s/(\d+)_[1248]/$1/;
 		}
-		my $expr_val=eval($evaled_expr_str);
-		# croak "EXPR <$expr_str> TO EVAL: $evaled_expr_str => $expr_val".Dumper($info);
-		# carp $evaled_expr_str,Dumper($info);
+		croak $expr_str_to_eval if $expr_str_to_eval=~/length/;
+		my $expr_val = eval($expr_str_to_eval);
+		# croak "EXPR <$expr_str> TO EVAL: $expr_str_to_eval => $expr_val".Dumper($info);
+		# carp $expr_str_to_eval,Dumper($info);
 		if (exists $info->{'ParsedParDecl'} and $info->{'ParsedParDecl'}{'TypeTup'}{'Type'} eq 'character') {
 			if ($err) {
 				error("$expr_str does not reduce to an integer");
 			}
 			if (exists $info->{'ParsedParDecl'}{'Attributes'}{'Dim'}) { # It's an array of strings, return as is
-				return $evaled_expr_str;
+				return $expr_str_to_eval;
 			} else {
 				return "'".$expr_val."'";
 			}
@@ -329,17 +330,19 @@ sub eval_expression_with_parameters_to_AST { (my $expr_str,my $info, my $stref, 
     my $expr_ast=parse_expression($expr_str_no_ph,$info, $stref,$f);
 	# croak Dumper $expr_ast if $expr_str =~/__PH/;
     my $expr_ast2 = replace_param_by_val($stref, $f, 0,$expr_ast, {});
-	my $evaled_expr_str= emit_expr_from_ast($expr_ast2);
+	my $expr_str_to_eval= emit_expr_from_ast($expr_ast2);
 	if ($expr_ast2->[0] ==1 and exists $F95_intrinsics{$expr_ast2->[1]} ) {
 		# my $evaled_val = eval_expression_with_parameters($val_expr_str,$info, $stref, $f) ;
 		# TODO: this only works if the args are constant literals. Need to eval the args.
-		my $expr_val_ast = eval_intrinsic($evaled_expr_str,$expr_ast2);
-		# say "INTRINSIC EXPR <$expr_str> TO EVAL: $evaled_expr_str => <$expr_val>";
+		my $expr_val_ast = eval_intrinsic($expr_str_to_eval,$expr_ast2);
+		# say "INTRINSIC EXPR <$expr_str> TO EVAL: $expr_str_to_eval => <$expr_val>";
 		return $expr_val_ast;
 	} else {
-		$evaled_expr_str=~s/\-/ -/g;
-		$evaled_expr_str=~s/\/\//./g;
-		my $expr_val=eval($evaled_expr_str);
+		$expr_str_to_eval=~s/\-/ -/g;
+		$expr_str_to_eval=~s/\/\//./g;
+		say "EXPR TO EVAL: $expr_str_to_eval" if $DBG;
+		croak $expr_str_to_eval if $expr_str_to_eval=~/length/;
+		my $expr_val=eval($expr_str_to_eval);
 		# croak "EXPR <$expr_str> TO EVAL: $evaled_expr_str => $expr_val".Dumper($info) if $expr_str_no_ph =~/CONCAT/;
 		if ($info->{'ParsedParDecl'}{'TypeTup'}{'Type'} eq 'character') {
 			return [32,"'".$expr_val."'"];
@@ -569,7 +572,8 @@ sub eval_cond_expr_ast_after_const_folding { my ($cond_expr_ast) = @_;
 		$expr_str_to_eval=~s/(\d+)_[1248]/$1/;
 	}
 	say "EXPR TO EVAL: $expr_str_to_eval" if $DBG;
-	my $expr_val=eval($expr_str_to_eval);
+	my $expr_val = eval($expr_str_to_eval);
+	# croak $expr_str_to_eval if $expr_str_to_eval=~/length/;
 	if (not defined $expr_val) {
 		return $cond_expr_ast
 	}

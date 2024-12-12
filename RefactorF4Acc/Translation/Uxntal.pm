@@ -914,7 +914,7 @@ Instead of the nice but cumbersome approach we had until now, from now on it is 
                 $c_line = '!&'.__shorten_fq_name($f).'_'.$info->{'Exit'}{'ConstructName'}.'_'.$end.' ';
             }
             else {
-                croak "If without Then, not assignment, goto or call: $line";
+                croak "If without Then, not assignment, goto or call: $line".Dumper($info);
             }
             my $indent = $info->{'Indent'};
             my $branch_id = $info->{'LineID'};
@@ -1289,7 +1289,7 @@ sub _get_word_sizes($stref,$f){
         } elsif ($type =~/^character\(/) {
                 $word_sz=2;
         } else {
-            die "Supported types are integer, character, string and logical: $var in $f is $type\nLINE ??";
+            die "Supported types are integer, character, string and logical: $var in $f is $type\nLINE ??",Dumper $decl;
         }
         $Sf->{'WordSizes'}{$var} = $word_sz;
         # carp Dumper($decl) if $var eq 'funktalGlobalCharArray';
@@ -2496,8 +2496,12 @@ sub _emit_subroutine_sig_Uxntal($stref, $f, $annline){
 # ;intToStr_cs STA2 at the start should not be there
 # ;intToStr_cs LDA2 should be ;intToStr_cs unless it is a scalar
         my $result_var = '';
+        
         if (exists $info->{'Signature'}{'ResultVar'}) {
             $result_var = $info->{'Signature'}{'ResultVar'};
+            push @{$args_ref},$info->{'Signature'}{'ResultVar'};
+        } elsif (exists $info->{'Signature'}{'Function'}) {
+            $result_var = $name;
             push @{$args_ref},$info->{'Signature'}{'ResultVar'};
         }
         my $uxntal_arg_decls=[];
@@ -2532,14 +2536,15 @@ sub _emit_subroutine_sig_Uxntal($stref, $f, $annline){
 
 sub _emit_arg_decl_Uxntal($stref,$f,$arg, $name){
     # my $decl =  get_var_record_from_set($stref->{'Subroutines'}{$f}{'Vars'},$arg) ;
-    my $decl = getDecl($stref,$f,$arg);
-    my $iodir = lc($decl->{'IODir'});
-    my $ftype = $decl->{'Type'};
-    my $fkind = $decl->{'Attr'};
-    my $isArrayOrString =  is_array_or_string($stref,$f,$arg);
-    $fkind=~s/\(kind=//;
-    $fkind=~s/\)//;
-    if ($fkind eq '') {$fkind=2};
+    my $decl = ($arg eq $name) ? {} : getDecl($stref,$f,$arg);
+    my $iodir = ($arg eq $name) ? 'out' :lc($decl->{'IODir'});
+    # my $ftype = $decl->{'Type'};
+    # my $fkind = $decl->{'Attr'};
+    croak;
+    my $isArrayOrString = is_array_or_string($stref,$f,$arg);
+    # $fkind=~s/\(kind=//;
+    # $fkind=~s/\)//;
+    # if ($fkind eq '') {$fkind=2};
     # my $uxntal_size = toUxntalType($ftype,$fkind);
     my $word_sz = $stref->{'Subroutines'}{$f}{'WordSizes'}{$arg};
     # carp Dumper($f,$arg, $word_sz, $isArrayOrString);
@@ -3088,7 +3093,10 @@ sub _emit_expression_Uxntal ($ast, $stref, $f, $info) {
         }
         elsif ($opcode==0) { # parens, just remove it
             return _emit_expression_Uxntal($ast->[1], $stref, $f, $info);
-        } else{
+        }
+        elsif ($opcode==9) { # assignment, not allowed in condition
+            error('Assignment is not allowed in and IF condition');
+        } else {
             croak 'Unimplemented case for _emit_expression_Uxntal: ',Dumper($ast);
         }
     } else {
@@ -4454,6 +4462,7 @@ sub isString($rec){
 }
 
 sub getDecl($stref,$f,$var) {
+    croak $f if not defined $var;
     if ($var !~/^[a-z][_\w]*$/i) {
         # not a variable, return undef
         # even if it is an array or string access, too bad
