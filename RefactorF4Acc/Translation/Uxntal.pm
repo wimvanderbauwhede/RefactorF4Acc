@@ -1249,6 +1249,9 @@ sub _get_word_sizes($stref,$f){
         # }
         # my $decl = get_var_record_from_set($Sf->{$subset},$var);
         my $decl = getDecl($stref,$f,$var);
+        if (not defined $decl) {
+            error("No type declaration for $var in $f");
+        }
         my $word_sz=0;
         my $type = $decl->{'Type'};
         # croak "$f: VAR? ".Dumper($var,$decl) if $var eq 'Assignment';
