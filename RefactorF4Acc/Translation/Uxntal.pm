@@ -2499,10 +2499,10 @@ sub _emit_subroutine_sig_Uxntal($stref, $f, $annline){
         
         if (exists $info->{'Signature'}{'ResultVar'}) {
             $result_var = $info->{'Signature'}{'ResultVar'};
-            push @{$args_ref},$info->{'Signature'}{'ResultVar'};
+            push @{$args_ref},$result_var;
         } elsif (exists $info->{'Signature'}{'Function'}) {
             $result_var = $name;
-            push @{$args_ref},$info->{'Signature'}{'ResultVar'};
+            push @{$args_ref},$result_var;
         }
         my $uxntal_arg_decls=[];
         my $uxntal_args_to_store=[];
@@ -2536,12 +2536,22 @@ sub _emit_subroutine_sig_Uxntal($stref, $f, $annline){
 
 sub _emit_arg_decl_Uxntal($stref,$f,$arg, $name){
     # my $decl =  get_var_record_from_set($stref->{'Subroutines'}{$f}{'Vars'},$arg) ;
+    croak $f,$name if not defined $arg;     
     my $decl = ($arg eq $name) ? {} : getDecl($stref,$f,$arg);
     my $iodir = ($arg eq $name) ? 'out' :lc($decl->{'IODir'});
     # my $ftype = $decl->{'Type'};
     # my $fkind = $decl->{'Attr'};
-    croak;
-    my $isArrayOrString = is_array_or_string($stref,$f,$arg);
+    # croak Dumper $stref->{'Subroutines'}{$f}{Signature};
+    my $isArrayOrString = ($arg eq $name) 
+    ? do {
+        my $ftype = $stref->{'Subroutines'}{$f}{'Signature'}{'ReturnType'};
+        if ($ftype ne 'character') {
+            0
+        } elsif (exists $stref->{'Subroutines'}{$f}{'Signature'}{'ReturnTypeAttr'} ) {
+            1
+        }
+    }
+    : is_array_or_string($stref,$f,$arg);
     # $fkind=~s/\(kind=//;
     # $fkind=~s/\)//;
     # if ($fkind eq '') {$fkind=2};
