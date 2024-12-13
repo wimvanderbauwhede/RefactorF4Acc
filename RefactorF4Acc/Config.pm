@@ -341,6 +341,7 @@ our $config_menu= [
         ['SPLIT_LONG_LINES', 'Split long lines into chunks of no more than 80 characters? 0/1','1'],
         ['MAX_LINE_LENGTH','Maximum line length for fixed-format F77 code', '132'],
         ['ALLOW_SPACES_IN_NUMBERS','Allow spaces in numeric constants for fixed-format F77 code? 0/1', '0'],
+        ['ALLOW_UNSIGNED','Allow the new UNSIGNED data type? 0/1', '0'],
         ['PRESERVE_CASE','Treat the source code as if it is case-sensitive? 0/1','0'],
         ['NO_SAVE','Delete SAVE statements? 0/1','1'],
         ['CONFIG:SCONS', 'SCons-specific configuration? y/n','n'],

@@ -58,7 +58,9 @@ our @sigils = ('(', '&', '$', '+', '-', '*', '/', '%', '**', '=', '@', '#', ':' 
                ,',', '(/',
 # Constants
 #                29        30      31         32           33         34             35       36
-               ,'integer', 'real', 'logical', 'character', 'complex', 'PlaceHolder', 'Label', 'BLANK'
+               ,'integer', 'real', 'logical', 'character', 'complex', 'PlaceHolder', 'Label', 'BLANK',
+#               37 TODO: REWORK ORDER!
+               'unsigned'
               );
 
 # '&','@': my ($sigil, $var_name_str, $args) = @{$ast}; # [1|10,'v',[...]]
@@ -266,6 +268,9 @@ sub get_consts_from_expression {(my $ast, my $vars)=@_;
 				my $type='Unknown';
 				if ( $val =~ /^\-?\d+$/ ) {
 					$type = 'integer';
+				}
+                if ( $val =~ /^\d+u$/i ) {
+					$type = 'unsigned';
 				}
 				elsif ( $val =~ /^(\-?(?:\d+|\d*\.\d*)(?:[edqEDQ][\-\+]?\d+)?)$/ ) {
 					$type = 'real';
@@ -709,6 +714,12 @@ sub parse_expression_no_context { (my $str)=@_;
             # warn 'INTEGER, ALLOW_SPACES_IN_NUMBERS==0',$str;
             $expr_ast=[29,$1];
             #$expr_ast=$1;#['integer',$1];
+        }
+        elsif ($Config{'ALLOW_SPACES_IN_NUMBERS'}==0 and $str=~s/^(\d+[uU](?:_[1248])?)//) {
+            # unsigned integers
+            # warn 'UNSIGNED, ALLOW_SPACES_IN_NUMBERS==0',$str;
+            $expr_ast=[37,$1];
+            #$expr_ast=$1;#['unsigned',$1];
         }
         elsif ($Config{'ALLOW_SPACES_IN_NUMBERS'}==1 and $str=~s/^(\d[\d\s]*(?:_\s*[1248])?)//) {  # But spaces in numbers are allowed in fixed form. So 1 000 000 is fine. so we have (\d[\d\s]*) as the easiest one, assuming a trailing space won't harm
             # integers

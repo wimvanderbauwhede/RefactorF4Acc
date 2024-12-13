@@ -260,7 +260,7 @@ sub _find_vars_w_iodir {
         next if $mvar eq '';
         next if $mvar =~ /^\d+$/;
         next if $mvar =~ /^(\-?(?:\d+|\d*\.\d*)(?:e[\-\+]?\d+)?)$/;
-        next if $mvar =~ /\b(?:if|then|do|goto|integer|real|call|\d+)\b/;
+        next if $mvar =~ /\b(?:if|then|do|goto|call|logical|integer|real|complex|double\sprecision|unsigned|\d+)\b/;
         if (exists $args_ref->{$mvar} and ref($args_ref->{$mvar}) eq 'HASH') {
 
             if (exists $args_ref->{$mvar}{'IODir'}) {

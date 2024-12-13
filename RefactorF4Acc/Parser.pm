@@ -1320,13 +1320,13 @@ MODULE
 				(
 
 					$line =~
-/^(logical|complex|byte|integer|real|double\s*(?:precision|complex)|character)\s+([^\*]?.*)\s*$/
+/^(logical|complex|byte|integer|unsigned|real|double\s*(?:precision|complex)|character)\s+([^\*]?.*)\s*$/
 					or $line =~
-/^((?:logical|complex|byte|integer|real|double\s*(?:precision|complex)|character)\s*\(\d+\))([^\*]?.*)\s*$/
+/^((?:logical|complex|byte|integer|unsigned|real|double\s*(?:precision|complex)|character)\s*\(\d+\))([^\*]?.*)\s*$/
 					or $line =~
-/^((?:logical|complex|byte|integer|real|double\s*(?:precision|complex)|character)\s*\(kind\s*=\s*.+?\))([^\*]?.*)\s*$/
+/^((?:logical|complex|byte|integer|unsigned|real|double\s*(?:precision|complex)|character)\s*\(kind\s*=\s*.+?\))([^\*]?.*)\s*$/
 					or $line =~
-/^((?:logical|complex|byte|integer|real|double\s*(?:precision|complex)|character)\s*\*(?:\d+|\((?:\*|\w+)\)))\s+(.+)\s*$/
+/^((?:logical|complex|byte|integer|unsigned|real|double\s*(?:precision|complex)|character)\s*\*(?:\d+|\((?:\*|\w+)\)))\s+(.+)\s*$/
 or $line=~/^character\s*\(\s*len\s*=\s*[\w\*]+\s*\)/
 				)
 				and $line !~ /\s+function\s+\w+/
@@ -3749,7 +3749,9 @@ sub _parse_f77_par_decl {
 				}
 				my $mtype=$mpar_rec->{'Type'};
 				my $mattr=$mpar_rec->{'Attr'};
-				if ($mtype ne 'integer' and $mtype ne 'complex' or not $typed) {
+				if ($mtype ne 'integer' 
+				and $mtype ne 'unsigned'
+				and $mtype ne 'complex' or not $typed) {
 					$type = $mtype;
 					$typed=1;
 				}
@@ -3770,7 +3772,9 @@ sub _parse_f77_par_decl {
 					my $tattr = '(*)';
 					$ttatrs_types{$var}=[$ttype,$tattr];
 				}
-				elsif ($ctype ne 'integer' and $type ne 'complex' or not $typed) {
+				elsif ($ctype ne 'integer' 
+				and $type ne 'unsigned'
+				and $type ne 'complex' or not $typed) {
 					# say "NOT integer $var $const $ctype";
 					my $ttype = $ctype;
 					$typed=1;

@@ -445,9 +445,13 @@ sub format_f95_par_decl {
 		}
 	}
     # Can't trust the type set via implicits! WEAK! FIXME!
-    if ($val=~/^[\+\-\*\d]+$/) {
+    if ($val=~/^[\+\-\*\d]+(?:_(\d))?$/) {
+        if (defined $1) {
+            my $kind=$1;
+            $attr = "(kind=$kind)";
+        }
        	$type = 'integer';
-    } elsif ($val=~/^[\.\+\-\*\/\d]+$/) {
+    } elsif ($val=~/^[\.\+\-\*\/\d]+$/) { 
        	$type = 'real';
     } elsif ($val=~/^[\'\"]/) {
         my $len = length($val) -2;

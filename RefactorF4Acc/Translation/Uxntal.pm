@@ -2500,7 +2500,7 @@ sub _emit_subroutine_sig_Uxntal($stref, $f, $annline){
         if (exists $info->{'Signature'}{'ResultVar'}) {
             $result_var = $info->{'Signature'}{'ResultVar'};
             push @{$args_ref},$result_var;
-        } elsif (exists $info->{'Signature'}{'Function'}) {
+        } elsif (exists $info->{'Signature'}{'Function'} and $info->{'Signature'}{'Function'}==1) {
             $result_var = $name;
             push @{$args_ref},$result_var;
         }
@@ -2536,7 +2536,7 @@ sub _emit_subroutine_sig_Uxntal($stref, $f, $annline){
 
 sub _emit_arg_decl_Uxntal($stref,$f,$arg, $name){
     # my $decl =  get_var_record_from_set($stref->{'Subroutines'}{$f}{'Vars'},$arg) ;
-    croak $f,$name if not defined $arg;     
+    croak $f,$name if $arg eq $name;
     my $decl = ($arg eq $name) ? {} : getDecl($stref,$f,$arg);
     my $iodir = ($arg eq $name) ? 'out' :lc($decl->{'IODir'});
     # my $ftype = $decl->{'Type'};
