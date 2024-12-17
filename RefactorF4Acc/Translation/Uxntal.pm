@@ -1006,11 +1006,20 @@ Instead of the nice but cumbersome approach we had until now, from now on it is 
                     # Also, NEQ2 only works if the step is 1! Otherwise we need a signed number comp
                     # iter+2 < end
                     if ($do_step == 1) {
-                        $c_line = ";$do_iter LDA2 $inc OVR2 OVR2 NEQ2 ".'?&'.$loop_label.' '."\n;$do_iter LDA2 $inc ;$do_iter STA2\n".
-                        '&'.$loop_end_label." POP2 POP2\n";
+                        # $c_line = ";$do_iter LDA2 $inc OVR2 OVR2 NEQ2 ".'?&'.$loop_label.' '."\n;$do_iter LDA2 $inc ;$do_iter STA2\n".
+                        # '&'.$loop_end_label." POP2 POP2\n";
+
+                        # WV 2024-12-17 the value of the iterator to be stored as final is still on the WS so we can remove the LDA2 and save on a POP2 as well
+                        $c_line = ";$do_iter LDA2 $inc OVR2 OVR2 NEQ2 ".'?&'.$loop_label.' '."\n;$do_iter STA2\n".
+                        '&'.$loop_end_label." POP2\n";
                     } elsif ($do_step>0) { # assuming the step is positive
-                        $c_line = ";$do_iter LDA2 $inc OVR2 OVR2 GTH2 ".'?&'.$loop_label.' '."\n;$do_iter LDA2 $inc ;$do_iter STA2\n".
-                        '&'.$loop_end_label." POP2 POP2\n";
+                        # $c_line = ";$do_iter LDA2 $inc OVR2 OVR2 GTH2 ".'?&'.$loop_label.' '."\n;$do_iter LDA2 $inc ;$do_iter STA2\n".
+                        # '&'.$loop_end_label." POP2 POP2\n";
+
+                        # WV 2024-12-17 the value of the iterator to be stored as final is still on the WS so we can remove the LDA2 and save on a POP2 as well
+                        $c_line = ";$do_iter LDA2 $inc OVR2 OVR2 GTH2 ".'?&'.$loop_label.' '."\n;$do_iter STA2\n".
+                        '&'.$loop_end_label." POP2\n";
+
                         # add_to_used_lib_subs('gt2');
                     } else {
                         todo('DO with negative STEP');croak;
