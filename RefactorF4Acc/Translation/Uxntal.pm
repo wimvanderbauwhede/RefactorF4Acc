@@ -3719,6 +3719,7 @@ sub isStrCmp($ast, $stref, $f,$info){
 # returns the Uxntal string with the print instructions
 # list-based print
 sub _emit_list_print_Uxntal($stref,$f,$line,$info,$unit,$advance,$list_to_print){
+    
     my $Sf = $stref->{'Subroutines'}{$f};
     my $port = ($unit eq 'STDERR') ? '19' : '18';
 # so for every elt in the list, we must work out if it is
@@ -3729,12 +3730,15 @@ sub _emit_list_print_Uxntal($stref,$f,$line,$info,$unit,$advance,$list_to_print)
 # - anything else, but that should fail
 # although of course in principle a function should work too
     my @lines_Uxntal = ();
+    
     for my $elt ( @{$list_to_print} ) {
+        
         my $line_Uxntal = '';
         my $ref = \$elt; $ref=~s/REF...//;$ref=~s/\)//;
         my $iter="iter$ref";
         # An array as arg is caught in _emit_print_from_ast so I should handle the slice there as well
         my $print_fn_Uxntal = _emit_print_from_ast($stref,$f,$line,$info,$unit,$elt);
+
         # croak("HANDLE ARRAY SLICE HERE!");
         my $var_name = $elt->[1];
 
@@ -3796,15 +3800,19 @@ sub _emit_list_print_Uxntal($stref,$f,$line,$info,$unit,$advance,$list_to_print)
             if (substr($print_fn_Uxntal,0,12) eq 'print-string' and $arg_to_print_Uxntal=~/(:?^\s*\#[0-9a-f]+\s*$|LDA\s*$)/ ) { #
                 $print_fn_Uxntal = '#'."$port DEO";
             }
-            # Let's not print a zero byte
-            if ($arg_to_print_Uxntal ne '#00') {
-                $line_Uxntal .= "$arg_to_print_Uxntal $print_fn_Uxntal #20$port DEO ( , )";
+            if (substr($print_fn_Uxntal,0,11) eq 'print-uint8') {
+                $line_Uxntal .= "$arg_to_print_Uxntal$port DEO ( , )";
+            } else {
+                # Let's not print a zero byte
+                if ($arg_to_print_Uxntal ne '#00') {
+                    $line_Uxntal .= "$arg_to_print_Uxntal $print_fn_Uxntal #20$port DEO ( , )";
+                }
             }
         }
         if ($print_fn_Uxntal=~/array|implicit-do/) {
             add_to_used_lib_subs('range-map-short');
         } else{
-            add_to_used_lib_subs($print_fn_Uxntal) unless $print_fn_Uxntal=~/\#/;
+            add_to_used_lib_subs($print_fn_Uxntal) unless $print_fn_Uxntal=~/\#|print\-uint8/ ;
         }
         push @lines_Uxntal, $line_Uxntal;
     } # For all elements in the list-based print
@@ -3876,7 +3884,17 @@ sub _emit_print_from_ast($stref,$f,$line,$info,$unit,$elt){
             }
         }
         if ( $decl->{'Type'} eq 'integer') {
-            return 'print-int'.$suffix;
+            my $word_sz = exists $decl->{'ConstAttr'} 
+                ? do {my $const_attr = $decl->{'ConstAttr'}; $const_attr=~/(\d)/; my $kind = $1; $kind }
+                :  exists $decl->{'Attr'} 
+                    ? do  { my $attr = $decl->{'Attr'}; $attr=~/(\d)/; my $kind = $1; $kind }
+                    : error('KIND for '.$decl->{'Name'}." in $f defaults to 4 but only 1 and 2 are supported");
+            
+            if ($word_sz==1) {
+                return 'print-unit8'.$suffix;
+            } else {
+                return 'print-int'.$suffix;
+            }
         }
         if ( $decl->{'Type'} eq 'logical') {
             return 'print-bool'.$suffix;
@@ -3922,7 +3940,22 @@ sub _emit_print_from_ast($stref,$f,$line,$info,$unit,$elt){
         my $const_type = $code;
         my $const = $elt->[1];
         if ($const_type == 29 ) {
-            return 'print-int'.$suffix;
+            if ($const=~/_1/) {
+                return 'print-uint8'.$suffix;
+            }
+            elsif ($const=~/_2/) {
+                return 'print-int'.$suffix;
+            } 
+            else {
+                my $const_val = $const;
+                $const_val =~s/_\d//;
+                if ($const_val > -2*15 and $const_val < 2*15) {
+                    # No kind info, but small enough for a short
+                    return 'print-int'.$suffix;
+                } else {
+                    error("Constant $const s too large for a short");
+                }
+            }
         }
         elsif ($const_type == 31 ) {
             return 'print-bool'.$suffix;
