@@ -98,7 +98,7 @@ use feature qw(signatures);
 our $DBG = 0;
 #               0    1    2    3      4      5      6      7      8      9   10   11   12   13    14
 our @sigils = ('(', '&', '$', 'ADD', 'SUB', 'mul', 'div', 'mod', 'pow', '=', '@', '#', ':' ,'//', ')('
-#                15    16      17    18      19     20     21     22     23     24       25       26
+#                15    16      17    18    19     20     21     22     23     24       25       26
                ,'EQU', 'NEQ', 'lt', 'gt', 'lte', 'gte', 'not', 'AND', 'ORA', 'EOR', '.eqv.', '.neqv.'
 #                27   28
                ,',', '(/',
@@ -2545,7 +2545,7 @@ sub _emit_subroutine_sig_Uxntal($stref, $f, $annline){
 
 sub _emit_arg_decl_Uxntal($stref,$f,$arg, $name){
     # my $decl =  get_var_record_from_set($stref->{'Subroutines'}{$f}{'Vars'},$arg) ;
-    croak $f,$name if $arg eq $name;
+#croak $f,$name if $arg eq $name; # means the out arg is the name of the function
     my $decl = ($arg eq $name) ? {} : getDecl($stref,$f,$arg);
     my $iodir = ($arg eq $name) ? 'out' :lc($decl->{'IODir'});
     # my $ftype = $decl->{'Type'};
@@ -3048,6 +3048,34 @@ sub _emit_expression_Uxntal ($ast, $stref, $f, $info) {
                 }
             }
             (my $opcode, my $lexp, my $rexp) =@{$ast};
+            
+            
+            my $l_unsigned = 0;
+            my $r_unsigned = 0;
+            if ($lexp->[0] == 2) {
+                my $var = $lexp->[1];
+                if (is_unsigned($stref,$f,$var)) {
+                    $l_unsigned = 1;
+                }
+            } elsif ($lexp->[0] == 29 and $lexp->[0]!~/^\-/) { # CHEAP!
+                $l_unsigned = 1;
+            } elsif ($opcode>=3 and $opcode<=6) {
+                # recurse
+            } elsif ($opcode>=15 and $opcode<=23) { # boolean is always unsigned
+                $l_unsigned = 1;
+            }
+            if ($l_unsigned) {
+                if ($rexp->[0] == 2) {
+                    my $var = $rexp->[1];
+                    if (is_unsigned($stref,$f,$var)) {
+                        $r_unsigned = 1;
+                    }
+                } elsif ($rexp->[0] == 29 and $rexp->[0]!~/^\-/) { # CHEAP!
+                        $r_unsigned = 1;
+                }
+            }
+            my $unsigned_op = $l_unsigned*$r_unsigned;
+            croak Dumper($lexp, $rexp,$unsigned_op);
             # Uxn does not have pow or mod so these are library functions
             if ($opcode == 8) { # eq '^' pow
                 $ast = [1,'pow',[27,$lexp,$rexp] ] ;
@@ -3082,12 +3110,13 @@ sub _emit_expression_Uxntal ($ast, $stref, $f, $info) {
                     error( "Kinds for arguments to ".$sigils[$opcode]." must be the identical: $l_word_sz <> $r_word_sz for ".emit_expr_from_ast($ast)." in $f",0,'ERROR_KIND_MISMATCH');
                 }
                 my $short_mode =  $l_word_sz == 2 ? '2' : '';
+                my $uxntal_instr = $sigils[$opcode].$short_mode;
                 # Because LTH and GTH are for unsigned ints, we need special functions for the inequalities
                 if ($opcode >= 17 and $opcode <= 20) { # <, >, <= or >=
-                    add_to_used_lib_subs($sigils[$opcode].$short_mode);
+                    add_to_used_lib_subs($uxntal_instr);
                 }
                 elsif ($opcode == 5 or $opcode == 6) {
-                    add_to_used_lib_subs($sigils[$opcode].$short_mode);
+                    add_to_used_lib_subs($uxntal_instr);
                 }
 
                     # if ($opcode == 19 or $opcode == 20) { # FIXME I guess?
@@ -3096,7 +3125,7 @@ sub _emit_expression_Uxntal ($ast, $stref, $f, $info) {
                 my $word_sz = ($opcode >=15 && $opcode<=26) ? 1 : $l_word_sz;
 
                 # Ideally, the _emit_expression_Uxntal should return the word size of the expression
-                return ("$lv $rv  ". $sigils[$opcode].$short_mode, $word_sz ); # FIXME, needs refining
+                return ("$lv $rv  ". $uxntal_instr, $word_sz ); # FIXME, needs refining
             }
         }
         elsif (scalar @{$ast} > 3 and $opcode == 27) { # the ast is a comma-separated list ','
@@ -3800,19 +3829,19 @@ sub _emit_list_print_Uxntal($stref,$f,$line,$info,$unit,$advance,$list_to_print)
             if (substr($print_fn_Uxntal,0,12) eq 'print-string' and $arg_to_print_Uxntal=~/(:?^\s*\#[0-9a-f]+\s*$|LDA\s*$)/ ) { #
                 $print_fn_Uxntal = '#'."$port DEO";
             }
-            if (substr($print_fn_Uxntal,0,11) eq 'print-uint8') {
-                $line_Uxntal .= "$arg_to_print_Uxntal$port DEO ( , )";
-            } else {
+#if (substr($print_fn_Uxntal,0,11) eq 'print-uint8') {
+#                $line_Uxntal .= "$arg_to_print_Uxntal #$port DEO ( , )";
+#            } else {
                 # Let's not print a zero byte
                 if ($arg_to_print_Uxntal ne '#00') {
                     $line_Uxntal .= "$arg_to_print_Uxntal $print_fn_Uxntal #20$port DEO ( , )";
                 }
-            }
+#            }
         }
         if ($print_fn_Uxntal=~/array|implicit-do/) {
             add_to_used_lib_subs('range-map-short');
         } else{
-            add_to_used_lib_subs($print_fn_Uxntal) unless $print_fn_Uxntal=~/\#|print\-uint8/ ;
+            add_to_used_lib_subs($print_fn_Uxntal) unless $print_fn_Uxntal=~/\#/;#|print\-uint8/ ;
         }
         push @lines_Uxntal, $line_Uxntal;
     } # For all elements in the list-based print
@@ -3891,7 +3920,7 @@ sub _emit_print_from_ast($stref,$f,$line,$info,$unit,$elt){
                     : error('KIND for '.$decl->{'Name'}." in $f defaults to 4 but only 1 and 2 are supported");
             
             if ($word_sz==1) {
-                return 'print-unit8'.$suffix;
+                return 'print-uint8'.$suffix;
             } else {
                 return 'print-int'.$suffix;
             }
@@ -4970,4 +4999,35 @@ sub __simplify_arith_expr($idx_expr) {
         }
     }
     return $idx_expr;
+}
+
+sub __test_unsigned_expr($exp,$stref,$f) {
+    my $is_unsigned_exp = 0;
+    my $sigil = $exp->[0];
+    if ($sigil == 2) {
+        my $var = $exp->[1];
+        if (is_unsigned($stref,$f,$var)) {
+            $is_unsigned_exp = 1;
+        }
+    } elsif ($sigil == 29 and $sigil!~/^\-/) { # CHEAP!
+        $is_unsigned_exp = 1;
+    } elsif ($sigil>=3 and $sigil<=6) {
+        # recurse
+        $is_unsigned_exp = __test_unsigned_op($exp,$stref,$f);
+    } elsif ($sigil>=15 and $sigil<=23) { # boolean is always unsigned
+        $is_unsigned_exp = 1;
+    }
+    return $is_unsigned_exp;
+}
+
+sub __test_unsigned_op($exp,$stref,$f) {
+    my ($opcode,$lexp,$rexp) = @{$exp};
+    my $l_unsigned = __test_unsigned_expr($lexp,$stref,$f);
+    if ($l_unsigned) {
+            my $r_unsigned = __test_unsigned_expr($rexp,$stref,$f);
+            if ($r_unsigned) {
+                return 1;
+            }
+    }
+    return 0;
 }
