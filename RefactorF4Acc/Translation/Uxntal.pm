@@ -103,8 +103,8 @@ our @sigils = ('(', '&', '$', 'ADD', 'SUB', 'mul', 'div', 'mod', 'pow', '=', '@'
 #                27   28
                ,',', '(/',
 # Constants
-#                29         30      31         32           33         34             35       36
-               ,'integer', 'real', 'logical', 'character', 'complex', 'PlaceHolder', 'Label', 'BLANK'
+#                29         30      31         32           33         34             35       36       37
+               ,'integer', 'real', 'logical', 'character', 'complex', 'PlaceHolder', 'Label', 'BLANK', 'unsigned'
               );
 
 # For shorter labels
@@ -346,7 +346,7 @@ Instead of the nice but cumbersome approach we had until now, from now on it is 
             }
             my $word_sz=0;
             my $type = $info->{'ParsedVarDecl'}{'TypeTup'}{'Type'};
-            if ($type eq 'integer') {
+            if ($type eq 'integer' or $type eq 'unsigned') {
                 my $kind = $info->{'ParsedVarDecl'}{'TypeTup'}{'Kind'};
                 if ($kind>2) {
                     die "Integers must be 8-bit or 16-bit: $var in $f is $kind\n";
@@ -361,7 +361,7 @@ Instead of the nice but cumbersome approach we had until now, from now on it is 
             } elsif ($type =~/^character\(/) {
                     $word_sz=2;
             } else {
-                die "Supported types are integer, character, string and logical: $var in $f is $type\nLINE $line";
+                die "Supported types are unsigned/integer, character, string and logical: $var in $f is $type\nLINE $line";
             }
             if (not exists $Sf->{'WordSizes'}{$var}) {
                 # carp 'MISSING WORDSZ for '.$var;
@@ -385,7 +385,7 @@ Instead of the nice but cumbersome approach we had until now, from now on it is 
             $state->{'Parameters'}{$var}=1;
             my $word_sz=0;
             my $type = $info->{'ParsedParDecl'}{'TypeTup'}{'Type'};
-            if ($type eq 'integer') {
+            if ($type eq 'integer' or $type eq 'unsigned') {
                 my $kind = $info->{'ParsedParDecl'}{'TypeTup'}{'Kind'};
                 if ($kind>2) {
                     die "Integers must be 8-bit or 16-bit: $var in $f is $kind\n";
@@ -398,7 +398,7 @@ Instead of the nice but cumbersome approach we had until now, from now on it is 
             } elsif ($type =~/^character\(/) {
                     $word_sz=2;
             } else {
-                die "Supported types are integer, character, string and logical: $var in $f is $type\nLINE $line";
+                die "Supported types are unsigned/integer, character, string and logical: $var in $f is $type\nLINE $line";
             }
             $state->{'WordSizes'}{$var}=$word_sz;
         }
@@ -678,17 +678,9 @@ Instead of the nice but cumbersome approach we had until now, from now on it is 
         }
 
         if (exists $info->{'Assignment'} ) {
-            # say "Assignment: $line" if $f eq 'move';
-            
             ($c_line,$pass_state) = _emit_assignment_Uxntal($stref, $f, $info,$pass_state) ;
             if (exists $info->{'If'} and not exists $info->{'IfThen'}) {
                 $c_line = _emit_if_without_then_Uxntal($stref,$f,$info,$c_line);
-                # my $indent = $info->{'Indent'};
-                # my $branch_id = $info->{'LineID'};
-                # my $cond_expr_ast=$info->{'Cond'}{'AST'};
-                # my ($cond_expr,$word_sz) = _emit_expression_Uxntal($cond_expr_ast,$stref,$f,$info);
-                # $c_line = "\n$cond_expr #00 EQU ,&$branch$branch_id JCN\n" . $c_line; #$indent.
-                # $c_line .= "\n&$branch$branch_id";
             }
         }
         elsif (exists $info->{'Stop'}) {
@@ -1263,8 +1255,8 @@ sub _get_word_sizes($stref,$f){
         }
         my $word_sz=0;
         my $type = $decl->{'Type'};
-        # croak "$f: VAR? ".Dumper($var,$decl) if $var eq 'Assignment';
-        if ($type eq 'integer') {
+        
+        if ($type eq 'integer' or $type eq 'unsigned') {
             my $kind = $decl->{'Attr'};
             $kind=~s/kind\s*=\s*//;
             $kind=~s/^\s*\(\s*//;
@@ -1298,7 +1290,7 @@ sub _get_word_sizes($stref,$f){
         } elsif ($type =~/^character\(/) {
                 $word_sz=2;
         } else {
-            die "Supported types are integer, character, string and logical: $var in $f is $type\nLINE ??",Dumper $decl;
+            die "Supported types are unsigned/integer, character, string and logical: $var in $f is $type\nLINE ??",Dumper $decl;
         }
         $Sf->{'WordSizes'}{$var} = $word_sz;
         # carp Dumper($decl) if $var eq 'funktalGlobalCharArray';
@@ -1543,6 +1535,7 @@ sub _var_access_assign($stref,$f,$info,$lhs_ast,$rhs_ast) {
             my $lhs_idx_offset_Uxntal =  toHex($lhs_idx_offset,2);
             my $lhs_idx_offset_expr = $lhs_idx_offset==0? '' : $lhs_idx_offset_Uxntal.' SUB2';
             my ($rhs_expr_Uxntal, $rhs_word_sz) = _emit_expression_Uxntal($rhs_ast,$stref,$f,$info);
+
             if ($rhs_word_sz!=$word_sz){
                 croak "LHS and RHS word sizes don't match: $word_sz <> $rhs_word_sz for assignment to $lhs_var in $f";
             }
@@ -1785,7 +1778,26 @@ sub _var_access_assign($stref,$f,$info,$lhs_ast,$rhs_ast) {
         $uxntal_code =  __copy_substr($stref, $f, $info, $lhs_ast, $rhs_ast)
     } else { # v = <anything not a string>
     # carp Dumper($rhs_ast) if $f eq 'calcNumConst';
-        my ($rhs_expr_Uxntal, $word_sz) = _emit_expression_Uxntal($rhs_ast,$stref,$f,$info);
+        my ($rhs_expr_Uxntal, $rhs_word_sz) = _emit_expression_Uxntal($rhs_ast,$stref,$f,$info);
+        if ($rhs_word_sz!=$word_sz){
+            if ($rhs_ast->[0] == 29 or $rhs_ast->[0] == 37) {
+                my $numval = $rhs_ast->[1];
+                my $fixed_numval = $numval;
+                $fixed_numval =~s/_\d$//;
+                if ($fixed_numval > (1<<(8*$word_sz)-1)) {
+                    error("Constant $numval too large in assignment to $lhs_var in $f");
+                } else {
+                    $fixed_numval .= '_'.$word_sz;
+                    $rhs_ast = [$rhs_ast->[0],$fixed_numval];
+                    ($rhs_expr_Uxntal, $rhs_word_sz) = _emit_expression_Uxntal($rhs_ast,$stref,$f,$info);
+                    #TODO: if RHS word size is too large, that should be an error; but I only raise an error if the value is too large
+                    warning("Changed size of constant $numval to $fixed_numval in assignment to $lhs_var in $f")
+                }
+            } else {
+                croak "LHS and RHS word sizes don't match: $word_sz <> $rhs_word_sz for assignment to $lhs_var in $f";
+            }
+
+        }
         $uxntal_code = "$rhs_expr_Uxntal $lhs_var_access STA$short_mode ( scalar )";
     }
     return $uxntal_code;
@@ -2368,7 +2380,7 @@ sub _pointer_analysis($stref,$f) {
             }
             my $word_sz=0;
             my $type = $info->{'ParsedVarDecl'}{'TypeTup'}{'Type'};
-            if ($type eq 'integer') {
+            if ($type eq 'integer' or $type eq 'unsigned') {
                 my $kind = $info->{'ParsedVarDecl'}{'TypeTup'}{'Kind'};
                 if ($kind>2) {
                     die "Integers must be 8-bit or 16-bit: $var in $f is $kind\n";
@@ -2383,7 +2395,7 @@ sub _pointer_analysis($stref,$f) {
             } elsif ($type =~/^character\(/) {
                 $word_sz=2;
             } else {
-                die "Supported types are integer, character, string and logical: $var in $f is $type\nLINE: $line   ";
+                die "Supported types are unsigned/integer, character, string and logical: $var in $f is $type\nLINE: $line   ";
             }
             $state->{'WordSizes'}{$var}=$word_sz;
         }
@@ -2401,7 +2413,7 @@ sub _pointer_analysis($stref,$f) {
             $state->{'Parameters'}{$var}=1;
             my $word_sz=0;
             my $type = $info->{'ParsedParDecl'}{'TypeTup'}{'Type'};
-            if ($type eq 'integer') {
+            if ($type eq 'integer' or $type eq 'unsigned') {
                 my $kind = $info->{'ParsedParDecl'}{'TypeTup'}{'Kind'};
                 if ($kind>2) {
                     die "Integers must be 8-bit or 16-bit: $var in $f is $kind\n";
@@ -2414,7 +2426,7 @@ sub _pointer_analysis($stref,$f) {
             } elsif ($type =~/^character\(/) {
                 $word_sz=2;
             } else {
-                die "Supported types are integer, character, string and logical: $var in $f is $type\n";
+                die "Supported types are unsigned/integer, character, string and logical: $var in $f is $type\n";
             }
             $state->{'WordSizes'}{$var}=$word_sz;
         }
@@ -2995,7 +3007,7 @@ sub _emit_expression_Uxntal ($ast, $stref, $f, $info) {
             # Handle integers, also with size notations, e.g. 11_1, 22_2
             # Transform into hex
             elsif ($exp=~/^\d+(?:_[1248])?$/) {
-                my $sz=2;
+                my $sz=2; 
                 if ($exp=~s/_([1248])$//) { $sz=$1}
                 return (toHex($exp,$sz),$sz);
             }
@@ -3048,34 +3060,8 @@ sub _emit_expression_Uxntal ($ast, $stref, $f, $info) {
                 }
             }
             (my $opcode, my $lexp, my $rexp) =@{$ast};
+            my $is_unsigned_op = __test_unsigned_op($ast,$stref,$f);
             
-            
-            my $l_unsigned = 0;
-            my $r_unsigned = 0;
-            if ($lexp->[0] == 2) {
-                my $var = $lexp->[1];
-                if (is_unsigned($stref,$f,$var)) {
-                    $l_unsigned = 1;
-                }
-            } elsif ($lexp->[0] == 29 and $lexp->[0]!~/^\-/) { # CHEAP!
-                $l_unsigned = 1;
-            } elsif ($opcode>=3 and $opcode<=6) {
-                # recurse
-            } elsif ($opcode>=15 and $opcode<=23) { # boolean is always unsigned
-                $l_unsigned = 1;
-            }
-            if ($l_unsigned) {
-                if ($rexp->[0] == 2) {
-                    my $var = $rexp->[1];
-                    if (is_unsigned($stref,$f,$var)) {
-                        $r_unsigned = 1;
-                    }
-                } elsif ($rexp->[0] == 29 and $rexp->[0]!~/^\-/) { # CHEAP!
-                        $r_unsigned = 1;
-                }
-            }
-            my $unsigned_op = $l_unsigned*$r_unsigned;
-            croak Dumper($lexp, $rexp,$unsigned_op);
             # Uxn does not have pow or mod so these are library functions
             if ($opcode == 8) { # eq '^' pow
                 $ast = [1,'pow',[27,$lexp,$rexp] ] ;
@@ -3111,11 +3097,19 @@ sub _emit_expression_Uxntal ($ast, $stref, $f, $info) {
                 }
                 my $short_mode =  $l_word_sz == 2 ? '2' : '';
                 my $uxntal_instr = $sigils[$opcode].$short_mode;
+                if ($is_unsigned_op and $opcode<19) {
+                    $uxntal_instr = uc($uxntal_instr);
+                }
+                
                 # Because LTH and GTH are for unsigned ints, we need special functions for the inequalities
-                if ($opcode >= 17 and $opcode <= 20) { # <, >, <= or >=
+                if (($opcode == 17 or $opcode == 18) and not $is_unsigned_op) { # <, >
                     add_to_used_lib_subs($uxntal_instr);
                 }
-                elsif ($opcode == 5 or $opcode == 6) {
+                elsif ($opcode == 19 or $opcode == 20 ) { # <= or >=
+                    # TODO: create signed versions of these and distinguish between the two
+                    add_to_used_lib_subs($uxntal_instr);
+                }
+                elsif (($opcode == 5 or $opcode == 6) and not $is_unsigned_op) {
                     add_to_used_lib_subs($uxntal_instr);
                 }
 
@@ -3495,13 +3489,6 @@ sub __emit_call_arg_Uxntal_expr($stref,$f,$info,$subname,$call_arg_expr_str,$ast
             : 0
         : $ast_from_info->[0] >= 29 # try via AST
             ? 1 : 0;
-    # TODO: support DO via {'Do'}{'Range'}{ExpressionASTs'}'
-    # Problem is that here, we don't know which of the expressions it is
-    # my $ast_from_info = exists $info->{'Assignment'}
-    #     ? $info->{'Rhs'}{'ExpressionAST'}
-    #     : exists $info->{'Do'}
-    #         ? $info->{'Do'}{'Range'}{'ExpressionASTs'}[$be]
-    #         : $info->{'SubroutineCall'}{'ExpressionAST'};
 
     my $arg_expr_ast = $ast_from_info->[0] == 27 # comma
         ? $ast_from_info->[$idx]
@@ -3766,12 +3753,12 @@ sub _emit_list_print_Uxntal($stref,$f,$line,$info,$unit,$advance,$list_to_print)
         my $ref = \$elt; $ref=~s/REF...//;$ref=~s/\)//;
         my $iter="iter$ref";
         # An array as arg is caught in _emit_print_from_ast so I should handle the slice there as well
-        my $print_fn_Uxntal = _emit_print_from_ast($stref,$f,$line,$info,$unit,$elt);
+        my $print_fn_Uxntal_init = _emit_print_from_ast($stref,$f,$line,$info,$unit,$elt);
 
         # croak("HANDLE ARRAY SLICE HERE!");
         my $var_name = $elt->[1];
 
-        if ($print_fn_Uxntal eq 'print-array') {
+        if ($print_fn_Uxntal_init eq 'print-array') {
             # The range must be the original Fortran one: we correct for the offset in the var access
             my $idx_offset = __get_array_index_offset($stref,$f,$var_name);
             my $idx_offset_Uxntal =  toHex($idx_offset,2);
@@ -3800,7 +3787,7 @@ sub _emit_list_print_Uxntal($stref,$f,$line,$info,$unit,$advance,$list_to_print)
             $line_Uxntal = '{ ( iter ) ,&'.$iter.' STR2 '.$arg_to_print_Uxntal.' '.$print_fn_Uxntal.' JMP2r } STH2r '.toHex($array_length-1,2)." $idx_offset_expr #0000 $idx_offset_expr range-map-short ( print-array )";
             add_to_used_lib_subs($print_fn_Uxntal);
         }
-        elsif ($print_fn_Uxntal eq 'print-array-slice') {
+        elsif ($print_fn_Uxntal_init eq 'print-array-slice') {
             # The range must be the original Fortran one: we correct for the offset in the var access
             my ($b,$word_sz_b) = _emit_expression_Uxntal($elt->[2][1],$stref, $f, $info);
             my ($e,$word_sz_e) = _emit_expression_Uxntal($elt->[2][2],$stref, $f, $info);
@@ -3815,33 +3802,33 @@ sub _emit_list_print_Uxntal($stref,$f,$line,$info,$unit,$advance,$list_to_print)
                 $print_fn_Uxntal = '#19 DEO';
             }
             $line_Uxntal = '{ ( iter ) ,&'.$iter.' STR2 '.$arg_to_print_Uxntal.' '.$print_fn_Uxntal." #20$port DEO JMP2r } STH2r $e $b range-map-short ( print-array-slice )";
-        } elsif ($print_fn_Uxntal eq 'print-implicit-do') {
+        } elsif ($print_fn_Uxntal_init eq 'print-implicit-do') {
             $line_Uxntal = __implicit_do_in_print($elt,$stref,$f,$info,$line,$unit);
         } else {
             my ($arg_to_print_Uxntal,$word_sz) = _emit_expression_Uxntal($elt,$stref, $f, $info);
             todo('feels like a HACK');
-            if (substr($print_fn_Uxntal,0,10) eq 'print-char' and $elt->[0] == 2) {
+            if (substr($print_fn_Uxntal_init,0,10) eq 'print-char' and $elt->[0] == 2) {
                 my ($uxntal_var_access, $word_sz) = _var_access_read($stref,$f,$info,$elt);
                 croak "$uxntal_var_access: word size is $word_sz" if $word_sz !=1;
                 $arg_to_print_Uxntal = $uxntal_var_access. ' LDA';
             }
             # If a string is a single char, we treat it as a char, so we must print a char
-            if (substr($print_fn_Uxntal,0,12) eq 'print-string' and $arg_to_print_Uxntal=~/(:?^\s*\#[0-9a-f]+\s*$|LDA\s*$)/ ) { #
-                $print_fn_Uxntal = '#'."$port DEO";
+            if (substr($print_fn_Uxntal_init,0,12) eq 'print-string' and $arg_to_print_Uxntal=~/(:?^\s*\#[0-9a-f]+\s*$|LDA\s*$)/ ) { #
+                $print_fn_Uxntal_init = '#'."$port DEO";
             }
 #if (substr($print_fn_Uxntal,0,11) eq 'print-uint8') {
 #                $line_Uxntal .= "$arg_to_print_Uxntal #$port DEO ( , )";
 #            } else {
                 # Let's not print a zero byte
                 if ($arg_to_print_Uxntal ne '#00') {
-                    $line_Uxntal .= "$arg_to_print_Uxntal $print_fn_Uxntal #20$port DEO ( , )";
+                    $line_Uxntal .= "$arg_to_print_Uxntal $print_fn_Uxntal_init #20$port DEO ( , )";
                 }
 #            }
         }
-        if ($print_fn_Uxntal=~/array|implicit-do/) {
+        if ($print_fn_Uxntal_init=~/array|implicit-do/) {
             add_to_used_lib_subs('range-map-short');
         } else{
-            add_to_used_lib_subs($print_fn_Uxntal) unless $print_fn_Uxntal=~/\#/;#|print\-uint8/ ;
+            add_to_used_lib_subs($print_fn_Uxntal_init) unless $print_fn_Uxntal_init=~/\#/;#|print\-uint8/ ;
         }
         push @lines_Uxntal, $line_Uxntal;
     } # For all elements in the list-based print
@@ -3872,6 +3859,7 @@ sub _emit_print_from_ast($stref,$f,$line,$info,$unit,$elt){
     my $suffix = $unit eq 'STDERR' ? '-stderr' : '';
 
     my $code = $elt->[0];
+    
     if ($code == 2 or $code == 10) { # A scalar, but can be an unindexed string or array
         my $var_name = $elt->[1];
         my $decl = getDecl($stref,$f,$var_name);
@@ -3912,7 +3900,7 @@ sub _emit_print_from_ast($stref,$f,$line,$info,$unit,$elt){
                 return 'print-string'.$suffix;
             }
         }
-        if ( $decl->{'Type'} eq 'integer') {
+        if ( $decl->{'Type'} eq 'integer' or $decl->{'Type'} eq 'unsigned' ) {
             my $word_sz = exists $decl->{'ConstAttr'} 
                 ? do {my $const_attr = $decl->{'ConstAttr'}; $const_attr=~/(\d)/; my $kind = $1; $kind }
                 :  exists $decl->{'Attr'} 
@@ -3944,7 +3932,9 @@ sub _emit_print_from_ast($stref,$f,$line,$info,$unit,$elt){
         if ($return_type eq 'logical') {
             return 'print-bool'.$suffix;
         }
-        elsif ($return_type eq 'integer' and ($return_type_attr=~/(?:kind=)?2/
+        elsif (
+            ($return_type eq 'integer' or $return_type eq 'unsigned')
+            and ($return_type_attr=~/(?:kind=)?2/
         or $return_type_attr eq '')) {
             return 'print-int'.$suffix;
         }
@@ -4274,7 +4264,7 @@ sub __parse_fmt($fmt_str,$stref,$f,$info){
 	                        } else {
 	                            $len=1;
 	                        }
-	                    } elsif ($decl->{'Type'} eq 'integer') {
+	                    } elsif ($decl->{'Type'} eq 'integer' or $decl->{'Type'} eq 'unsigned') {
 	                        if (exists $decl->{'Attr'} and $decl->{'Attr'}=~/kind/) {
                             	my $klen=$decl->{'Attr'}; $klen=~s/^\(kind=//;$klen=~s/\)$//;
 								$len = $klen==1 ? 4 : 6; # including space for the sign

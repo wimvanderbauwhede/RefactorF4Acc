@@ -61,6 +61,7 @@ use Exporter;
     &is_allocatable
     &is_character
     &is_integer
+    &is_unsigned
     &is_logical
     &is_param
     &warning

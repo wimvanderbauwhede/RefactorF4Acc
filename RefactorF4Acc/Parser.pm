@@ -4,6 +4,7 @@
 # Statements that are currently not supported
 #
 # A `♦` suffix means not part of the F77 specification
+# A `♦♦` suffix means not part of the F90/95 specification
 # A `(E)` suffix means using this statement results in a parse error
 # A `(I)` suffix means using this statement is ignored in the analysis
 
@@ -23,6 +24,8 @@
 
 # Fortran 90/95
 
+# • Intrinsics
+# UINT♦♦
 # • Specification Statements
 # ALLOCATABLE (I)
 # INTENT (I)
@@ -708,6 +711,8 @@ PROGRAM
 SUBROUTINE
 
 Fortran 90/95
+• Types
++UNSIGNED♦♦ https://j3-fortran.org/doc/year/24/24-116.txt via https://gcc.gnu.org/onlinedocs/gfortran/Unsigned-integers.html
 • Specification Statements
 +USE
 +ALLOCATABLE
@@ -5441,7 +5446,7 @@ sub _get_var_recs_from_parse_tree { (my $tpt, my $vspt)=@_;
 			$attr = emit_expr_from_ast($tpt->[2]);
 			}
 		}
-		elsif  ($tpt->[2][0] == 29) {
+		elsif  ($tpt->[2][0] == 29 or $tpt->[2][0] == 37) {
 			# take the value
 			$attr = $tpt->[2][1];
 		}
@@ -5483,11 +5488,11 @@ sub _get_var_recs_from_parse_tree { (my $tpt, my $vspt)=@_;
 		if ($vpt->[0] == 5) {
 			# means there is a '*', so get both parts
 			# one of the parts again can be a scalar or an array
-			if ($vpt->[1][0] == 29) { # this is the string 'integer'
+			if ($vpt->[1][0] == 29 or $vpt->[1][0] == 37) { # this is the string 'integer'
 				$tvpt=$vpt->[2];
 				# get the attr
 				$attr = $vpt->[1][1];
-			} elsif ($vpt->[2][0] == 29) {
+			} elsif ($vpt->[2][0] == 29 or $vpt->[2][0] == 37) {
 				$tvpt=$vpt->[1];
 				# get the attr
 				$attr = $vpt->[2][1];

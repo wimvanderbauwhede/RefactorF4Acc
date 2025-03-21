@@ -190,6 +190,7 @@ sub load_uxntal_lib_subroutines(@uxntal_lib_sources) {
 our %used_uxntal_lib_subroutines = ();
 our %not_library_subroutines = ();
 sub add_to_used_lib_subs($subname) {
+
     if (not exists $used_uxntal_lib_subroutines{$subname}
     and exists $uxntal_lib_subroutines{$subname}
     ) {
@@ -207,7 +208,6 @@ sub add_to_used_lib_subs($subname) {
 
     } elsif (not exists $uxntal_lib_subroutines{$subname}) {
         $not_library_subroutines{$subname}=1;
-        # warn "No such library subroutine: $subname\n";
     }
 }
 
