@@ -663,11 +663,21 @@ Instead of the nice but cumbersome approach we had until now, from now on it is 
                     $id,$do_iterator,$do_iterator_wordsz,$do_step,
                     'Do'];
                 (my $do_start, my $do_start_wordsz) = _emit_expression_Uxntal($info->{'Do'}{'Range'}{'ExpressionASTs'}[0],$stref, $f, $info);
-                ($do_start,$do_start_wordsz) = __coerce_constant_size($info->{'Do'}{'Range'}{'ExpressionASTs'}[0],$do_start_wordsz,$info->{'Do'}{'Iterator'},$do_iterator_wordsz,$stref,$f,$info,[27,@{$info->{'Do'}{'Range'}{'ExpressionASTs'}}]);
-                
+                if ($do_start_wordsz!=$do_iterator_wordsz){
+                    ($do_start,$do_start_wordsz) = __coerce_constant_size(
+                        $info->{'Do'}{'Range'}{'ExpressionASTs'}[0],$do_start_wordsz,
+                        $info->{'Do'}{'Iterator'},$do_iterator_wordsz,
+                        $stref,$f,$info,[27,@{$info->{'Do'}{'Range'}{'ExpressionASTs'}}]
+                        );
+                }
                 (my $do_stop,my $do_stop_wordsz) =  _emit_expression_Uxntal($info->{'Do'}{'Range'}{'ExpressionASTs'}[1],$stref, $f, $info);
-                croak Dumper $do_stop,$do_stop_wordsz;
-                ($do_stop,$do_stop_wordsz) = __coerce_constant_size($info->{'Do'}{'Range'}{'ExpressionASTs'}[1],$do_stop_wordsz,$info->{'Do'}{'Iterator'},$do_iterator_wordsz,$stref,$f,$info,[27,@{$info->{'Do'}{'Range'}{'ExpressionASTs'}}]);
+                if ($do_stop_wordsz!=$do_iterator_wordsz){
+                    ($do_stop,$do_stop_wordsz) = __coerce_constant_size(
+                        $info->{'Do'}{'Range'}{'ExpressionASTs'}[1],$do_stop_wordsz,
+                        $info->{'Do'}{'Iterator'},$do_iterator_wordsz,
+                        $stref,$f,$info,[27,@{$info->{'Do'}{'Range'}{'ExpressionASTs'}}]
+                        );
+                }
                 my $loop_label = $loop.'_'.$f.'_'.$id;
                 my $loop_end_label = $loop.'_'.$end.'_'.$f.'_'.$id;
                 if (exists $info->{'Do'}{'ConstructName'} ) {
@@ -1414,16 +1424,20 @@ sub _var_access_read($stref,$f,$info,$ast) {
         my $var_access = __var_access($stref,$f,$var);
 
         if (is_array($stref,$f,$var)) {
-            if ($idx_expr_type == 1) {
+            if ($idx_expr_type == 1) { # array(idx)
                 my $idx_offset = __get_array_index_offset($stref,$f,$var);
                 my $idx_offset_Uxntal =  toHex($idx_offset,2);
                 my $idx_offset_expr = $idx_offset==0? '' : $idx_offset_Uxntal.' SUB2';
                 (my $idx,my $idx_word_sz) = _emit_expression_Uxntal($idxs,$stref,$f,$info);
+                if ($idx_word_sz==1) { # In this compiler, arrays are *always* absolute and *never* zero page
+                    $idx = $idx.' #00 SWP ';
+                }
+                # croak Dumper $idx, $idx_word_sz if $idx =~/ii/;
                 my $idx_expr = defined $idx 
                     ? ($idx eq $idx_offset_Uxntal) ? '' 
-                    : "$idx $idx_offset_expr".( $short_mode ? ' #10 SFT2 ': '') .' ADD2 ' : '';
+                    : "$idx $idx_offset_expr".( $short_mode ? ' #10 SFT2 ': '') .' ADD2' : '';
                 $idx_expr = __simplify_arith_expr($idx_expr);
-                $uxntal_code =     "$var_access $idx_expr LDA$short_mode"; # index, load the value
+                $uxntal_code = "$var_access $idx_expr LDA$short_mode"; # index, load the value
             } elsif ($idx_expr_type == 2) {
                 croak('Array slice is not yet supported: '.Dumper($ast));
                 error('Array slice is not yet supported: '.Dumper($ast));
@@ -1543,6 +1557,7 @@ sub _var_access_assign($stref,$f,$info,$lhs_ast,$rhs_ast) {
     # my $use_stack = __use_stack($stref,$f);
     my $lhs_var_access = __var_access($stref,$f,$lhs_var);
     if  (is_array($stref,$f,$lhs_var)) {
+        # LHS array index access
         if  ($idx_expr_type == 1) { # array(i) = rhs_expr
             my $lhs_idx_offset = __get_array_index_offset($stref,$f,$lhs_var);
             my $lhs_idx_offset_Uxntal =  toHex($lhs_idx_offset,2);
@@ -2786,11 +2801,15 @@ sub _emit_var_decl_Uxntal ($stref,$f,$info,$var){
                     $array_vals_str=~s/\/\)$//;
                     my $len = scalar split(/\s*,\s*/,$array_vals_str);
                     my ($array_vals_ast, $rest, $err) = parse_expression_no_context($array_vals_str,$info,$stref,$f);
-                    my ($expr_str, $word_sz ) = _emit_expression_Uxntal(  $array_vals_ast,$stref,$f,$info);
+                    carp Dumper $array_vals_ast;
+                    croak 'TODO: this needs a custom emitter';
+                    my ($expr_str, $word_sz ) = _emit_expression_Uxntal( $array_vals_ast,$stref,$f,$info);
                     # Problem is that the array can store strings, and then we need to know the length of the string instead of word_sz.
                     my $alloc_sz = $len*$word_sz; 
                     $c_var_decl .= $expr_str;
-                    carp Dumper $c_var_decl;
+                    croak Dumper $sz, $word_sz, $c_var_decl
+                    # Two problems: (1) the values should be raw, not LIT (2) the word size can be wrong. 
+
                     # So what does this become in Uxn? assuming for now strings without spaces:
 
                 } else {
@@ -3066,7 +3085,7 @@ sub _emit_expression_Uxntal ($ast, $stref, $f, $info) {
         # carp Dumper $ast,$opcode;
             # Special cases
 
-            if (($opcode == 21 or $opcode == 4 or $opcode == 3) and scalar @{$ast} == 2) {#  '.not.', '-' or '+'
+            if (($opcode == 21 or $opcode == 4 or $opcode == 3) and scalar @{$ast} == 2) {#  '.not.', '-' or '+' unary ops
                 (my $opcode, my $exp) =@{$ast};
                 my ($v, $word_sz) = _emit_expression_Uxntal($exp, $stref, $f,$info);
                 my $short_mode= $word_sz==2?'2':'';
@@ -3125,10 +3144,12 @@ sub _emit_expression_Uxntal ($ast, $stref, $f, $info) {
                     if ($lexp->[0] == 2 and ($rexp->[0] == 29 or $rexp->[0] == 37)) {
                         # warning( "Kind for right argument to ".$sigils[$opcode]." can be coerced: $l_word_sz <> $r_word_sz for ".Dumper($rexp)." in $f",0,'ERROR_KIND_MISMATCH');
                         ($rexp_str, $r_word_sz) = __coerce_constant_size($rexp,$r_word_sz,$lexp->[1],$l_word_sz,$stref,$f,$info,$ast);
+                        $rv = (ref($rexp) eq 'ARRAY') ? $rexp_str : $rexp;
                     }
                     elsif ($rexp->[0] == 2 and ($lexp->[0] == 29 or $lexp->[0] == 37 )) {
                         # error( "Kind for left argument to ".$sigils[$opcode]." can be coerced: $l_word_sz <> $r_word_sz for ".emit_expr_from_ast($ast)." in $f",0,'ERROR_KIND_MISMATCH');
                         ($lexp_str, $l_word_sz) = __coerce_constant_size($lexp,$l_word_sz,$rexp->[1],$r_word_sz,$stref,$f,$info,$ast);
+                        $lv = (ref($rexp) eq 'ARRAY') ? $lexp_str : $lexp;
                     }
                     else {
                         error( "Kinds for arguments to ".$sigils[$opcode]." must be the identical: $l_word_sz <> $r_word_sz for ".emit_expr_from_ast($ast)." in $f",0,'ERROR_KIND_MISMATCH');
