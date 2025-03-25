@@ -642,6 +642,7 @@ Instead of the nice but cumbersome approach we had until now, from now on it is 
                 }
                 $c_line = '&'.$while_loop_label . "\n" ;
             } else {
+                # croak Dumper $info->{'Do'};
                 my $do_iterator =  __shorten_fq_name( $f.'_'.$info->{'Do'}{'Iterator'});
                 my $do_iterator_wordsz = $stref->{'Subroutines'}{$f}{'WordSizes'}{$info->{'Do'}{'Iterator'}};
                 my $short_mode = $do_iterator_wordsz == 2? '2' : '';
@@ -659,9 +660,14 @@ Instead of the nice but cumbersome approach we had until now, from now on it is 
                     error("Only DO with constant integer STEP is supported: $line in $f",0,'ERROR');
                 }
                 push @{$pass_state->{'DoStack'}}, [
-                    $id,$do_iterator,$do_step,'Do'];
-                my ($do_start,$word_sz)= _emit_expression_Uxntal($info->{'Do'}{'Range'}{'ExpressionASTs'}[0],$stref, $f, $info);
-                (my $do_stop,$word_sz) =  _emit_expression_Uxntal($info->{'Do'}{'Range'}{'ExpressionASTs'}[1],$stref, $f, $info);
+                    $id,$do_iterator,$do_iterator_wordsz,$do_step,
+                    'Do'];
+                (my $do_start, my $do_start_wordsz) = _emit_expression_Uxntal($info->{'Do'}{'Range'}{'ExpressionASTs'}[0],$stref, $f, $info);
+                ($do_start,$do_start_wordsz) = __coerce_constant_size($info->{'Do'}{'Range'}{'ExpressionASTs'}[0],$do_start_wordsz,$info->{'Do'}{'Iterator'},$do_iterator_wordsz,$stref,$f,$info,[27,@{$info->{'Do'}{'Range'}{'ExpressionASTs'}}]);
+                
+                (my $do_stop,my $do_stop_wordsz) =  _emit_expression_Uxntal($info->{'Do'}{'Range'}{'ExpressionASTs'}[1],$stref, $f, $info);
+                croak Dumper $do_stop,$do_stop_wordsz;
+                ($do_stop,$do_stop_wordsz) = __coerce_constant_size($info->{'Do'}{'Range'}{'ExpressionASTs'}[1],$do_stop_wordsz,$info->{'Do'}{'Iterator'},$do_iterator_wordsz,$stref,$f,$info,[27,@{$info->{'Do'}{'Range'}{'ExpressionASTs'}}]);
                 my $loop_label = $loop.'_'.$f.'_'.$id;
                 my $loop_end_label = $loop.'_'.$end.'_'.$f.'_'.$id;
                 if (exists $info->{'Do'}{'ConstructName'} ) {
@@ -985,20 +991,21 @@ Instead of the nice but cumbersome approach we had until now, from now on it is 
                 
                 my $do_tup = pop @{$pass_state->{'DoStack'}};
                 if ($do_tup->[-1] eq 'Do') {
-                    croak 'MUST ADD ITER WORD SIZE';
-                    my ($do_id, $do_iter, $do_step) = @{$do_tup}; 
+                    my ($do_id, $do_iter, $do_iter_wordsz, $do_step, $isDo) = @{$do_tup}; 
                     my $loop_label = $loop.'_'.$f.'_'.$do_id;
                     my $loop_end_label = $loop.'_'.$end.'_'.$f.'_'.$do_id;
                     if ( exists $info->{'EndDo'}{'ConstructName'}) {
                         $loop_label = $f.'_'.$info->{'EndDo'}{'ConstructName'};
                         $loop_end_label = $f.'_'.$info->{'EndDo'}{'ConstructName'}.'_'.$end;
                     }
+                    my $short_mode = $do_iter_wordsz == 2? '2' : '';
                     my $inc = $do_step == 1 
-                        ? 'INC2' 
+                        ? 'INC'.$short_mode 
                         : $do_step == 2
-                            ? 'INC2 INC2'
-                            : toHex($do_step,2). ($do_step>0 ? ' ADD2' : ' SUB2');
-                    my $dec = $do_step == 1 ? '#0001 SUB2' : toHex($do_step,2). ($do_step<0 ? ' ADD2' : ' SUB2');
+                            ? 'INC'.$short_mode.' INC'.$short_mode
+                            : toHex($do_step,$do_iter_wordsz). ($do_step>0 ? ' ADD'.$short_mode : ' SUB'.$short_mode);
+                    # TODO: negative step
+                    my $dec = $do_step == 1 ? ($do_iter_wordsz == 2 ? '#0001' : '#01').' SUB'.$short_mode : toHex($do_step,$do_iter_wordsz). ($do_step<0 ? ' ADD'.$short_mode : ' SUB'.$short_mode);
                     # This says, INC and then compare, if it is not equal, loop again
                     # But fortran says compare then INC
                     # Also, NEQ2 only works if the step is 1! Otherwise we need a signed number comp
@@ -1008,15 +1015,15 @@ Instead of the nice but cumbersome approach we had until now, from now on it is 
                         # '&'.$loop_end_label." POP2 POP2\n";
 
                         # WV 2024-12-17 the value of the iterator to be stored as final is still on the WS so we can remove the LDA2 and save on a POP2 as well
-                        $c_line = ";$do_iter LDA2 $inc OVR2 OVR2 NEQ2 ".'?&'.$loop_label.' '."\n;$do_iter STA2\n".
-                        '&'.$loop_end_label." POP2\n";
+                        $c_line = ";$do_iter LDA$short_mode $inc OVR$short_mode OVR$short_mode NEQ$short_mode ".'?&'.$loop_label.' '."\n;$do_iter STA$short_mode\n".
+                        '&'.$loop_end_label." POP$short_mode\n";
                     } elsif ($do_step>0) { # assuming the step is positive
                         # $c_line = ";$do_iter LDA2 $inc OVR2 OVR2 GTH2 ".'?&'.$loop_label.' '."\n;$do_iter LDA2 $inc ;$do_iter STA2\n".
                         # '&'.$loop_end_label." POP2 POP2\n";
 
                         # WV 2024-12-17 the value of the iterator to be stored as final is still on the WS so we can remove the LDA2 and save on a POP2 as well
-                        $c_line = ";$do_iter LDA2 $inc OVR2 OVR2 GTH2 ".'?&'.$loop_label.' '."\n;$do_iter STA2\n".
-                        '&'.$loop_end_label." POP2\n";
+                        $c_line = ";$do_iter LDA$short_mode $inc OVR$short_mode OVR$short_mode GTH$short_mode ".'?&'.$loop_label.' '."\n;$do_iter STA$short_mode\n".
+                        '&'.$loop_end_label." POP$short_mode\n";
 
                         # add_to_used_lib_subs('gt2');
                     } else {
@@ -1585,7 +1592,21 @@ sub _var_access_assign($stref,$f,$info,$lhs_ast,$rhs_ast) {
             my $array_length = $dim;
             if ($rhs_ast->[0] == 28) { # Array literal
                 my ($rhs_array_literal,$rhs_word_sz) = _emit_expression_Uxntal($rhs_ast, $stref,$f, $info);
-            # croak Dumper $rhs_array_literal;
+
+                if ($rhs_word_sz!=$word_sz){
+
+                    my @consts = @{$rhs_ast->[1]};
+                    shift @consts; # to remove the comma opcode
+                    my @coerced_consts = ();
+                    for my $const_ast (@consts) {
+                       my $const_val = $const_ast->[1];
+                       $const_val =~s/_\d$//;
+                       $const_val.='_'.$word_sz;
+                        push @coerced_consts, [$const_ast->[0],$const_val];
+                    }
+                    $rhs_ast->[1] = [27,@coerced_consts];
+                    ($rhs_array_literal,$rhs_word_sz) = _emit_expression_Uxntal($rhs_ast, $stref,$f, $info);
+                }
                 # unique ID the cheap way
                 my $ref = \$rhs_ast->[1]; $ref=~s/REF..//;$ref=~s/\)//;
                 $uxntal_code = "$rhs_array_literal ;&$ref STA2 " .
@@ -2999,7 +3020,7 @@ sub _emit_expression_Uxntal ($ast, $stref, $f, $info) {
             # this is very lazy, but it works
             my ($lst_expr,$word_sz) = _emit_expression_Uxntal($ast->[1], $stref, $f,$info);
             $lst_expr =~s/\#//g;
-            # carp Dumper $ast,$lst_expr;
+            # croak Dumper $ast,$lst_expr;
             return ("{ $lst_expr } STH2r",2);
         }
         elsif ($opcode > 28 and $opcode < 36) { # literal constants (bool, number, character, string), emit in place
@@ -5056,6 +5077,13 @@ sub __coerce_constant_size($const_ast,$const_word_sz,$var,$var_word_sz,$stref,$f
             return ($const_expr_Uxntal, $const_word_sz);
         }
     } else {
-        croak "LHS and RHS word sizes don't match: $var_word_sz <> $const_word_sz for ".emit_expr_from_ast($ast)." in $f";
+        if ($var_word_sz != $const_word_sz) {
+            croak "LHS and RHS word sizes don't match: $var_word_sz <> $const_word_sz for ".emit_expr_from_ast($const_ast)." in $f";
+        } else {
+            (my $const_expr_Uxntal, my $const_word_sz) = _emit_expression_Uxntal($const_ast,$stref,$f,$info);
+            warning("Not a constant but size is OK: ".emit_expr_from_ast($const_ast)." in $f");
+            return ($const_expr_Uxntal, $const_word_sz);
+
+        }
     }
 }

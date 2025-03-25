@@ -1170,6 +1170,7 @@ sub emit_expr_from_ast { (my $ast)=@_;
                 (my $opcode, my $lexp, my $rexp) =@{$ast};
                 my $lv = (ref($lexp) eq 'ARRAY') ? emit_expr_from_ast($lexp) : $lexp;
                 my $rv = (ref($rexp) eq 'ARRAY') ? emit_expr_from_ast($rexp) : $rexp;
+                croak 'BOOM' if ref($opcode) eq 'ARRAY';
                 return $lv.' '.$sigils[$opcode].' '.$rv;
             }
         } elsif (scalar @{$ast}==2) { #  for '('  and '$'
