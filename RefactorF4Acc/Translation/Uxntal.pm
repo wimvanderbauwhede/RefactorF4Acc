@@ -985,8 +985,8 @@ Instead of the nice but cumbersome approach we had until now, from now on it is 
                 
                 my $do_tup = pop @{$pass_state->{'DoStack'}};
                 if ($do_tup->[-1] eq 'Do') {
-                    # croak Dumper $f,$annline,$do_tup;
-                    my ($do_id, $do_iter, $do_step) = @{$do_tup};
+                    croak 'MUST ADD ITER WORD SIZE';
+                    my ($do_id, $do_iter, $do_step) = @{$do_tup}; 
                     my $loop_label = $loop.'_'.$f.'_'.$do_id;
                     my $loop_end_label = $loop.'_'.$end.'_'.$f.'_'.$do_id;
                     if ( exists $info->{'EndDo'}{'ConstructName'}) {
@@ -1546,6 +1546,7 @@ sub _var_access_assign($stref,$f,$info,$lhs_ast,$rhs_ast) {
                 croak "LHS and RHS word sizes don't match: $word_sz <> $rhs_word_sz for assignment to $lhs_var in $f";
             }
             my ($idx,$idx_word_sz) = _emit_expression_Uxntal($idxs,$stref,$f,$info);
+            croak 'INDEX WORD SIZE IS 1!' if $idx_word_sz==1;
             my $idx_expr = defined $idx ? ($idx eq $lhs_idx_offset_Uxntal) ? '' : "$idx $lhs_idx_offset_expr".( $short_mode ? ' #10 SFT2 ( HERE ) ': '') .' ADD2 ' : '';
             $idx_expr = __simplify_arith_expr($idx_expr);
             $uxntal_code = "$rhs_expr_Uxntal  $lhs_var_access $idx_expr STA$short_mode"; # index, load the value
