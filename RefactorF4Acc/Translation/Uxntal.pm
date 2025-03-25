@@ -1780,22 +1780,23 @@ sub _var_access_assign($stref,$f,$info,$lhs_ast,$rhs_ast) {
     # carp Dumper($rhs_ast) if $f eq 'calcNumConst';
         my ($rhs_expr_Uxntal, $rhs_word_sz) = _emit_expression_Uxntal($rhs_ast,$stref,$f,$info);
         if ($rhs_word_sz!=$word_sz){
-            if ($rhs_ast->[0] == 29 or $rhs_ast->[0] == 37) {
-                my $numval = $rhs_ast->[1];
-                my $fixed_numval = $numval;
-                $fixed_numval =~s/_\d$//;
-                if ($fixed_numval > (1<<(8*$word_sz)-1)) {
-                    error("Constant $numval too large in assignment to $lhs_var in $f");
-                } else {
-                    $fixed_numval .= '_'.$word_sz;
-                    $rhs_ast = [$rhs_ast->[0],$fixed_numval];
-                    ($rhs_expr_Uxntal, $rhs_word_sz) = _emit_expression_Uxntal($rhs_ast,$stref,$f,$info);
-                    #TODO: if RHS word size is too large, that should be an error; but I only raise an error if the value is too large
-                    warning("Changed size of constant $numval to $fixed_numval in assignment to $lhs_var in $f")
-                }
-            } else {
-                croak "LHS and RHS word sizes don't match: $word_sz <> $rhs_word_sz for assignment to $lhs_var in $f";
-            }
+            ($rhs_expr_Uxntal, $rhs_word_sz) = __coerce_constant_size($rhs_ast,$rhs_word_sz,$lhs_var,$word_sz,$stref,$f,$info,[9,$lhs_ast, $rhs_ast]);
+            # if ($rhs_ast->[0] == 29 or $rhs_ast->[0] == 37) {
+            #     my $numval = $rhs_ast->[1];
+            #     my $fixed_numval = $numval;
+            #     $fixed_numval =~s/_\d$//;
+            #     if ($fixed_numval > (1<<(8*$word_sz)-1)) {
+            #         error("Constant $numval too large in assignment to $lhs_var in $f");
+            #     } else {
+            #         $fixed_numval .= '_'.$word_sz;
+            #         $rhs_ast = [$rhs_ast->[0],$fixed_numval];
+            #         ($rhs_expr_Uxntal, $rhs_word_sz) = _emit_expression_Uxntal($rhs_ast,$stref,$f,$info);
+            #         #TODO: if RHS word size is too large, that should be an error; but I only raise an error if the value is too large
+            #         warning("Changed size of constant $numval to $fixed_numval in assignment to $lhs_var in $f")
+            #     }
+            # } else {
+            #     croak "LHS and RHS word sizes don't match: $word_sz <> $rhs_word_sz for assignment to $lhs_var in $f";
+            # }
 
         }
         $uxntal_code = "$rhs_expr_Uxntal $lhs_var_access STA$short_mode ( scalar )";
@@ -3093,7 +3094,17 @@ sub _emit_expression_Uxntal ($ast, $stref, $f, $info) {
                 return ("$lv $rv".' { 0100 $100 } STH2r concat',2);
             } else {
                 if ($l_word_sz!=$r_word_sz) {
-                    error( "Kinds for arguments to ".$sigils[$opcode]." must be the identical: $l_word_sz <> $r_word_sz for ".emit_expr_from_ast($ast)." in $f",0,'ERROR_KIND_MISMATCH');
+                    if ($lexp->[0] == 2 and ($rexp->[0] == 29 or $rexp->[0] == 37)) {
+                        # warning( "Kind for right argument to ".$sigils[$opcode]." can be coerced: $l_word_sz <> $r_word_sz for ".Dumper($rexp)." in $f",0,'ERROR_KIND_MISMATCH');
+                        ($rexp_str, $r_word_sz) = __coerce_constant_size($rexp,$r_word_sz,$lexp->[1],$l_word_sz,$stref,$f,$info,$ast);
+                    }
+                    elsif ($rexp->[0] == 2 and ($lexp->[0] == 29 or $lexp->[0] == 37 )) {
+                        # error( "Kind for left argument to ".$sigils[$opcode]." can be coerced: $l_word_sz <> $r_word_sz for ".emit_expr_from_ast($ast)." in $f",0,'ERROR_KIND_MISMATCH');
+                        ($lexp_str, $l_word_sz) = __coerce_constant_size($lexp,$l_word_sz,$rexp->[1],$r_word_sz,$stref,$f,$info,$ast);
+                    }
+                    else {
+                        error( "Kinds for arguments to ".$sigils[$opcode]." must be the identical: $l_word_sz <> $r_word_sz for ".emit_expr_from_ast($ast)." in $f",0,'ERROR_KIND_MISMATCH');
+                    }
                 }
                 my $short_mode =  $l_word_sz == 2 ? '2' : '';
                 my $uxntal_instr = $sigils[$opcode].$short_mode;
@@ -5020,4 +5031,24 @@ sub __test_unsigned_op($exp,$stref,$f) {
             }
     }
     return 0;
+}
+
+
+sub __coerce_constant_size($const_ast,$const_word_sz,$var,$var_word_sz,$stref,$f,$info,$ast){
+    if ($const_ast->[0] == 29 or $const_ast->[0] == 37) {
+        my $numval = $const_ast->[1];
+        my $fixed_numval = $numval;
+        $fixed_numval =~s/_\d$//;
+        if ($fixed_numval > (1<<(8*$var_word_sz)-1)) {
+            error("Constant $numval too large in ".emit_expr_from_ast($ast)." in $f");
+        } else {
+            $fixed_numval .= '_'.$var_word_sz;
+            $const_ast = [$const_ast->[0],$fixed_numval];
+            (my $const_expr_Uxntal, my $const_word_sz) = _emit_expression_Uxntal($const_ast,$stref,$f,$info);
+            warning("Changed size of constant $numval to $fixed_numval in ".emit_expr_from_ast($ast)." in $f");
+            return ($const_expr_Uxntal, $const_word_sz);
+        }
+    } else {
+        croak "LHS and RHS word sizes don't match: $var_word_sz <> $const_word_sz for ".emit_expr_from_ast($ast)." in $f";
+    }
 }
