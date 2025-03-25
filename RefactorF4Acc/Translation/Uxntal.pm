@@ -643,8 +643,11 @@ Instead of the nice but cumbersome approach we had until now, from now on it is 
                 $c_line = '&'.$while_loop_label . "\n" ;
             } else {
                 my $do_iterator =  __shorten_fq_name( $f.'_'.$info->{'Do'}{'Iterator'});
+                my $do_iterator_wordsz = $stref->{'Subroutines'}{$f}{'WordSizes'}{$info->{'Do'}{'Iterator'}};
+                my $short_mode = $do_iterator_wordsz == 2? '2' : '';
                 $stref->{'Subroutines'}{$f}{'DoIterators'}{$info->{'Do'}{'Iterator'}}=$do_iterator;
-                my $uxntal_do_iter_decl = '@'.$do_iterator.' $2';
+                my $uxntal_do_iter_decl = '@'.$do_iterator.' $'.sprintf("%01x",$do_iterator_wordsz);
+                # croak $uxntal_do_iter_decl ;
                 if (not exists $pass_state->{'Subroutine'}{'LocalVars'}{'Set'}{$uxntal_do_iter_decl}) {
                     $pass_state->{'Subroutine'}{'LocalVars'}{'Set'}{$uxntal_do_iter_decl}=$uxntal_do_iter_decl;
                     $skip_comment=1;
@@ -665,11 +668,14 @@ Instead of the nice but cumbersome approach we had until now, from now on it is 
                     $loop_label = $f.'_'.$info->{'Do'}{'ConstructName'};
                     $loop_end_label = $f.'_'.$info->{'Do'}{'ConstructName'}.'_'.$end;
                 }
-                
-                $c_line = $do_stop . ' '.($do_step==1 ? 'INC2': ' ( '.toHex($do_step,2).' ADD2'.' ) ') . ' '.$do_start . "\n" .
-                'OVR2 OVR2 SUB2 #fff7 GTH2 ?&'.$loop_end_label.' '. "\n" .
+                # do_stop+1 do_start do_stop+1-do_start > #7fff
+                $c_line = $do_stop . ' '.($do_step==1 ? 'INC'.$short_mode: ' ( '.toHex($do_step,$do_iterator_wordsz).' ADD'.$short_mode.' ) ') . ' '.$do_start . "\n" .
+                ( $do_iterator_wordsz == 2 
+                    ? 'OVR2 OVR2 SUB2 #7fff GTH2'
+                    : 'OVR OVR SUB #7f GTH'
+                ). ' ?&'.$loop_end_label.' '. "\n" .
                 '&'.$loop_label . "\n" .
-                ';'.$do_iterator.' STA2 ';
+                ';'.$do_iterator.' STA'.$short_mode.' ';
             }
         }
         elsif (exists $info->{'BeginDo'} ) {
