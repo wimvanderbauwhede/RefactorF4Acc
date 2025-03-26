@@ -585,6 +585,7 @@ Instead of the nice but cumbersome approach we had until now, from now on it is 
                             $skip_comment=1;
                             push @{$pass_state->{'Subroutine'}{'LocalVars'}{'List'}}, "( ____ $line )" unless $skip_comment;
                             push @{$pass_state->{'Subroutine'}{'LocalVars'}{'List'}},$uxntal_var_decl;
+                            croak 'FIXME!';
                             $pass_state = _gen_array_string_inits($stref,$f,$var,$pass_state);
 
                         } else {
@@ -2801,13 +2802,10 @@ sub _emit_var_decl_Uxntal ($stref,$f,$info,$var){
                     $array_vals_str=~s/\/\)$//;
                     my $len = scalar split(/\s*,\s*/,$array_vals_str);
                     my ($array_vals_ast, $rest, $err) = parse_expression_no_context($array_vals_str,$info,$stref,$f);
-                    carp Dumper $array_vals_ast;
-                    croak 'TODO: this needs a custom emitter';
-                    my ($expr_str, $word_sz ) = _emit_expression_Uxntal( $array_vals_ast,$stref,$f,$info);
+                    my ($expr_str, $word_sz ) = _emit_data_expression_Uxntal( $array_vals_ast,$stref,$f,$info,$sz);
                     # Problem is that the array can store strings, and then we need to know the length of the string instead of word_sz.
                     my $alloc_sz = $len*$word_sz; 
                     $c_var_decl .= $expr_str;
-                    croak Dumper $sz, $word_sz, $c_var_decl
                     # Two problems: (1) the values should be raw, not LIT (2) the word size can be wrong. 
 
                     # So what does this become in Uxn? assuming for now strings without spaces:
@@ -3078,7 +3076,7 @@ sub _emit_expression_Uxntal ($ast, $stref, $f, $info) {
                 return ("$uxntal_str ( FALL-THROUGH ) ",$word_sz);
             }
         }
-        elsif ($opcode >= 36) { # special case
+        elsif ($opcode == 36 or $opcode > 37) { # special case
             return ($ast->[1]);
         }
         elsif (__is_operator($opcode) ) { # operators
@@ -3207,6 +3205,86 @@ sub _emit_expression_Uxntal ($ast, $stref, $f, $info) {
     }
 } # END of _emit_expression_Uxntal
 
+sub _emit_data_expression_Uxntal ($ast, $stref, $f, $info, $data_word_sz) {
+    my $Sf = $stref->{'Subroutines'}{$f};
+
+    if (ref($ast) eq 'ARRAY') {
+        my $opcode = $ast->[0];
+        if ( $opcode == 10 or $opcode == 2) { # variables; we always use raw absolute
+            return '='.$ast->[1];
+        }
+        elsif ($opcode == 1) { # function calls
+            croak 'No function calls in data regions';
+        }
+        elsif ($opcode == 28) { # (/
+            # this is very lazy, but it works
+            my ($lst_expr,$word_sz) = _emit_data_expression_Uxntal($ast->[1], $stref, $f,$info, $data_word_sz);
+            return ($lst_expr,2);
+        }
+        elsif ($opcode > 28 and $opcode < 36) { # literal constants (bool, number, character, string), emit in place
+            (my $opcode, my $exp) =@{$ast};
+            if ($opcode == 34) {
+                # We'll assume here that a single-char string is a char
+                my $isChar=1;
+                return (__substitute_PlaceHolders_Uxntal($exp,$info,$isChar),1);
+            }
+            elsif ($opcode == 35) {
+                die 'ERROR: Fortran LABEL as arg is not supported, sorry!'."\n";
+            }
+            # Handle integers, also with size notations, e.g. 11_1, 22_2
+            # Transform into hex
+            elsif ($exp=~/^\d+(?:_[1248])?$/) {
+                # my $sz=2; 
+                # if ($exp=~s/_([1248])$//) { $sz=$1}
+                return (toRawHex($exp,$data_word_sz),$data_word_sz);
+            }
+            elsif ($exp eq '.true.') {
+                return ('01',1);
+            }
+            elsif ($exp eq '.false.') {
+                return ('00',1);
+            }
+            elsif ($opcode == 32 ) {
+                if (length($exp)==3 and ord(substr($exp,0,0))==0 and ord(substr($exp,0,1))==39 and ord(substr($exp,0,2))==39) {
+                    return ('00',1);
+                } else {
+                    croak "<$exp> ",length($exp),ord(substr($exp,0,0)), ord(substr($exp,0,1)) , ord(substr($exp,0,2));
+                }
+            }
+            else {
+                croak 'TODO:',Dumper($ast);
+                my ($uxntal_str,$word_sz) = _var_access_read($stref,$f,$info, $ast);
+                return ("$uxntal_str ( FALL-THROUGH ) ",$word_sz);
+            }
+        }
+        elsif ($opcode == 36 or $opcode > 37) { # special case
+            return ($ast->[1]);
+        }
+        elsif (__is_operator($opcode) ) { # operators
+            croak "No operators in data regions";
+        }
+        elsif (scalar @{$ast} > 3 and $opcode == 27) { # the ast is a comma-separated list ','
+            my @args_lst_Uxntal=();
+            for my $idx (1 .. scalar @{$ast}-1) {
+                my $arg = $ast->[$idx];
+                my ($uxntal_arg_expr,$word_sz) = _emit_data_expression_Uxntal($arg, $stref, $f,$info, $data_word_sz);
+                push @args_lst_Uxntal, $uxntal_arg_expr;
+            }
+            return (join(' ',@args_lst_Uxntal),2 );
+        }
+        elsif ($opcode==0) { # parens, just remove it
+            return _emit_data_expression_Uxntal($ast->[1], $stref, $f, $info, $data_word_sz);
+        }
+        elsif ($opcode==9) { # assignment, not allowed in condition
+            error('Assignment is not allowed in and IF condition');
+        } else {
+            croak 'Unimplemented case for _emit_expression_Uxntal: ',Dumper($ast);
+        }
+    } else {
+        # This is fall-through if the expression is a literal
+        return ($ast,0); # word size set to 0 as it is meaningless.
+    }
+} # END of _emit_data_expression_Uxntal
 
 # Emits constant strings with only a leading double quote
 # We add extra info  to distingiush between a character and a string of length 1
@@ -3214,13 +3292,11 @@ sub __substitute_PlaceHolders_Uxntal($expr_str,$info,$isChar){
     if (not defined $isChar) { $isChar=0; }
     my $orig_str = $expr_str;
     if ($expr_str=~/__PH/ and exists $info->{'PlaceHolders'}) {
-        # croak $expr_str.Dumper($info->{'PlaceHolders'})
         # We probably want to refrain from prepending the opening quote
         # until we have replaced all quotes
         while ($expr_str =~ /(__PH\d+__)/) {
             my $ph=$1;
             my $ph_str = $info->{'PlaceHolders'}{$ph};
-            # say "PH STR<$ph_str>";# if $ph_str=~/\"\'\"/;
             $ph_str=~s/[\'\"]$//; # remove closing quotes
             $ph_str=~s/^[\']/\"/; # make opening quote " FIXME: not OK for "'" ?
             $expr_str=~s/$ph/$ph_str/;
@@ -3230,35 +3306,17 @@ sub __substitute_PlaceHolders_Uxntal($expr_str,$info,$isChar){
             error('Maximum string length is 96 characters',0,'ERROR_INVALID');
         }
         my $len_Uxntal = toRawHex($str_len,2);
-        # say "EXPR STR:<$expr_str>" if $len_Uxntal eq '0033';
         if ($len_Uxntal eq '0001' and $expr_str eq '""') {
             $expr_str = '{ 0001 22 }';
         }
         elsif ($len_Uxntal eq '0001' and $isChar) {
-            # croak $expr_str,' => ',substr($expr_str,1,1),' => ',ord(substr($expr_str,1,1)) if $expr_str=~/\)/;
             $expr_str = toHex(ord(substr($expr_str,1,1)),1);
-        # } elsif ($len_Uxntal eq '0001' and $expr_str eq '""') {
-        #     $expr_str = "{ $len_Uxntal 22 } STH2r";
-        # } elsif ( $expr_str =~/\"\(\s/ ) {
-        #     $expr_str =~s/\"\(\s/28 20/;
-        #     $expr_str = "{ $len_Uxntal $expr_str } STH2r";
-        # } elsif ( $expr_str =~/\"\($/ ) {
-        #     $expr_str =~s/\"\(/28/;
-        #     $expr_str = "{ $len_Uxntal $expr_str } STH2r";
-        # } elsif ( $expr_str =~/\"\)\s/ ) { croak "<$expr_str>";
-        #     $expr_str =~s/\"\)\s/29 20/;
-        #     $expr_str = "{ $len_Uxntal $expr_str } STH2r";
-        # } elsif ( $expr_str =~/\"\)/ ) { croak "<$expr_str>";
-        #     $expr_str =~s/\"\)/29/;
-        #     $expr_str = "{ $len_Uxntal $expr_str } STH2r";
         } elsif ($len_Uxntal eq '0000') { # empty string is a string!
             $expr_str = '#00'; #"{ 0000 } STH2r"; #  '#00'; #
         } else {
             # replace double quote as character by its ascii code. FIXME
             # replace space and nl by their ascii code
             # ' ' => ' 20 "'
-            # $expr_str =~s/\s+\"\s+/ 22 /g;
-            # croak "<$len_Uxntal> <$expr_str>" if  $expr_str=~/\"\s/;
             $expr_str =~s/\s/ 20 \"/g;
             $expr_str =~s/20\s+\"\s+/20 /g;
             $expr_str =~s/\n/ 0a \"/g;
@@ -3266,8 +3324,6 @@ sub __substitute_PlaceHolders_Uxntal($expr_str,$info,$isChar){
             $expr_str =~s/^\"\s+//; # remove opening quote if first char was \s or \n
             # double quote followed by space should be removed
             $expr_str =~s/\s+\"\s+/ /g;
-            # say "EXPR STR 2:<$expr_str>" if $len_Uxntal eq '0033';
-# croak "<$len_Uxntal> <$expr_str>" if  $expr_str=~/20\s*20\s*20\s*20\s+\"token:/;
 #FIXME: this should not split in the middle of a hex code!
             if ($str_len > 48 ) {
                 my $nchars = 49;
@@ -3286,8 +3342,6 @@ sub __substitute_PlaceHolders_Uxntal($expr_str,$info,$isChar){
                 }
                 $expr_str = $str_part_1 . $str_part_2;
             }
-            # say "EXPR STR 3:<$expr_str>" if $len_Uxntal eq '0033';
-            # croak "<$expr_str> from <$orig_str>, ".Dumper($info->{'PlaceHolders'}) if $expr_str =~/reconstructTypeNameExpr:/;
             $expr_str = "{ $len_Uxntal $expr_str } STH2r";
         }
     }
@@ -3303,13 +3357,82 @@ sub __substitute_PlaceHolders_Uxntal($expr_str,$info,$isChar){
         }
     }
     $expr_str = join(' ',@chunks_chars_to_ascii);
-    # if  ($expr_str=~/Binder\ 20/) {
-    #     die "FINAL EXPR<$expr_str>";
-    # } else {
-    #     say "FINAL EXPR<$expr_str>";
-    # }
+
     return $expr_str;
-} # END of __substitute_PlaceHolders
+} # END of __substitute_PlaceHolders_Uxntal
+
+sub __substitute_PlaceHolders_Uxntal_data($expr_str,$info,$isChar){
+    if (not defined $isChar) { $isChar=0; }
+    my $orig_str = $expr_str;
+    if ($expr_str=~/__PH/ and exists $info->{'PlaceHolders'}) {
+        # We probably want to refrain from prepending the opening quote
+        # until we have replaced all quotes
+        while ($expr_str =~ /(__PH\d+__)/) {
+            my $ph=$1;
+            my $ph_str = $info->{'PlaceHolders'}{$ph};
+            $ph_str=~s/[\'\"]$//; # remove closing quotes
+            $ph_str=~s/^[\']/\"/; # make opening quote " FIXME: not OK for "'" ?
+            $expr_str=~s/$ph/$ph_str/;
+        }
+        my $str_len = length($expr_str)-1;
+        if ($str_len > 127 ) {
+            error('Maximum string length is 96 characters',0,'ERROR_INVALID');
+        }
+        my $len_Uxntal = toRawHex($str_len,2);
+        if ($len_Uxntal eq '0001' and $expr_str eq '""') {
+            $expr_str = '0001 22';
+        }
+        elsif ($len_Uxntal eq '0001' and $isChar) {
+            $expr_str = toRawHex(ord(substr($expr_str,1,1)),1);
+        } elsif ($len_Uxntal eq '0000') { # empty string is a string!
+            $expr_str = '00'; #"{ 0000 } STH2r"; #  '#00'; #
+        } else {
+            # replace double quote as character by its ascii code. FIXME
+            # replace space and nl by their ascii code
+            # ' ' => ' 20 "'
+            $expr_str =~s/\s/ 20 \"/g;
+            $expr_str =~s/20\s+\"\s+/20 /g;
+            $expr_str =~s/\n/ 0a \"/g;
+            $expr_str =~s/\"\s*$//;
+            $expr_str =~s/^\"\s+//; # remove opening quote if first char was \s or \n
+            # double quote followed by space should be removed
+            $expr_str =~s/\s+\"\s+/ /g;
+#FIXME: this should not split in the middle of a hex code!
+            if ($str_len > 48 ) {
+                my $nchars = 49;
+                my $i = $nchars-1;
+                while ($i>0 and substr($expr_str,$i,1) ne ' ') {
+                    --$i;
+                }
+                $nchars = $i==0? 49:$i+1;
+                my $str_part_1 = substr($expr_str,0,$nchars);
+                my $str_part_2 = substr($expr_str,$nchars);
+                $str_part_2 =~s/^\s+\"?//;
+                if ($str_part_2 !~/^\"/) {
+                    $str_part_2 = ' "'.$str_part_2 ;
+                } else {
+                    $str_part_2 = ' '.$str_part_2 ;
+                }
+                $expr_str = $str_part_1 . $str_part_2;
+            }
+            $expr_str = "$len_Uxntal $expr_str";
+        }
+    }
+
+    my @chunks_chars_to_ascii=();
+    my @chunks = split(/\s+/,$expr_str);
+    for my $chunk (@chunks) {
+        if (substr($chunk,0,1) eq '"' and length($chunk)==2) {
+            my $chunk_ascii = toRawHex(ord(substr($chunk,1,1)),1);
+            push @chunks_chars_to_ascii, $chunk_ascii;
+        } else {
+            push @chunks_chars_to_ascii, $chunk;
+        }
+    }
+    $expr_str = join(' ',@chunks_chars_to_ascii);
+
+    return $expr_str;
+} # END of __substitute_PlaceHolders_Uxntal_data
 
 
 #### #### #### #### END OF C TRANSLATION CODE #### #### #### ####
