@@ -585,8 +585,10 @@ Instead of the nice but cumbersome approach we had until now, from now on it is 
                             $skip_comment=1;
                             push @{$pass_state->{'Subroutine'}{'LocalVars'}{'List'}}, "( ____ $line )" unless $skip_comment;
                             push @{$pass_state->{'Subroutine'}{'LocalVars'}{'List'}},$uxntal_var_decl;
-                            croak 'FIXME!';
-                            $pass_state = _gen_array_string_inits($stref,$f,$var,$pass_state);
+                            my $decl = getDecl($stref,$f,$var);
+                            if (not exists $decl->{'InitialValue'}) {
+                                $pass_state = _gen_array_string_inits($stref,$f,$var,$pass_state);
+                            }
 
                         } else {
                             croak "Vars should be unique: $uxntal_var_decl";
