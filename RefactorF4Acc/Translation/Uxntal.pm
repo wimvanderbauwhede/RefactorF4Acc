@@ -2801,13 +2801,42 @@ sub _emit_var_decl_Uxntal ($stref,$f,$info,$var){
                     $array_vals_str=~s/\/\)$//;
                     my $len = scalar split(/\s*,\s*/,$array_vals_str);
                     my ($array_vals_ast, $rest, $err) = parse_expression_no_context($array_vals_str,$info,$stref,$f);
-                    carp Dumper $array_vals_ast;
-                    croak 'TODO: this needs a custom emitter';
-                    my ($expr_str, $word_sz ) = _emit_expression_Uxntal( $array_vals_ast,$stref,$f,$info);
+                    # carp Dumper $array_vals_ast;
+                    # croak 'TODO: this needs a custom emitter';
+                    # We can assume that these are all constants and of course of the same type.
+                    # They can be integers, chars or strings. If strings, the must be of fixed size.
+                    my $array_expr_str='';
+                    if ($decl->{'Type'} eq 'integer' or $decl->{'Type'} eq 'unsigned') {
+                        # What is the word size?
+                        my $word_sz=2; # short by default
+                        if (exists $decl->{'ConstAttr'} and $decl->{'ConstAttr'}=~/kind=(\d)/) {
+                            $word_sz=$1;
+                        }
+                        elsif (exists $decl->{'Attr'} and $decl->{'Attr'}=~/kind=(\d)/) {
+                            $word_sz=$1;
+                        }
+                        # OK, just emit a sequence of those
+                        if ($array_vals_ast->[0]==27) {
+                            shift @{$array_vals_ast}; 
+                            my @array_vals_uxntal = map { toRawHex($_->[1],$word_sz)} @{$array_vals_ast};
+                            $array_expr_str= join(' ',@array_vals_uxntal) ;
+                        } else {
+                            # TODO
+                        }
+                    }
+                    elsif ($decl->{'Type'} eq 'character' ) {
+                        # Is it a string or a character?
+                        # TODO
+                    }
+                    else {
+                        error("Array of type ".$decl->{'Type'}." is not supported.");
+                    }
+
+                    # my ($expr_str, $word_sz ) = _emit_expression_Uxntal( $array_vals_ast,$stref,$f,$info);
                     # Problem is that the array can store strings, and then we need to know the length of the string instead of word_sz.
-                    my $alloc_sz = $len*$word_sz; 
-                    $c_var_decl .= $expr_str;
-                    croak Dumper $sz, $word_sz, $c_var_decl
+                    # my $alloc_sz = $len*$word_sz; 
+                    $c_var_decl .= $array_expr_str;
+                    # croak  $c_var_decl;
                     # Two problems: (1) the values should be raw, not LIT (2) the word size can be wrong. 
 
                     # So what does this become in Uxn? assuming for now strings without spaces:
