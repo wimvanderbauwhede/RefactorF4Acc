@@ -277,7 +277,7 @@ sub translate_program_to_Uxntal($stref,$program_name){
         ($stref->{'UseCallStack'} ? @{$stref->{'Uxntal'}{'CallStack'}} : ()),
        ];
     # This prints out the lines from $stref->{'TranslatedCode'}
-    $stref->{'TranslatedCode'} = _remove_redundant_labels($stref->{'TranslatedCode'});
+    # $stref->{'TranslatedCode'} = _remove_redundant_labels($stref->{'TranslatedCode'});
     $stref = _emit_Uxntal_code($stref, $program_name);
     # This enables the postprocessing for custom passes
     # $stref->{'CustomPassPostProcessing'}=1;
@@ -700,10 +700,10 @@ Instead of the nice but cumbersome approach we had until now, from now on it is 
                     ? 'OVR2 OVR2 SUB2 #7fff GTH2'
                     : 'OVR OVR SUB #7f GTH'
                 ). ' ?&'.$loop_end_label.' '. "\n" .
-                '&'.$loop_label .'_fb'. "\n" . # MUST STOP THIS FROM GETTING REMOVED!
+                '&'.$loop_label .'_b'. "\n" . 
                 '&'.$loop_label . "\n" .
                 ';'.$do_iterator.' STA'.$short_mode.' ';
-                croak $c_line;
+                # croak $c_line;
             }
         }
         elsif (exists $info->{'BeginDo'} ) {
@@ -5131,7 +5131,7 @@ sub _gen_array_string_inits($stref,$f,$var,$pass_state) {
     return $pass_state;
 }
 
-
+# This should only remove duplicate labels, if there are any (there shouldn't)
 sub _remove_redundant_labels($uxntal_source_lines) {
     my %used_labels = ();
     my $processed_uxntal_source_lines=[];
