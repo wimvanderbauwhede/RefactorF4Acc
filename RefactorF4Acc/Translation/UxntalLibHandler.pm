@@ -139,7 +139,7 @@ our %uxntal_lib_subroutines = (
     'SFT2 JMP2r'
 ],
 'exit' => [
-    '@exit', 'POP2','#80 .System/state DEO', 'POP2r', 'BRK'
+    '@exit', '#80 .System/state DEO', 'BRK'
 ],
 # 'trim' => [
 #     '@trim', '( a NOOP, TODO! )','JMP2r'

@@ -29,6 +29,8 @@ package RefactorF4Acc::Translation::Uxntal;
 
 use v5.30;
 
+use constant NEW_ARGS_AS_CHILD => 1; # FIXME: This does not work with parameters: the presence of a parameter results in the child labels being removed entirely.
+
 use RefactorF4Acc::Config;
 use RefactorF4Acc::Utils;
 use RefactorF4Acc::Utils::Functional qw( min max zip );
@@ -646,11 +648,16 @@ Instead of the nice but cumbersome approach we had until now, from now on it is 
                 $c_line = '&'.$while_loop_label . "\n" ;
             } else {
                 # croak Dumper $info->{'Do'};
-                my $do_iterator =  __shorten_fq_name( $f.'_'.$info->{'Do'}{'Iterator'});
+                my $do_iterator =  NEW_ARGS_AS_CHILD
+                    ? '&'.$info->{'Do'}{'Iterator'}
+                    : __shorten_fq_name( $f.'_'.$info->{'Do'}{'Iterator'});
                 my $do_iterator_wordsz = $stref->{'Subroutines'}{$f}{'WordSizes'}{$info->{'Do'}{'Iterator'}};
                 my $short_mode = $do_iterator_wordsz == 2? '2' : '';
                 $stref->{'Subroutines'}{$f}{'DoIterators'}{$info->{'Do'}{'Iterator'}}=$do_iterator;
-                my $uxntal_do_iter_decl = '@'.$do_iterator.' $'.sprintf("%01x",$do_iterator_wordsz);
+                my $uxntal_do_iter_decl = 
+                    (NEW_ARGS_AS_CHILD
+                    ? '&'.$info->{'Do'}{'Iterator'}
+                    : '@'.$do_iterator).' $'.sprintf("%01x",$do_iterator_wordsz);
                 # croak $uxntal_do_iter_decl ;
                 if (not exists $pass_state->{'Subroutine'}{'LocalVars'}{'Set'}{$uxntal_do_iter_decl}) {
                     $pass_state->{'Subroutine'}{'LocalVars'}{'Set'}{$uxntal_do_iter_decl}=$uxntal_do_iter_decl;
@@ -693,8 +700,10 @@ Instead of the nice but cumbersome approach we had until now, from now on it is 
                     ? 'OVR2 OVR2 SUB2 #7fff GTH2'
                     : 'OVR OVR SUB #7f GTH'
                 ). ' ?&'.$loop_end_label.' '. "\n" .
+                '&'.$loop_label .'_fb'. "\n" . # MUST STOP THIS FROM GETTING REMOVED!
                 '&'.$loop_label . "\n" .
                 ';'.$do_iterator.' STA'.$short_mode.' ';
+                croak $c_line;
             }
         }
         elsif (exists $info->{'BeginDo'} ) {
@@ -1029,7 +1038,11 @@ Instead of the nice but cumbersome approach we had until now, from now on it is 
 
                         # WV 2024-12-17 the value of the iterator to be stored as final is still on the WS so we can remove the LDA2 and save on a POP2 as well
                         $c_line = ";$do_iter LDA$short_mode $inc OVR$short_mode OVR$short_mode NEQ$short_mode ".'?&'.$loop_label.' '."\n;$do_iter STA$short_mode\n".
-                        '&'.$loop_end_label." POP$short_mode\n";
+                        '!&'.$loop_end_label.'_b_e '.
+                        '&'.$loop_end_label.
+                        ' !&'.$loop_end_label.'_b_e '.
+                        '&'.$loop_end_label.'_b_e'.
+                        " POP$short_mode\n";
                     } elsif ($do_step>0) { # assuming the step is positive
                         # $c_line = ";$do_iter LDA2 $inc OVR2 OVR2 GTH2 ".'?&'.$loop_label.' '."\n;$do_iter LDA2 $inc ;$do_iter STA2\n".
                         # '&'.$loop_end_label." POP2 POP2\n";
@@ -1051,10 +1064,6 @@ Instead of the nice but cumbersome approach we had until now, from now on it is 
                     }
                     $c_line .= "\n".'?&'.$while_loop_label;
                 }
-                # if ( exists $info->{'EndDo'}{'ConstructName'}) {
-                #     $c_line .= "\n".'&'.__shorten_fq_name($f).'_'.$info->{'EndDo'}{'ConstructName'}.'_'.$end;
-                #     # carp 'ConstructName:'. $info->{'EndDo'}{'ConstructName'} . " => $c_line ";
-                # }
         }
         elsif ( exists $info->{'EndProgram'} ) {
             # carp '<',$pass_state->{'Subroutine'}{'IsMain'} ,'>';
@@ -1879,7 +1888,7 @@ sub __var_access($stref,$f,$var) {
         (
             $use_stack
             ? __stack_access($stref,$f,$var)
-            : ';'. __create_fq_varname($stref,$f,$var)
+            : (NEW_ARGS_AS_CHILD ? ';&'.$var : ';'. __create_fq_varname($stref,$f,$var) )
         )
         .
         (
@@ -2291,7 +2300,7 @@ sub _stack_allocation($stref,$f,$var) {
 
 sub __create_fq_varname($stref,$f,$var_name) {
     # carp Dumper $var_name;
-    my $fq_varname = $f.'_'.$var_name;
+    my $fq_varname =  $f.(NEW_ARGS_AS_CHILD ? '/' : '_').$var_name;
 
     my $Sf = $stref->{'Subroutines'}{$f};
 
@@ -2311,7 +2320,7 @@ sub __create_fq_varname($stref,$f,$var_name) {
         $decl = get_var_record_from_set($Sf->{'ModuleParameters'},$var_name);
     }
     if (defined $decl) {
-        my $mod_name ='';
+        my $mod_name = '';
         if (exists $decl->{'ModuleName'}) {
             $mod_name = $decl->{'ModuleName'};
         }
@@ -2558,11 +2567,8 @@ sub _emit_subroutine_sig_Uxntal($stref, $f, $annline){
 
         my $name = $info->{'Signature'}{'Name'};
         my $args_ref = $info->{'Signature'}{'Args'}{'List'};
-# The ResultVar should be declared like a local, and be returned by value unless it is an array or string;
-# If it is an array or string it should be allocated statically
-# @intToStr_cs $2 should be @intToStr_cs 0006 $6 instead
-# ;intToStr_cs STA2 at the start should not be there
-# ;intToStr_cs LDA2 should be ;intToStr_cs unless it is a scalar
+        # The ResultVar should be declared like a local, and be returned by value unless it is an array or string;
+        # If it is an array or string it should be allocated statically
         my $result_var = '';
         
         if (exists $info->{'Signature'}{'ResultVar'}) {
@@ -2603,13 +2609,8 @@ sub _emit_subroutine_sig_Uxntal($stref, $f, $annline){
 } # END of _emit_subroutine_sig_Uxntal
 
 sub _emit_arg_decl_Uxntal($stref,$f,$arg, $name){
-    # my $decl =  get_var_record_from_set($stref->{'Subroutines'}{$f}{'Vars'},$arg) ;
-#croak $f,$name if $arg eq $name; # means the out arg is the name of the function
     my $decl = ($arg eq $name) ? {} : getDecl($stref,$f,$arg);
     my $iodir = ($arg eq $name) ? 'out' :lc($decl->{'IODir'});
-    # my $ftype = $decl->{'Type'};
-    # my $fkind = $decl->{'Attr'};
-    # croak Dumper $stref->{'Subroutines'}{$f}{Signature};
     my $isArrayOrString = ($arg eq $name) 
     ? do {
         my $ftype = $stref->{'Subroutines'}{$f}{'Signature'}{'ReturnType'};
@@ -2620,16 +2621,13 @@ sub _emit_arg_decl_Uxntal($stref,$f,$arg, $name){
         }
     }
     : is_array_or_string($stref,$f,$arg);
-    # $fkind=~s/\(kind=//;
-    # $fkind=~s/\)//;
-    # if ($fkind eq '') {$fkind=2};
-    # my $uxntal_size = toUxntalType($ftype,$fkind);
     my $word_sz = $stref->{'Subroutines'}{$f}{'WordSizes'}{$arg};
-    # carp Dumper($f,$arg, $word_sz, $isArrayOrString);
     my $short_mode = __nBytes($word_sz, $isArrayOrString) == 1 ? '' : '2';
-    # croak "$f $arg: $word_sz != $uxntal_size" if $word_sz != $uxntal_size;
     my $uxntal_write_arg = $iodir eq 'out' or $iodir eq 'inout' ? 1 : 0 ;
-    my $fq_name = __shorten_fq_name($name.'_'.$arg);
+    my $fq_name = 
+        NEW_ARGS_AS_CHILD
+        ? $name.'/'.$arg
+        : __shorten_fq_name($name.'_'.$arg);
     my $use_stack = __use_stack($stref,$f);
     # But if $arg is a ResultVar, it should not go on the stack
     if (($use_stack==1) and exists $stref->{'Subroutines'}{$f}{'Signature'}{'ResultVar'}
@@ -2651,7 +2649,10 @@ sub _emit_arg_decl_Uxntal($stref,$f,$arg, $name){
         ) . " STA$short_mode";
     my $uxntal_arg_decl = $use_stack
         ? ''
-        : '@'.$fq_name.' $'.__nBytes($word_sz, $isArrayOrString);
+        : (NEW_ARGS_AS_CHILD
+            ? '&'.$arg
+            : '@'.$fq_name
+            ).' $'.__nBytes($word_sz, $isArrayOrString);
     return ($stref,$uxntal_arg_decl,$uxntal_arg_store, $uxntal_write_arg,$use_stack);
 } # END of _emit_arg_decl_Uxntal()
 
@@ -2707,22 +2708,8 @@ sub _emit_var_decl_Uxntal ($stref,$f,$info,$var){
         my $fq_parname = __create_fq_varname($stref,$f,$var);
         my $par_decl_str = '@'.$fq_parname.' '. $val_str .' JMP2r';
         return ($stref,$par_decl_str,$alloc_sz);
-        # $const = 'const ';
-        # $val = ' = '.$decl->{'Val'};
-        # # In the case of a constant array: replace '(/' with '{' and add '[]' to front
-        # # WV 2021-10-19 This is OK but a bit hacky, because Fortran also supports the '[ ... ]' syntax
-        # # It would be better to use ParsedVarDecl
-        # if ($val=~s/\(\//{/) {
-        #     $val=~s/\/\)/}/;
-        #     $val = '[]' . $val;
-        # }
     } else {
-        # FIXME: Dim can still contain named constants
-        # croak "$f ". Dumper( $decl). Dumper($stref->{$sub_or_module}{$f}{'Vars'}) if $decl->{'Name'}=~/funktalTokens/i;
-        #.Dumper($stref->{$sub_or_module}{$f}{'Vars'})
         my $subset = in_nested_set( $Sf, 'Vars', $var );
-        # croak "$subset $f ". Dumper( $decl) if $decl->{'Type'} eq 'real';
-        # croak "$subset $f ". Dumper( $decl) if $var eq 'funktalTokens';
         my $dim = $array
             ? exists $decl->{'ConstDim'}
                 ? __array_size($decl->{'ConstDim'})
@@ -2756,10 +2743,14 @@ sub _emit_var_decl_Uxntal ($stref,$f,$info,$var){
             my $len = toRawHex($strlen,2);
             my $padding = $len;
             $padding =~s/^0+//;
-            my $c_var_decl = '@'.$fq_varname.' '.$len.' $'. $padding;
+            my $c_var_decl = (NEW_ARGS_AS_CHILD
+            ? '&'.$var
+            : '@'.$fq_varname).' '.$len.' $'. $padding;
             return ($stref,$c_var_decl,$padding);
         } else {
-            my $c_var_decl = '@'.$fq_varname.' ';
+            my $c_var_decl = (NEW_ARGS_AS_CHILD
+                ? '&'.$var 
+                : '@'.$fq_varname).' ';
             # $initial_value = '';
             if (ref($initial_value) eq 'ARRAY') {
                 my $word_sz = $Sf->{'WordSizes'}{$var};
@@ -2782,9 +2773,6 @@ sub _emit_var_decl_Uxntal ($stref,$f,$info,$var){
                     $initial_value =~s/\_[1248]\s*$//;
                     my $hex_val = toRawHex($initial_value,$sz);
                     $c_var_decl .= "$hex_val " x $dim;
-                    # my $padding = toRawHex($sz*$dim,2);
-                    # $padding =~s/^0+//;
-                    # $c_var_decl.='$'. $padding;
                     $alloc_sz=$sz*$dim;
                 } elsif ($initial_value eq '.true.') {
                     $c_var_decl .= '01 ' x $dim;
@@ -2798,7 +2786,6 @@ sub _emit_var_decl_Uxntal ($stref,$f,$info,$var){
                     $c_var_decl .= "$hex_val " x $dim;
                     $alloc_sz=$dim;
                 } elsif ($initial_value =~/^\(\//) { # HACK! 
-                    # croak "Array constant <$initial_value> ",Dumper($info);
                     my $array_vals_str =  $initial_value;
                     $array_vals_str=~s/^\(\///;
                     $array_vals_str=~s/\/\)$//;
@@ -4012,7 +3999,7 @@ sub _emit_list_print_Uxntal($stref,$f,$line,$info,$unit,$advance,$list_to_print)
             elsif ($print_fn_Uxntal eq 'print-char-stderr') {
                 $print_fn_Uxntal = '#19 DEO';
             }
-            $line_Uxntal = '{ ( iter ) ,&'.$iter.' STR2 '.$arg_to_print_Uxntal.' '.$print_fn_Uxntal.' JMP2r } STH2r '.toHex($array_length-1,2)." $idx_offset_expr #0000 $idx_offset_expr range-map-short ( print-array )";
+            $line_Uxntal = '{ ( iter ) ,&'.$iter.' STR2 '.$arg_to_print_Uxntal.' '.$print_fn_Uxntal." #20$port DEO".' JMP2r } STH2r '.toHex($array_length-1,2)." $idx_offset_expr #0000 $idx_offset_expr range-map-short ( print-array )";
             add_to_used_lib_subs($print_fn_Uxntal);
         }
         elsif ($print_fn_Uxntal_init eq 'print-array-slice') {
@@ -5181,17 +5168,26 @@ sub _remove_redundant_labels($uxntal_source_lines) {
         }
         my @line_chunks=split(/\s+/,$line);
         my @new_line_chunks=();
+        my $removed=0;
         for my $line_chunk (@line_chunks) {
             my $new_line_chunk=$line_chunk;
-            if ($line_chunk=~/^\&([\-\w]+)$/) {
+            if ($line_chunk=~/^\&([\-\w]+)$/) { # a child label
                 my $label =$1;
+                #croak Dumper @line_chunks if $label eq 'sz';
                 if (not exists $used_labels{$parent_label}{$label}) {
                     $new_line_chunk=~s/\&$label//g;
+                    croak "<$new_line_chunk>" if $new_line_chunk ne '';
+                    $removed=1;
                 }
+            }
+            elsif ($removed==1 and ($line_chunk=~/^\$/ or $line_chunk=~/^[0-9a-z]{1,4}/)) {
+                # croak;
+                $new_line_chunk='';$removed=0;
             }
             push @new_line_chunks, $new_line_chunk
         }
         $new_line=join(' ',@new_line_chunks);
+        
         croak $line if $new_line eq '6';
         push @{$processed_uxntal_source_lines},$new_line;
     }
