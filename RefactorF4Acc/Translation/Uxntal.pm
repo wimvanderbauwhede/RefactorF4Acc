@@ -1223,13 +1223,13 @@ Instead of the nice but cumbersome approach we had until now, from now on it is 
      my @translated_sub_code=(
         # @{$stref->{'TranslatedCode'}},'',
         @stack_alloc_info, # This is purely info
-        @{$sub_uxntal_code->{'ArgDecls'}},
-        @{$sub_uxntal_code->{'LocalVars'}{'List'}},
         @{$sub_uxntal_code->{'Sig'}},
         @stack_array_string_inits,
         @{$sub_uxntal_code->{'ArrayStringInits'}},
         @{$sub_uxntal_code->{'ReadArgs'}},
         @{$sub_uxntal_code->{'TranslatedCode'}},
+        @{$sub_uxntal_code->{'ArgDecls'}},
+        @{$sub_uxntal_code->{'LocalVars'}{'List'}},
         # @{$stref->{'TranslatedCode'}},'',
         #  @{$state->[2]{'ArgVarDecls'}},'',
         #  @{$state->[2]{'TranslatedCode'}}
@@ -3117,8 +3117,12 @@ sub _emit_expression_Uxntal ($ast, $stref, $f, $info) {
                 return ("$uxntal_str ( FALL-THROUGH ) ",$word_sz);
             }
         }
-        elsif ($opcode == 36 or $opcode > 37) { # special case
-            return ($ast->[1]);
+        elsif ($opcode == 36 ) { # for generated iterator in string rep
+            my $word_sz=2; # always LIT2
+            return ($ast->[1],$word_sz);
+        }
+        elsif ( $opcode > 37) { # special case, TODO
+            croak 'TODO';
         }
         elsif (__is_operator($opcode) ) { # operators
         # carp Dumper $ast,$opcode;
