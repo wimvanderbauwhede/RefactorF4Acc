@@ -2626,7 +2626,7 @@ sub _emit_arg_decl_Uxntal($stref,$f,$arg, $name){
     my $uxntal_write_arg = $iodir eq 'out' or $iodir eq 'inout' ? 1 : 0 ;
     my $fq_name = 
         NEW_ARGS_AS_CHILD
-        ? $name.'/'.$arg
+        ? '&'.$arg # not $name.'/'.$arg
         : __shorten_fq_name($name.'_'.$arg);
     my $use_stack = __use_stack($stref,$f);
     # But if $arg is a ResultVar, it should not go on the stack
