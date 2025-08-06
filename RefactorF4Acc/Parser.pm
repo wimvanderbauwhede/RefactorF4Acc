@@ -4111,7 +4111,8 @@ sub _identify_loops_breaks {
 			$tline =~ /^\s*(\w+)\s*:\s+do\s+(\d+)\s+\w/ && do {
 				error('DO with both construct-name and label not supported');
 			};
-			$tline =~ /^\s*\d*\s+do\s+(\d+)\s+\w/ && do {
+			$tline =~ /^\s*(?:\d+\s+)?do\s+(\d+)\s+\w/ && do {
+			
 				my $label = $1;
 				$info->{'BeginDo'}{'Label'} = $label;
 #				if (not exists $info->{'Do'}{'Label'}  or $info->{'Do'}{'Label'} eq 'LABEL_NOT_DEFINED') {
@@ -4119,6 +4120,7 @@ sub _identify_loops_breaks {
 #				} else {
 #					say "Do label already defined: $label <> ". $info->{'Do'}{'Label'};
 #				}
+
 				$Sf->{'DoLabelTarget'}{$label}='Unknown';
 				if ( not exists $do_loops{$label} ) {
 					@{ $do_loops{$label} } = ( [$index], $nest );
@@ -4199,6 +4201,8 @@ sub _identify_loops_breaks {
 			# continue can be end of do loop or break target (amongs others?)
 			$tline =~ /^\s*(\d+)\s+(continue|\w)/ && do {
 				my $label = $1;
+				carp $f, Dumper $Sf->{'DoLabelTarget'} if "$label" eq '500';
+
 				if (exists $Sf->{'DoLabelTarget'}{$label} ) {
 					$Sf->{'DoLabelTarget'}{$label}='Continue';
 				}
@@ -4206,7 +4210,7 @@ sub _identify_loops_breaks {
 				if ($is_cont) {
 					$info->{'Continue'}{'Label'} = $label;
 				}
-				if ( exists $do_loops{$label} ) {
+				if ( exists $do_loops{$label} ) { 
 					if ( $nest == $do_loops{$label}[1] + 1 ) {
 						$info->{'EndDo'}{'Label'} = $label;
 						$info->{'EndDo'}{'Count'} =
