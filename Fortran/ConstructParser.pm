@@ -28,6 +28,11 @@ use Exporter 'import';
 #parse_Fortran_IO_call( '  open(55,unit=44,file="filename")' );
 #parse_Fortran_do_construct(' do i=1,im ');
 
+#     open(21, file=trim(fnm)//'_'//trim(pro_wind)//"_"//trim(nt_s)
+#  +     //'.d', form='unformatted')
+
+
+# open(21, file=trim(fnm)//__PH0__//trim(pro_wind)//__PH1__//trim(nt_s)
 sub parse_Fortran_open_call {
 	(my $str) = @_;
     my $p =fortran_IO_call_parser();
@@ -116,7 +121,8 @@ sequence(
                     symbol( 'err' ),&eqs, {'Err' => natural}
                 ] ),
                 sequence( [
-                    symbol( 'form' ),&eqs, choice(
+                    # symbol( 'form' ),&eqs, regex('__PH\d+__')
+                    choice(
                         charExpr( 'unformatted'), charExpr( 'formatted'), charExpr( 'print')
                     )
                 ] ),

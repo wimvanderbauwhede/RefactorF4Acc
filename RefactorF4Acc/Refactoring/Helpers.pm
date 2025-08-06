@@ -1502,11 +1502,11 @@ sub parsedVarDecl_to_Decl { my ($pvd, $decl,$f) = @_;
                 : 0;
         if ($alloc_dim==0) {
             if ($pvd->{'TypeTup'}{'Kind'} eq ':'	) {
-                warning("allocatable character string ".$mdecl->{'Name'}." in $f");
+                error("allocatable character string ".$mdecl->{'Name'}." in $f",$DBG,'STATIC');
                 # error("TODO: allocatable character string".Dumper($mdecl));
             }
             elsif ($pvd->{'Attributes'}{'Dim'}[0] eq ':') {
-                warning("allocatable array ".$mdecl->{'Name'}." in $f");
+                error("allocatable array ".$mdecl->{'Name'}." in $f",$DBG,'STATIC');
             }
         } else {
         # So what we do is replace every value with this pair of empty strings.

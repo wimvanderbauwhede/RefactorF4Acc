@@ -1441,7 +1441,7 @@ or $line=~/^character\s*\(\s*len\s*=\s*[\w\*]+\s*\)/
 			 or $line =~ /\b(blockdata)/
 			 ) and $line !~ /^end\s+/) {
 				( $Sf, $line, $info ) =
-				  __parse_sub_func_prog_decls( $Sf, $line, $info );
+				  __parse_sub_func_prog_decls( $stref,$f, $line, $info );
 				  $info->{'NonSpecificationStatement'} = 1;
 			}
 #== END of CODE UNIT
@@ -1868,7 +1868,7 @@ END IF
 					$info->{'AST'} = $ast;
 					$info->{'IOCall'}{'AST'} = $ast;
 					$info->{'IOCall'}{'Args'} = { 'Set' => {}, 'List' => [ ] };
-					# carp Dumper $ast;
+					# carp $mline,'=>',Dumper $ast;
 					if ( exists $ast->{'FileName'} ) {
 						if ( exists $ast->{'FileName'}{'Var'} and $ast->{'FileName'}{'Var'} !~ /__PH/ ) {
 							$info->{'FileNameVar'} =
@@ -1880,7 +1880,6 @@ END IF
 							if ( exists $ast->{'FileName'}{'ExprVar'} ) {
 								$expr = $ast->{'FileName'}{'ExprVar'} . $expr;
 							}
-
 							my @chunks = split( /\W+/, $expr );
 							for my $mvar (@chunks) {
 								next if $mvar eq '';
@@ -3058,8 +3057,9 @@ sub _parse_implicit {
 
 # -----------------------------------------------------------------------------
 sub __parse_sub_func_prog_decls {
-	( my $Sf, my $line, my $info ) = @_;
-
+	( my $stref, my $f, my $line, my $info ) = @_;
+	my $sub_or_func_or_mod_or_inc_or_mod = sub_func_incl_mod( $f, $stref );
+	my $Sf = $stref->{$sub_or_func_or_mod_or_inc_or_mod}{$f};
 	# Determine the subroutine arguments
 	my $name = '';
 	if (   $line =~ /^\s*subroutine\s+(\w+)\s*\((.*)\)/
@@ -3085,6 +3085,11 @@ sub __parse_sub_func_prog_decls {
 		$Sf->{'UndeclaredOrigArgs'}{'List'}  = [@args];
 		$Sf->{'UndeclaredOrigArgs'}{'Set'} = { map { $_ => {
 			'Name' => $_,
+			'Type' => type_via_implicits($stref,$f,$_),
+			'ArrayOrScalar' => 'Scalar', # Otherwise it would need a dimension
+			'IODir' => 'Unknown',
+			'Kind' => 4,
+			'Attr' => '',
 			'Ann' => 'UndeclaredOrigArgs: ' .$_.' @ '. __PACKAGE__ . ' ' . __LINE__ ,
 			'Indent' => $info->{'Indent'},
 		}
@@ -3632,7 +3637,7 @@ sub __parse_f95_decl {
 sub _parse_f77_par_decl {
 	# F77-style parameters
 	( my $Sf, my $stref, my $f,my $indent, my $line, my $info, my $parliststr, my $pt ) = @_;
-	# say "LINE: $line";
+	
 	my $sub_or_mod =  sub_func_incl_mod( $f, $stref );
 	my $is_module = $sub_or_mod eq 'Modules' ? 1 : 0;
 	my $type   = 'Unknown';
@@ -3681,7 +3686,7 @@ sub _parse_f77_par_decl {
 	# This returns be a {($var,{Epxr => $exp, AST=>$ast})} Set + [$var] List
 	my $var_val_pairs = _get_var_val_pairs($ast);
 	my @param_names=@{ $var_val_pairs->{'List'} };
-#  carp Dumper ($ast,$var_val_pairs) if $line=~/VV/;
+
 	$info->{'ParamDecl'}{'Names'}=\@param_names;
 	for my $var (@param_names) {
 		my $val = $var_val_pairs->{'Set'}{$var}{'Expr'};
@@ -3819,7 +3824,7 @@ sub _parse_f77_par_decl {
 			'Status'    => 0,
 			'Implicit' => 0
 		};
-
+		# die "LINE: $line", Dumper $param_decl if $line=~/18/;
 
 		if ($is_module) {
 			$param_decl->{'ModuleName'} = $f;

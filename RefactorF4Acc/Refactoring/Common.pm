@@ -621,7 +621,7 @@ sub _create_refactored_subroutine_call { # 321 lines
 		shift @{$expr_ast};
 	}
 	my @cast_reshape_results=();
-
+	# carp 'ARGS:',Dumper $expr_ast if $f eq 'bound';
 	for my $call_arg_expr ( @{$expr_ast} ) {
 		# The main purpose is to handle variable names
 		# So this is rather weak because e.g. v(i) will not be in Vars.
@@ -662,6 +662,7 @@ sub _create_refactored_subroutine_call { # 321 lines
 				}
 
 				if ($call_arg_decl->{'Type'} ne 'character') { # we don't do this for character strings
+				# carp 'MAYBE_CAST:',Dumper [$f, $name, $call_arg,$call_arg_decl,$sig_arg, $sig_arg_decl];
 					my $cast_reshape_result = _maybe_cast_call_args($stref, $f, $name, $call_arg,$call_arg_decl,$sig_arg, $sig_arg_decl);
 					# say Dumper($cast_reshape_result)  if $name =~/mpi_reduce_double_precision/;
 					# croak Dumper($sig_arg_decl,$call_arg_decl)  if $name =~/mpi_reduce_double_precision/ and $call_arg eq 'data1';
@@ -1276,8 +1277,8 @@ sub __reshape_check { my ($stref, $f, $sub_name, $call_arg_decl,$sig_arg_decl) =
 		}
 		# say 'AFTER __take_upper_bound_from_call_arg:'.Dumper($sig_arg_decl);
 		# say "$f ".Dumper($dim1)."\n$sub_name".Dumper($dim2d);
-		my ($size1, $not_const1) = calculate_array_size( $stref, $f, $dim1 );
-		my ($size2, $not_const2) = calculate_array_size( $stref, $sub_name, $dim2d );
+		my ($size1, $not_const1) = calculate_array_size( $stref, $f, $dim1, $call_arg );
+		my ($size2, $not_const2) = calculate_array_size( $stref, $sub_name, $dim2d , $sig_arg);
 		croak 'FIXME!'.Dumper($call_arg_decl,$sig_arg_decl) if $DBG and not defined $size1 or not defined $size2;
 		if ($not_const1 ne $not_const2) {
 			warning("the call to $sub_name in $f might have the wrong dimension for " .
@@ -1334,6 +1335,7 @@ sub __cast_check {
 
 	my $needs_cast = 0;
 	# HACK for double precision
+
 	$call_arg_decl->{'Type'}=~s/\s+//g;
 	$sig_arg_decl->{'Type'}=~s/\s+//g;
 
@@ -1446,6 +1448,15 @@ sub __take_upper_bound_from_call_arg { my ($dim1,$dim2) = @_;
 
 sub _compare_decls{my ($stref, $f, $var1_decl, $var2_decl)=@_;
 	my $decls_are_equal = 1;
+
+	if (exists $var1_decl->{'Var'} and exists $var1_decl->{'Name'} and not defined $var1_decl->{'Name'}) {$var1_decl->{'Name'}=$var1_decl->{'Var'};}
+	if (exists $var2_decl->{'Var'} and exists $var2_decl->{'Name'} and not defined $var2_decl->{'Name'}) {$var2_decl->{'Name'}=$var2_decl->{'Var'};}
+	if (not exists $var1_decl->{'Kind'}) {
+		$var1_decl->{'Kind'}=4;
+	}
+	if (not exists $var2_decl->{'Kind'}) {
+		$var2_decl->{'Kind'}=4;
+	}
 	for my $k ( qw(Name ArrayOrScalar Type Kind Attr) ) {
 		$decls_are_equal *= (
 			exists $var1_decl->{$k} and
@@ -1457,8 +1468,8 @@ sub _compare_decls{my ($stref, $f, $var1_decl, $var2_decl)=@_;
 	){
 		my $dim1  = $var1_decl->{'Dim'};
 		my $dim2  = $var2_decl->{'Dim'};
-		my ($size1, $not_const1) = calculate_array_size( $stref, $f, $dim1 );
-		my ($size2, $not_const2) = calculate_array_size( $stref, $f, $dim2 );
+		my ($size1, $not_const1) = calculate_array_size( $stref, $f, $dim1 ,$var1_decl->{Name});
+		my ($size2, $not_const2) = calculate_array_size( $stref, $f, $dim2, $var2_decl->{Name} );
 
 		# but the rank we need is the rank of the expression
 		# FIXME: I will assume that if the array is indexed, all indices are used, i.e. rank is 0

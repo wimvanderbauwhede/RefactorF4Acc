@@ -178,7 +178,10 @@ sub read_fortran_src {
                 my $free_form = $stref->{$sub_func_incl}{$code_unit_name}{'FreeForm'};
                 # carp Dumper "$code_unit_name $free_form";
 
-#  die "$sub_func_incl $code_unit_name FreeForm=$free_form".Dumper($stref->{$sub_func_incl}{$code_unit_name}).'BOOM!!!' if $code_unit_name =~/mpif.h/;#!$free_form;
+#  die "$sub_func_incl $code_unit_name FreeForm=$free_form"
+#  . Dumper($stref->{$sub_func_incl}{$code_unit_name}).'BOOM!!!' ;
+# if $code_unit_name =~/mpif.h/;#!$free_form;
+
                 my $srctype = $sub_func_incl;
                 if ($sub_contained_in_module) {
                     $srctype        = 'Modules';
@@ -1265,6 +1268,9 @@ sub _hasCont {
 sub _isCont {
     ( my $line, my $free_form ) = @_;
     my $is_cont = 0;
+    # WV 2025-08-06 Some codes use fixed-form continuation style even though they are free form!
+    # So maybe we need an extra check, which would be
+    # - Does the unit have 6 spaces on every line or, if not, does that line have a non-zero character in the 5th position?
     if ( $free_form == 0 ) {
         if ( $line =~ /^\ {5}[^0\s]/ )
         { # continuation line. Continuation character can be anything, except a 0

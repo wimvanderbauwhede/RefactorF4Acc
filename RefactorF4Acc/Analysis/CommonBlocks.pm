@@ -184,8 +184,8 @@ sub _compare_decls {
 		my $dim2 = $decl2->{'Dim'};
 
 				# carp Dumper($dim1,$dim2);
-		my ($size1, $not_const1) = calculate_array_size( $stref, $f1, $dim1 );
-		my ($size2, $not_const2) = calculate_array_size( $stref, $f2, $dim2 );
+		my ($size1, $not_const1) = calculate_array_size( $stref, $f1, $dim1,$decl1->{'Name'} );
+		my ($size2, $not_const2) = calculate_array_size( $stref, $f2, $dim2,$decl2->{'Name'} );
 		# carp Dumper($size1,$size2);
 		my $dims_match = $size1 == $size2;
 		return 0 unless $dims_match;
@@ -229,7 +229,7 @@ sub _create_common_var_size_tuples {
 
 			if ( $called_sub_common_var_decl->{'ArrayOrScalar'} eq 'Array' ) {
 				$dim   = dclone( $called_sub_common_var_decl->{'Dim'} );
-				($dimsz, my $not_const) = calculate_array_size( $stref, $f, $dim ),;
+				($dimsz, my $not_const) = calculate_array_size( $stref, $f, $dim,$called_sub_common_var );
 			}
 			my $type        = $called_sub_common_var_decl->{'Type'};
 			my $kind_or_len = $type eq 'character' ? 1 : 4;            # default
@@ -748,8 +748,8 @@ sub __reshape_rhs_of_pair_if_required { my ($pair, $stref, $f ) = @_;
 
 	if ($is_array1 and $is_array2) {
 
-		my ($size1, $not_const1) = calculate_array_size( $stref, $f, $m_dim1 );
-		my ($size2, $not_const2) = calculate_array_size( $stref, $f, $m_dim2 );
+		my ($size1, $not_const1) = calculate_array_size( $stref, $f, $m_dim1,$var1 );
+		my ($size2, $not_const2) = calculate_array_size( $stref, $f, $m_dim2,$var2 );
 
 		# but the rank we need is the rank of the expression
 		# FIXME: I will assume that if the array is indexed, all indices are used, i.e. rank is 0

@@ -532,8 +532,8 @@ sub __refactor_EQUIVALENCE_line {
 					# and also assignment is array to array
 					my $dim1  = $var1_decl->{'Dim'};
 					my $dim2  = $var2_decl->{'Dim'};
-					my ($size1, $not_const1) = calculate_array_size( $stref, $f, $dim1 );
-					my ($size2, $not_const2) = calculate_array_size( $stref, $f, $dim2 );
+					my ($size1, $not_const1) = calculate_array_size( $stref, $f, $dim1, $var1 );
+					my ($size2, $not_const2) = calculate_array_size( $stref, $f, $dim2, $var2 );
 
 					# but the rank we need is the rank of the expression
 					# FIXME: I will assume that if the array is indexed, all indices are used, i.e. rank is 0
@@ -692,7 +692,7 @@ sub __embrace_extend_extinguish { my ($stref, $f, $annline,$rlines,$equiv_pairs,
 				if ($arg_decl->{'ArrayOrScalar'} eq 'Scalar' 
 				and $lhs_var_decl->{'ArrayOrScalar'} eq 'Array') {
 					# carp 'LHS VAR: ', Dumper $lhs_var_decl->{'Dim'};
-					my ($array_sz, $not_const) = calculate_array_size($stref, $f, $lhs_var_decl->{'Dim'});
+					my ($array_sz, $not_const) = calculate_array_size($stref, $f, $lhs_var_decl->{'Dim'},$lhs_var);
 					 if ($array_sz>1) {
 							warning("Extension of named COMMON block storage by EQUIVALENCE association of a variable and an array. Please don't do this!"
 								. "\nArray $lhs_var extends beyond argument $arg of $fname in call in $f"

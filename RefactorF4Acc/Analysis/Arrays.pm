@@ -37,12 +37,15 @@ dim_to_str
 
 
 sub calculate_array_size {
-	my ( $stref, $f, $dim ) = @_;
+	my ( $stref, $f, $dim, $var ) = @_;
 	
 	my @sz_strs = ();
+	
 	for my $entry ( @{$dim} ) {
-		my $sz_str = '((' . $entry->[1] . ') - (' . $entry->[0] . ')+1)';
-		push @sz_strs, $sz_str;
+		if (scalar @{$entry} == 0) { push @sz_strs, '0' } else {
+			my $sz_str = '((' . $entry->[1] . ') - (' . $entry->[0] . ')+1)';
+			push @sz_strs, $sz_str;
+		}
 	}
 	my $tot_sz_str = join( '*', @sz_strs );
 	# $tot_sz_str=~s/\-/ - /g;
@@ -50,24 +53,12 @@ sub calculate_array_size {
 	my $size = 0;
 	my $not_const = '';
 	# If there are unresolved vars, we return 0
-	# if ($tot_sz_str!~/[a-z]/){
-		$size = eval_expression_with_parameters( $tot_sz_str, {}, $stref, $f );
-		if (not defined $size) {
-			error("Could not evaluate array size expression, parameters not resolved");
-			$size=0;
-		}
-	# } else {
-	# 	# the size string is not constant, can't evaluate
-	# 	$not_const=$tot_sz_str;
-	# 	$not_const=~s/\s+//g;
-	# 	$not_const=~s/\((\w+)\)/$1/g if $not_const=~/\(\w+\)/;
-	# 	$not_const=~s/\-(\d+)\+$1//g if $not_const=~/\-\d+\+/;
-	# 	$not_const=~s/[\-\+]0//g;
-	# 	$not_const=~s/\((\w+)\)/$1/g if $not_const=~/\(\w+\)/;
-	# 	$not_const=~s/\*1//g;
-	# 	$not_const=~s/^\(+([^\(\)]+?)\)+$/$1/ if $not_const=~/^\(+([^\(\)]+?)\)+$/;
-	# 	die $not_const;
-	# }
+	$size = eval_expression_with_parameters( $tot_sz_str, {}, $stref, $f );
+	if (not defined $size) {
+		error("Could not evaluate array size expression for '$var' in subroutine '$f', parameters not resolved", $DBG,'STATIC');
+		$size=0;
+	}
+
 	return ($size, $not_const);
 }    # END of calculate_array_size
 

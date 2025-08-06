@@ -702,12 +702,13 @@ sub warning { my ($msg, $lev) = @_;
 sub error { (my $str, my $dbg, my $extra_info)=@_;
     $extra_info//='NONE';
     my %type_errors = (
+        'STATIC' => $Config{'STRICT_STATIC_ARRAY_CHECKS'},
         'EQUVALENCE' => $Config{'STRICT_EQUIVALENCE_CHECKS'},
         'COMMON' => $Config{'STRICT_COMMONS_CHECKS'},
         'NONE' => 1
     );
     my $error_type = exists $type_errors{$extra_info} ? 'TYPE ERROR' : 'ERROR';
-    if ((not exists $Config{'IGNORE_ERRORS'} or $Config{'IGNORE_ERRORS'}==0) and ($type_errors{$extra_info} or $extra_info=~/ERROR/i)) {
+    if ((not exists $Config{'IGNORE_ERRORS'} or $Config{'IGNORE_ERRORS'}==0) and ($type_errors{$extra_info}==1 or $extra_info=~/ERROR/i)) {
         if (defined $dbg and $dbg>0 or $DBG) {
             croak("$error_type: $str");
         } else {

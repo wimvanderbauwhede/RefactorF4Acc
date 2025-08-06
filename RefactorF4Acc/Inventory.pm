@@ -226,8 +226,9 @@ sub _process_src {
 #    my $f=''; # name of the entity
     my $has_blocks=0;
     my $free_form=0;
+    my $fixed_form=1;
     my $tab_format=0;
-    my $is_cont=0;
+    # my $is_cont=0;
     my $fstyle='F77';
     my $translate_to='';
     my $in_interface_block=0;
@@ -288,7 +289,7 @@ sub _process_src {
 #             $line =~ /^\s*\*/ && next;
 #             $line =~ /^\s*[CcDd]\W/ && next;
         # Tests for free or fixed form
-        if ($free_form==0) {
+        if ($free_form==0) { #  we start by assuming fixed form
         	# Get 6 cols
             my ($line, $cols1to6) = tabToFixed($line);
 
@@ -342,12 +343,12 @@ sub _process_src {
 #The standard fixed format source lines are defined as follows:
 #• The first 72 columns of each line are scanned. See “Extended Lines,” page 9.
 #• Continuation lines are identified by a nonblank, nonzero in column 6.
-			if (
-				defined $cols1to6_chars[5]
-			and $cols1to6_chars[5] ne ' '
-			and $cols1to6_chars[5] ne '0') {
-				$is_cont=1;
-			}
+			# if (
+			# 	defined $cols1to6_chars[5]
+			# and $cols1to6_chars[5] ne ' '
+			# and $cols1to6_chars[5] ne '0') {
+			# 	$is_cont=1;
+			# }
 
 #• Short lines are padded to 72 characters.
 #• Long lines are truncated. See “Extended Lines,” below.
@@ -355,7 +356,8 @@ sub _process_src {
 #• The first five columns must be blank or contain a numeric label.
         	# And the whitespace at the start of the line does not contain tabs
             if ( $line!~/^\s*$/ and $line !~ /^[\s\d]{5}.+/ and $line !~ /^\t[\t\s]*\w/ and $line !~/^\s+\t/ and $line!~/^\s*\#/) {
-                $free_form = 1;               
+                $free_form = 1;
+                $fixed_form = 0;
             }
 
 #             # TAB format
@@ -410,7 +412,8 @@ sub _process_src {
 
             $fstyle='F95';
             $stref->{'Modules'}{$mod_name}{'FStyle'}=$fstyle;
-            $stref->{'Modules'}{$mod_name}{'FreeForm'}=1;#$free_form;
+            warning( "The code unit $src is Fortran-90 or later. Please change the continuation lines to free format");
+            $stref->{'Modules'}{$mod_name}{'FreeForm'}=$free_form;
             $stref->{'Modules'}{$mod_name}{'TabFormat'}=$tab_format;
 
         }
@@ -423,7 +426,8 @@ sub _process_src {
                  if (scalar @{ $stref->{'SourceContains'}{$src}{'List'} } == 1) {
                  	(my $code_unit, $srctype) = %{ $stref->{'SourceContains'}{$src}{'Set'} };
 	                $stref->{$srctype}{$code_unit}{'FStyle'}='F95';
-    	        	$stref->{$srctype}{$code_unit}{'FreeForm'}=1;
+                    warning( "The code unit '$src' is Fortran-90 or later. Please change the continuation lines to free format");
+    	        	$stref->{$srctype}{$code_unit}{'FreeForm'}=$free_form;
                  }
             }
         }
