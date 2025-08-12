@@ -8,6 +8,9 @@ An Automated Fortran Code Refactoring Tool to Make Numerical Simulation Code Acc
 
 School of Computing Science, University of Glasgow, UK
 
+
+## This repository has moved to [Codeberg](https://codeberg.org/wimvanderbauwhede/RefactorF4Acc/), there will be no more updates to the code here.
+
 ## Note
 
 Please be aware of RefactorF4Acc's [limitations and known issues](LIMITATIONS.md)</a>. 
